@@ -13,3 +13,4 @@ This repository stores hands-on materials for various technical topics.
 
 - [CoreDNS Workshop: Understanding Name Resolution by Building Parent-Child DNS Servers](./coredns_en.md)
 - [Podman Workshop: Building an L3 Isolated Network with macvlan + Router Container](./vlan_en.md)
+- [K8s Service (LoadBalancer) Workshop: Building a Virtual LB with iptables](./k8s_lb_en.md)
