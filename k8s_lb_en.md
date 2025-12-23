@@ -40,6 +40,9 @@ graph LR
 Start a simple web server on the backend server (Container A).
 
 ```bash
+# Install netcat if missing
+sudo podman exec a apk add --no-cache busybox-extras
+
 # Start a simple HTTP server on Container A (Port 80)
 sudo podman exec -d a sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello from Pod A' | nc -l -p 80; done"
 ```
@@ -76,7 +79,7 @@ This corresponds to the **LoadBalancer IP (External IP)** in K8s.
 sudo podman exec router ip addr add 192.168.20.100/32 dev eth1
 ```
 
-- **Note:** MetalLB (L2 mode) does essentially the same thing. For ARP requests ("Who has this IP?"), the router answers "I have it (here is the MAC address)."
+- **Note:** `/32` means a single host IP (just this VIP). MetalLB (L2 mode) does essentially the same thing. For ARP requests ("Who has this IP?"), the router answers "I have it (here is the MAC address)."
 
 ---
 
@@ -130,6 +133,12 @@ Hello from Pod A
 ```
 
 We confirmed that while direct access to Container A's IP (`10.10`) is blocked, access is possible via the VIP (`20.100`). This is the fundamental behavior of a Load Balancer.
+
+**Cleanup (optional):** remove the temporary firewall rule after the experiment.
+
+```bash
+sudo podman exec router iptables -D FORWARD -i eth1 -o eth0 -j DROP
+```
 
 ---
 

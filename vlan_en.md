@@ -51,6 +51,7 @@ graph TD
 - **Podman:** Rootful mode (sudo privileges required)
 - **Physical NIC Name:** `eth0`
   - *Note:* Depending on the environment, it may be `ens5`, `ens3`, `enp0s3`, etc. Check with `ip link` and replace accordingly.
+- **Environment limitations:** macvlan/VLAN may not work on some cloud VMs or desktop hypervisors due to NIC restrictions. Use a Linux VM with a bridged NIC when possible.
 
 ### Environment Check
 
@@ -91,6 +92,8 @@ sudo ip link set $IF.20 up
 # Verify $IF.10 and $IF.20 are displayed
 ip link show
 ```
+
+*Note:* "Cannot find device" errors are OK if the subinterfaces do not exist.
 
 **Explanation:**
 
@@ -188,6 +191,7 @@ Output should show `192.168.10.1`, `192.168.20.1`, and `10.88.x.x` (podman defau
 ## Step 4. Configure NAT (IP Masquerade) on Router
 
 Use `iptables` inside the router container to relay traffic from private networks to the Internet.
+These rules are not persistent and will be lost if the router container restarts. A common way to make them persistent is to save rules with `iptables-save` and run `iptables-restore` at container startup (via entrypoint or a startup script). In practice, people also bake the rules into the image or use `nftables` configs loaded on boot.
 
 ```bash
 # Install iptables tool

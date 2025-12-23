@@ -40,6 +40,9 @@ graph LR
 まず、裏側のサーバー (Container A) で Web サーバーを起動します。
 
 ```bash
+# nc が入っていない場合は追加
+sudo podman exec a apk add --no-cache busybox-extras
+
 # Container A でシンプルな HTTP サーバーを起動 (ポート 80)
 sudo podman exec -d a sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello from Pod A' | nc -l -p 80; done"
 ```
@@ -76,7 +79,7 @@ sudo podman exec b ping -c 2 192.168.10.10
 sudo podman exec router ip addr add 192.168.20.100/32 dev eth1
 ```
 
-※ **解説:** MetalLB (L2モード) もこれと同じことを行います。ARP（「誰がこのIPを持っていますか？」）に対して、ルーターが「私が持っています（MACアドレスはこれです）」と答えるようになります。
+※ **解説:** `/32` は「この 1 つの IP だけ」を意味します。MetalLB (L2モード) もこれと同じことを行います。ARP（「誰がこのIPを持っていますか？」）に対して、ルーターが「私が持っています（MACアドレスはこれです）」と答えるようになります。
 
 ---
 
@@ -130,6 +133,12 @@ Hello from Pod A
 ```
 
 Container A の IP (`10.10`) には直接アクセスできないのに、VIP (`20.100`) 経由であればアクセスできることが確認できました。これがロードバランサの基本的な挙動です。
+
+**後片付け（任意）:** 実験用に入れたルールは戻しておきます。
+
+```bash
+sudo podman exec router iptables -D FORWARD -i eth1 -o eth0 -j DROP
+```
 
 ---
 

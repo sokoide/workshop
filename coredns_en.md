@@ -26,6 +26,8 @@ Build and understand the following configuration **hands-on**.
 2. **Forwarding:** A mechanism to forward queries for unknown domains to another server.
 3. **Zone Hierarchy:** The relationship between a parent (`sokoide.com`) and a child (`foo.sokoide.com`).
 
+*Note:* This workshop uses **forwarding** for clarity. Real-world DNS hierarchy is based on **delegation** (NS + glue records), which you will explore in the Next Steps.
+
 ---
 
 ## Prerequisites
@@ -159,6 +161,8 @@ VM2 manages the subdomain `foo.sokoide.com`. Register specific records (e.g., `t
 Start CoreDNS on each VM. Keep this terminal open to check logs (or use `screen`/`tmux` or background execution `&`).
 
 **VM1 (Parent) Terminal:**
+
+You can run without `sudo` if `/usr/local/bin` is in your PATH and you are using port `10053` (non-privileged).
 
 ```bash
 cd ~/coredns_parent
