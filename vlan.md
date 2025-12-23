@@ -50,7 +50,7 @@ graph TD
 - **OS:** Ubuntu 24.04 LTS (推奨)
 - **Podman:** Rootful モード (sudo 権限が必要)
 - **物理 NIC 名:** `eth0`
-  - ※ 環境によって `ens3`, `enp0s3` など異なります。`ip link` コマンドで確認し、適宜読み替えてください。
+  - ※ 環境によって `ens5`, `ens3`, `enp0s3` など異なります。`ip link` コマンドで確認し、適宜読み替えてください。
 
 ### 環境確認
 
@@ -67,18 +67,26 @@ ip link show
 
 ## Step 1. ホストに VLAN サブインタフェースを作る
 
-まず、物理 NIC (`eth0`) の上に、仮想的な VLAN インタフェースを作成します。これがネットワークの「物理的な」分離線となります。
+まず、物理 NIC (`IF`) の上に、仮想的な VLAN インタフェースを作成します。これがネットワークの「物理的な」分離線となります。
 
 ```bash
+# 物理インタフェースを確認
+ip link show
+export IF=ens5 # `eth0`の場合は `eth0` を指定
+
+# 既存のサブインタフェースを削除（存在する場合）
+sudo ip link delete $IF.10
+sudo ip link delete $IF.20
+
 # VLAN 10 用のサブインタフェース作成
-sudo ip link add link eth0 name eth0.10 type vlan id 10
+sudo ip link add link $IF name $IF.10 type vlan id 10
 
 # VLAN 20 用のサブインタフェース作成
-sudo ip link add link eth0 name eth0.20 type vlan id 20
+sudo ip link add link $IF name $IF.20 type vlan id 20
 
 # インタフェースを有効化
-sudo ip link set eth0.10 up
-sudo ip link set eth0.20 up
+sudo ip link set $IF.10 up
+sudo ip link set $IF.20 up
 ```
 
 **解説:**
@@ -99,7 +107,7 @@ sudo podman network create \
   --driver macvlan \
   --subnet 192.168.10.0/24 \
   --gateway 192.168.10.1 \
-  -o parent=eth0.10 \
+  -o parent=$IF.10 \
   net-vlan10
 ```
 
@@ -110,7 +118,7 @@ sudo podman network create \
   --driver macvlan \
   --subnet 192.168.20.0/24 \
   --gateway 192.168.20.1 \
-  -o parent=eth0.20 \
+  -o parent=$IF.20 \
   net-vlan20
 ```
 
@@ -252,8 +260,8 @@ sudo podman rm -f a b router
 sudo podman network rm net-vlan10 net-vlan20
 
 # ホスト上の VLAN インタフェース削除
-sudo ip link delete eth0.10
-sudo ip link delete eth0.20
+sudo ip link delete $IF.10
+sudo ip link delete $IF.20
 ```
 
 ---
