@@ -82,8 +82,8 @@ For this experiment, we block direct communication from VLAN 10 (Public) to VLAN
 In K8s, it is a principle to "use Service IP instead of accessing Pod IP directly." We will forcibly reproduce this.
 
 ```bash
-# Add a rule to block forwarding on the Router
-sudo podman exec router iptables -I FORWARD -i eth0 -o eth1 -j DROP
+# Add a rule to block forwarding on the Router (VLAN 10 -> VLAN 20)
+sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
 ```
 
 **Verification:**
@@ -102,8 +102,8 @@ Add a new IP address (`192.168.10.100`) to the router's VLAN 10 interface (`eth0
 This corresponds to the **LoadBalancer IP (External IP)** in K8s.
 
 ```bash
-# Add IP to eth0
-sudo podman exec router ip addr add 192.168.10.100/32 dev eth0
+# Add IP to eth1 (VLAN 10 side)
+sudo podman exec router ip addr add 192.168.10.100/32 dev eth1
 ```
 
 * **Note:** `/32` means a single host IP (just this VIP). MetalLB (L2 mode) does essentially the same thing. For ARP requests ("Who has this IP?"), the router answers "I have it (here is the MAC address)."
@@ -164,7 +164,7 @@ We confirmed that while direct access to Container B's IP (`20.20`) is blocked, 
 **Cleanup (optional):** remove the temporary firewall rule after the experiment.
 
 ```bash
-sudo podman exec router iptables -D FORWARD -i eth0 -o eth1 -j DROP
+sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 ```
 
 ---
@@ -173,7 +173,7 @@ sudo podman exec router iptables -D FORWARD -i eth0 -o eth1 -j DROP
 
 | This Workshop | K8s Component / Setting |
 | :--- | :--- |
-| `ip addr add 192.168.10.100` | **MetalLB (Speaker)** <br> The elected leader node advertises the IP. |
+| `ip addr add ... dev eth1` | **MetalLB (Speaker)** <br> The elected leader node advertises the IP. |
 | `iptables ... -j DNAT` | **kube-proxy** <br> Translates access to Service/NodePort to Pod IP. |
 | `iptables ... -j DROP` | **NetworkPolicy** (Deny All) <br> Blocks unnecessary direct communication. |
 

@@ -71,13 +71,16 @@ ip link show
 まず、物理 NIC (`IF`) の上に、仮想的な VLAN インタフェースを作成します。これがネットワークの「物理的な」分離線となります。
 
 ```bash
-# 物理インタフェースを確認
-ip link show
-export IF=ens5 # `eth0`の場合は `eth0` を指定
+# 物理インタフェース名を確認 (例: ens5, eth0, enp0s3)
+ip -brief link
+export IF=ens5 # ご自身の環境に合わせて変更してください
+
+# VLAN モジュール (8021q) がロードされているか確認
+sudo modprobe 8021q
 
 # 既存のサブインタフェースを削除（存在する場合）
-sudo ip link delete $IF.10
-sudo ip link delete $IF.20
+sudo ip link delete $IF.10 2>/dev/null
+sudo ip link delete $IF.20 2>/dev/null
 
 # VLAN 10 用のサブインタフェース作成
 sudo ip link add link $IF name $IF.10 type vlan id 10
@@ -154,28 +157,28 @@ sudo podman network ls
 
 異なるネットワーク間をつなぐ「ルーター」を作成します。このコンテナは 3 つのネットワークインタフェースを持ちます。
 
-1. **eth0 (net-vlan10):** VLAN 10 側のゲートウェイ (192.168.10.1)
-2. **eth1 (net-vlan20):** VLAN 20 側のゲートウェイ (192.168.20.1)
-3. **eth2 (podman):** ホスト/インターネットへの出口 (NAT用)
+1. **eth0 (podman):** ホスト/インターネットへの出口 (NAT用、デフォルトゲートウェイ)
+2. **eth1 (net-vlan10):** VLAN 10 側のゲートウェイ (192.168.10.1)
+3. **eth2 (net-vlan20):** VLAN 20 側のゲートウェイ (192.168.20.1)
 
 ```bash
-# 1. コンテナ起動（同時に net-vlan10 に接続）
-# --cap-add NET_ADMIN: iptables などを操作する権限を与える
-# --sysctl net.ipv4.ip_forward=1: Linux カーネルのパケット転送機能を有効化
+# 1. コンテナ起動（まず podman デフォルトネットワークに接続）
+# これにより、このコンテナのデフォルトゲートウェイがインターネットを向きます
 sudo podman run -d --name router \
-  --network net-vlan10 \
-  --ip 192.168.10.1 \
+  --network podman \
   --cap-add NET_ADMIN \
   --sysctl net.ipv4.ip_forward=1 \
   alpine sleep infinity
 
-# 2. net-vlan20 に接続
+# 2. net-vlan10 に接続
+sudo podman network connect \
+  --ip 192.168.10.1 \
+  net-vlan10 router
+
+# 3. net-vlan20 に接続
 sudo podman network connect \
   --ip 192.168.20.1 \
   net-vlan20 router
-
-# 3. デフォルトの podman ネットワーク（インターネット接続用）に接続
-sudo podman network connect podman router
 ```
 
 **確認:**
@@ -185,7 +188,7 @@ sudo podman network connect podman router
 sudo podman exec router ip addr
 ```
 
-出力に `192.168.10.1`, `192.168.20.1`, そして `10.88.x.x` (podmanデフォルト) の IP が見えれば成功です。
+出力に `10.88.x.x` (eth0), `192.168.10.1` (eth1), `192.168.20.1` (eth2) の IP が見えれば成功です。
 
 ---
 
@@ -201,16 +204,16 @@ sudo podman exec router apk add --no-cache iptables
 # NAT 設定を投入
 sudo podman exec router sh -c \
 '\
-# 外向き (eth2) 通信の送信元 IP を eth2 の IP に書き換える (Masquerade)
-iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
+# 外向き (eth0) 通信の送信元 IP を eth0 の IP に書き換える (Masquerade)
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
 # 転送許可設定
-# VLAN 10 (eth0) -> Internet (eth2)
-iptables -A FORWARD -i eth0 -o eth2 -j ACCEPT
-# VLAN 20 (eth1) -> Internet (eth2)
-iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+# VLAN 10 (eth1) -> Internet (eth0)
+iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+# VLAN 20 (eth2) -> Internet (eth0)
+iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
 # 戻りパケットの許可 (Established/Related)
-iptables -A FORWARD -i eth2 -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -i eth0 -m state --state ESTABLISHED,RELATED -j ACCEPT
 '
 ```
 
@@ -329,12 +332,12 @@ sudo podman exec a curl -I https://www.google.com
 
 ### 3. 実験：ルーティングを遮断してみる
 
-ルーターの `FORWARD` チェーンにルールを追加して、VLAN 10 (`eth0`) から VLAN 20 (`eth1`) への通信をブロックしてみましょう。
+ルーターの `FORWARD` チェーンにルールを追加して、VLAN 10 (`eth1`) から VLAN 20 (`eth2`) への通信をブロックしてみましょう。
 
 ```bash
 # 1. 遮断ルールの追加（先頭に挿入）
-# "eth0 から入って eth1 へ出るパケットを破棄 (DROP) する"
-sudo podman exec router iptables -I FORWARD -i eth0 -o eth1 -j DROP
+# "eth1 から入って eth2 へ出るパケットを破棄 (DROP) する"
+sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
 
 # 2. 疎通確認（失敗することを確認）
 # Container A -> Container B
@@ -343,7 +346,7 @@ sudo podman exec a ping -c 3 -W 1 192.168.20.20
 
 # 3. ルールの削除（復旧）
 # 追加したルール (-D) を削除
-sudo podman exec router iptables -D FORWARD -i eth0 -o eth1 -j DROP
+sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 
 # 4. 疎通確認（成功することを確認）
 sudo podman exec a ping -c 3 192.168.20.20

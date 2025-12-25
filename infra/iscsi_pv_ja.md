@@ -75,33 +75,15 @@ graph TD
 
 3. **iSCSIターゲットの設定**
 
-    `targetcli`を対話的に使って設定を行います。
+    `targetcli` を使って設定を行います。ここでは分かりやすくするため、IQNを明示的に指定します。
 
     ```bash
-    sudo targetcli
+    sudo targetcli /iscsi create iqn.2025-12.world.server:storage
+    sudo targetcli /backstores/fileio create disk01 /var/lib/iscsi_disk.img
+    sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backstores/fileio/disk01
     ```
 
-    `targetcli`のプロンプト (`/>`) 内で、以下のコマンドを順番に実行します。
-
-    ```bash
-    # 1. 作成したイメージファイルをバックストアとして登録
-    backstores/fileio create disk01 /var/lib/iscsi_disk.img
-
-    # 2. iSCSIターゲットを作成 (IQNは自動生成される)
-    # iqn.2003-01.org.linux-iscsi.vm2.x8664:sn.xxxxxxxxxxxx のような形式
-    iscsi/ create
-
-    # (参考) 作成されたIQNを確認
-    ls iscsi/
-
-    # 3. ターゲットにLUN (Logical Unit Number) を追加
-    # 上記で確認したIQNを指定する
-    iscsi/iqn.2003-01.org.linux-iscsi.vm2.x8664:sn.xxxxxxxxxxxx/tpg1/luns create /backstores/fileio/disk01
-
-    # 4. VM1からのアクセスを許可するACL (Access Control List) を設定
-    # この時点ではVM1のIQNが不明なため、後で設定します。まずはVM1のIQNを確認しに行きます。
-    # (このtargetcliセッションは一旦そのままにしておきます)
-    ```
+    次に、VM1からのアクセスを許可するための設定（ACL）を行いますが、その前にVM1のIQNを確認する必要があります。
 
 4. **VM1のIQNを確認 (VM1で実行)**
 
@@ -114,24 +96,18 @@ graph TD
     cat /etc/iscsi/initiatorname.iscsi
     ```
 
-    `InitiatorName=`に続く `iqn.1993-08.org.debian:01:xxxxxxxxxxxx`のような文字列がVM1のIQNです。これをメモしてください。
+    `InitiatorName=` に続く `iqn.1993-08.org.debian:01:xxxxxxxxxxxx` のような文字列をメモしてください。
 
-5. **ACLの設定と保存 (VM2のtargetcliに戻って実行)**
+5. **ACLの設定と保存 (VM2で実行)**
 
-    メモしたVM1のIQNを使って、VM2の`targetcli`でACLを作成します。
+    メモしたVM1のIQNを使って、VM2でアクセス許可を設定します。
 
     ```bash
-    # VM2のtargetcliプロンプトで実行
-    # iscsi/iqn.2003-01.../tpg1/acls create <VM1のIQNをここにペースト>
-    iscsi/iqn.2003-01.org.linux-iscsi.vm2.x8664:sn.xxxxxxxxxxxx/tpg1/acls create iqn.1993-08.org.debian:01:xxxxxxxxxxxx
+    # <VM1のIQN> を先ほどメモした値に置き換えてください
+    sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/acls create iqn.1993-08.org.debian:01:xxxxxxxxxxxx
 
-    # 5. ポータル(待ち受けIPアドレスとポート)を設定
-    # デフォルトで0.0.0.0:3260で待ち受けますが、明示的に設定することもできます。
-    # iscsi/iqn.2003-01.../tpg1/portals create 192.168.1.12
-
-    # 6. 設定を保存して終了
-    saveconfig
-    exit
+    # 設定を保存
+    sudo targetcli saveconfig
     ```
 
     これでiSCSIターゲットの準備は完了です。
@@ -140,25 +116,22 @@ graph TD
 
 次に、VM1からVM2のiSCSIディスクに接続し、マウントできることを確認します。
 
-1. **ターゲットの検出**
-
-    VM2のIPアドレスを指定して、公開されているiSCSIターゲットを検出します。
+1. **サービスの起動とターゲットの検出**
 
     ```bash
+    sudo systemctl enable --now iscsid
     sudo iscsiadm -m discovery -t sendtargets -p 192.168.1.12
     ```
 
 2. **ターゲットへのログイン**
 
-    検出されたターゲットにログインします。
-
     ```bash
-    sudo iscsiadm -m node --login
+    sudo iscsiadm -m node --targetname iqn.2025-12.world.server:storage --portal 192.168.1.12:3260 --login
     ```
 
 3. **ディスクの確認**
 
-    新しいブロックデバイスとして認識されているか確認します。`/dev/sda`の他に`/dev/sdb`などが見えるはずです。
+    新しいブロックデバイス（例: `/dev/sdb`）が認識されているか確認します。ログイン前後で `lsblk` を比較すると分かりやすいです。
 
     ```bash
     lsblk
@@ -166,12 +139,12 @@ graph TD
 
 4. **フォーマットとマウント**
 
-    新しいディスクを`ext4`ファイルシステムでフォーマットし、マウントします。
+    新しいディスクを `ext4` でフォーマットし、マウントします。**注意: デバイス名（/dev/sdb等）は環境によって異なる場合があります。**
 
     ```bash
-    # /dev/sdb を自分の環境に合わせる
+    # デバイス名を lsblk の結果に合わせて適宜変更してください
     sudo mkfs.ext4 /dev/sdb
-    sudo mkdir /mnt/iscsi_test
+    sudo mkdir -p /mnt/iscsi_test
     sudo mount /dev/sdb /mnt/iscsi_test
     ```
 
@@ -222,14 +195,13 @@ graph LR
 
 VM1に軽量KubernetesであるMinikubeをインストールします。
 
-1. **Dockerのインストール**
+1. **Podmanと依存パッケージのインストール**
 
-    コンテナランタイムとしてDockerをインストールします。
+    コンテナランタイム（Podman）と、Minikubeの動作に必要なネットワークツールをインストールします。
 
     ```bash
     sudo apt update
-    sudo apt install -y docker.io
-    sudo usermod -aG docker $USER && newgrp docker
+    sudo apt install -y podman conntrack socat
     ```
 
 2. **kubectlのインストール**
@@ -250,13 +222,15 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
 
 4. **Minikubeの起動**
 
-    **【重要】** RAM 4GBの環境では、VM内にさらにVMを作ることは困難です。`--driver=none`オプションは、MinikubeをVMとしてではなく、ホストOS（VM1）上で直接コンポーネントを動かすためのものです。これによりリソースを節約できますが、VM1の環境に直接影響を与えるため、本番環境では非推奨です。今回は学習目的のため、この方法を採用します。
+    **【重要】** RAM 4GBの環境では、リソース節約のために `--driver=none` を使用するのが最適です。これにより、MinikubeはVMを作らず、ホストOS上で直接Kubernetesコンポーネントを実行します。また、iSCSIデバイスをPodから直接マウントする際、ホストの `iscsiadm` を利用できるため設定が非常に簡単になります。
 
     ```bash
     # open-iscsiサービスが起動している必要がある
     sudo systemctl enable --now iscsid
 
-    sudo minikube start --driver=none
+    # noneドライバを使用し、Podmanをコンテナランタイムとして連携させる
+    # (注意: noneドライバはsudoで実行する必要があります)
+    sudo minikube start --driver=none --container-runtime=podman
     ```
 
     `kubectl is now configured to use "minikube"`と表示されたら成功です。
@@ -292,7 +266,7 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
         - ReadWriteOnce
       iscsi:
         targetPortal: "192.168.1.12:3260"
-        iqn: "iqn.2003-01.org.linux-iscsi.vm2.x8664:sn.xxxxxxxxxxxx" # VM2のIQN
+        iqn: "iqn.2025-12.world.server:storage" # VM2で設定したIQN
         lun: 0
         fsType: 'ext4'
         readOnly: false

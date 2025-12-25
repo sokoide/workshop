@@ -75,34 +75,15 @@ First, let's set up the iSCSI target (server) on VM2, which will provide the sto
 
 3. **Configure the iSCSI Target**
 
-    We will use `targetcli` interactively to configure the target.
+    We will use `targetcli` to configure the target. To make it easier to follow, we will specify a predictable IQN.
 
     ```bash
-    sudo targetcli
+    sudo targetcli /iscsi create iqn.2025-12.world.server:storage
+    sudo targetcli /backstores/fileio create disk01 /var/lib/iscsi_disk.img
+    sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backstores/fileio/disk01
     ```
 
-    Within the `targetcli` prompt (`/>`), execute the following commands in order.
-
-    ```bash
-    # 1. Register the image file as a fileio backstore
-    backstores/fileio create disk01 /var/lib/iscsi_disk.img
-
-    # 2. Create an iSCSI target (The IQN will be auto-generated)
-    # It will look something like iqn.2003-01.org.linux-iscsi.vm2.x8664:sn.xxxxxxxxxxxx
-    iscsi/ create
-
-    # (Reference) Check the created IQN
-    ls iscsi/
-
-    # 3. Add a LUN (Logical Unit Number) to the target
-    # Specify the IQN you noted from the previous step
-    iscsi/iqn.2003-01.org.linux-iscsi.vm2.x8664:sn.xxxxxxxxxxxx/tpg1/luns create /backstores/fileio/disk01
-
-    # 4. Set up an ACL (Access Control List) to allow access from VM1
-    # We don't know VM1's IQN yet, so we will configure this later.
-    # For now, let's go find VM1's IQN.
-    # (Keep this targetcli session open)
-    ```
+    Next, we will set up an ACL to allow access from VM1, but first, we need to find VM1's IQN.
 
 4. **Find VM1's IQN (on VM1)**
 
@@ -117,22 +98,16 @@ First, let's set up the iSCSI target (server) on VM2, which will provide the sto
 
     The string following `InitiatorName=`, like `iqn.1993-08.org.debian:01:xxxxxxxxxxxx`, is the IQN for VM1. Make a note of it.
 
-5. **Configure ACL and Save (back on VM2's targetcli)**
+5. **Configure ACL and Save (on VM2)**
 
-    Now, use the IQN of VM1 to create an ACL in `targetcli` on VM2.
+    Now, use the IQN of VM1 to create an ACL on VM2.
 
     ```bash
-    # Execute in the targetcli prompt on VM2
-    # iscsi/iqn.2003-01.../tpg1/acls create <Paste VM1's IQN here>
-    iscsi/iqn.2003-01.org.linux-iscsi.vm2.x8664:sn.xxxxxxxxxxxx/tpg1/acls create iqn.1993-08.org.debian:01:xxxxxxxxxxxx
+    # Replace <VM1_IQN> with the IQN you noted above
+    sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/acls create iqn.1993-08.org.debian:01:xxxxxxxxxxxx
 
-    # 5. Configure the portal (listening IP and port)
-    # By default, it listens on 0.0.0.0:3260, but you can also set it explicitly.
-    # iscsi/iqn.2003-01.../tpg1/portals create 192.168.1.12
-
-    # 6. Save the configuration and exit
-    saveconfig
-    exit
+    # Save the configuration
+    sudo targetcli saveconfig
     ```
 
     The iSCSI target is now ready.
@@ -141,25 +116,22 @@ First, let's set up the iSCSI target (server) on VM2, which will provide the sto
 
 Next, let's verify that VM1 can connect to and mount the iSCSI disk from VM2.
 
-1. **Discover the Target**
-
-    Discover the available iSCSI targets exposed by VM2.
+1. **Start Service and Discover the Target**
 
     ```bash
+    sudo systemctl enable --now iscsid
     sudo iscsiadm -m discovery -t sendtargets -p 192.168.1.12
     ```
 
 2. **Log in to the Target**
 
-    Log in to the discovered target.
-
     ```bash
-    sudo iscsiadm -m node --login
+    sudo iscsiadm -m node --targetname iqn.2025-12.world.server:storage --portal 192.168.1.12:3260 --login
     ```
 
 3. **Verify the Disk**
 
-    Check if a new block device has been recognized. You should see a new device like `/dev/sdb` in addition to `/dev/sda`.
+    Check if a new block device (e.g., `/dev/sdb`) has been recognized. Comparing `lsblk` before and after login is helpful.
 
     ```bash
     lsblk
@@ -167,12 +139,12 @@ Next, let's verify that VM1 can connect to and mount the iSCSI disk from VM2.
 
 4. **Format and Mount**
 
-    Format the new disk with the `ext4` filesystem and mount it.
+    Format the new disk with the `ext4` filesystem and mount it. **Note: The device name (e.g., /dev/sdb) may vary depending on your environment.**
 
     ```bash
-    # Adjust /dev/sdb to match your environment
+    # Adjust /dev/sdb based on your lsblk output
     sudo mkfs.ext4 /dev/sdb
-    sudo mkdir /mnt/iscsi_test
+    sudo mkdir -p /mnt/iscsi_test
     sudo mount /dev/sdb /mnt/iscsi_test
     ```
 
@@ -223,14 +195,13 @@ This mechanism allows a Pod to consume storage through an abstract request (a PV
 
 Now, install Minikube, a lightweight Kubernetes distribution, on VM1.
 
-1. **Install Docker**
+1. **Install Podman and Dependencies**
 
-    Install Docker as the container runtime.
+    Install Podman as the container runtime and additional network tools required by Minikube.
 
     ```bash
     sudo apt update
-    sudo apt install -y docker.io
-    sudo usermod -aG docker $USER && newgrp docker
+    sudo apt install -y podman conntrack socat
     ```
 
 2. **Install kubectl**
@@ -251,13 +222,15 @@ Now, install Minikube, a lightweight Kubernetes distribution, on VM1.
 
 4. **Start Minikube**
 
-    **[IMPORTANT]** In a 4GB RAM environment, creating a VM inside another VM is difficult. The `--driver=none` option runs the Kubernetes components directly on the host OS (VM1) instead of in a new VM. This saves resources but directly affects the VM1 environment and is not recommended for production. For this workshop, it's a practical choice.
+    **[IMPORTANT]** In a 4GB RAM environment, using `--driver=none` is the best way to save resources. This runs Kubernetes components directly on the host OS. Additionally, it significantly simplifies mounting iSCSI volumes because the Pods can leverage the host's `iscsiadm` and device nodes directly.
 
     ```bash
     # The open-iscsi service must be running
     sudo systemctl enable --now iscsid
 
-    sudo minikube start --driver=none
+    # Use the none driver and specify podman as the container runtime
+    # (Note: the none driver must be run with sudo)
+    sudo minikube start --driver=none --container-runtime=podman
     ```
 
     If you see the message `kubectl is now configured to use "minikube"`, it was successful.
@@ -293,7 +266,7 @@ Finally, let's use the iSCSI disk as a persistent volume in Kubernetes.
         - ReadWriteOnce
       iscsi:
         targetPortal: "192.168.1.12:3260"
-        iqn: "iqn.2003-01.org.linux-iscsi.vm2.x8664:sn.xxxxxxxxxxxx" # IQN of VM2
+        iqn: "iqn.2025-12.world.server:storage" # IQN of VM2
         lun: 0
         fsType: 'ext4'
         readOnly: false

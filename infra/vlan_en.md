@@ -71,13 +71,16 @@ ip link show
 First, create virtual VLAN interfaces on top of the physical NIC (`IF`). This serves as the "physical" separation line of the network.
 
 ```bash
-# Check physical interfaces
-ip link show
-export IF=ens5 # Replace with `eth0` if applicable
+# Check physical interface names (e.g., ens5, eth0, enp0s3)
+ip -brief link
+export IF=ens5 # Replace with your actual interface name
+
+# Ensure the VLAN module (8021q) is loaded
+sudo modprobe 8021q
 
 # Delete existing subinterfaces (if they exist)
-sudo ip link delete $IF.10
-sudo ip link delete $IF.20
+sudo ip link delete $IF.10 2>/dev/null
+sudo ip link delete $IF.20 2>/dev/null
 
 # Create subinterface for VLAN 10
 sudo ip link add link $IF name $IF.10 type vlan id 10
@@ -154,28 +157,28 @@ sudo podman network ls
 
 Create a "router" to connect different networks. This container has 3 network interfaces.
 
-1. **eth0 (net-vlan10):** Gateway for VLAN 10 side (192.168.10.1)
-2. **eth1 (net-vlan20):** Gateway for VLAN 20 side (192.168.20.1)
-3. **eth2 (podman):** Exit to host/Internet (for NAT)
+1. **eth0 (podman):** Exit to host/Internet (for NAT, default gateway)
+2. **eth1 (net-vlan10):** Gateway for VLAN 10 side (192.168.10.1)
+3. **eth2 (net-vlan20):** Gateway for VLAN 20 side (192.168.20.1)
 
 ```bash
-# 1. Start container (connect to net-vlan10 simultaneously)
-# --cap-add NET_ADMIN: Grants permission to manipulate iptables, etc.
-# --sysctl net.ipv4.ip_forward=1: Enables Linux kernel packet forwarding
+# 1. Start container (connect to default podman network first)
+# This ensures the default gateway points to the Internet
 sudo podman run -d --name router \
-  --network net-vlan10 \
-  --ip 192.168.10.1 \
+  --network podman \
   --cap-add NET_ADMIN \
   --sysctl net.ipv4.ip_forward=1 \
   alpine sleep infinity
 
-# 2. Connect to net-vlan20
+# 2. Connect to net-vlan10
+sudo podman network connect \
+  --ip 192.168.10.1 \
+  net-vlan10 router
+
+# 3. Connect to net-vlan20
 sudo podman network connect \
   --ip 192.168.20.1 \
   net-vlan20 router
-
-# 3. Connect to default podman network (for Internet access)
-sudo podman network connect podman router
 ```
 
 **Verification:**
@@ -185,7 +188,7 @@ Confirm that the container has 3 interfaces: `eth0`, `eth1`, and `eth2` (+ `lo`)
 sudo podman exec router ip addr
 ```
 
-Output should show `192.168.10.1`, `192.168.20.1`, and `10.88.x.x` (podman default) IPs.
+Output should show `10.88.x.x` (eth0), `192.168.10.1` (eth1), and `192.168.20.1` (eth2) IPs.
 
 ---
 
@@ -201,36 +204,36 @@ sudo podman exec router apk add --no-cache iptables
 # Apply NAT settings
 sudo podman exec router sh -c \
 '\
-# Rewrite source IP of outgoing traffic (eth2) to eth2 IP (Masquerade)
-iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
+# Rewrite source IP of outgoing traffic (eth0) to eth0 IP (Masquerade)
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 
 # Forwarding permission settings
-# VLAN 10 (eth0) -> Internet (eth2)
-iptables -A FORWARD -i eth0 -o eth2 -j ACCEPT
-# VLAN 20 (eth1) -> Internet (eth2)
-iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+# VLAN 10 (eth1) -> Internet (eth0)
+iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
+# VLAN 20 (eth2) -> Internet (eth0)
+iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
 # Allow return packets (Established/Related)
-iptables -A FORWARD -i eth2 -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -i eth0 -m state --state ESTABLISHED,RELATED -j ACCEPT
 '
 ```
 
 **Command Breakdown:**
 
-1. `iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE`
-    - **Meaning:** "Rewrite the source IP of packets going out to the Internet (`eth2`) to the router's own IP."
+1. `iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE`
+    - **Meaning:** "Rewrite the source IP of packets going out to the Internet (`eth0`) to the router's own IP."
     - `-t nat`: Uses the NAT table for address translation.
     - `POSTROUTING`: Processes packets *after* the routing decision has been made.
     - `MASQUERADE`: Performs dynamic IP Masquerading (NAPT).
 
-2. `iptables -A FORWARD -i eth0 -o eth2 -j ACCEPT`
-    - **Meaning:** "Allow (`ACCEPT`) packets entering from VLAN 10 (`eth0`) and destined for the Internet (`eth2`)."
+2. `iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT`
+    - **Meaning:** "Allow (`ACCEPT`) packets entering from VLAN 10 (`eth1`) and destined for the Internet (`eth0`)."
     - `FORWARD`: The chain that handles packets simply passing *through* the router (not destined for the router itself).
 
-3. `iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT`
-    - **Meaning:** "Allow packets entering from VLAN 20 (`eth1`) and destined for the Internet (`eth2`)."
+3. `iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT`
+    - **Meaning:** "Allow packets entering from VLAN 20 (`eth2`) and destined for the Internet (`eth0`)."
 
-4. `iptables -A FORWARD -i eth2 -m state --state ESTABLISHED,RELATED -j ACCEPT`
-    - **Meaning:** "Allow packets returning from the Internet (`eth2`) only if they are part of an existing connection (`ESTABLISHED`) or related to one (`RELATED`)."
+4. `iptables -A FORWARD -i eth0 -m state --state ESTABLISHED,RELATED -j ACCEPT`
+    - **Meaning:** "Allow packets returning from the Internet (`eth0`) only if they are part of an existing connection (`ESTABLISHED`) or related to one (`RELATED`)."
     - Without this, you could send requests out, but the firewall would block the responses (like web pages) from coming back.
 
 > **📝 Note: NAT and IP Masquerade (NAPT)**
@@ -329,12 +332,12 @@ sudo podman exec a curl -I https://www.google.com
 
 ### 3. Experiment: Blocking and Restoring Routing
 
-Let's add a rule to the router's `FORWARD` chain to block traffic from VLAN 10 (`eth0`) to VLAN 20 (`eth1`).
+Let's add a rule to the router's `FORWARD` chain to block traffic from VLAN 10 (`eth1`) to VLAN 20 (`eth2`).
 
 ```bash
 # 1. Add a blocking rule (Insert at the top)
-# "Drop packets entering from eth0 and exiting to eth1"
-sudo podman exec router iptables -I FORWARD -i eth0 -o eth1 -j DROP
+# "Drop packets entering from eth1 and exiting to eth2"
+sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
 
 # 2. Verify reachability (Confirm failure)
 # Container A -> Container B
@@ -343,7 +346,7 @@ sudo podman exec a ping -c 3 -W 1 192.168.20.20
 
 # 3. Delete the rule (Restore)
 # Delete (-D) the rule we added
-sudo podman exec router iptables -D FORWARD -i eth0 -o eth1 -j DROP
+sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 
 # 4. Verify reachability (Confirm success)
 sudo podman exec a ping -c 3 192.168.20.20

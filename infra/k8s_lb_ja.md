@@ -82,8 +82,8 @@ sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello fr
 K8s でも「Pod IP には直接アクセスせず、Service IP を使う」のが原則ですが、それを強制的に再現します。
 
 ```bash
-# Router で転送をブロックするルールを追加
-sudo podman exec router iptables -I FORWARD -i eth0 -o eth1 -j DROP
+# Router で転送をブロックするルールを追加 (VLAN 10 -> VLAN 20)
+sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
 ```
 
 **確認:**
@@ -102,8 +102,8 @@ sudo podman exec a ping -c 2 192.168.20.20
 これが K8s の **LoadBalancer IP (External IP)** になります。
 
 ```bash
-# eth0 に IP を追加 (ip addr add)
-sudo podman exec router ip addr add 192.168.10.100/32 dev eth0
+# eth1 (VLAN 10側) に IP を追加 (ip addr add)
+sudo podman exec router ip addr add 192.168.10.100/32 dev eth1
 ```
 
 ※ **解説:** `/32` は「この 1 つの IP だけ」を意味します。MetalLB (L2モード) もこれと同じことを行います。ARP（「誰がこのIPを持っていますか？」）に対して、ルーターが「私が持っています（MACアドレスはこれです）」と答えるようになります。
@@ -164,7 +164,7 @@ Container B の IP (`20.20`) には直接アクセスできないのに、VIP (`
 **後片付け（任意）:** 実験用に入れたルールは戻しておきます。
 
 ```bash
-sudo podman exec router iptables -D FORWARD -i eth0 -o eth1 -j DROP
+sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 ```
 
 ---
@@ -173,7 +173,7 @@ sudo podman exec router iptables -D FORWARD -i eth0 -o eth1 -j DROP
 
 | 今回の操作 | K8s のコンポーネント / 設定 |
 | :--- | :--- |
-| `ip addr add 192.168.10.100` | **MetalLB (Speaker)** <br> リーダー選出されたノードが IP を広報する。 |
+| `ip addr add ... dev eth1` | **MetalLB (Speaker)** <br> リーダー選出されたノードが IP を広報する。 |
 | `iptables ... -j DNAT` | **kube-proxy** <br> Service/NodePort へのアクセスを Pod IP に変換する。 |
 | `iptables ... -j DROP` | **NetworkPolicy** (Deny All) <br> 不要な直接通信を遮断する。 |
 
