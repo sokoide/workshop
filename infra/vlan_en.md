@@ -140,6 +140,7 @@ sudo podman network ls
 > **CIDR (Classless Inter-Domain Routing):**
 > `/24` is a notation representing an IP address range. It means the first 24 bits of the 32-bit IP address represent the "Network Address" (the street), and the remaining 8 bits represent the "Host Address" (the house number).
 > For `/24`, the host portion has $2^8 = 256$ addresses. However, since the first (Network address) and last (Broadcast address) are reserved, **254** addresses are actually available for use.
+>
 > - Network: `192.168.10.0`
 > - Host Range: `192.168.10.1` to `192.168.10.254`
 >
@@ -215,22 +216,22 @@ iptables -A FORWARD -i eth2 -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 **Command Breakdown:**
 
-1.  `iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE`
-    -   **Meaning:** "Rewrite the source IP of packets going out to the Internet (`eth2`) to the router's own IP."
-    -   `-t nat`: Uses the NAT table for address translation.
-    -   `POSTROUTING`: Processes packets *after* the routing decision has been made.
-    -   `MASQUERADE`: Performs dynamic IP Masquerading (NAPT).
+1. `iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE`
+    - **Meaning:** "Rewrite the source IP of packets going out to the Internet (`eth2`) to the router's own IP."
+    - `-t nat`: Uses the NAT table for address translation.
+    - `POSTROUTING`: Processes packets *after* the routing decision has been made.
+    - `MASQUERADE`: Performs dynamic IP Masquerading (NAPT).
 
-2.  `iptables -A FORWARD -i eth0 -o eth2 -j ACCEPT`
-    -   **Meaning:** "Allow (`ACCEPT`) packets entering from VLAN 10 (`eth0`) and destined for the Internet (`eth2`)."
-    -   `FORWARD`: The chain that handles packets simply passing *through* the router (not destined for the router itself).
+2. `iptables -A FORWARD -i eth0 -o eth2 -j ACCEPT`
+    - **Meaning:** "Allow (`ACCEPT`) packets entering from VLAN 10 (`eth0`) and destined for the Internet (`eth2`)."
+    - `FORWARD`: The chain that handles packets simply passing *through* the router (not destined for the router itself).
 
-3.  `iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT`
-    -   **Meaning:** "Allow packets entering from VLAN 20 (`eth1`) and destined for the Internet (`eth2`)."
+3. `iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT`
+    - **Meaning:** "Allow packets entering from VLAN 20 (`eth1`) and destined for the Internet (`eth2`)."
 
-4.  `iptables -A FORWARD -i eth2 -m state --state ESTABLISHED,RELATED -j ACCEPT`
-    -   **Meaning:** "Allow packets returning from the Internet (`eth2`) only if they are part of an existing connection (`ESTABLISHED`) or related to one (`RELATED`)."
-    -   Without this, you could send requests out, but the firewall would block the responses (like web pages) from coming back.
+4. `iptables -A FORWARD -i eth2 -m state --state ESTABLISHED,RELATED -j ACCEPT`
+    - **Meaning:** "Allow packets returning from the Internet (`eth2`) only if they are part of an existing connection (`ESTABLISHED`) or related to one (`RELATED`)."
+    - Without this, you could send requests out, but the firewall would block the responses (like web pages) from coming back.
 
 > **📝 Note: NAT and IP Masquerade (NAPT)**
 >

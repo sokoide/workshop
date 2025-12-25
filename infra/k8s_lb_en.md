@@ -8,9 +8,10 @@ We will learn how Kubernetes `Service (Type: LoadBalancer)` and `MetalLB` manipu
 The ultimate goal of this workshop is to **"access a service running on an internal Kubernetes Pod network from an external public network via a Virtual IP (VIP)."**
 
 Specifically, we will understand and control the communication between the following network configurations:
-*   **`192.168.10.0/24` (VLAN 10):** This will be treated as the "public network" that users access.
-*   **`192.168.20.0/24` (VLAN 20):** This will be treated as the "internal network (Pod network)" where Kubernetes Pods run.
-*   **`192.168.10.100`:** This is the Virtual IP (VIP) we will create on the public network, serving as the single point of entry from the outside.
+
+* **`192.168.10.0/24` (VLAN 10):** This will be treated as the "public network" that users access.
+* **`192.168.20.0/24` (VLAN 20):** This will be treated as the "internal network (Pod network)" where Kubernetes Pods run.
+* **`192.168.10.100`:** This is the Virtual IP (VIP) we will create on the public network, serving as the single point of entry from the outside.
 
 ```mermaid
 graph LR
@@ -57,7 +58,7 @@ In this workshop, the **Router container plays LB + Node + kube-proxy** in one p
 
 ## Prerequisites
 
-- Complete up to Step 6 of `vlan_en.md`. Containers `a`, `b`, and `router` must be running.
+* Complete up to Step 6 of `vlan_en.md`. Containers `a`, `b`, and `router` must be running.
 
 ---
 
@@ -105,7 +106,7 @@ This corresponds to the **LoadBalancer IP (External IP)** in K8s.
 sudo podman exec router ip addr add 192.168.10.100/32 dev eth0
 ```
 
-- **Note:** `/32` means a single host IP (just this VIP). MetalLB (L2 mode) does essentially the same thing. For ARP requests ("Who has this IP?"), the router answers "I have it (here is the MAC address)."
+* **Note:** `/32` means a single host IP (just this VIP). MetalLB (L2 mode) does essentially the same thing. For ARP requests ("Who has this IP?"), the router answers "I have it (here is the MAC address)."
 
 ---
 
@@ -136,7 +137,7 @@ sudo podman exec router iptables -t nat -A POSTROUTING \
   -j MASQUERADE
 ```
 
-- **Note:** In K8s, `kube-proxy` configures these automatically. Also, when using Cloud LBs, similar translation occurs when forwarding to `NodePort`.
+* **Note:** In K8s, `kube-proxy` configures these automatically. Also, when using Cloud LBs, similar translation occurs when forwarding to `NodePort`.
 
 ---
 
@@ -181,6 +182,7 @@ sudo podman exec router iptables -D FORWARD -i eth0 -o eth1 -j DROP
 Through this workshop, you should understand that a Load Balancer is not "magic," but a combination of **"IP Address Advertisement"** and **"Packet Destination Rewriting (NAT)."**
 
 ---
+
 ### Advanced Topic: Programmatic Automation of Kubernetes
 
 In this workshop, we learned the low-level mechanics of a LoadBalancer using basic Linux features like `iptables`. In real-world operations, it is common to use the `kubectl` command, but for more advanced automation, the Kubernetes API is often manipulated directly from a program.
@@ -191,21 +193,21 @@ The provided code snippets (like the `K8sHandler` class) are a perfect example o
 
 This type of Python code allows you to perform many of the same actions as `kubectl`, but programmatically.
 
-*   **Create/Update Resources (`apply_yaml`, `manage_k8s_resource`)**
-    *   You can deploy a full set of resources from a YAML file, just like `kubectl apply -f my-app.yaml`.
-    *   You can create, update, or delete individual resources, similar to `kubectl create deployment ...`.
-    *   By integrating this into a CI/CD pipeline, you can achieve things like automatically deploying an application when code is pushed to a Git repository.
+* **Create/Update Resources (`apply_yaml`, `manage_k8s_resource`)**
+  * You can deploy a full set of resources from a YAML file, just like `kubectl apply -f my-app.yaml`.
+  * You can create, update, or delete individual resources, similar to `kubectl create deployment ...`.
+  * By integrating this into a CI/CD pipeline, you can achieve things like automatically deploying an application when code is pushed to a Git repository.
 
-*   **Information Retrieval and Monitoring (`list_k8s_resources`, `get_pod_logs`, `get_k8s_events`)**
-    *   You can retrieve the state of resources within the cluster or fetch logs, just like `kubectl get pods` or `kubectl logs my-pod`.
-    *   This enables the creation of automated monitoring tools, for example, a system that automatically collects logs and sends a notification when a Pod enters an abnormal state.
+* **Information Retrieval and Monitoring (`list_k8s_resources`, `get_pod_logs`, `get_k8s_events`)**
+  * You can retrieve the state of resources within the cluster or fetch logs, just like `kubectl get pods` or `kubectl logs my-pod`.
+  * This enables the creation of automated monitoring tools, for example, a system that automatically collects logs and sends a notification when a Pod enters an abnormal state.
 
-*   **Standardize Manifests (`generate_app_manifest`)**
-    *   You can automatically generate standardized `Deployment` and `Service` YAML just by providing an application name and a Docker image name.
-    *   This helps prevent configuration drift within a team and ensures consistent quality for all deployments.
+* **Standardize Manifests (`generate_app_manifest`)**
+  * You can automatically generate standardized `Deployment` and `Service` YAML just by providing an application name and a Docker image name.
+  * This helps prevent configuration drift within a team and ensures consistent quality for all deployments.
 
-*   **Cloud Integration (`K8sClientCache`, etc.)**
-    *   Managed Kubernetes services like Amazon EKS use cloud-specific authentication methods (in this case, AWS IAM). The provided code encapsulates this complexity, allowing for transparent authentication to make Kubernetes API calls.
+* **Cloud Integration (`K8sClientCache`, etc.)**
+  * Managed Kubernetes services like Amazon EKS use cloud-specific authentication methods (in this case, AWS IAM). The provided code encapsulates this complexity, allowing for transparent authentication to make Kubernetes API calls.
 
 #### How It Relates to This Workshop
 
@@ -216,6 +218,7 @@ The `Service` and `ConfigMap` resources that instruct those components—telling
 Understanding both the low-level packet flow (this workshop) and the high-level, declarative API operations (the example code) is key to mastering Kubernetes.
 
 ---
+
 ### Appendix: What is MetalLB?
 
 Let's take a closer look at `MetalLB`, which was mentioned in the explanation.
@@ -232,18 +235,19 @@ MetalLB fills this gap, providing a way to assign external IPs to Services in ba
 
 MetalLB has several modes of operation, but the simplest and most common one is **L2 Mode**.
 
-1.  **IP Address Advertisement:**
-    *   From a pool of IP addresses that you pre-configure, MetalLB assigns one IP address (the VIP) to a `LoadBalancer` Service.
-    *   **One node** in the cluster is elected to be the "owner" of that VIP.
-    *   This leader node then advertises to the entire network, "I am the owner of the IP address `192.168.10.100` (at this MAC address)" by **responding to ARP requests**.
-    *   Running `ip addr add 192.168.10.100/32 dev eth0` in this workshop was a direct simulation of this behavior.
+1. **IP Address Advertisement:**
+    * From a pool of IP addresses that you pre-configure, MetalLB assigns one IP address (the VIP) to a `LoadBalancer` Service.
+    * **One node** in the cluster is elected to be the "owner" of that VIP.
+    * This leader node then advertises to the entire network, "I am the owner of the IP address `192.168.10.100` (at this MAC address)" by **responding to ARP requests**.
+    * Running `ip addr add 192.168.10.100/32 dev eth0` in this workshop was a direct simulation of this behavior.
 
-2.  **Traffic Reception and Forwarding:**
-    *   Routers and other machines on the network, having received the ARP response, send all packets destined for the VIP to the leader node.
-    *   Once the packet reaches the node, it is handed over to `kube-proxy`, which uses its own mechanisms (iptables/ipvs) to forward the packet to its final destination Pod.
+2. **Traffic Reception and Forwarding:**
+    * Routers and other machines on the network, having received the ARP response, send all packets destined for the VIP to the leader node.
+    * Once the packet reaches the node, it is handed over to `kube-proxy`, which uses its own mechanisms (iptables/ipvs) to forward the packet to its final destination Pod.
 
-3.  **Failover:**
-    *   If the leader node goes down, another node is elected as the new leader, takes over ownership of the VIP, and begins responding to ARP requests. This prevents the leader node from being a single point of failure.
+3. **Failover:**
+    * If the leader node goes down, another node is elected as the new leader, takes over ownership of the VIP, and begins responding to ARP requests. This prevents the leader node from being a single point of failure.
 
 A more advanced **BGP Mode** is also available, which allows for true load balancing and faster failover by peering with a physical router and exchanging routing information.
+
 ```
