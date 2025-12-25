@@ -144,19 +144,18 @@ func (r *SqlMembershipRepository) IsMember(ctx context.Context, userID, groupID 
 
 Web フレームワークや gRPC サーバーは最外周に位置し、`UseCase` を呼び出す役割のみを担います。
 
-```go
-// Web ハンドラー等での利用イメージ
-func HandleCheckMembership(w http.ResponseWriter, r *http.Request) {
-    // 1. 本物の DB インスタンスを生成（通常は起動時に行う）
-    dbRepo := infra.NewSqlMembershipRepository(sqlDB)
+### context.Context の役割
 
-    // 2. ユースケースにリポジトリを注入 (Dependency Injection)
-    useCase := usecase.NewMembershipUseCase(dbRepo)
+Go の実装例で登場する `ctx context.Context` は、主に以下の目的で各レイヤーをバケツリレーします。
 
-    // 3. ユースケースの実行
-    isMember, err := useCase.Execute(r.Context(), "user123", "groupA")
+1. **キャンセルの伝搬:** ユーザーがブラウザを閉じた際などに、実行中の DB クエリなどを即座に中断させ、リソースの無駄を防ぎます。
 
-    // 4. 結果をレスポンスとして返す
-    json.NewEncoder(w).Encode(map[string]bool{"is_member": isMember})
-}
-```
+2. **タイムアウト管理:** 「API 全体で 5 秒以内」といった制限時間を、末端の DB 操作まで伝えます。
+
+3. **トレーシング:** リクエスト ID などを運び、ログから一連の処理を追跡可能にします。
+
+#### 💡 ctx と引数の使い分け
+
+* **引数で渡すもの:** `userID` や `groupID` などの **ビジネスロジックに不可欠なデータ** です。型安全性を保ち、関数の依存関係を明確にするために、明示的に引数として渡します。
+
+* **ctx に含めるもの:** `Request ID` や `認証トークン` などの **横断的（付加的）な情報** です。ビジネスロジックの本質ではないが、ログ出力やインフラ層での認可などに必要な情報を運びます。

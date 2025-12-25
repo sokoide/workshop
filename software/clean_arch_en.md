@@ -160,3 +160,19 @@ func HandleCheckMembership(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(map[string]bool{"is_member": isMember})
 }
 ```
+
+### Role of context.Context
+
+In the Go implementation example, `ctx context.Context` is passed through each layer for the following primary purposes:
+
+1. **Cancellation Propagation:** If a user closes their browser, the signal is propagated down to the DB query, immediately stopping the execution and saving resources.
+
+2. **Timeout Management:** It allows enforcing deadlines (e.g., "the whole request must finish within 5 seconds") across all operations, including database calls.
+
+3. **Tracing:** It carries request-scoped metadata like Request IDs, enabling you to trace a single request's journey through multiple layers and services in logs.
+
+#### 💡 ctx vs. Arguments
+
+* **Use Arguments for:** **Essential business data** such as `userID` or `groupID`. Passing these explicitly as arguments ensures type safety and makes the function's dependencies clear.
+
+* **Use ctx for:** **Cross-cutting (supplementary) information** such as `Request ID` or `Auth Tokens`. These are not core to the business logic but are necessary for logging, authorization at the infra layer, or distributed tracing.
