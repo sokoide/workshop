@@ -294,6 +294,10 @@ cd part2
         name         = docker_network.net_a.name
         ipv4_address = "192.168.10.10"
       }
+      # Connect to net_b to reach container-b for forwarding
+      networks_advanced {
+        name = docker_network.net_b.name
+      }
       volumes {
         host_path      = local_file.corefile_a.filename
         container_path = "/etc/coredns/Corefile"

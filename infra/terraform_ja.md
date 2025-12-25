@@ -257,10 +257,9 @@ cd part2
 
     resource "local_file" "zonefile_a" {
       content = <<-EOF
-
-sokoide.com.   IN SOA sns.dns.icann.org. noc.dns.icann.org. 2015082541 7200 3600 1209600 3600
-<www.sokoide.com>. IN A 1.2.3.4
-EOF
+    sokoide.com.   IN SOA sns.dns.icann.org. noc.dns.icann.org. 2015082541 7200 3600 1209600 3600
+    www.sokoide.com. IN A 1.2.3.4
+    EOF
       filename = "${path.module}/sokoide.com.db"
     }
 
@@ -282,8 +281,8 @@ EOF
     resource "local_file" "zonefile_b" {
       content = <<-EOF
     foo.sokoide.com.   IN SOA sns.dns.icann.org. noc.dns.icann.org. 2015082541 7200 3600 1209600 3600
-server.foo.sokoide.com. IN A 5.6.7.8
-EOF
+    server.foo.sokoide.com. IN A 5.6.7.8
+    EOF
       filename = "${path.module}/foo.sokoide.com.db"
     }
 
@@ -294,6 +293,10 @@ EOF
       networks_advanced {
         name         = docker_network.net_a.name
         ipv4_address = "192.168.10.10"
+      }
+      # container-bへ転送（フォワード）するためにnet_bにも接続
+      networks_advanced {
+        name = docker_network.net_b.name
       }
       volumes {
         host_path      = local_file.corefile_a.filename
