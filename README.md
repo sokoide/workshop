@@ -23,8 +23,8 @@ This repository contains hands-on materials for various technical topics.
   - Build iSCSI targets/initiators and verify mounting/persistence with K8s PV/PVC.
 - [Terraform Workshop: From Basics to Practical DNS Server Construction](./infra/terraform_en.md)
   - Learn the basics with the local provider and manage CoreDNS environments as IaC using Docker/Podman.
-- TLS/SSL Certificate Workshop: Building Self-Signed CA and Understanding Certificate Chains (Planned)
-  - CA construction with OpenSSL → HTTPS implementation with Traefik/CoreDNS.
+- [TLS/SSL Certificate Workshop: Building Self-Signed CA and Understanding Certificate Chains](./infra/tls_en.md)
+  - Step-by-step guide from CA construction to certificate verification using OpenSSL.
 - Reverse Proxy Workshop: Understanding K8s Ingress through Traefik (Planned)
   - SSL termination, routing, and health checks with Traefik + multiple backend containers.
 - Service Mesh Fundamentals: Understanding L7 Traffic Control with Envoy Sidecars (Planned)

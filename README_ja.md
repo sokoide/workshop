@@ -23,8 +23,8 @@
   - iSCSI ターゲット/イニシエータを構築し、K8s PV/PVC でマウント・永続化を確認
 - [Terraform 実習：基礎から実践的な DNS サーバー構築まで](./infra/terraform_ja.md)
   - local プロバイダーで基礎を学び、Docker/Podman で CoreDNS 環境を IaC 管理
-- TLS/SSL 証明書実習：自己署名 CA 構築と証明書チェーンを理解する（予定）
-  - OpenSSL で CA 構築 → Traefik/CoreDNS で HTTPS 化
+- [TLS/SSL 証明書実習：自己署名 CA 構築と証明書チェーンを理解する](./infra/tls_ja.md)
+  - OpenSSL で CA 構築 → 証明書の検証までの一連の流れを体験
 - リバースプロキシ実習：Traefik で学ぶ K8s Ingress の裏側（予定）
   - Traefik + 複数バックエンドコンテナで SSL 終端・ルーティング・ヘルスチェック
 - サービスメッシュ基礎実習：Envoy サイドカーで理解する L7 トラフィック制御（予定）
