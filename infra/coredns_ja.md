@@ -26,17 +26,17 @@
 2. **フォワーディング (Forwarding):** 自分が知らないドメインの問い合わせを、別のサーバーに転送する仕組み。
 3. **ゾーン階層:** 親 (`sokoide.com`) と子 (`foo.sokoide.com`) の関係性。
 
-※ 本実習は分かりやすさのため **フォワーディング** を使います。実際のDNS階層は **委譲（NS + グルーレコード）** が基本で、最後の「次のステップ」で扱います。
+※ 本実習は分かりやすさのため **フォワーディング** を使います。実際の DNS 階層は **委譲（NS + グルーレコード）** が基本で、最後の「次のステップ」で扱います。
 
 ---
 
 ## 前提条件
 
-- **VM 2台** (Ubuntu 24.04 推奨)
-  - **VM1 (Parent):** IP `192.168.100.10`
-  - **VM2 (Child):** IP `192.168.100.20`
-  - ※ IPアドレスが異なる場合は、以降の手順の IP を適宜読み替えてください。
-- **ツール:** `curl`, `tar`, `dig` (dnsutils)
+-   **VM 2 台** (Ubuntu 24.04 推奨)
+    -   **VM1 (Parent):** IP `192.168.100.10`
+    -   **VM2 (Child):** IP `192.168.100.20`
+    -   ※ IP アドレスが異なる場合は、以降の手順の IP を適宜読み替えてください。
+-   **ツール:** `curl`, `tar`, `dig` (dnsutils)
 
 **事前準備 (両方の VM で実行):**
 
@@ -75,43 +75,43 @@ VM1 は親ドメイン `sokoide.com` を管理します。また、子ドメイ�
 
 1. 作業ディレクトリ作成
 
-   ```bash
-   mkdir -p ~/coredns_parent && cd ~/coredns_parent
-   ```
+    ```bash
+    mkdir -p ~/coredns_parent && cd ~/coredns_parent
+    ```
 
 2. **Corefile** (設定ファイル) 作成
 
-   ```bash
-   cat <<'EOF' > Corefile
-   sokoide.com:10053 {
-       file db.sokoide.com
-       log
-       errors
-   }
+    ```bash
+    cat <<'EOF' > Corefile
+    sokoide.com:10053 {
+        file db.sokoide.com
+        log
+        errors
+    }
 
-   foo.sokoide.com:10053 {
-       # 問い合わせを VM2 (Child) へ転送
-       forward . 192.168.100.20:10053
-       log
-       errors
-   }
-   EOF
-   ```
+    foo.sokoide.com:10053 {
+        # 問い合わせを VM2 (Child) へ転送
+        forward . 192.168.100.20:10053
+        log
+        errors
+    }
+    EOF
+    ```
 
 3. **ゾーンファイル** (レコード定義) 作成
 
-   ```bash
-   cat <<'EOF' > db.sokoide.com
-   $ORIGIN sokoide.com.
-   $TTL 3600
-   @   IN  SOA  ns.sokoide.com. root.sokoide.com. (
-           2024010101 7200 3600 1209600 3600 )
+    ```bash
+    cat <<'EOF' > db.sokoide.com
+    $ORIGIN sokoide.com.
+    $TTL 3600
+    @   IN  SOA  ns.sokoide.com. root.sokoide.com. (
+            2024010101 7200 3600 1209600 3600 )
 
-   @   IN  NS   ns.sokoide.com.
-   ns  IN  A    192.168.100.10
-   www IN  A    1.1.1.1
-   EOF
-   ```
+    @   IN  NS   ns.sokoide.com.
+    ns  IN  A    192.168.100.10
+    www IN  A    1.1.1.1
+    EOF
+    ```
 
 ---
 
@@ -123,36 +123,36 @@ VM2 はサブドメイン `foo.sokoide.com` を管理します。ここには具
 
 1. 作業ディレクトリ作成
 
-   ```bash
-   mkdir -p ~/coredns_child && cd ~/coredns_child
-   ```
+    ```bash
+    mkdir -p ~/coredns_child && cd ~/coredns_child
+    ```
 
 2. **Corefile** 作成
 
-   ```bash
-   cat <<'EOF' > Corefile
-   foo.sokoide.com:10053 {
-       file db.foo.sokoide.com
-       log
-       errors
-   }
-   EOF
-   ```
+    ```bash
+    cat <<'EOF' > Corefile
+    foo.sokoide.com:10053 {
+        file db.foo.sokoide.com
+        log
+        errors
+    }
+    EOF
+    ```
 
 3. **ゾーンファイル** 作成
 
-   ```bash
-   cat <<'EOF' > db.foo.sokoide.com
-   $ORIGIN foo.sokoide.com.
-   $TTL 3600
-   @   IN  SOA  ns1.foo.sokoide.com. root.foo.sokoide.com. (
-           2024010101 7200 3600 1209600 3600 )
+    ```bash
+    cat <<'EOF' > db.foo.sokoide.com
+    $ORIGIN foo.sokoide.com.
+    $TTL 3600
+    @   IN  SOA  ns1.foo.sokoide.com. root.foo.sokoide.com. (
+            2024010101 7200 3600 1209600 3600 )
 
-   @   IN  NS   ns1.foo.sokoide.com.
-   ns1  IN  A    192.168.100.20
-   test IN  A    2.2.2.2
-   EOF
-   ```
+    @   IN  NS   ns1.foo.sokoide.com.
+    ns1  IN  A    192.168.100.20
+    test IN  A    2.2.2.2
+    EOF
+    ```
 
 ---
 
@@ -162,7 +162,7 @@ VM2 はサブドメイン `foo.sokoide.com` を管理します。ここには具
 
 **VM1 (Parent) ターミナル:**
 
-`/usr/local/bin` が PATH に入っていて、特権ポートではない `10053` を使う場合は `sudo` なしでも起動できます。
+ポート `10053` は特権ポート（1024 未満）ではないため、本来 `sudo` は不要ですが、設定ファイルやゾーンファイルの配置場所によっては権限が必要になる場合があります。以下の例では `sudo` を使用しています。
 
 ```bash
 cd ~/coredns_parent
@@ -227,12 +227,12 @@ VM1 のログを見ると、転送が行われた様子（ログ出力設定に�
 1. **プロセス停止:** 各 VM で起動している `coredns` を `Ctrl+C` で停止します。
 2. **ファイル削除:**
 
-   ```bash
-   # 両方の VM で
-   rm -rf ~/coredns_parent ~/coredns_child
-   # 必要ならバイナリも削除
-   sudo rm /usr/local/bin/coredns
-   ```
+    ```bash
+    # 両方の VM で
+    rm -rf ~/coredns_parent ~/coredns_child
+    # 必要ならバイナリも削除
+    sudo rm /usr/local/bin/coredns
+    ```
 
 ---
 
@@ -241,4 +241,4 @@ VM1 のログを見ると、転送が行われた様子（ログ出力設定に�
 今回は **フォワーディング (Forwarding)** を使いましたが、インターネット上の DNS の基本は **委譲 (Delegation)** です。
 委譲を行う場合は、親のゾーンファイル (`db.sokoide.com`) に、子の NS レコード (`foo IN NS ns1.foo...`) とグルーレコード (`ns1.foo IN A ...`) を書くことで、クライアント自身に次のサーバーへ問い合わせに行かせることができます。
 
-CoreDNSの設定を変えて、委譲の挙動を試してみるのも良い学習になります。
+CoreDNS の設定を変えて、委譲の挙動を試してみるのも良い学習になります。

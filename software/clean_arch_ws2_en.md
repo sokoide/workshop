@@ -32,6 +32,10 @@ The UseCase does not care whether the notification is Email or Slack.
 
 ```go
 // usecase/approve_membership.go
+package usecase
+
+import "context"
+
 func (uc *ApproveUseCase) Execute(ctx context.Context, userID string) error {
  // ... Approval logic ...
  return uc.notifier.Send(ctx, "Membership has been approved!")
@@ -108,8 +112,8 @@ func main() {
 ## Key Points of This Workshop
 
 1. **Abstraction of Side Effects (Exercise 1):**
-    * The act of "sending a notification" itself is a business rule, while "sending via Slack" is merely a means (infrastructure detail).
-    * By pushing details outward, it becomes easy to verify that "a notification was called" during testing without actually sending a notification.
+    - The act of "sending a notification" itself is a business rule, while "sending via Slack" is merely a means (infrastructure detail).
+    - By pushing details outward, it becomes easy to verify that "a notification was called" during testing without actually sending a notification.
 2. **Transparent Feature Addition (Exercise 2):**
-    * As long as the interface remains the same, the caller won't notice if the internal logic changes from "retrieving from DB" to "retrieving with cache control."
-    * This allows for infrastructure-level improvements (performance tuning, logging, retry logic, etc.) while keeping the business logic healthy.
+    - As long as the interface remains the same, the caller won't notice if the internal logic changes from "retrieving from DB" to "retrieving with cache control."
+    - This allows for infrastructure-level improvements (performance tuning, logging, retry logic, etc.) while keeping the business logic healthy.

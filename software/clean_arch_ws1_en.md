@@ -62,6 +62,13 @@ Combine Domain objects to realize the use case.
 
 ```go
 // usecase/check_veteran.go
+package usecase
+
+import (
+ "context"
+ "your-project/domain"
+)
+
 type CheckVeteranUseCase struct {
  repo       domain.UserRepository
  veteranSvc domain.VeteranService
@@ -112,7 +119,7 @@ Simply swap the concrete class being injected in the main process (entry point).
 ```go
 func main() {
  // Old: sqlRepo := infra.NewSqlUserRepository(db)
- // New: 
+ // New:
  adRepo := infra.NewAdUserRepository(ldapClient)
 
  // Since UseCase takes an interface as an argument, it can accept adRepo as-is
@@ -127,9 +134,9 @@ func main() {
 ## Key Points of This Workshop
 
 1. **Location of Knowledge:**
-    * Calculation method for tenure = **Entity**
-    * Definition of a veteran (5 years) = **Domain Service**
-    * These can be tested independently of "Database" or "Web".
+    - Calculation method for tenure = **Entity**
+    - Definition of a veteran (5 years) = **Domain Service**
+    - These can be tested independently of "Database" or "Web".
 2. **Localization of Change:**
-    * Even when the data source changed from DB to AD, we only had to add new code to the `infra` layer and change the injection target in `main`.
-    * **The core business logic (Domain/UseCase) remains untouched with zero lines of modification.** This is the true value of Clean Architecture.
+    - Even when the data source changed from DB to AD, we only had to add new code to the `infra` layer and change the injection target in `main`.
+    - **The core business logic (Domain/UseCase) remains untouched with zero lines of modification.** This is the true value of Clean Architecture.

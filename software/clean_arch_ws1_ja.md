@@ -4,7 +4,7 @@
 
 ## 実習のシナリオ
 
-1. **ビジネスルールの追加**: 「勤続5年以上の社員をベテランと認定する」というルールを、Entity と Domain Service を使って実装します。
+1. **ビジネスルールの追加**: 「勤続 5 年以上の社員をベテランと認定する」というルールを、Entity と Domain Service を使って実装します。
 2. **インフラの差し替え**: データの保存先を SQL データベースから Active Directory (LDAP) に変更します。この際、UseCase や Domain に一切手を加えないことを確認します。
 
 ---
@@ -62,6 +62,13 @@ Domain オブジェクトを組み合わせてユースケースを実現しま�
 
 ```go
 // usecase/check_veteran.go
+package usecase
+
+import (
+ "context"
+ "your-project/domain"
+)
+
 type CheckVeteranUseCase struct {
  repo       domain.UserRepository
  veteranSvc domain.VeteranService
@@ -112,7 +119,7 @@ func (r *AdUserRepository) FindByID(ctx context.Context, id string) (*domain.Use
 ```go
 func main() {
  // 旧: sqlRepo := infra.NewSqlUserRepository(db)
- // 新: 
+ // 新:
  adRepo := infra.NewAdUserRepository(ldapClient)
 
  // UseCase は引数がインターフェースなので、adRepo をそのまま受け入れられる
@@ -127,9 +134,9 @@ func main() {
 ## この実習のポイント
 
 1. **知識の場所**:
-    * 勤続年数の計算方法 ＝ **Entity**
-    * ベテランの定義（5年） ＝ **Domain Service**
-    * これらは「データベース」や「Web」とは無関係にテスト可能です。
+    - 勤続年数の計算方法 ＝ **Entity**
+    - ベテランの定義（5 年） ＝ **Domain Service**
+    - これらは「データベース」や「Web」とは無関係にテスト可能です。
 2. **変更の局所化**:
-    * データの取得先が DB から AD に変わっても、`infra` レイヤーに新しいコードを追加し、`main` での注入先を変えるだけで済みました。
-    * **核心となるビジネスロジック (Domain/UseCase) には 1 行も修正が入っていません。** これがクリーンアーキテクチャの真価です。
+    - データの取得先が DB から AD に変わっても、`infra` レイヤーに新しいコードを追加し、`main` での注入先を変えるだけで済みました。
+    - **核心となるビジネスロジック (Domain/UseCase) には 1 行も修正が入っていません。** これがクリーンアーキテクチャの真価です。
