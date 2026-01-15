@@ -136,10 +136,13 @@ go run cmd/logger/main.go
 さらに別のターミナルで、特定の条件にマッチするコンシューマーを起動します。
 
 - **日本円建ての取引のみを表示:**
+
   ```bash
   go run cmd/japandesk/main.go
   ```
+
 - **Bitcoin の大口取引 (> 3.0 BTC) のみを監視:**
+
   ```bash
   go run cmd/alert/main.go
   ```

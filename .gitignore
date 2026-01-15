@@ -59,6 +59,9 @@ env/
 build/
 dist/
 
+# Node.js
+node_modules/
+
 # Log files
 
 *.log
