@@ -201,13 +201,14 @@ Thread-safe via mutex synchronization, making it safe for concurrent goroutines.
 
 ```mermaid
 flowchart TD
-    A[Get(key)] --> B{Entry exists?}
+    A[Get] --> B{Entry exists}
     B -- no --> C[Cache miss]
-    B -- yes --> D{Expired?}
-    D -- yes --> E[Delete entry] --> C
+    B -- yes --> D{Expired}
+    D -- yes --> E[Delete entry]
+    E --> C
     D -- no --> F[Return value]
     C --> G[Fetch from source]
-    G --> H[Set with TTL]
+    G --> H[Set TTL]
     H --> F
 ```
 
