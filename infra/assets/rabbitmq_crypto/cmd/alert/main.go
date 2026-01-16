@@ -13,10 +13,16 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatalf("Application error: %v", err)
+	}
+}
+
+func run() error {
 	url := "amqp://guest:guest@localhost:5672/"
 	conn, ch, err := rabbitmq.SetupConn(url)
 	if err != nil {
-		log.Fatalf("Failed to setup RabbitMQ: %v", err)
+		return err
 	}
 	defer conn.Close()
 	defer ch.Close()
@@ -35,9 +41,10 @@ func main() {
 		return nil
 	})
 	if err != nil {
-		log.Fatalf("Observer error: %v", err)
+		return err
 	}
 
 	<-ctx.Done()
 	log.Println("Whale Alert stopped.")
+	return nil
 }

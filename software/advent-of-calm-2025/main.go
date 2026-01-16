@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/service"
 	"github.com/sokoide/advent-of-calm-2025/cleanarch/infra/client"
@@ -12,6 +13,12 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatalf("Application failed: %v", err)
+	}
+}
+
+func run() error {
 	// 1. Setup Infrastructure
 	orderRepo := &repository.PostgresOrderRepository{}
 	inventoryClient := &client.RestInventoryClient{}
@@ -39,7 +46,7 @@ func main() {
 
 	err := createOrderUsecase.Execute(ctx, input)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// 5. Run Usecase (Admin Flow)
@@ -47,14 +54,16 @@ func main() {
 	checkInput := usecase.CheckInventoryInput{ProductID: "product-456"}
 	output, err := checkInventoryUsecase.Execute(ctx, checkInput)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	println("Current stock:", output.Quantity)
+	log.Println("Current stock:", output.Quantity)
 
 	// Admin updates inventory
 	updateInput := usecase.UpdateInventoryInput{ProductID: "product-456", Quantity: 150}
 	err = updateInventoryUsecase.Execute(ctx, updateInput)
 	if err != nil {
-		panic(err)
+		return err
 	}
+	
+	return nil
 }

@@ -25,22 +25,12 @@
   - local プロバイダーで基礎を学び、Docker/Podman で CoreDNS 環境を IaC 管理
 - [TLS/SSL 証明書実習：自己署名 CA 構築と証明書チェーンを理解する](./infra/tls_ja.md)
   - OpenSSL で CA 構築 → 証明書の検証までの一連の流れを体験
-- リバースプロキシ実習：Traefik で学ぶ K8s Ingress の裏側（予定）
-  - Traefik + 複数バックエンドコンテナで SSL 終端・ルーティング・ヘルスチェック
-- サービスメッシュ基礎実習：Envoy サイドカーで理解する L7 トラフィック制御（予定）
-  - Envoy プロキシを手動配置してトラフィック制御（リトライ・タイムアウト・ルーティング）
 - [コンテナランタイム実習：namespaces と cgroups で理解するコンテナの正体](./infra/container_runtime_ja.md)
   - 手動で namespace/cgroup を作成し、`podman run` の裏側を再現
 - [Redis 実習：Sorted Sets で作るリアルタイム・ゲームランキング](./infra/cache_ja.md)
   - Redis の Sorted Sets を活用した高速なランキングシステム構築と、Sets による不正ユーザー管理を学習
 - [メッセージキュー実習：RabbitMQ で学ぶ Pub/Sub とキューイング](./infra/rabbitmq_ja.md)
   - RabbitMQ の Topic Exchange を活用したリアルタイム仮想通貨監視システム構築
-- オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API（予定）
-  - MinIO 構築 + AWS CLI/SDK でバケット操作・署名付き URL 生成
-- 監視基盤実習：Prometheus + Grafana によるメトリクス収集と可視化（予定）
-  - Node Exporter + Prometheus + Grafana でメトリクス収集・ダッシュボード構築
-- シークレット管理実習：HashiCorp Vault による動的シークレット管理（予定）
-  - Vault 構築 + アプリからの動的シークレット取得
 
 ### ソフトウェア・アーキテクチャ関連
 
@@ -56,3 +46,16 @@
   - Go の代表的なキャッシュパターンを整理（TTL/LRU/Cache-Aside/Redis/Write-Through、英語）
 - [Design Patterns](https://github.com/sokoide/design-patterns/README_ja.md)
   - GoF デザインパターンの実装例と適用場面
+
+### 今後追加予定のコンテンツ
+
+- リバースプロキシ実習：Traefik で学ぶ K8s Ingress の裏側
+  - Traefik + 複数バックエンドコンテナで SSL 終端・ルーティング・ヘルスチェック
+- サービスメッシュ基礎実習：Envoy サイドカーで理解する L7 トラフィック制御
+  - Envoy プロキシを手動配置してトラフィック制御（リトライ・タイムアウト・ルーティング）
+- オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API
+  - MinIO 構築 + AWS CLI/SDK でバケット操作・署名付き URL 生成
+- 監視基盤実習：Prometheus + Grafana によるメトリクス収集と可視化
+  - Node Exporter + Prometheus + Grafana でメトリクス収集・ダッシュボード構築
+- シークレット管理実習：HashiCorp Vault による動的シークレット管理
+  - Vault 構築 + アプリからの動的シークレット取得
