@@ -52,5 +52,7 @@
   - 通知チャネルの抽象化と Decorator パターンによる透過的キャッシュ導入
 - [クリーンアーキテクチャ実習 (WS3): e-commerce platform](./software/clean_arch_ws3_ja.md)
   - 注文・在庫管理システムを題材に、マイクロサービス分離を見据えた設計
+- [Go キャッシュパターン入門](./software/go_cache_patterns_en.md)
+  - Go の代表的なキャッシュパターンを整理（TTL/LRU/Cache-Aside/Redis/Write-Through、英語）
 - [Design Patterns](https://github.com/sokoide/design-patterns/README_ja.md)
   - GoF デザインパターンの実装例と適用場面

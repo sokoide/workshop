@@ -52,5 +52,7 @@ This repository contains hands-on materials for various technical topics.
   - Abstraction of notification channels and introduction of transparent caching using the Decorator pattern.
 - [Clean Architecture Workshop (WS3): E-commerce Platform](./software/clean_arch_ws3_en.md)
   - Designing an order/inventory management system with microservice isolation in mind.
+- [Caching Patterns in Go](./software/go_cache_patterns_en.md)
+  - Practical cache patterns: TTL, LRU, cache-aside, Redis, and write-through.
 - [Design Patterns](https://github.com/sokoide/design-patterns/README.md)
   - Implementation examples and application scenarios of GoF design patterns.

@@ -28,10 +28,10 @@ sequenceDiagram
     E-->>L: Route to Logger (market.#)
 ```
 
-1.  **Ticker (Publisher):** Generates random trade data and publishes it with a Routing Key in the format `market.<currency>.<target_currency>`.
-2.  **Logger (All-records):** Subscribes to `market.#` and logs every transaction.
-3.  **Japan Desk (JPY-pair Monitoring):** Subscribes to `market.*.jpy` and extracts only Japanese Yen transactions.
-4.  **Whale Alert (Large Trade Detection):** Subscribes to `market.btc.#` and detects significant Bitcoin transactions.
+1. **Ticker (Publisher):** Generates random trade data and publishes it with a Routing Key in the format `market.<currency>.<target_currency>`.
+2. **Logger (All-records):** Subscribes to `market.#` and logs every transaction.
+3. **Japan Desk (JPY-pair Monitoring):** Subscribes to `market.*.jpy` and extracts only Japanese Yen transactions.
+4. **Whale Alert (Large Trade Detection):** Subscribes to `market.btc.#` and detects significant Bitcoin transactions.
 
 ---
 
@@ -80,11 +80,11 @@ infra/assets/rabbitmq_crypto/
     └── infra/                  # Infra Layer (RabbitMQ Adapter)
 ```
 
--   **Topic Exchange (`crypto_market`):** Controls the message "destination" using dot-separated keywords (e.g., `market.btc.usd`).
--   **Routing Key:** A label attached at the time of sending.
--   **Binding Key:** A pattern specified by the receiver to define "which labels of messages it wants."
-    -   `*`: Matches exactly one word.
-    -   `#`: Matches zero or more words.
+- **Topic Exchange (`crypto_market`):** Controls the message "destination" using dot-separated keywords (e.g., `market.btc.usd`).
+- **Routing Key:** A label attached at the time of sending.
+- **Binding Key:** A pattern specified by the receiver to define "which labels of messages it wants."
+  - `*`: Matches exactly one word.
+  - `#`: Matches zero or more words.
 
 ---
 
@@ -135,11 +135,14 @@ Since it uses the `#` wildcard, data for all currency pairs will be displayed.
 
 Open even more terminals and start consumers that match specific conditions.
 
--   **Display only JPY-denominated transactions:**
+- **Display only JPY-denominated transactions:**
+
     ```bash
     go run cmd/japandesk/main.go
     ```
--   **Monitor only large Bitcoin transactions (> 3.0 BTC):**
+
+- **Monitor only large Bitcoin transactions (> 3.0 BTC):**
+
     ```bash
     go run cmd/alert/main.go
     ```
