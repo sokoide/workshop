@@ -1,5 +1,18 @@
 # Caching Patterns in Go
 
+[English](go_cache_patterns_en.md) | [日本語](go_cache_patterns_ja.md)
+
+## Table of Contents
+
+- [Understanding Cache Systems and Cache Tools](#understanding-cache-systems-and-cache-tools)
+- [Pattern 1: Thread-Safe In-Memory TTL Cache](#pattern-1-thread-safe-in-memory-ttl-cache)
+- [Pattern 2: LRU Cache with Bounded Memory](#pattern-2-lru-cache-with-bounded-memory)
+- [Pattern 3: Cache-Aside with Singleflight Protection](#pattern-3-cache-aside-with-singleflight-protection)
+- [Pattern 4: Distributed Redis Cache with Go-Redis](#pattern-4-distributed-redis-cache-with-go-redis)
+- [Pattern 5: Write-Through Cache Pattern](#pattern-5-write-through-cache-pattern)
+
+---
+
 ## Understanding Cache Systems and Cache Tools
 
 ### Fundamentals
@@ -18,20 +31,20 @@ Keeping your favorite coffee mug on your desk instead of walking to the kitchen 
 
 ##### Instant Response Times
 
-* Serves data directly from cache
-* Avoids slow database queries
-* Sub-millisecond latency
+- Serves data directly from cache
+- Avoids slow database queries
+- Sub-millisecond latency
 
 ##### Reduced Backend Load
 
-* Absorbs traffic spikes
-* Prevents database bottlenecks
+- Absorbs traffic spikes
+- Prevents database bottlenecks
 
 ##### Cost Savings
 
-* Fewer database queries
-* Reduced network bandwidth usage
-* Lower server resource consumption
+- Fewer database queries
+- Reduced network bandwidth usage
+- Lower server resource consumption
 
 **Real-world example**
 E-commerce platforms cache product details to survive flash sales without melting their databases.
@@ -42,24 +55,24 @@ E-commerce platforms cache product details to survive flash sales without meltin
 
 ##### Local Cache
 
-* Stored in application memory (RAM)
-* Extremely fast access
-* Limited capacity
-* Data lost on process crash
+- Stored in application memory (RAM)
+- Extremely fast access
+- Limited capacity
+- Data lost on process crash
 
 ##### Distributed Cache
 
-* Shared across multiple servers
-* Scales horizontally
-* More resilient than local cache
-* Slightly higher latency than local memory
+- Shared across multiple servers
+- Scales horizontally
+- More resilient than local cache
+- Slightly higher latency than local memory
 
 ##### Edge Cache
 
-* Located geographically close to users
-* Typically implemented via CDNs
-* Minimizes internet latency
-* Improves global user experience
+- Located geographically close to users
+- Typically implemented via CDNs
+- Minimizes internet latency
+- Improves global user experience
 
 ---
 
@@ -67,23 +80,23 @@ E-commerce platforms cache product details to survive flash sales without meltin
 
 ##### 1. Write-Through
 
-* Writes go to cache and database synchronously
-* Strong consistency
-* Increased write latency
+- Writes go to cache and database synchronously
+- Strong consistency
+- Increased write latency
 
 ##### 2. Write-Back
 
-* Writes go to cache first
-* Database updated asynchronously
-* Faster writes
-* Risk of data loss if cache fails
+- Writes go to cache first
+- Database updated asynchronously
+- Faster writes
+- Risk of data loss if cache fails
 
 ##### 3. Cache-Aside (Lazy Loading)
 
-* Application checks cache first
-* On miss, load from database and cache it
-* Good balance between performance and freshness
-* Most commonly used in practice
+- Application checks cache first
+- On miss, load from database and cache it
+- Good balance between performance and freshness
+- Most commonly used in practice
 
 ---
 
@@ -97,17 +110,17 @@ Cached data can become **stale** when the source of truth changes.
 
 ###### Time-Based Expiration (TTL)
 
-* Cached entries expire automatically after a fixed duration
+- Cached entries expire automatically after a fixed duration
 
 ###### Manual Purging
 
-* Explicitly delete cache entries when data changes
-* Requires careful coordination
+- Explicitly delete cache entries when data changes
+- Requires careful coordination
 
 ###### Event-Driven Invalidation
 
-* Cache cleared based on database events or message queues
-* More complex, more accurate
+- Cache cleared based on database events or message queues
+- More complex, more accurate
 
 ---
 
@@ -115,42 +128,41 @@ Cached data can become **stale** when the source of truth changes.
 
 Redis is an open-source, in-memory data store commonly used as:
 
-* Cache
-* Database
-* Message broker
+- Cache
+- Database
+- Message broker
 
 It is widely adopted in high-performance systems.
 
 ##### Key Features
 
-* Sub-millisecond read/write latency
-* Rich data structures:
-
-  * Strings
-  * Hashes
-  * Lists
-  * Sets
-  * Sorted sets
-* Optional persistence to disk
-* Atomic operations
+- Sub-millisecond read/write latency
+- Rich data structures:
+  - Strings
+  - Hashes
+  - Lists
+  - Sets
+  - Sorted sets
+- Optional persistence to disk
+- Atomic operations
 
 ##### Common Use Cases
 
 ###### Session Storage
 
-* Fast authentication
-* Shared session state across services
+- Fast authentication
+- Shared session state across services
 
 ###### Leaderboards
 
-* Real-time ranking using sorted sets
-* Gaming and competition platforms
+- Real-time ranking using sorted sets
+- Gaming and competition platforms
 
 ###### Real-Time Analytics
 
-* Counters
-* Streaming metrics
-* Dashboards and monitoring
+- Counters
+- Streaming metrics
+- Dashboards and monitoring
 
 ---
 
@@ -158,21 +170,21 @@ It is widely adopted in high-performance systems.
 
 ##### Ideal Use Cases
 
-* Read-heavy workloads
-* Relatively stable data
-* Expensive computations or queries
+- Read-heavy workloads
+- Relatively stable data
+- Expensive computations or queries
 
 ##### Not Suitable For
 
-* Write-heavy systems
-* Strong, immediate consistency requirements
-* Unbounded or unpredictable data sets
+- Write-heavy systems
+- Strong, immediate consistency requirements
+- Unbounded or unpredictable data sets
 
 ##### Trade-offs to consider
 
-* Added system complexity
-* Risk of stale data
-* Operational overhead
+- Added system complexity
+- Risk of stale data
+- Operational overhead
 
 ---
 
@@ -197,7 +209,7 @@ It is widely adopted in high-performance systems.
 A foundational caching pattern that stores string keys mapped to byte slice values with time-to-live (TTL) expiration.
 Thread-safe via mutex synchronization, making it safe for concurrent goroutines.
 
-### Flow Diagram
+### TTL Cache Flow Diagram
 
 ```mermaid
 flowchart TD
@@ -214,13 +226,12 @@ flowchart TD
 
 ### Key Implementation Details
 
-* `sync.RWMutex` protects concurrent access
-* Each entry stores:
-
-  * value
-  * expiration timestamp
-* Lazy expiration checks on `Get` operations
-* Zero external dependencies
+- `sync.RWMutex` protects concurrent access
+- Each entry stores:
+  - value
+  - expiration timestamp
+- Lazy expiration checks on `Get` operations
+- Zero external dependencies
 
 ### When to Use
 
@@ -228,15 +239,15 @@ Best for **single-instance applications** that need basic caching without distri
 
 Typical use cases:
 
-* Configuration data
-* Computed results
-* API responses with predictable lifespans
+- Configuration data
+- Computed results
+- API responses with predictable lifespans
 
 ### Trade-offs
 
-* Memory can grow unbounded without active cleanup
-* No LRU eviction
-* Expiration control relies entirely on TTL values
+- Memory can grow unbounded without active cleanup
+- No LRU eviction
+- Expiration control relies entirely on TTL values
 
 ### Reference Implementation
 
@@ -266,31 +277,27 @@ flowchart TD
 ### Implementation Steps
 
 1. **Initialize with Capacity**
-
-   * Set maximum entry count
-   * Use `container/list` (doubly-linked list)
+   - Set maximum entry count
+   - Use `container/list` (doubly-linked list)
 
 2. **Track Access Order**
-
-   * Move accessed items to the front
-   * Maintains recency ordering
+   - Move accessed items to the front
+   - Maintains recency ordering
 
 3. **Evict on Overflow**
-
-   * Remove least-recently-used entry from the tail when capacity is reached
+   - Remove least-recently-used entry from the tail when capacity is reached
 
 4. **Maintain Hash Map**
-
-   * Map keys to list nodes
-   * Ensures O(1) lookup performance
+   - Map keys to list nodes
+   - Ensures O(1) lookup performance
 
 ### Why This Works
 
 The `container/list` package provides O(1) operations for:
 
-* Access
-* Updates
-* Eviction
+- Access
+- Updates
+- Eviction
 
 This makes the pattern production-ready for **memory-constrained environments**.
 
@@ -322,20 +329,16 @@ flowchart TD
 ### Request Flow
 
 1. **Check Cache**
-
-   * Attempt read from cache layer first
+   - Attempt read from cache layer first
 
 2. **Query Source**
-
-   * On cache miss, fetch from database or API using `singleflight`
+   - On cache miss, fetch from database or API using `singleflight`
 
 3. **Populate Cache**
-
-   * Store fetched data with appropriate TTL
+   - Store fetched data with appropriate TTL
 
 4. **Return Result**
-
-   * Serve the result to all waiting requests
+   - Serve the result to all waiting requests
 
 ### Singleflight Explained
 
@@ -344,23 +347,23 @@ The `golang.org/x/sync/singleflight` package coalesces duplicate requests into a
 **Example:**
 If 200 goroutines request the same uncached key simultaneously:
 
-* Only **one** hits the database
-* The other 199 wait for the shared result
+- Only **one** hits the database
+- The other 199 wait for the shared result
 
 ### Why It Matters
 
 #### Without Singleflight
 
-* 200 concurrent database queries
-* Backend overload
-* Response time spikes
-* Cascading service failures
+- 200 concurrent database queries
+- Backend overload
+- Response time spikes
+- Cascading service failures
 
 #### With Singleflight
 
-* One database query
-* Stable response times
-* Graceful traffic spike handling
+- One database query
+- Stable response times
+- Graceful traffic spike handling
 
 ### Cache-Aside Reference Implementation
 
@@ -394,33 +397,32 @@ flowchart TD
 
 #### JSON Serialization
 
-* Marshal Go structs to JSON
-* Human-readable
-* Debuggable via `redis-cli`
+- Marshal Go structs to JSON
+- Human-readable
+- Debuggable via `redis-cli`
 
 #### Native TTL Support
 
-* Redis handles expiration automatically
-* TTL set on write
-* No manual cleanup required
+- Redis handles expiration automatically
+- TTL set on write
+- No manual cleanup required
 
 #### Shared State
 
-* All application instances access the same cache
-* Ideal for:
-
-  * Microservices
-  * Load-balanced deployments
-  * Session consistency
+- All application instances access the same cache
+- Ideal for:
+  - Microservices
+  - Load-balanced deployments
+  - Session consistency
 
 ### Client Library
 
 `go-redis/redis/v8` provides:
 
-* Idiomatic Go APIs
-* Connection pooling
-* Pipelining
-* Cluster support
+- Idiomatic Go APIs
+- Connection pooling
+- Pipelining
+- Cluster support
 
 Minimal wrapper code required for production use.
 
@@ -437,7 +439,7 @@ Minimal wrapper code required for production use.
 Synchronously updates both database and cache on every write.
 This pattern prioritizes **consistency over write performance**.
 
-### Flow Diagram
+### Write-Through Flow Diagram
 
 ```mermaid
 flowchart TD
@@ -455,32 +457,28 @@ flowchart TD
 ### Write Flow
 
 1. **Receive Write Request**
-
-   * Application receives data update from client
+   - Application receives data update from client
 
 2. **Update Database**
-
-   * Persist changes to the primary datastore
+   - Persist changes to the primary datastore
 
 3. **Update Cache**
-
-   * Immediately synchronize cache with new data
+   - Immediately synchronize cache with new data
 
 4. **Confirm Success**
-
-   * Return success only after both operations complete
+   - Return success only after both operations complete
 
 ### Advantages
 
-* Guaranteed cache consistency
-* No stale reads after writes
-* Simple mental model for data state
+- Guaranteed cache consistency
+- No stale reads after writes
+- Simple mental model for data state
 
 ### Write-Through Trade-offs
 
-* Slower write operations
-* Cache must be available
-* Increased write latency
+- Slower write operations
+- Cache must be available
+- Increased write latency
 
 ### Write-Through Reference Implementation
 
