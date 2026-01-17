@@ -1,16 +1,16 @@
 # Terraformワークショップ：基礎から実践的なDNSサーバー構築まで
 
-このドキュメントは、Infrastructure as Code（IaC）ツールであるTerraformの基礎を学び、最終的にコンテナ技術（Podman/Docker）と組み合わせて実践的なDNSサーバー環境を構築することを目的としたワークショップです。
+このドキュメントは、Infrastructure as Code（IaC）ツールである Terraform の基礎を学び、最終的にコンテナ技術（Podman/Docker）と組み合わせて実践的な DNS サーバー環境を構築することを目的としたワークショップです。
 
 ## パート1：Terraformの基礎と`local`プロバイダー
 
-このパートでは、クラウドサービスを使わずに、ローカルマシン上のファイルを操作する`local`プロバイダーを通じてTerraformの基本的な概念とコマンドを学びます。
+このパートでは、クラウドサービスを使わずに、ローカルマシン上のファイルを操作する`local`プロバイダーを通じて Terraform の基本的な概念とコマンドを学びます。
 
 ### 1. 準備
 
 #### Terraformのインストール
 
-[公式サイトの手順](https://learn.hashicorp.com/tutorials/terraform/install-cli)に従って、お使いのOSにTerraformをインストールしてください。
+[公式サイトの手順](https://learn.hashicorp.com/tutorials/terraform/install-cli)に従って、お使いの OS に Terraform をインストールしてください。
 
 #### 作業ディレクトリの作成
 
@@ -33,7 +33,7 @@ cd part1
     }
     ```
 
-2. **初期化 (`init`)**: Terraformが必要なプロバイダー（この場合は`local`プロバイダー）をダウンロードします。
+2. **初期化 (`init`)**: Terraform が必要なプロバイダー（この場合は`local`プロバイダー）をダウンロードします。
 
     ```bash
     terraform init
@@ -114,7 +114,7 @@ cd part1
     * `for_each`にセット（重複しない文字列のリスト）を渡すと、セットの各要素に対してリソースが作成されます。
     * `each.key`と`each.value`には、要素の値（この場合はユーザー名）が入ります。
 
-2. `terraform plan`と`terraform apply`を実行し、3つのユーザーファイルが作成されることを確認します。
+2. `terraform plan`と`terraform apply`を実行し、3 つのユーザーファイルが作成されることを確認します。
 
 ### 5. リソースの破棄
 
@@ -124,17 +124,17 @@ cd part1
 terraform destroy
 ```
 
-`yes`と入力すると、Terraformが管理していたすべてのファイルが削除されます。
+`yes`と入力すると、Terraform が管理していたすべてのファイルが削除されます。
 
 ---
 
 ## パート2：TerraformとPodman/DockerでDNSサーバーを構築する
 
-このパートでは、パート1で学んだ知識を応用し、Podman/Dockerコンテナを使ってDNSサーバー環境をTerraformで構築します。
+このパートでは、パート 1 で学んだ知識を応用し、Podman/Docker コンテナを使って DNS サーバー環境を Terraform で構築します。
 
 **完成図:**
 
-このパートで構築するDNS環境の全体像と、名前解決の流れは以下のようになります。
+このパートで構築する DNS 環境の全体像と、名前解決の流れは以下のようになります。
 
 ```mermaid
 graph LR
@@ -158,8 +158,8 @@ graph LR
     B -- "5. Aレコードを返す" --> A
 ```
 
-* `container-a`: `sokoide.com`の権威DNSサーバーとして機能し、`foo.sokoide.com`への問い合わせは`container-b`へ転送（フォワード）します。
-* `container-b`: `foo.sokoide.com`の権威DNSサーバーとして機能します。
+* `container-a`: `sokoide.com`の権威 DNS サーバーとして機能し、`foo.sokoide.com`への問い合わせは`container-b`へ転送（フォワード）します。
+* `container-b`: `foo.sokoide.com`の権威 DNS サーバーとして機能します。
 * `container-router`: `dig`コマンドを実行して名前解決をテストするためのクライアントです。
 
 ### 1. 準備 (パート2)
@@ -174,7 +174,7 @@ cd part2
 
 #### CoreDNSコンテナイメージの作成
 
-1. CoreDNS（DNSサーバーソフトウェア）を含むコンテナイメージを作成します。以下の内容で`Dockerfile`を作成してください。
+1. CoreDNS（DNS サーバーソフトウェア）を含むコンテナイメージを作成します。以下の内容で`Dockerfile`を作成してください。
 
     ```dockerfile
     # Dockerfile
@@ -186,7 +186,7 @@ cd part2
     CMD ["/usr/local/bin/coredns", "-conf", "/etc/coredns/Corefile"]
     ```
 
-2. イメージをビルドします。（Podmanをお使いの場合は`docker`を`podman`に読み替えてください）
+2. イメージをビルドします。（Podman をお使いの場合は`docker`を`podman`に読み替えてください）
 
     ```bash
     docker build -t coredns-handson .
@@ -194,7 +194,7 @@ cd part2
 
 ### 2. Terraformプロジェクトのセットアップ
 
-1. `versions.tf`を作成し、Dockerプロバイダーを指定します。（このプロバイダーはPodmanとも互換性があります）
+1. `versions.tf`を作成し、Docker プロバイダーを指定します。（このプロバイダーは Podman とも互換性があります）
 
     ```terraform
     # versions.tf
@@ -216,7 +216,7 @@ cd part2
 
 ### 3. TerraformによるDNS環境の構築
 
-1. `main.tf`に、ネットワーク、CoreDNS設定ファイル、ゾーンファイル、そしてコンテナの定義をすべて記述します。
+1. `main.tf`に、ネットワーク、CoreDNS 設定ファイル、ゾーンファイル、そしてコンテナの定義をすべて記述します。
 
     ```terraform
     # main.tf
@@ -352,7 +352,7 @@ cd part2
     docker ps
     ```
 
-3. `router`コンテナに入り、`dig`コマンド（DNSクエリツール）をインストールして実行します。
+3. `router`コンテナに入り、`dig`コマンド（DNS クエリツール）をインストールして実行します。
 
     ```bash
     docker exec -it container-router sh
@@ -372,7 +372,7 @@ cd part2
     # www.sokoide.com.    3600    IN    A    1.2.3.4
     ```
 
-    * `container-a`に`foo.sokoide.com`の問い合わせ (bへフォワードされる)
+    * `container-a`に`foo.sokoide.com`の問い合わせ (b へフォワードされる)
 
     ```sh
     # dig @192.168.10.10 server.foo.sokoide.com
@@ -402,4 +402,4 @@ terraform destroy
 
 ローカルに作成された設定ファイルも不要であれば削除してください。
 
-以上でワークショップは終了です。この演習を通じて、Terraformの基本操作から、より実践的な複数コンポーネント構成の管理までを体験できました。
+以上でワークショップは終了です。この演習を通じて、Terraform の基本操作から、より実践的な複数コンポーネント構成の管理までを体験できました。

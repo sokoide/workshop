@@ -2,25 +2,25 @@
 
 ## はじめに
 
-このワークショップでは、iSCSIストレージプロトコルを学び、それをKubernetesクラスタの永続ボリューム（PersistentVolume）として利用する方法を実践的に学びます。安価で伝統的なIPベースのブロックストレージであるiSCSIをKubernetesで活用するスキルを習得することを目的とします。
+このワークショップでは、iSCSI ストレージプロトコルを学び、それを Kubernetes クラスタの永続ボリューム（PersistentVolume）として利用する方法を実践的に学びます。安価で伝統的な IP ベースのブロックストレージである iSCSI を Kubernetes で活用するスキルを習得することを目的とします。
 
 **学習内容:**
 
-* Ubuntu上でのiSCSIターゲット（サーバー）の構築
-* iSCSIイニシエータ（クライアント）からの手動接続とマウント
-* Minikubeを使った軽量Kubernetes環境の構築
-* iSCSIボリュームをPersistentVolumeおよびPersistentVolumeClaimとして定義
-* PodからiSCSIボリュームをマウントし、データの永続性を確認
+* Ubuntu 上での iSCSI ターゲット（サーバー）の構築
+* iSCSI イニシエータ（クライアント）からの手動接続とマウント
+* Minikube を使った軽量 Kubernetes 環境の構築
+* iSCSI ボリュームを PersistentVolume および PersistentVolumeClaim として定義
+* Pod から iSCSI ボリュームをマウントし、データの永続性を確認
 
 **前提条件:**
 
-* Ubuntu 24.04がインストールされた仮想マシン（VM）が2台準備されていること。
-* 各VMのRAMは4GB以上であること。
-* 2台のVM間で相互にネットワーク通信が可能であること。
+* Ubuntu 24.04 がインストールされた仮想マシン（VM）が 2 台準備されていること。
+* 各 VM の RAM は 4GB 以上であること。
+* 2 台の VM 間で相互にネットワーク通信が可能であること。
 * ファイアウォールが適切に設定されているか、無効になっていること。
-* このガイドでは、以下のIPアドレスを例として使用します。ご自身の環境に合わせて適宜読み替えてください。
-  * **VM1**: `192.168.1.11` (iSCSIクライアント & Kubernetesノード)
-  * **VM2**: `192.168.1.12` (iSCSIターゲット/サーバー)
+* このガイドでは、以下の IP アドレスを例として使用します。ご自身の環境に合わせて適宜読み替えてください。
+  * **VM1**: `192.168.1.11` (iSCSI クライアント & Kubernetes ノード)
+  * **VM2**: `192.168.1.12` (iSCSI ターゲット/サーバー)
 
 ### 全体構成図
 
@@ -54,11 +54,11 @@ graph TD
 
 ### ステップ1: iSCSIターゲットの構築 (VM2で実行)
 
-まず、ストレージを提供する側であるiSCSIターゲット（サーバー）をVM2に構築します。
+まず、ストレージを提供する側である iSCSI ターゲット（サーバー）を VM2 に構築します。
 
 1. **パッケージのインストール**
 
-    iSCSIターゲットを管理するための`targetcli-fb`をインストールします。
+    iSCSI ターゲットを管理するための`targetcli-fb`をインストールします。
 
     ```bash
     sudo apt update
@@ -67,7 +67,7 @@ graph TD
 
 2. **ディスクイメージファイルの作成**
 
-    物理ディスクの代わりに、バックエンドストレージとして1GBのイメージファイルを作成します。
+    物理ディスクの代わりに、バックエンドストレージとして 1GB のイメージファイルを作成します。
 
     ```bash
     sudo truncate -s 1G /var/lib/iscsi_disk.img
@@ -75,7 +75,7 @@ graph TD
 
 3. **iSCSIターゲットの設定**
 
-    `targetcli` を使って設定を行います。ここでは分かりやすくするため、IQNを明示的に指定します。
+    `targetcli` を使って設定を行います。ここでは分かりやすくするため、IQN を明示的に指定します。
 
     ```bash
     sudo targetcli /iscsi create iqn.2025-12.world.server:storage
@@ -83,11 +83,11 @@ graph TD
     sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backstores/fileio/disk01
     ```
 
-    次に、VM1からのアクセスを許可するための設定（ACL）を行いますが、その前にVM1のIQNを確認する必要があります。
+    次に、VM1 からのアクセスを許可するための設定（ACL）を行いますが、その前に VM1 の IQN を確認する必要があります。
 
 4. **VM1のIQNを確認 (VM1で実行)**
 
-    VM1にiSCSIイニシエータツールをインストールし、そのIQN（iSCSI修飾名）を確認します。
+    VM1 に iSCSI イニシエータツールをインストールし、その IQN（iSCSI 修飾名）を確認します。
 
     ```bash
     # VM1で実行
@@ -100,7 +100,7 @@ graph TD
 
 5. **ACLの設定と保存 (VM2で実行)**
 
-    メモしたVM1のIQNを使って、VM2でアクセス許可を設定します。
+    メモした VM1 の IQN を使って、VM2 でアクセス許可を設定します。
 
     ```bash
     # <VM1のIQN> を先ほどメモした値に置き換えてください
@@ -110,11 +110,11 @@ graph TD
     sudo targetcli saveconfig
     ```
 
-    これでiSCSIターゲットの準備は完了です。
+    これで iSCSI ターゲットの準備は完了です。
 
 ### ステップ2: iSCSIディスクの手動マウント (VM1で実行)
 
-次に、VM1からVM2のiSCSIディスクに接続し、マウントできることを確認します。
+次に、VM1 から VM2 の iSCSI ディスクに接続し、マウントできることを確認します。
 
 1. **サービスの起動とターゲットの検出**
 
@@ -173,7 +173,7 @@ graph TD
 
 ### Kubernetesにおけるストレージの仕組み
 
-フェーズ2では、フェーズ1で作成したiSCSIディスクをKubernetesの永続ボリュームとして利用します。KubernetesのPodが外部ストレージを利用する際の主要なリソースの関係は以下の通りです。
+フェーズ 2 では、フェーズ 1 で作成した iSCSI ディスクを Kubernetes の永続ボリュームとして利用します。Kubernetes の Pod が外部ストレージを利用する際の主要なリソースの関係は以下の通りです。
 
 ```mermaid
 graph LR
@@ -186,18 +186,18 @@ graph LR
 ```
 
 1. **Pod**: アプリケーションが動作するコンテナ。マウントしたいボリュームを`PersistentVolumeClaim`の名前で指定します。
-2. **PersistentVolumeClaim (PVC)**: 「1Giの高速なストレージが欲しい」といった、ストレージに対する要求です。
-3. **PersistentVolume (PV)**: iSCSIディスクやNFS、クラウドストレージといった、実際に存在するストレージの詳細情報（接続先IP、パスなど）を定義したものです。
+2. **PersistentVolumeClaim (PVC)**: 「1Gi の高速なストレージが欲しい」といった、ストレージに対する要求です。
+3. **PersistentVolume (PV)**: iSCSI ディスクや NFS、クラウドストレージといった、実際に存在するストレージの詳細情報（接続先 IP、パスなど）を定義したものです。
 
-この仕組みにより、Podは物理的なストレージの詳細を意識することなく、PVCという抽象的な要求を通じてストレージを利用できます。
+この仕組みにより、Pod は物理的なストレージの詳細を意識することなく、PVC という抽象的な要求を通じてストレージを利用できます。
 
 ### ステップ3: Minikube環境の構築 (VM1で実行)
 
-VM1に軽量KubernetesであるMinikubeをインストールします。
+VM1 に軽量 Kubernetes である Minikube をインストールします。
 
 1. **Podmanと依存パッケージのインストール**
 
-    コンテナランタイム（Podman）と、Minikubeの動作に必要なネットワークツールをインストールします。
+    コンテナランタイム（Podman）と、Minikube の動作に必要なネットワークツールをインストールします。
 
     ```bash
     sudo apt update
@@ -206,7 +206,7 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
 
 2. **kubectlのインストール**
 
-    Kubernetesクラスタを操作するCLIツール`kubectl`をインストールします。
+    Kubernetes クラスタを操作する CLI ツール`kubectl`をインストールします。
 
     ```bash
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -222,7 +222,7 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
 
 4. **Minikubeの起動**
 
-    **【重要】** RAM 4GBの環境では、リソース節約のために `--driver=none` を使用するのが最適です。これにより、MinikubeはVMを作らず、ホストOS上で直接Kubernetesコンポーネントを実行します。また、iSCSIデバイスをPodから直接マウントする際、ホストの `iscsiadm` を利用できるため設定が非常に簡単になります。
+    **【重要】** RAM 4GB の環境では、リソース節約のために `--driver=none` を使用するのが最適です。これにより、Minikube は VM を作らず、ホスト OS 上で直接 Kubernetes コンポーネントを実行します。また、iSCSI デバイスを Pod から直接マウントする際、ホストの `iscsiadm` を利用できるため設定が非常に簡単になります。
 
     ```bash
     # open-iscsiサービスが起動している必要がある
@@ -241,17 +241,17 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
     kubectl get nodes
     ```
 
-    VM1が`Ready`状態で表示されるはずです。
+    VM1 が`Ready`状態で表示されるはずです。
 
 ### ステップ4: KubernetesからiSCSIボリュームを利用する
 
-いよいよiSCSIディスクをKubernetesの永続ボリュームとして利用します。
+いよいよ iSCSI ディスクを Kubernetes の永続ボリュームとして利用します。
 
 > **注意:** この手順ではKubernetesのin-tree iSCSIボリュームプラグインを利用します。新しいバージョンのKubernetesではCSIドライバの使用が推奨されていますが、学習しやすさを優先し、今回はより簡単なin-tree方式を採用します。この機能を使うには、Kubernetesの各ノード（今回はVM1）に`open-iscsi`パッケージがインストールされている必要があります（ステップ2でインストール済み）。
 
 1. **PersistentVolume (PV) の作成**
 
-    iSCSIディスクの情報を定義した`PersistentVolume`を作成します。以下の内容で`iscsi-pv.yaml`を作成してください。`targetPortal`と`iqn`はご自身の環境に合わせて修正してください。
+    iSCSI ディスクの情報を定義した`PersistentVolume`を作成します。以下の内容で`iscsi-pv.yaml`を作成してください。`targetPortal`と`iqn`はご自身の環境に合わせて修正してください。
 
     ```yaml
     # iscsi-pv.yaml
@@ -274,7 +274,7 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
 
 2. **PersistentVolumeClaim (PVC) の作成**
 
-    Podがストレージを要求するための`PersistentVolumeClaim`を作成します。以下の内容で`iscsi-pvc.yaml`を作成します。
+    Pod がストレージを要求するための`PersistentVolumeClaim`を作成します。以下の内容で`iscsi-pvc.yaml`を作成します。
 
     ```yaml
     # iscsi-pvc.yaml
@@ -301,7 +301,7 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
 
 4. **Podからボリュームをマウント**
 
-    このPVCを使用するPodを作成します。以下の内容で`test-pod.yaml`を作成します。
+    この PVC を使用する Pod を作成します。以下の内容で`test-pod.yaml`を作成します。
 
     ```yaml
     # test-pod.yaml
@@ -325,7 +325,7 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
 
 5. **Podの作成と動作確認**
 
-    Podを作成し、iSCSIボリュームがマウントされていることを確認します。
+    Pod を作成し、iSCSI ボリュームがマウントされていることを確認します。
 
     ```bash
     kubectl apply -f test-pod.yaml
@@ -344,7 +344,7 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
 
 6. **データの永続性を確認**
 
-    Podを一度削除し、再度作成してもデータが残っていることを確認します。
+    Pod を一度削除し、再度作成してもデータが残っていることを確認します。
 
     ```bash
     # Podを削除
@@ -357,13 +357,13 @@ VM1に軽量KubernetesであるMinikubeをインストールします。
     kubectl exec -it test-pod -- cat /data/k8s_test.txt
     ```
 
-    再び`Hello from K8s Pod`と表示されれば、データがiSCSIボリュームに永続化されていることが確認できました。
+    再び`Hello from K8s Pod`と表示されれば、データが iSCSI ボリュームに永続化されていることが確認できました。
 
 ---
 
 ## おわりに
 
-お疲れ様でした。このワークショップを通じて、iSCSIの基本的な仕組みから、Kubernetesクラスタで外部ストレージを永続ボリュームとして利用する一連の流れを体験しました。
+お疲れ様でした。このワークショップを通じて、iSCSI の基本的な仕組みから、Kubernetes クラスタで外部ストレージを永続ボリュームとして利用する一連の流れを体験しました。
 
 **クリーンアップ:**
 環境を元に戻すには、以下のコマンドを実行します。

@@ -29,7 +29,7 @@ openssl version
 
 ## 3. Step 1: ルートCA (Root CA) の構築
 
-すべての信頼の源となるルートCAを作成します。
+すべての信頼の源となるルート CA を作成します。
 
 ### 1.1 CA 用の秘密鍵を生成
 
@@ -103,7 +103,7 @@ Certificate:
 ...
 ```
 
-- **Serial Number**: CAが発行した証明書を識別するためのユニークな番号。
+- **Serial Number**: CA が発行した証明書を識別するためのユニークな番号。
 - **Signature Algorithm**: 署名に使用されたアルゴリズム（現在は sha256 が一般的）。
 - **Issuer (発行者)**: この証明書に署名した CA。
 - **Validity (有効期間)**: `Not Before` (開始) から `Not After` (終了) まで。
@@ -125,7 +125,7 @@ openssl verify -CAfile rootCA.crt server.crt
 ブラウザなどのクライアントが HTTPS 通信を行う際、以下のプロセスで「接続先が正しいか」を検証します。これを **Server Name Validation** と呼びます。
 
 1. **信頼の確認**: 提示された証明書が、自身が持つ「信頼されたルート証明書」から繋がっているか（証明書チェーン）を確認。
-2. **名前の照合**: ブラウザに入力したURLのドメイン名と、証明書の **SAN (Subject Alternative Name)** を照合。
+2. **名前の照合**: ブラウザに入力した URL のドメイン名と、証明書の **SAN (Subject Alternative Name)** を照合。
     - **CNAME との関係**: CNAME は DNS レベルの別名です。証明書の検証においては、最終的にアクセスしているドメイン名が SAN に含まれている必要があります。
 
 ### SSL Pass-through と SAN
