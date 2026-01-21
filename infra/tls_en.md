@@ -109,9 +109,9 @@ Certificate:
             Public Key Algorithm: rsaEncryption
                 RSA Public-Key: (2048 bit)
         X509v3 extensions:
-            X509v3 Basic Constraints: 
+            X509v3 Basic Constraints:
                 CA:FALSE
-            X509v3 Subject Alternative Name: 
+            X509v3 Subject Alternative Name:
                 DNS:server.workshop.local, DNS:localhost
 ...
 ```
@@ -192,7 +192,7 @@ sudo podman run -d --name traefik \
   --add-host host.containers.internal:host-gateway \
   -v .:/certs:ro \
   -v ./dynamic_conf.yaml:/etc/traefik/dynamic_conf.yaml:ro \
-  traefik:v3.1 \
+  docker.io/library/traefik:v3.1 \
   --providers.file.filename=/etc/traefik/dynamic_conf.yaml \
   --entrypoints.websecure.address=:443
 ```
