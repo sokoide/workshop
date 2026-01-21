@@ -56,14 +56,29 @@ openssl genrsa -out server.key 2048
 
 ```bash
 openssl req -new -key server.key -out server.csr \
-  -subj "/C=JP/ST=Tokyo/L=Minato/O=Workshop/CN=localhost"
+  -subj "/C=JP/ST=Tokyo/L=Minato/O=Workshop/CN=server.workshop.local"
 ```
 
 ### 2.3 CA による署名 (証明書の発行)
 
+現代のブラウザやツールでは、**SAN (Subject Alternative Name)** による名前検証が必須です。署名時に拡張設定ファイルを使用して SAN を追加します。
+
 ```bash
+# SAN 設定ファイルの作成
+cat <<EOF > server.ext
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = server.workshop.local
+DNS.2 = localhost
+EOF
+
+# 署名の実行
 openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial \
-  -out server.crt -days 365 -sha256
+  -out server.crt -days 365 -sha256 -extfile server.ext
 ```
 
 ## 5. Step 3: 証明書の内容確認と検証
@@ -84,14 +99,12 @@ openssl x509 -noout -text -in server.crt
 Certificate:
     Data:
         Version: 3 (0x2)
-        Serial Number:
-            75:4b:de:3c:2b:06:f3:9d:e6:2d:68:a2:b6:60:db:12:e6:d5:75:fc
-        Signature Algorithm: sha256WithRSAEncryption
+...
         Issuer: C = JP, ST = Tokyo, L = Minato, O = Workshop, CN = Workshop Root CA
         Validity
             Not Before: Dec 28 10:00:00 2025 GMT
             Not After : Dec 28 10:00:00 2026 GMT
-        Subject: C = JP, ST = Tokyo, L = Minato, O = Workshop, CN = localhost
+        Subject: C = JP, ST = Tokyo, L = Minato, O = Workshop, CN = server.workshop.local
         Subject Public Key Info:
             Public Key Algorithm: rsaEncryption
                 RSA Public-Key: (2048 bit)
@@ -99,7 +112,7 @@ Certificate:
             X509v3 Basic Constraints: 
                 CA:FALSE
             X509v3 Subject Alternative Name: 
-                DNS:localhost, DNS:www.example.com, IP:127.0.0.1
+                DNS:server.workshop.local, DNS:localhost
 ...
 ```
 
@@ -120,7 +133,93 @@ openssl verify -CAfile rootCA.crt server.crt
 # 出力: server.crt: OK
 ```
 
-## 6. HTTPS における Server Name Validation
+## 6. Step 4: Web サーバーでの実践利用 (Traefik)
+
+作成した証明書を使用して、実際に HTTPS サーバーを立ち上げてみましょう。
+構成としては、背後でシンプルな Python HTTP サーバーを動かし、手前に **Traefik** を配置して HTTPS 終端（SSL 終端）を行います。
+
+### 1. ホスト名の設定
+
+DNS サーバーを立てる代わりに、`/etc/hosts` に今回使用するドメイン名を定義します。
+
+```bash
+# /etc/hosts に追記
+echo "127.0.0.1 server.workshop.local" | sudo tee -a /etc/hosts
+```
+
+### 2. バックエンド Web サーバーの起動
+
+Python を使って、HTTP (8000 番ポート) で動作するシンプルなサーバーを起動します。
+
+```bash
+# 別のターミナルで実行
+python3 -m http.server 8000
+```
+
+### 3. Traefik の設定
+
+Traefik が証明書を読み込み、HTTPS (443) から HTTP (8000) へ転送するように設定します。
+
+**dynamic_conf.yaml** (動的設定ファイル) を作成します。
+
+```yaml
+http:
+  routers:
+    to-python:
+      rule: "Host(`server.workshop.local`)"
+      service: python-server
+      entryPoints:
+        - websecure
+      tls: {}
+
+  services:
+    python-server:
+      loadBalancer:
+        servers:
+          - url: "http://host.containers.internal:8000" # ホスト側で動く Python サーバーを指定
+
+tls:
+  certificates:
+    - certFile: /certs/server.crt
+      keyFile: /certs/server.key
+```
+
+### 4. Traefik コンテナの起動
+
+```bash
+sudo podman run -d --name traefik \
+  -p 443:443 \
+  --add-host host.containers.internal:host-gateway \
+  -v .:/certs:ro \
+  -v ./dynamic_conf.yaml:/etc/traefik/dynamic_conf.yaml:ro \
+  traefik:v3.1 \
+  --providers.file.filename=/etc/traefik/dynamic_conf.yaml \
+  --entrypoints.websecure.address=:443
+```
+
+## 7. Step 5: クライアントからの検証 (curl)
+
+構築した HTTPS サーバーに `curl` でアクセスし、証明書の検証がどのように行われるか確認します。
+
+### 1. CA 証明書なしでアクセス (失敗例)
+
+システムの信頼されたストアにルート CA が入っていないため、検証に失敗します。
+
+```bash
+curl https://server.workshop.local
+# 出力例: curl: (60) SSL certificate problem: unable to get local issuer certificate
+```
+
+### 2. 自作のルート CA 証明書を指定してアクセス (成功例)
+
+`--cacert` オプションで自作のルート CA 証明書を渡すことで、正しく検証が行われます。
+
+```bash
+curl --cacert rootCA.crt https://server.workshop.local
+# 出力例: Python サーバーが返すディレクトリ一覧の HTML 等が表示されれば成功！
+```
+
+## 8. HTTPS における Server Name Validation
 
 ブラウザなどのクライアントが HTTPS 通信を行う際、以下のプロセスで「接続先が正しいか」を検証します。これを **Server Name Validation** と呼びます。
 
@@ -136,7 +235,26 @@ Load Balancer (LB) で SSL 終端を行わず、バックエンドの Web サー
 
 ---
 
-## 7. まとめ
+## 9. クリーンアップ
+
+実習が終わったら、起動したプロセスやコンテナを停止し、設定を元に戻します。
+
+```bash
+# 1. Traefik コンテナの停止と削除
+sudo podman rm -f traefik
+
+# 2. Python サーバーの停止
+# Python サーバーを実行しているターミナルで Ctrl+C を押して停止します
+
+# 3. 生成したファイルの削除（必要であれば）
+rm rootCA.* server.* dynamic_conf.yaml
+
+# 4. /etc/hosts の修正
+# 追加した "127.0.0.1 server.workshop.local" の行を削除してください
+sudo nano /etc/hosts
+```
+
+## 10. まとめ
 
 - **秘密鍵 (.key)**: 絶対に外部に漏らしてはいけない。
 - **CSR (.csr)**: CA に証明書を発行してもらうための「申込書」。
