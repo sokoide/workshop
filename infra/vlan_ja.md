@@ -162,7 +162,7 @@ sudo podman network ls
 
 ```bash
 # 1. コンテナ起動（まず podman デフォルトネットワークに接続）
-# これにより、このコンテナのデフォルトゲートウェイがインターネットを向きます
+# これにより、このコンテナのデフォルトゲートウェイがインターネット（eth0）を向きます
 sudo podman run -d --name router \
   --network podman \
   --cap-add NET_ADMIN \
@@ -178,16 +178,33 @@ sudo podman network connect \
 sudo podman network connect \
   --ip 192.168.20.1 \
   net-vlan20 router
+
+# 4. 余分なデフォルトゲートウェイを削除（重要！）
+# Podman はネットワーク接続時にデフォルトゲートウェイを自動追加することがあります。
+# このコンテナ自身が VLAN 10/20 のゲートウェイであるため、重複したルートを削除します。
+sudo podman exec router ip route del default via 192.168.10.1 dev eth1 2>/dev/null || true
+sudo podman exec router ip route del default via 192.168.20.1 dev eth2 2>/dev/null || true
 ```
 
 **確認:**
-コンテナ内のインタフェースが `eth0`, `eth1`, `eth2` の 3 つ（+ `lo`）存在することを確認します。
+コンテナ内のインタフェースが 3 つ存在し、**デフォルトゲートウェイが1つだけ**（eth0を向いている）であることを確認します。
 
 ```bash
+# インタフェースの確認
 sudo podman exec router ip addr
+
+# デフォルトゲートウェイの確認
+sudo podman exec router ip route | grep default
+# 'default via' で始まる行が eth0 の1行だけ表示されれば正解です
 ```
 
-出力に `10.88.x.x` (eth0), `192.168.10.1` (eth1), `192.168.20.1` (eth2) の IP が見えれば成功です。
+> **📝 Note: 複数のデフォルトゲートウェイの管理**
+>
+> ゲートウェイが設定された複数のネットワークにコンテナを接続すると、Podman はそれぞれのネットワークに対してデフォルトルートを追加することがあります。これにより、通信経路が不安定になる（意図しないインタフェースからパケットが出ようとする）場合があります。
+>
+> - **確認方法:** コンテナ内で `ip route | grep default` を実行します。
+> - **削除方法:** `ip route del default via <ゲートウェイIP> dev <インタフェース名>` を実行します。
+> この実習では、ルーターコンテナが外部（インターネット）へ抜けるためのルートは `eth0` (podmanネットワーク) だけで十分です。`eth1` や `eth2` は自身がゲートウェイとなるネットワークなので、自分自身のIPをデフォルトゲートウェイとして持つ必要はありません。
 
 ---
 

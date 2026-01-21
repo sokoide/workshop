@@ -163,7 +163,7 @@ Create a "router" to connect different networks. This container has 3 network in
 
 ```bash
 # 1. Start container (connect to default podman network first)
-# This ensures the default gateway points to the Internet
+# This ensures the default gateway points to the Internet (eth0)
 sudo podman run -d --name router \
   --network podman \
   --cap-add NET_ADMIN \
@@ -179,16 +179,33 @@ sudo podman network connect \
 sudo podman network connect \
   --ip 192.168.20.1 \
   net-vlan20 router
+
+# 4. Clean up extra default gateways (Important!)
+# Podman adds a default route for each network if a gateway is defined.
+# Since this container IS the gateway for VLAN 10/20, these routes are redundant and can cause issues.
+sudo podman exec router ip route del default via 192.168.10.1 dev eth1 2>/dev/null || true
+sudo podman exec router ip route del default via 192.168.20.1 dev eth2 2>/dev/null || true
 ```
 
 **Verification:**
-Confirm that the container has 3 interfaces: `eth0`, `eth1`, and `eth2` (+ `lo`).
+Confirm that the container has 3 interfaces and **only one default gateway** (pointing to `eth0`).
 
 ```bash
+# Check interfaces
 sudo podman exec router ip addr
+
+# Check default gateways
+sudo podman exec router ip route | grep default
+# Only one 'default via' entry (for eth0) should remain.
 ```
 
-Output should show `10.88.x.x` (eth0), `192.168.10.1` (eth1), and `192.168.20.1` (eth2) IPs.
+> **📝 Note: Managing Multiple Default Gateways**
+>
+> When you connect a container to multiple networks that have gateways configured, Podman often adds a default route for each. This "multi-homed" setup can lead to unpredictable routing.
+>
+> - **To check:** `ip route | grep default` inside the container.
+> - **To remove:** `ip route del default via <GW_IP> dev <INTERFACE>`.
+> In this workshop, the router should only have a default gateway on `eth0` (the `podman` network) to reach the Internet. For `eth1` and `eth2`, it is the gateway itself, so it doesn't need a default route pointing back to its own IPs.
 
 ---
 
