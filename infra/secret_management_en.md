@@ -2,9 +2,9 @@
 
 In this workshop, you will build a secure secret management system using **HashiCorp Vault** and **Go**. You will learn best practices for managing API keys, database credentials, and other sensitive data without hardcoding them in your source code.
 
-## Learning Objectives
+## Goal
 
-By completing this workshop, you will:
+By completing this workshop, you will be able to:
 
 - Understand why secret management is critical for security
 - Identify and avoid common anti-patterns (hardcoded credentials, .env files in git)
@@ -110,16 +110,7 @@ graph TB
     style V fill:#f3e5f5
 ```
 
-### Key Principles
-
-- **Domain Layer**: Pure Go with no external dependencies. Defines `SecretRepository` interface.
-- **Usecase Layer**: Business logic that depends only on domain interfaces.
-- **Infra Layer**: Vault adapter implements `SecretRepository` using HashiCorp Vault SDK.
-- **Framework Layer**: CLI commands that wire dependencies together.
-
----
-
-## Directory Structure
+### Directory Structure
 
 ```text
 infra/assets/secret_management/
@@ -143,6 +134,13 @@ infra/assets/secret_management/
 └── go.mod
 ```
 
+### Key Principles
+
+- **Domain Layer**: Pure Go with no external dependencies. Defines `SecretRepository` interface.
+- **Usecase Layer**: Business logic that depends only on domain interfaces.
+- **Infra Layer**: Vault adapter implements `SecretRepository` using HashiCorp Vault SDK.
+- **Framework Layer**: CLI commands that wire dependencies together.
+
 ---
 
 ## Preparation
@@ -164,15 +162,18 @@ This starts Vault with:
 
 ### 2. Enable KV v2 Secrets Engine
 
-The KV v2 secrets engine must be enabled before storing secrets:
+The KV v2 secrets engine must be enabled before storing secrets.
+Even if you don't have the `vault` command locally, you can use `make init` to configure it inside the container:
 
 ```bash
-# Set environment variables
-export VAULT_ADDR='http://localhost:8200'
-export VAULT_TOKEN='dev-workshop-token'
+# Enable KV v2 (executes command inside container)
+make init
+```
 
-# Enable KV v2 at the default "secret" path
-vault secrets enable -path=secret kv-v2
+Alternatively, you can manually execute the command inside the container:
+
+```bash
+podman exec workshop-vault vault secrets enable -path=secret kv-v2
 ```
 
 **Note:** KV v2 provides versioning for all secrets, allowing you to track changes and roll back if needed.
@@ -187,7 +188,7 @@ go mod tidy
 
 ## Workshop Steps
 
-### Phase 1: Explore the Anti-Pattern (5 minutes)
+### STEP 1: Explore the Anti-Pattern (5 minutes)
 
 Before using Vault, see how secrets are commonly mishandled:
 
@@ -199,7 +200,7 @@ grep -r "guest:guest" cmd/
 
 **Key Takeaway:** Once a secret is committed to git, it's there forever (even in history).
 
-### Phase 2: Basic Secret Operations (15 minutes)
+### STEP 2: Basic Secret Operations (15 minutes)
 
 Navigate back to the secret management project:
 
@@ -256,7 +257,7 @@ Created: 2025-01-28T10:30:00Z
 go run cmd/list-secrets/main.go
 ```
 
-### Phase 3: Practical Example - API Client (10 minutes)
+### STEP 3: Practical Example - API Client (10 minutes)
 
 Real-world applications need to retrieve secrets at runtime and use them for API calls. This example demonstrates the pattern:
 
@@ -292,7 +293,7 @@ func (ac *apiClient) CallAPI(ctx context.Context, secretKey, apiEndpoint string)
 }
 ```
 
-### Phase 4: Secret Versioning and Rotation (10 minutes)
+### STEP 4: Secret Versioning and Rotation (10 minutes)
 
 Vault KV v2 automatically versions secrets. Let's see this in action:
 
@@ -316,14 +317,14 @@ go run cmd/get-secret/main.go api/payment-gateway
 # Shows version 3 (latest)
 ```
 
-#### Step 3: View History with Vault CLI
+#### Step 3: View History with Vault CLI (using container)
 
 ```bash
 # List versions
-vault kv metadata get secret/api/payment-gateway
+podman exec workshop-vault vault kv metadata get secret/api/payment-gateway
 
 # Retrieve specific version (version 1)
-vault kv get -version=1 secret/api/payment-gateway
+podman exec workshop-vault vault kv get -version=1 secret/api/payment-gateway
 ```
 
 **Use Cases for Versioning:**
@@ -332,7 +333,7 @@ vault kv get -version=1 secret/api/payment-gateway
 - **Audit**: Track who changed what and when
 - **Rotation**: Deploy new secrets while keeping old ones accessible temporarily
 
-### Phase 5: Understanding the Architecture (5 minutes)
+### STEP 5: Understanding the Architecture (5 minutes)
 
 Review the code structure:
 
@@ -349,6 +350,18 @@ cat infra/vault/secret.go
 ```
 
 **Key Observation:** The `usecase` layer has no idea it's talking to Vault. It only knows about the `SecretRepository` interface defined in the `domain` layer. This means you could swap Vault for AWS Secrets Manager or Azure Key Vault without changing any business logic.
+
+### STEP 6: Verification via Tests
+
+Run unit and integration tests to verify the system behavior:
+
+```bash
+# Unit tests (use mocks, no Vault required)
+go test ./usecase/... -v
+
+# Integration tests (require Vault container)
+go test ./infra/vault/... -v
+```
 
 ---
 
@@ -394,50 +407,6 @@ type secretManager struct {
 func (sm *secretManager) RetrieveSecret(ctx context.Context, key string) (*domain.Secret, error) {
     return sm.repo.GetSecret(ctx, key)
 }
-```
-
----
-
-## Verification
-
-### Expected Output Summary
-
-```bash
-# Store a secret
-$ go run cmd/put-secret/main.go api/external-key "sk-live-abc123"
-=== Secret Stored Successfully ===
-Key:   api/external-key
-Value: sk-live-abc123
-
-# Retrieve it
-$ go run cmd/get-secret/main.go api/external-key
-=== Secret Retrieved ===
-Key:     api/external-key
-Value:   sk-live-abc123
-Version: 1
-
-# List all secrets
-$ go run cmd/list-secrets/main.go
-=== Secrets in Vault ===
-1. api/external-key (v1)
-2. api/payment-gateway (v2)
-
-# API client demo
-$ go run cmd/api-client/main.go
-[INFO] Retrieving API key from Vault...
-[INFO] API key retrieved successfully (version 1)
-[INFO] Calling external API: https://api.example.com/v1/data
-[INFO] API call successful - Status: 200
-```
-
-### Run Tests
-
-```bash
-# Unit tests (use mocks, no Vault required)
-go test ./usecase/... -v
-
-# Integration tests (require Vault container)
-go test ./infra/vault/... -v
 ```
 
 ---

@@ -42,8 +42,6 @@
   - Envoy プロキシを手動配置してトラフィック制御（リトライ・タイムアウト・ルーティング）
 - オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API
   - MinIO 構築 + AWS CLI/SDK でバケット操作・署名付き URL 生成
-- 監視基盤実習：Prometheus + Grafana によるメトリクス収集と可視化
-  - Node Exporter + Prometheus + Grafana でメトリクス収集・ダッシュボード構築
 
 ### ソフトウェア・アーキテクチャ関連
 

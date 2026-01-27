@@ -16,3 +16,7 @@ vault-logs:
 
 vault-status:
 	@podman ps | grep workshop-vault || echo "Vault not running"
+
+init:
+	@echo "Enabling KV v2 secrets engine..."
+	podman exec workshop-vault vault secrets enable -path=secret kv-v2 || echo "KV v2 already enabled or error ignored"

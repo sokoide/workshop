@@ -2,7 +2,7 @@
 
 この実習では、**HashiCorp Vault** と **Go** を使用して、API キー、データベース認証情報、その他のセンシティブデータをソースコードにハードコードすることなく安全に管理するシステムを構築します。
 
-## 学習目標
+## ゴール
 
 この実習を完了すると、以下のことができるようになります：
 
@@ -24,7 +24,7 @@
 
 ```go
 // infra/assets/rabbitmq_crypto/cmd/ticker/main.go より
-url := "amqp://guest:guest@localhost:5672/"  // 決して这样做してはいけない
+url := "amqp://guest:guest@localhost:5672/"  // 決してこうしてはいけない
 ```
 
 **問題点：**
@@ -110,16 +110,7 @@ graph TB
     style V fill:#f3e5f5
 ```
 
-### 重要な原則
-
-- **Domain Layer**: 外部依存のない純粋な Go。`SecretRepository` インターフェースを定義。
-- **Usecase Layer**: ドメインインターフェースのみに依存するビジネスロジック。
-- **Infra Layer**: HashiCorp Vault SDK を使用して `SecretRepository` を実装する Vault アダプター。
-- **Framework Layer**: 依存関係をまとめる CLI コマンド。
-
----
-
-## ディレクトリ構造
+### レイヤー構造とディレクトリ
 
 ```text
 infra/assets/secret_management/
@@ -143,6 +134,13 @@ infra/assets/secret_management/
 └── go.mod
 ```
 
+### 重要な原則
+
+- **Domain Layer**: 外部依存のない純粋な Go。`SecretRepository` インターフェースを定義。
+- **Usecase Layer**: ドメインインターフェースのみに依存するビジネスロジック。
+- **Infra Layer**: HashiCorp Vault SDK を使用して `SecretRepository` を実装する Vault アダプター。
+- **Framework Layer**: 依存関係をまとめる CLI コマンド。
+
 ---
 
 ## 準備
@@ -164,15 +162,18 @@ make vault-up
 
 ### 2. KV v2 シークレットエンジンの有効化
 
-シークレットを保存する前に、KV v2 シークレットエンジンを有効にする必要があります：
+シークレットを保存する前に、KV v2 シークレットエンジンを有効にする必要があります。
+ローカルに `vault` コマンドがない場合でも、`make init` を使用してコンテナ内で設定を行えます：
 
 ```bash
-# 環境変数の設定
-export VAULT_ADDR='http://localhost:8200'
-export VAULT_TOKEN='dev-workshop-token'
+# KV v2 を有効化（コンテナ内でコマンドを実行）
+make init
+```
 
-# デフォルトの "secret" パスで KV v2 を有効化
-vault secrets enable -path=secret kv-v2
+または、手動でコンテナ内のコマンドを実行することもできます：
+
+```bash
+podman exec workshop-vault vault secrets enable -path=secret kv-v2
 ```
 
 **注:** KV v2 はすべてのシークレットのバージョニングを提供し、変更の追跡と必要に応じたロールバックを可能にします。
@@ -187,7 +188,7 @@ go mod tidy
 
 ## 実習ステップ
 
-### Phase 1: アンチパターンの確認 (5分)
+### STEP 1: アンチパターンの確認 (5分)
 
 Vault を使用する前に、シークレットが誤って扱われがちな例を見てみましょう：
 
@@ -199,7 +200,7 @@ grep -r "guest:guest" cmd/
 
 **重要なポイント:** 一度シークレットが Git にコミットされると、（履歴からも）永遠に残ります。
 
-### Phase 2: 基本的なシークレット操作 (15分)
+### STEP 2: 基本的なシークレット操作 (15分)
 
 シークレット管理プロジェクトに戻ります：
 
@@ -256,7 +257,7 @@ Created: 2025-01-28T10:30:00Z
 go run cmd/list-secrets/main.go
 ```
 
-### Phase 3: 実践例 - API クライアント (10分)
+### STEP 3: 実践例 - API クライアント (10分)
 
 実際のアプリケーションでは、実行時にシークレットを取得し、API 呼び出しに使用する必要があります。この例ではそのパターンを示します：
 
@@ -292,7 +293,7 @@ func (ac *apiClient) CallAPI(ctx context.Context, secretKey, apiEndpoint string)
 }
 ```
 
-### Phase 4: シークレットのバージョニングとローテーション (10分)
+### STEP 4: シークレットのバージョニングとローテーション (10分)
 
 Vault KV v2 はシークレットを自動的にバージョニングします。実際に見てみましょう：
 
@@ -316,14 +317,14 @@ go run cmd/get-secret/main.go api/payment-gateway
 # バージョン 3（最新）が表示される
 ```
 
-#### ステップ 3: Vault CLI で履歴を確認
+#### ステップ 3: Vault CLI で履歴を確認（コンテナ内コマンド使用）
 
 ```bash
 # バージョン一覧
-vault kv metadata get secret/api/payment-gateway
+podman exec workshop-vault vault kv metadata get secret/api/payment-gateway
 
 # 特定のバージョンを取得（バージョン 1）
-vault kv get -version=1 secret/api/payment-gateway
+podman exec workshop-vault vault kv get -version=1 secret/api/payment-gateway
 ```
 
 **バージョニングのユースケース:**
@@ -332,7 +333,7 @@ vault kv get -version=1 secret/api/payment-gateway
 - **監査**: 誰が何をいつ変更したかを追跡
 - **ローテーション**: 古いシークレットを一時的にアクセス可能なまま新しいシークレットをデプロイ
 
-### Phase 5: アーキテクチャの理解 (5分)
+### STEP 5: アーキテクチャの理解 (5分)
 
 コード構造を確認します：
 
@@ -349,6 +350,18 @@ cat infra/vault/secret.go
 ```
 
 **重要な観察:** `usecase` レイヤーは自分が Vault と通信していることを知りません。`domain` レイヤーで定義された `SecretRepository` インターフェースについてのみ知っています。これは、ビジネスロジックを一切変更せずに、Vault を AWS Secrets Manager や Azure Key Vault に交換できることを意味します。
+
+### STEP 6: テストによる検証
+
+単体テストと統合テストを実行して、システムの動作を確認します。
+
+```bash
+# 単体テスト（モック使用、Vault 不要）
+go test ./usecase/... -v
+
+# 統合テスト（Vault コンテナ必要）
+go test ./infra/vault/... -v
+```
 
 ---
 
@@ -394,50 +407,6 @@ type secretManager struct {
 func (sm *secretManager) RetrieveSecret(ctx context.Context, key string) (*domain.Secret, error) {
     return sm.repo.GetSecret(ctx, key)
 }
-```
-
----
-
-## 検証
-
-### 期待される出力の概要
-
-```bash
-# シークレットを保存
-$ go run cmd/put-secret/main.go api/external-key "sk-live-abc123"
-=== Secret Stored Successfully ===
-Key:   api/external-key
-Value: sk-live-abc123
-
-# 取得
-$ go run cmd/get-secret/main.go api/external-key
-=== Secret Retrieved ===
-Key:     api/external-key
-Value:   sk-live-abc123
-Version: 1
-
-# すべてのシークレットを一覧表示
-$ go run cmd/list-secrets/main.go
-=== Secrets in Vault ===
-1. api/external-key (v1)
-2. api/payment-gateway (v2)
-
-# API クライアントデモ
-$ go run cmd/api-client/main.go
-[INFO] Retrieving API key from Vault...
-[INFO] API key retrieved successfully (version 1)
-[INFO] Calling external API: https://api.example.com/v1/data
-[INFO] API call successful - Status: 200
-```
-
-### テストの実行
-
-```bash
-# 単体テスト（モック使用、Vault 不要）
-go test ./usecase/... -v
-
-# 統合テスト（Vault コンテナ必要）
-go test ./infra/vault/... -v
 ```
 
 ---

@@ -42,8 +42,6 @@ This repository contains hands-on materials for various technical topics.
   - Manually deploy Envoy proxies for traffic control (retries, timeouts, routing).
 - Object Storage Workshop: Learning S3-Compatible API with MinIO
   - MinIO construction + bucket operations and signed URL generation using AWS CLI/SDK.
-- Observability Workshop: Metric Collection and Visualization with Prometheus + Grafana
-  - Metric collection and dashboard construction with Node Exporter + Prometheus + Grafana.
 
 ### Software Architecture
 
