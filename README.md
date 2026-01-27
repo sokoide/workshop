@@ -25,22 +25,25 @@ This repository contains hands-on materials for various technical topics.
   - Learn the basics with the local provider and manage CoreDNS environments as IaC using Docker/Podman.
 - [TLS/SSL Certificate Workshop: Building Self-Signed CA and Understanding Certificate Chains](./infra/tls_en.md)
   - Step-by-step guide from CA construction to certificate verification using OpenSSL.
-- Reverse Proxy Workshop: Understanding K8s Ingress through Traefik (Planned)
-  - SSL termination, routing, and health checks with Traefik + multiple backend containers.
-- Service Mesh Fundamentals: Understanding L7 Traffic Control with Envoy Sidecars (Planned)
-  - Manually deploy Envoy proxies for traffic control (retries, timeouts, routing).
 - [Container Runtime Workshop: Understanding the Reality of Containers through namespaces and cgroups](./infra/container_runtime_en.md)
   - Replicate the magic behind `podman run` by manually creating namespaces/cgroups.
 - [Redis Workshop: Real-time Game Leaderboard with Sorted Sets](./infra/cache.md)
   - Build a high-performance leaderboard using Redis Sorted Sets and manage banned users with Sets.
 - [Message Queue Workshop: Learning Pub/Sub and Queuing with RabbitMQ](./infra/rabbitmq_en.md)
   - Build a real-time crypto monitoring system using RabbitMQ Topic Exchange.
-- Object Storage Workshop: Learning S3-Compatible API with MinIO (Planned)
+- [Secret Management Workshop: Secure API Key Management with HashiCorp Vault](./infra/secret_management_en.md)
+  - Centralized secret management, versioning, and Clean Architecture integration using Vault KV v2.
+
+#### Infrastructure: Contents planned for the future
+
+- Reverse Proxy Workshop: Understanding K8s Ingress through Traefik
+  - SSL termination, routing, and health checks with Traefik + multiple backend containers.
+- Service Mesh Fundamentals: Understanding L7 Traffic Control with Envoy Sidecars
+  - Manually deploy Envoy proxies for traffic control (retries, timeouts, routing).
+- Object Storage Workshop: Learning S3-Compatible API with MinIO
   - MinIO construction + bucket operations and signed URL generation using AWS CLI/SDK.
-- Observability Workshop: Metric Collection and Visualization with Prometheus + Grafana (Planned)
+- Observability Workshop: Metric Collection and Visualization with Prometheus + Grafana
   - Metric collection and dashboard construction with Node Exporter + Prometheus + Grafana.
-- Secret Management Workshop: Dynamic Secret Management with HashiCorp Vault (Planned)
-  - Vault construction + dynamic secret retrieval from applications.
 
 ### Software Architecture
 

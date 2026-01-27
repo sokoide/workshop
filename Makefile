@@ -5,6 +5,5 @@ RUNNER := $(shell command -v pnpm >/dev/null 2>&1 && echo "pnpm dlx" || echo "np
 
 format:
 	@echo "Formatting markdown files using $(RUNNER)..."
-	$(RUNNER) markdownlint-cli "**/*.md" --ignore "conductor/**" --fix
+	$(RUNNER) markdownlint-cli "**/*.md" --ignore "conductor/**" --ignore "CLAUDE.md" --fix
 	$(RUNNER) textlint --fix "**/*.md"
-
