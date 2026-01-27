@@ -33,15 +33,17 @@ This repository contains hands-on materials for various technical topics.
   - Build a real-time crypto monitoring system using RabbitMQ Topic Exchange.
 - [Secret Management Workshop: Secure API Key Management with HashiCorp Vault](./infra/secret_management_en.md)
   - Centralized secret management, versioning, and Clean Architecture integration using Vault KV v2.
+- [Reverse Proxy Workshop: Understanding K8s Ingress through Traefik](./infra/traefik_en.md)
+  - SSL termination, routing, and health checks with Traefik + multiple backend containers.
+- [Service Mesh Fundamentals: Understanding L7 Traffic Control with Envoy Sidecars](./infra/envoy_en.md)
+  - Manually deploy Envoy proxies for traffic control (retries, timeouts, routing).
+- [Object Storage Workshop: Learning S3-Compatible API with MinIO](./infra/minio_en.md)
+  - MinIO construction + bucket operations and signed URL generation using AWS CLI/SDK.
 
 #### Infrastructure: Contents planned for the future
 
-- Reverse Proxy Workshop: Understanding K8s Ingress through Traefik
-  - SSL termination, routing, and health checks with Traefik + multiple backend containers.
-- Service Mesh Fundamentals: Understanding L7 Traffic Control with Envoy Sidecars
-  - Manually deploy Envoy proxies for traffic control (retries, timeouts, routing).
-- Object Storage Workshop: Learning S3-Compatible API with MinIO
-  - MinIO construction + bucket operations and signed URL generation using AWS CLI/SDK.
+- Observability Workshop: Metric Collection and Visualization with Prometheus + Grafana
+  - Metric collection and dashboard construction with Node Exporter + Prometheus + Grafana.
 
 ### Software Architecture
 

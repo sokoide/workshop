@@ -33,15 +33,17 @@
   - RabbitMQ の Topic Exchange を活用したリアルタイム仮想通貨監視システム構築
 - [シークレット管理実習：HashiCorp Vault による安全な API キー管理](./infra/secret_management_ja.md)
   - Vault KV v2 を活用したシークレットの集中管理・バージョニング・Clean Architecture による統合
+- [リバースプロキシ実習：Traefik で学ぶ K8s Ingress の裏側](./infra/traefik_ja.md)
+  - Traefik + 複数バックエンドコンテナで SSL 終端・ルーティング・ヘルスチェック
+- [サービスメッシュ基礎実習：Envoy サイドカーで理解する L7 トラフィック制御](./infra/envoy_ja.md)
+  - Envoy プロキシを手動配置してトラフィック制御（リトライ・タイムアウト・ルーティング）
+- [オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API](./infra/minio_ja.md)
+  - MinIO 構築 + AWS CLI/SDK でバケット操作・署名付き URL 生成
 
 #### インフラ: 今後追加予定のコンテンツ
 
-- リバースプロキシ実習：Traefik で学ぶ K8s Ingress の裏側
-  - Traefik + 複数バックエンドコンテナで SSL 終端・ルーティング・ヘルスチェック
-- サービスメッシュ基礎実習：Envoy サイドカーで理解する L7 トラフィック制御
-  - Envoy プロキシを手動配置してトラフィック制御（リトライ・タイムアウト・ルーティング）
-- オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API
-  - MinIO 構築 + AWS CLI/SDK でバケット操作・署名付き URL 生成
+- 監視基盤実習：Prometheus + Grafana によるメトリクス収集と可視化
+  - Node Exporter + Prometheus + Grafana でメトリクス収集・ダッシュボード構築
 
 ### ソフトウェア・アーキテクチャ関連
 
