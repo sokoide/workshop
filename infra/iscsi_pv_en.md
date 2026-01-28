@@ -1,30 +1,10 @@
 # iSCSI and Kubernetes PersistentVolume Workshop
 
-## Introduction
+In this workshop, you will learn how to build **iSCSI**, a traditional block storage protocol, and use it as a PersistentVolume in a Kubernetes cluster.
 
-This workshop provides a hands-on guide to understanding the iSCSI storage protocol and using it as a PersistentVolume in a Kubernetes cluster. The goal is to acquire the skills to leverage iSCSI, a cost-effective and traditional IP-based block storage, in a modern Kubernetes environment.
+## Goal
 
-**What You Will Learn:**
-
-* How to set up an iSCSI target (server) on Ubuntu.
-* How to manually connect and mount from an iSCSI initiator (client).
-* How to build a lightweight Kubernetes environment using Minikube.
-* How to define an iSCSI volume as a PersistentVolume and PersistentVolumeClaim.
-* How to mount the iSCSI volume into a Pod and verify data persistence.
-
-**Prerequisites:**
-
-* Two virtual machines (VMs) with Ubuntu 24.04 installed.
-* At least 4GB of RAM for each VM.
-* Full network connectivity between the two VMs.
-* The firewall is properly configured or disabled.
-* This guide uses the following IP addresses as examples. Please replace them with the actual IPs of your environment.
-  * **VM1**: `192.168.1.11` (iSCSI client & Kubernetes node)
-  * **VM2**: `192.168.1.12` (iSCSI target/server)
-
-### Overall Architecture
-
-The overall architecture of the environment you will build in this workshop is as follows.
+Build the following configuration, mount external storage into a Pod, and verify data persistence.
 
 ```mermaid
 graph TD
@@ -48,213 +28,128 @@ graph TD
     style ISCSI_Server fill:#EBF5FB,stroke:#3498DB
 ```
 
----
+**What you will learn in this workshop:**
 
-## Phase 1: iSCSI Server Setup and Manual Mount
-
-### Step 1: Build the iSCSI Target (on VM2)
-
-First, let's set up the iSCSI target (server) on VM2, which will provide the storage.
-
-1. **Install Packages**
-
-    Install `targetcli-fb`, the tool for managing iSCSI targets.
-
-    ```bash
-    sudo apt update
-    sudo apt install -y targetcli-fb
-    ```
-
-2. **Create a Disk Image File**
-
-    Instead of a physical disk, we'll create a 1GB image file to act as the backend storage.
-
-    ```bash
-    sudo truncate -s 1G /var/lib/iscsi_disk.img
-    ```
-
-3. **Configure the iSCSI Target**
-
-    We will use `targetcli` to configure the target. To make it easier to follow, we will specify a predictable IQN.
-
-    ```bash
-    sudo targetcli /iscsi create iqn.2025-12.world.server:storage
-    sudo targetcli /backstores/fileio create disk01 /var/lib/iscsi_disk.img
-    sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backstores/fileio/disk01
-    ```
-
-    Next, we will set up an ACL to allow access from VM1, but first, we need to find VM1's IQN.
-
-4. **Find VM1's IQN (on VM1)**
-
-    Install the iSCSI initiator tool on VM1 and find its IQN (iSCSI Qualified Name).
-
-    ```bash
-    # Execute on VM1
-    sudo apt update
-    sudo apt install -y open-iscsi
-    cat /etc/iscsi/initiatorname.iscsi
-    ```
-
-    The string following `InitiatorName=`, like `iqn.1993-08.org.debian:01:xxxxxxxxxxxx`, is the IQN for VM1. Make a note of it.
-
-5. **Configure ACL and Save (on VM2)**
-
-    Now, use the IQN of VM1 to create an ACL on VM2.
-
-    ```bash
-    # Replace <VM1_IQN> with the IQN you noted above
-    sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/acls create iqn.1993-08.org.debian:01:xxxxxxxxxxxx
-
-    # Save the configuration
-    sudo targetcli saveconfig
-    ```
-
-    The iSCSI target is now ready.
-
-### Step 2: Manually Mount the iSCSI Disk (on VM1)
-
-Next, let's verify that VM1 can connect to and mount the iSCSI disk from VM2.
-
-1. **Start Service and Discover the Target**
-
-    ```bash
-    sudo systemctl enable --now iscsid
-    sudo iscsiadm -m discovery -t sendtargets -p 192.168.1.12
-    ```
-
-2. **Log in to the Target**
-
-    ```bash
-    sudo iscsiadm -m node --targetname iqn.2025-12.world.server:storage --portal 192.168.1.12:3260 --login
-    ```
-
-3. **Verify the Disk**
-
-    Check if a new block device (e.g., `/dev/sdb`) has been recognized. Comparing `lsblk` before and after login is helpful.
-
-    ```bash
-    lsblk
-    ```
-
-4. **Format and Mount**
-
-    Format the new disk with the `ext4` filesystem and mount it. **Note: The device name (e.g., /dev/sdb) may vary depending on your environment.**
-
-    ```bash
-    # Adjust /dev/sdb based on your lsblk output
-    sudo mkfs.ext4 /dev/sdb
-    sudo mkdir -p /mnt/iscsi_test
-    sudo mount /dev/sdb /mnt/iscsi_test
-    ```
-
-5. **Test the Mount**
-
-    Write a file to the mounted directory.
-
-    ```bash
-    sudo sh -c "echo 'Hello iSCSI' > /mnt/iscsi_test/hello.txt"
-    cat /mnt/iscsi_test/hello.txt
-    ```
-
-    If it prints `Hello iSCSI`, you have succeeded.
-
-6. **Clean Up**
-
-    Unmount the disk in preparation for the next phase.
-
-    ```bash
-    sudo umount /mnt/iscsi_test
-    ```
+1. **iSCSI Target Setup**: Configuring a server to provide disks over the network.
+2. **iSCSI Initiator Setup**: Recognizing and formatting disks on the client side.
+3. **K8s PV/PVC Integration**: Abstracting physical storage and safely providing it to Pods.
 
 ---
 
-## Phase 2: Kubernetes Integration
+## Challenges in Stateful Applications
 
-### Kubernetes Storage Concepts
+Containers are intended to be "ephemeral"; any data inside them is lost when they restart.
 
-In Phase 2, we will use the iSCSI disk created in Phase 1 as a persistent volume in Kubernetes. The relationship between the main resources when a Pod uses external storage is as follows.
+### ❌ Challenges
+
+- Saving data (e.g., databases) to a container's internal disk causes data loss when the Pod is deleted.
+- Mounting to local disks prevents data access if the Pod moves to another node.
+
+### ✅ iSCSI and PersistentVolume Solutions
+
+- **External Storage**: Data is stored on a dedicated server on the network, accessible regardless of where the Pod runs.
+- **Abstraction (PV/PVC)**: Developers don't need to know details like "iSCSI IP addresses"; they only need to issue a request (PVC) for "1GB of capacity."
+
+---
+
+## Architecture
+
+Understand the storage abstraction layers in Kubernetes.
 
 ```mermaid
 graph LR
-    A[Pod] -- "requests volume<br>(uses)" --> B(PersistentVolumeClaim);
-    B -- "finds and binds to<br>a suitable PV" --> C(PersistentVolume);
-    C -- "points to physical storage" --> D[(iSCSI LUN on VM2)];
-
-    style A fill:#D5F5E3,stroke:#2ECC71
-    style D fill:#EBF5FB,stroke:#3498DB
+    A[Pod] -- "requests (uses)" --> B(PersistentVolumeClaim);
+    B -- "binds to" --> C(PersistentVolume);
+    C -- "points to physical entity" --> D[(iSCSI LUN on VM2)];
 ```
 
-1. **Pod**: The container running your application. It specifies the volume it wants to mount by referencing the name of a `PersistentVolumeClaim`.
-2. **PersistentVolumeClaim (PVC)**: A request for storage, such as "I need 1Gi of fast storage".
-3. **PersistentVolume (PV)**: Defines the details of an actual piece of storage that exists, such as an iSCSI disk, an NFS share, or cloud storage, including its connection details (IP address, path, etc.).
+### Directory Structure
 
-This mechanism allows a Pod to consume storage through an abstract request (a PVC) without needing to know the details of the underlying physical storage.
+```text
+~/
+├── iscsi-pv.yaml    # Physical storage definition (Admin)
+├── iscsi-pvc.yaml   # Storage request definition (Developer)
+└── test-pod.yaml    # Pod definition using the storage
+```
 
-### Step 3: Set Up the Minikube Environment (on VM1)
+---
 
-Now, install Minikube, a lightweight Kubernetes distribution, on VM1.
+## Preparation
 
-1. **Install Podman and Dependencies**
+### 1. VM Provisioning
 
-    Install Podman as the container runtime and additional network tools required by Minikube.
+- **VM1:** `192.168.1.11` (Client & K8s Node)
+- **VM2:** `192.168.1.12` (iSCSI Target)
 
-    ```bash
-    sudo apt update
-    sudo apt install -y podman conntrack socat
-    ```
+### 2. Prerequisites
 
-2. **Install kubectl**
+- Both VMs: Ubuntu 24.04 (4GB RAM minimum recommended).
+- Firewall properly configured or disabled.
 
-    Install `kubectl`, the command-line tool for interacting with a Kubernetes cluster.
+---
 
-    ```bash
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-    ```
+## Workshop Steps
 
-3. **Install Minikube**
+### STEP 1: Build iSCSI Target (VM2)
 
-    ```bash
-    curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-    sudo install minikube /usr/local/bin/
-    ```
+Configure the server-side that provides the storage.
 
-4. **Start Minikube**
+```bash
+# Install packages
+sudo apt update && sudo apt install -y targetcli-fb
 
-    **[IMPORTANT]** In a 4GB RAM environment, using `--driver=none` is the best way to save resources. This runs Kubernetes components directly on the host OS. Additionally, it significantly simplifies mounting iSCSI volumes because the Pods can leverage the host's `iscsiadm` and device nodes directly.
+# Create a 1GB virtual disk image
+sudo truncate -s 1G /var/lib/iscsi_disk.img
 
-    ```bash
-    # The open-iscsi service must be running
-    sudo systemctl enable --now iscsid
+# Target configuration
+sudo targetcli /iscsi create iqn.2025-12.world.server:storage
+sudo targetcli /backstores/fileio create disk01 /var/lib/iscsi_disk.img
+sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backstores/fileio/disk01
+```
 
-    # Use the none driver and specify podman as the container runtime
-    # (Note: the none driver must be run with sudo)
-    sudo minikube start --driver=none --container-runtime=podman
-    ```
+Next, allow connection from VM1.
+*Note: Run `cat /etc/iscsi/initiatorname.iscsi` on VM1 to check the IQN.*
 
-    If you see the message `kubectl is now configured to use "minikube"`, it was successful.
+```bash
+# Grant access using VM1's IQN
+sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/acls create <VM1_IQN>
+sudo targetcli saveconfig
+```
 
-5. **Check the Cluster**
+### STEP 2: Verify Operation via Manual Mount (VM1)
 
-    ```bash
-    kubectl get nodes
-    ```
+Confirm connectivity at the OS level before passing it to Kubernetes.
 
-    You should see VM1 listed with a `Ready` status.
+```bash
+sudo apt update && sudo apt install -y open-iscsi
+sudo systemctl enable --now iscsid
 
-### Step 4: Use the iSCSI Volume from Kubernetes
+# Discover target and login
+sudo iscsiadm -m discovery -t sendtargets -p 192.168.1.12
+sudo iscsiadm -m node --targetname iqn.2025-12.world.server:storage --portal 192.168.1.12:3260 --login
 
-Finally, let's use the iSCSI disk as a persistent volume in Kubernetes.
+# Check disk and format
+lsblk # You should see /dev/sdb or similar
+sudo mkfs.ext4 /dev/sdb
+```
 
-> **Note:** This procedure uses the in-tree iSCSI volume plugin. In newer versions of Kubernetes, CSI drivers are the recommended approach. However, for learning purposes, we will use the simpler in-tree method. This feature requires the `open-iscsi` package to be installed on every node (in our case, VM1), which we already did in Step 2.
+### STEP 3: Prepare Kubernetes (Minikube) (VM1)
 
-1. **Create a PersistentVolume (PV)**
+```bash
+# Install Minikube (Simplified)
+curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && sudo install minikube /usr/local/bin/
 
-    Create a `PersistentVolume` that defines the iSCSI disk. Create a file named `iscsi-pv.yaml` with the following content. Make sure to update `targetPortal` and `iqn` to match your environment.
+# Start (Recommended to use --driver=none to save resources)
+sudo minikube start --driver=none
+```
+
+### STEP 4: Apply PV and PVC
+
+Register physical storage with Kubernetes and issue a Claim.
+
+1. **PersistentVolume (iscsi-pv.yaml)**
 
     ```yaml
-    # iscsi-pv.yaml
     apiVersion: v1
     kind: PersistentVolume
     metadata:
@@ -262,125 +157,77 @@ Finally, let's use the iSCSI disk as a persistent volume in Kubernetes.
     spec:
       capacity:
         storage: 1Gi
-      accessModes:
-        - ReadWriteOnce
+      accessModes: [ReadWriteOnce]
       iscsi:
         targetPortal: "192.168.1.12:3260"
-        iqn: "iqn.2025-12.world.server:storage" # IQN of VM2
+        iqn: "iqn.2025-12.world.server:storage"
         lun: 0
         fsType: 'ext4'
-        readOnly: false
     ```
 
-2. **Create a PersistentVolumeClaim (PVC)**
-
-    Create a `PersistentVolumeClaim` for a Pod to request storage. Create `iscsi-pvc.yaml` with this content.
+2. **PersistentVolumeClaim (iscsi-pvc.yaml)**
 
     ```yaml
-    # iscsi-pvc.yaml
     apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
       name: iscsi-pvc
     spec:
-      accessModes:
-        - ReadWriteOnce
+      accessModes: [ReadWriteOnce]
       resources:
         requests:
           storage: 1Gi
     ```
 
-3. **Apply the PV and PVC**
+```bash
+kubectl apply -f iscsi-pv.yaml
+kubectl apply -f iscsi-pvc.yaml
+kubectl get pvc # Success if Status becomes Bound
+```
 
-    ```bash
-    kubectl apply -f iscsi-pv.yaml
-    kubectl apply -f iscsi-pvc.yaml
-    ```
+### STEP 5: Verification via Pod
 
-    Run `kubectl get pv,pvc` and verify that the STATUS is `Bound`.
+```bash
+# Start Pod
+kubectl apply -f test-pod.yaml
 
-4. **Mount the Volume from a Pod**
+# Write data
+kubectl exec test-pod -- sh -c "echo 'Hello persistent' > /data/hello.txt"
 
-    Create a Pod that uses this PVC. Create `test-pod.yaml` with the following content.
+# Delete and restart Pod
+kubectl delete pod test-pod
+kubectl apply -f test-pod.yaml
 
-    ```yaml
-    # test-pod.yaml
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      name: test-pod
-    spec:
-      containers:
-      - name: test-container
-        image: busybox
-        command: ["/bin/sh", "-c", "sleep 3600"]
-        volumeMounts:
-        - name: iscsi-storage
-          mountPath: "/data"
-      volumes:
-      - name: iscsi-storage
-        persistentVolumeClaim:
-          claimName: iscsi-pvc
-    ```
-
-5. **Create the Pod and Verify**
-
-    Create the Pod and confirm that the iSCSI volume is mounted correctly.
-
-    ```bash
-    kubectl apply -f test-pod.yaml
-
-    # Wait for the Pod to become Running
-    kubectl get pod test-pod -w
-
-    # Exec into the Pod and write a file to the mounted directory
-    kubectl exec -it test-pod -- sh -c "echo 'Hello from K8s Pod' > /data/k8s_test.txt"
-
-    # Verify the file was written
-    kubectl exec -it test-pod -- cat /data/k8s_test.txt
-    ```
-
-    It should display `Hello from K8s Pod`.
-
-6. **Verify Data Persistence**
-
-    Confirm that the data persists even after the Pod is recreated.
-
-    ```bash
-    # Delete the Pod
-    kubectl delete pod test-pod
-
-    # Recreate the Pod
-    kubectl apply -f test-pod.yaml
-
-    # Once the Pod is Running, check if the file still exists
-    kubectl exec -it test-pod -- cat /data/k8s_test.txt
-    ```
-
-    If it once again displays `Hello from K8s Pod`, you have successfully demonstrated that the data is persisted on the iSCSI volume.
+# Verify reading
+kubectl exec test-pod -- cat /data/hello.txt
+# -> Persistence successful if "Hello persistent" is shown!
+```
 
 ---
 
-## Conclusion
+## Clean Architecture Highlights
 
-Congratulations! In this workshop, you have experienced the entire workflow, from the basics of iSCSI to using external storage as a persistent volume in a Kubernetes cluster.
+Kubernetes storage management is a truly Clean Architecture-style approach that **separates "Infrastructure Details (IP, protocol)" from "App Requests (capacity)."**
 
-**Cleanup:**
-To revert your environment, run the following commands:
+- **PV**: Infrastructure Layer (knows which server and which disk).
+- **PVC**: UseCase Layer (expresses the intent of what kind of storage is needed).
+- **Pod**: Entity/Business Logic Layer (requires data; doesn't care if the backend is iSCSI or NFS).
+
+---
+
+## Cleanup
 
 ```bash
-# Delete Kubernetes resources
 kubectl delete -f test-pod.yaml
 kubectl delete -f iscsi-pvc.yaml
 kubectl delete -f iscsi-pv.yaml
-
-# Stop and delete Minikube cluster
-sudo minikube stop
 sudo minikube delete
-
-# Log out from iSCSI target (on VM1)
 sudo iscsiadm -m node --logout
-
-# Clear iSCSI target configuration (on VM2)
-sudo targetcli clearconfig confirm=True
 ```
+
+---
+
+## References
+
+- [Kubernetes Documentation: Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
+- [Open-iSCSI Official Site](http://www.open-iscsi.com/)

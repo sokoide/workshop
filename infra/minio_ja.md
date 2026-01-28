@@ -37,7 +37,7 @@
 
 ## アーキテクチャ
 
-Clean Architecture に従い、S3 操作の詳細は `infra` 層に隠蔽します。
+Clean Architecture に従い、S3 操作の詳細は `infra` 層に隠蔽します。アプリ（Usecase）は「ファイルを保存する」という抽象的なインターフェースのみを知っています。
 
 ```mermaid
 graph TB
@@ -62,7 +62,7 @@ graph TB
 ```text
 infra/assets/minio/
 ├── docker-compose.yml
-├── main.go                 # サンプルアプリ
+├── main.go                 # サンプルアプリ (Upload/Share機能の実装)
 └── go.mod
 ```
 
@@ -87,7 +87,7 @@ MinIO コンソール: `http://localhost:9001`
 MinIO クライアント (`mc`) が利用可能な場合、または AWS CLI を使用して接続確認を行います。
 
 ```bash
-# AWS CLI の場合
+# AWS CLI の場合 (ローカルのMinIOに向ける設定)
 aws --endpoint-url http://localhost:9000 s3 mb s3://my-bucket
 ```
 
@@ -99,9 +99,12 @@ aws --endpoint-url http://localhost:9000 s3 mb s3://my-bucket
 
 Go アプリケーションを実行し、バケット `workshop-images` を作成してファイルをアップロードします。
 
+**コード実装例 (Infra層)**:
+
 ```go
 // infra/adapter.go (抜粋)
 func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
+    // S3 (MinIO) にファイルをPutObjectする
     _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
         Bucket: aws.String("workshop-images"),
         Key:    aws.String(key),
@@ -111,18 +114,25 @@ func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
 }
 ```
 
+実行コマンド:
+
 ```bash
 go run main.go upload sample.jpg
 ```
 
 ### STEP 2: 署名付き URL (Presigned URL) の生成
 
-プライベートなバケットにあるファイルに対して、期限付きのアクセス URL を発行します。これにより、バケットを公開設定にすることなく、特定のユーザーにのみファイルを安全に見せることができます。
+プライベートなバケットにあるファイルに対して、期限付きのアクセス URL を発行します。これにより、バケット自体を公開設定にすることなく、特定のユーザーにのみファイルを安全に見せることができます。
+
+**コード実装例 (Usecase層)**:
 
 ```go
 // usecase/file_share.go (抜粋)
 func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
+    // 署名付きURL生成クライアントを使用
     presignClient := s3.NewPresignClient(u.client)
+    
+    // 15分間だけ有効なGET用URLを発行
     req, _ := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
         Bucket: aws.String("workshop-images"),
         Key:    aws.String(key),
@@ -132,10 +142,14 @@ func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
 }
 ```
 
+実行コマンド:
+
 ```bash
 go run main.go share sample.jpg
 # Output: https://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
 ```
+
+**なぜ安全なのか？**: URL には暗号学的な署名が含まれており、有効期限やパスの一部でも改ざんされると無効になります。
 
 ### STEP 3: URL の検証
 

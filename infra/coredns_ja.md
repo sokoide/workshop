@@ -1,44 +1,73 @@
 # CoreDNS 実習：親子 DNS サーバーを構築して名前解決を理解する
 
-ソフトウェアエンジニア向けに、DNS の基本的な仕組み（権威サーバー、フォワーディング、委譲）を、CoreDNS を使って実際に構築しながら学びます。
+ソフトウェアエンジニア向けに、DNS の基本的な仕組み（権威サーバー、フォワーディング、委譲）を、**CoreDNS** を使って実際に構築しながら学びます。
 
 ## ゴール
 
-以下の構成を **手を動かして構築し、理解** します。
+以下の親子関係を持つ DNS 構成を構築し、名前解決の流れを理解します。
 
-```text
-                     DNS Query (test.foo.sokoide.com)
-[ Client ] -------------------------------------------------> [ VM1: Parent DNS ]
-(Your PC/VM)               (1) Query Port 10053                 | 192.168.100.10
-                                                                | Zone: sokoide.com
-                                                                |
-                                                                | (2) Forward Query
-                                                                v
-                                                          [ VM2: Child DNS ]
-                                                            192.168.100.20
-                                                            Zone: foo.sokoide.com
-                                                            Returns: 2.2.2.2
+```mermaid
+sequenceDiagram
+    participant C as クライアント (dig)
+    participant P as 親DNS (VM1: sokoide.com)
+    participant S as 子DNS (VM2: foo.sokoide.com)
+
+    Note over C,P: (1) www.sokoide.com を問い合わせ
+    C->>P: Query
+    P-->>C: Response (1.1.1.1)
+
+    Note over C,P: (2) test.foo.sokoide.com を問い合わせ
+    C->>P: Query
+    P->>S: Forward Query
+    S-->>P: Response (2.2.2.2)
+    P-->>C: Response (2.2.2.2)
 ```
 
-**学ぶこと:**
+**この実習で習得すること:**
 
-1. **権威 DNS サーバー (Authoritative Server):** 自分のドメイン（ゾーン）の情報を持ち、問い合わせに答えるサーバー。
-2. **フォワーディング (Forwarding):** 自分が知らないドメインの問い合わせを、別のサーバーに転送する仕組み。
-3. **ゾーン階層:** 親 (`sokoide.com`) と子 (`foo.sokoide.com`) の関係性。
-
-※ 本実習は分かりやすさのため **フォワーディング** を使います。実際の DNS 階層は **委譲（NS + グルーレコード）** が基本で、最後の「次のステップ」で扱います。
+1. **権威 DNS サーバー (Authoritative Server):** 特定のドメイン（ゾーン）の正解を知っているサーバーの構築。
+2. **フォワーディング (Forwarding):** 自分が管理していないドメインの問い合わせを他者へ転送する仕組み。
+3. **ゾーン階層の構築:** 親ドメインとサブドメインの連携。
 
 ---
 
-## 前提条件
+## なぜ CoreDNS なのか？
 
-- **VM 2 台** (Ubuntu 24.04 推奨)
-  - **VM1 (Parent):** IP `192.168.100.10`
-  - **VM2 (Child):** IP `192.168.100.20`
-  - ※ IP アドレスが異なる場合は、以降の手順の IP を適宜読み替えてください。
-- **ツール:** `curl`, `tar`, `dig` (dnsutils)
+従来の DNS サーバー（BIND など）は設定が複雑で、動的な環境への対応が困難でした。
 
-**事前準備 (両方の VM で実行):**
+- **プラグイン方式**: 設定ファイル（Corefile）にプラグインを並べるだけで機能を拡張可能。
+- **クラウドネイティブ**: Kubernetes の標準 DNS としても採用されており、軽量かつ高速。
+- **単一バイナリ**: Go 言語で書かれており、インストールが非常に簡単。
+
+---
+
+## アーキテクチャ
+
+2 台の VM を使用し、親ゾーンと子ゾーンを物理的に分けて構築します。
+
+### レイヤー構造とディレクトリ
+
+```text
+~/
+├── coredns_parent/ (VM1)
+│   ├── Corefile          # 親DNSの設定
+│   └── db.sokoide.com    # sokoide.com のレコード定義
+└── coredns_child/  (VM2)
+    ├── Corefile          # 子DNSの設定
+    └── db.foo.sokoide.com # foo.sokoide.com のレコード定義
+```
+
+---
+
+## 準備
+
+### 1. VM の用意
+
+- **VM1 (Parent):** IP `192.168.100.10` (想定)
+- **VM2 (Child):** IP `192.168.100.20` (想定)
+- ※ IP アドレスが異なる場合は、適宜読み替えてください。
+
+### 2. ツールインストール (両方の VM)
 
 ```bash
 sudo apt update && sudo apt install -y curl tar dnsutils
@@ -46,9 +75,9 @@ sudo apt update && sudo apt install -y curl tar dnsutils
 
 ---
 
-## Step 1. CoreDNS のインストール
+## 実習ステップ
 
-CoreDNS は Go 言語で書かれた単一バイナリの DNS サーバーです。依存関係がなく、導入が非常に簡単です。
+### STEP 1: CoreDNS のインストール
 
 **VM1, VM2 両方で実行:**
 
@@ -65,23 +94,16 @@ sudo mv coredns /usr/local/bin/
 coredns -version
 ```
 
----
+### STEP 2: VM1 (親) の構築: sokoide.com
 
-## Step 2. VM1 (親) の構築: sokoide.com
+VM1 は親ドメイン `sokoide.com` を管理し、`foo.sokoide.com` 宛の問い合わせを VM2 へ転送します。
 
-VM1 は親ドメイン `sokoide.com` を管理します。また、子ドメイン `foo.sokoide.com` への問い合わせが来た場合、VM2 へ転送するように設定します。
+**VM1 で実行:**
 
-**VM1 (`192.168.100.10`) で実行:**
-
-1. 作業ディレクトリ作成
+1. 設定ファイルの作成
 
     ```bash
     mkdir -p ~/coredns_parent && cd ~/coredns_parent
-    ```
-
-2. **Corefile** (設定ファイル) 作成
-
-    ```bash
     cat <<'EOF' > Corefile
     sokoide.com:10053 {
         file db.sokoide.com
@@ -90,7 +112,7 @@ VM1 は親ドメイン `sokoide.com` を管理します。また、子ドメイ�
     }
 
     foo.sokoide.com:10053 {
-        # 問い合わせを VM2 (Child) へ転送
+        # 子ドメインの問い合わせを VM2 へ転送
         forward . 192.168.100.20:10053
         log
         errors
@@ -98,7 +120,7 @@ VM1 は親ドメイン `sokoide.com` を管理します。また、子ドメイ�
     EOF
     ```
 
-3. **ゾーンファイル** (レコード定義) 作成
+2. ゾーンファイルの作成
 
     ```bash
     cat <<'EOF' > db.sokoide.com
@@ -113,23 +135,16 @@ VM1 は親ドメイン `sokoide.com` を管理します。また、子ドメイ�
     EOF
     ```
 
----
+### STEP 3: VM2 (子) の構築: foo.sokoide.com
 
-## Step 3. VM2 (子) の構築: foo.sokoide.com
+VM2 はサブドメイン `foo.sokoide.com` の正解データを持ちます。
 
-VM2 はサブドメイン `foo.sokoide.com` を管理します。ここには具体的なレコード（例: `test`）を登録します。
+**VM2 で実行:**
 
-**VM2 (`192.168.100.20`) で実行:**
-
-1. 作業ディレクトリ作成
+1. 設定ファイルの作成
 
     ```bash
     mkdir -p ~/coredns_child && cd ~/coredns_child
-    ```
-
-2. **Corefile** 作成
-
-    ```bash
     cat <<'EOF' > Corefile
     foo.sokoide.com:10053 {
         file db.foo.sokoide.com
@@ -139,7 +154,7 @@ VM2 はサブドメイン `foo.sokoide.com` を管理します。ここには具
     EOF
     ```
 
-3. **ゾーンファイル** 作成
+2. ゾーンファイルの作成
 
     ```bash
     cat <<'EOF' > db.foo.sokoide.com
@@ -154,91 +169,60 @@ VM2 はサブドメイン `foo.sokoide.com` を管理します。ここには具
     EOF
     ```
 
----
+### STEP 4: DNS サーバーの起動
 
-## Step 4. DNS サーバーの起動
-
-それぞれの VM で CoreDNS を起動します。ログを確認するため、このターミナルは開いたままにしてください（または `screen`/`tmux` やバックグラウンド実行 `&` を利用）。
-
-**VM1 (Parent) ターミナル:**
-
-ポート `10053` は特権ポート（1024 未満）ではないため、本来 `sudo` は不要ですが、設定ファイルやゾーンファイルの配置場所によっては権限が必要になる場合があります。以下の例では `sudo` を使用しています。
+**VM1, VM2 それぞれで実行:**
 
 ```bash
-cd ~/coredns_parent
-sudo /usr/local/bin/coredns -conf Corefile
+# 各ディレクトリに移動して起動
+# ポート10053を使用するため sudo は不要な場合があります
+coredns -conf Corefile
 ```
 
-**VM2 (Child) ターミナル:**
+※ 起動したままにしてログを確認してください。
 
-```bash
-cd ~/coredns_child
-sudo /usr/local/bin/coredns -conf Corefile
-```
+### STEP 5: 動作確認 (dig)
 
----
+別の端末から問い合わせを投げます。
 
-## Step 5. 動作確認 (dig)
+1. **直接解決**: 親サーバーに `www.sokoide.com` を聞く
 
-別のターミナル（またはローカル PC）から `dig` コマンドを使って検証します。
+   ```bash
+   dig @192.168.100.10 -p 10053 www.sokoide.com +short
+   # -> 1.1.1.1
+   ```
 
-### 1. 親ゾーンの正引き
+2. **転送解決**: 親サーバーに `test.foo.sokoide.com` を聞く
 
-親サーバー (VM1) に `www.sokoide.com` を問い合わせます。
+   ```bash
+   dig @192.168.100.10 -p 10053 test.foo.sokoide.com
+   ```
 
-```bash
-dig @192.168.100.10 -p 10053 www.sokoide.com +short
-```
-
-> **結果:** `1.1.1.1` が返れば成功。
-
-### 2. 子ゾーンの解決 (Forwarding)
-
-親サーバー (VM1) に、子ゾーンにある `test.foo.sokoide.com` を問い合わせます。
-
-```bash
-dig @192.168.100.10 -p 10053 test.foo.sokoide.com
-```
-
-**出力の読み方:**
-
-```text
-;; ANSWER SECTION:
-test.foo.sokoide.com.   3600    IN      A       2.2.2.2  <-- 正しいIP (VM2から取得)
-
-;; SERVER: 192.168.100.10#10053(192.168.100.10)          <-- 親サーバーが答えている
-```
-
-### 何が起きたか？
-
-1. クライアントは VM1 (`sokoide.com`) に問い合わせた。
-2. VM1 は設定 (`forward . 192.168.100.20`) に従い、VM2 に問い合わせを転送した。
-3. VM2 が `2.2.2.2` と回答した。
-4. VM1 がその結果をクライアントに返した。
-
-VM1 のログを見ると、転送が行われた様子（ログ出力設定によりますが）やアクセスが確認できます。
+   **結果の確認**: `ANSWER SECTION` に `2.2.2.2` が表示され、`SERVER` が `192.168.100.10` になっていれば、親が子から答えを「代行取得」したことがわかります。
 
 ---
 
-## クリーンアップ
+## 片付け
 
-実習終了後の後片付けです。
+1. `Ctrl+C` で CoreDNS を停止します。
+2. 作業ディレクトリを削除します。
 
-1. **プロセス停止:** 各 VM で起動している `coredns` を `Ctrl+C` で停止します。
-2. **ファイル削除:**
-
-    ```bash
-    # 両方の VM で
-    rm -rf ~/coredns_parent ~/coredns_child
-    # 必要ならバイナリも削除
-    sudo rm /usr/local/bin/coredns
-    ```
+   ```bash
+   rm -rf ~/coredns_parent ~/coredns_child
+   ```
 
 ---
 
 ## 次のステップ
 
-今回は **フォワーディング (Forwarding)** を使いましたが、インターネット上の DNS の基本は **委譲 (Delegation)** です。
-委譲を行う場合は、親のゾーンファイル (`db.sokoide.com`) に、子の NS レコード (`foo IN NS ns1.foo...`) とグルーレコード (`ns1.foo IN A ...`) を書くことで、クライアント自身に次のサーバーへ問い合わせに行かせることができます。
+今回は **フォワーディング (Forwarding)** を使いましたが、インターネットの基本は **委譲 (Delegation)** です。
+委譲では、親が答えを代行取得するのではなく、「次はあいつに聞いてくれ」とクライアントに指示（NS レコードの返却）を出します。
 
-CoreDNS の設定を変えて、委譲の挙動を試してみるのも良い学習になります。
+親の `db.sokoide.com` に子の NS レコードを記述し、Corefile の `forward` プラグインを外すことで、委譲の挙動を試すことができます。
+
+---
+
+## 参考文献
+
+- [CoreDNS Official Documentation](https://coredns.io/docs/)
+- [RFC 1034 - Domain Names - Concepts and Facilities](https://tools.ietf.org/html/rfc1034)

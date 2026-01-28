@@ -37,7 +37,7 @@ Saving images as BLOBs in an RDBMS.
 
 ## Architecture
 
-Following Clean Architecture, S3 operation details are hidden in the `infra` layer.
+Following Clean Architecture, S3 operation details are hidden in the `infra` layer. The App (Usecase) only knows the abstract interface "save file".
 
 ```mermaid
 graph TB
@@ -62,7 +62,7 @@ graph TB
 ```text
 infra/assets/minio/
 ├── docker-compose.yml
-├── main.go                 # Sample App
+├── main.go                 # Sample App (Implementation of Upload/Share features)
 └── go.mod
 ```
 
@@ -87,7 +87,7 @@ MinIO Console: `http://localhost:9001`
 Verify connection using MinIO Client (`mc`) or AWS CLI.
 
 ```bash
-# Using AWS CLI
+# Using AWS CLI (configured to point to local MinIO)
 aws --endpoint-url http://localhost:9000 s3 mb s3://my-bucket
 ```
 
@@ -99,9 +99,12 @@ aws --endpoint-url http://localhost:9000 s3 mb s3://my-bucket
 
 Run the Go application to create a bucket `workshop-images` and upload a file.
 
+**Code Example (Infra Layer)**:
+
 ```go
 // infra/adapter.go (Excerpt)
 func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
+    // PutObject to S3 (MinIO)
     _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
         Bucket: aws.String("workshop-images"),
         Key:    aws.String(key),
@@ -111,18 +114,25 @@ func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
 }
 ```
 
+Command:
+
 ```bash
 go run main.go upload sample.jpg
 ```
 
 ### STEP 2: Generate Presigned URL
 
-Issue a time-limited access URL for a file in a private bucket. This allows you to securely show files only to specific users without making the bucket public.
+Issue a time-limited access URL for a file in a private bucket. This allows you to securely show files only to specific users without making the bucket itself public.
+
+**Code Example (Usecase Layer)**:
 
 ```go
 // usecase/file_share.go (Excerpt)
 func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
+    // Use presign client
     presignClient := s3.NewPresignClient(u.client)
+    
+    // Issue GET URL valid for 15 minutes
     req, _ := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
         Bucket: aws.String("workshop-images"),
         Key:    aws.String(key),
@@ -132,10 +142,14 @@ func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
 }
 ```
 
+Command:
+
 ```bash
 go run main.go share sample.jpg
 # Output: https://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
 ```
+
+**Why is it secure?**: The URL contains a cryptographic signature, so if any part of the path or expiration time is tampered with, it becomes invalid.
 
 ### STEP 3: Validate URL
 

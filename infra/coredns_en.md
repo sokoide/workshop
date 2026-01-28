@@ -1,44 +1,73 @@
 # CoreDNS Workshop: Understanding Name Resolution by Building Parent-Child DNS Servers
 
-This workshop is for software engineers to learn the basic mechanisms of DNS (Authoritative Servers, Forwarding, Delegation) by actually building them using CoreDNS.
+This workshop is for software engineers to learn the basic mechanisms of DNS (Authoritative Servers, Forwarding, Delegation) by actually building them using **CoreDNS**.
 
 ## Goal
 
-Build and understand the following configuration **hands-on**.
+Build the following DNS configuration with a parent-child relationship and understand the flow of name resolution.
 
-```text
-                     DNS Query (test.foo.sokoide.com)
-[ Client ] -------------------------------------------------> [ VM1: Parent DNS ]
-(Your PC/VM)               (1) Query Port 10053                 | 192.168.100.10
-                                                                | Zone: sokoide.com
-                                                                |
-                                                                | (2) Forward Query
-                                                                v
-                                                          [ VM2: Child DNS ]
-                                                            192.168.100.20
-                                                            Zone: foo.sokoide.com
-                                                            Returns: 2.2.2.2
+```mermaid
+sequenceDiagram
+    participant C as Client (dig)
+    participant P as Parent DNS (VM1: sokoide.com)
+    participant S as Child DNS (VM2: foo.sokoide.com)
+
+    Note over C,P: (1) Query www.sokoide.com
+    C->>P: Query
+    P-->>C: Response (1.1.1.1)
+
+    Note over C,P: (2) Query test.foo.sokoide.com
+    C->>P: Query
+    P->>S: Forward Query
+    S-->>P: Response (2.2.2.2)
+    P-->>C: Response (2.2.2.2)
 ```
 
-**What you will learn:**
+**What you will learn in this workshop:**
 
-1. **Authoritative DNS Server:** A server that holds information for its own domain (zone) and answers queries.
-2. **Forwarding:** A mechanism to forward queries for unknown domains to another server.
-3. **Zone Hierarchy:** The relationship between a parent (`sokoide.com`) and a child (`foo.sokoide.com`).
-
-*Note:* This workshop uses **forwarding** for clarity. Real-world DNS hierarchy is based on **delegation** (NS + glue records), which you will explore in the Next Steps.
+1. **Authoritative DNS Server:** Building a server that knows the correct answer for a specific domain (zone).
+2. **Forwarding:** A mechanism to forward queries for domains you do not manage to another server.
+3. **Building Zone Hierarchy:** Coordination between parent and subdomains.
 
 ---
 
-## Prerequisites
+## Why CoreDNS?
 
-- **2 VMs** (Ubuntu 24.04 recommended)
-  - **VM1 (Parent):** IP `192.168.100.10`
-  - **VM2 (Child):** IP `192.168.100.20`
-  - *Note:* If your IP addresses are different, please replace the IPs in the following steps accordingly.
-- **Tools:** `curl`, `tar`, `dig` (dnsutils)
+Traditional DNS servers (like BIND) were complex to configure and difficult to adapt to dynamic environments.
 
-**Preparation (Execute on both VMs):**
+- **Plugin-based**: Extend functionality by simply listing plugins in a configuration file (Corefile).
+- **Cloud Native**: Adopted as the standard DNS for Kubernetes; lightweight and fast.
+- **Single Binary**: Written in Go, making installation extremely simple.
+
+---
+
+## Architecture
+
+Using two VMs, we will build the parent and child zones physically separated.
+
+### Layer Structure and Directory
+
+```text
+~/
+├── coredns_parent/ (VM1)
+│   ├── Corefile          # Parent DNS configuration
+│   └── db.sokoide.com    # Record definitions for sokoide.com
+└── coredns_child/  (VM2)
+    ├── Corefile          # Child DNS configuration
+    └── db.foo.sokoide.com # Record definitions for foo.sokoide.com
+```
+
+---
+
+## Preparation
+
+### 1. VM Provisioning
+
+- **VM1 (Parent):** IP `192.168.100.10` (Assumed)
+- **VM2 (Child):** IP `192.168.100.20` (Assumed)
+- *Note:* If your IP addresses are different, please replace them accordingly.
+
+### 2. Tool Installation (Both VMs)
 
 ```bash
 sudo apt update && sudo apt install -y curl tar dnsutils
@@ -46,9 +75,9 @@ sudo apt update && sudo apt install -y curl tar dnsutils
 
 ---
 
-## Step 1. Install CoreDNS
+## Workshop Steps
 
-CoreDNS is a DNS server written in Go as a single binary. It has no dependencies and is very easy to install.
+### STEP 1: Install CoreDNS
 
 **Execute on both VM1 and VM2:**
 
@@ -65,173 +94,121 @@ sudo mv coredns /usr/local/bin/
 coredns -version
 ```
 
----
+### STEP 2: Build VM1 (Parent): sokoide.com
 
-## Step 2. Build VM1 (Parent): sokoide.com
+VM1 manages the parent domain `sokoide.com` and forwards queries for `foo.sokoide.com` to VM2.
 
-VM1 manages the parent domain `sokoide.com`. Also, configure it to forward queries for the child domain `foo.sokoide.com` to VM2.
+**Execute on VM1:**
 
-**Execute on VM1 (`192.168.100.10`):**
+1. Create configuration file
 
-1. Create working directory
+    ```bash
+    mkdir -p ~/coredns_parent && cd ~/coredns_parent
+    cat <<'EOF' > Corefile
+    sokoide.com:10053 {
+        file db.sokoide.com
+        log
+        errors
+    }
 
-   ```bash
-   mkdir -p ~/coredns_parent && cd ~/coredns_parent
-   ```
+    foo.sokoide.com:10053 {
+        # Forward child domain queries to VM2
+        forward . 192.168.100.20:10053
+        log
+        errors
+    }
+    EOF
+    ```
 
-2. Create **Corefile** (Configuration file)
+2. Create zone file
 
-   ```bash
-   cat <<'EOF' > Corefile
-   sokoide.com:10053 {
-       file db.sokoide.com
-       log
-       errors
-   }
+    ```bash
+    cat <<'EOF' > db.sokoide.com
+    $ORIGIN sokoide.com.
+    $TTL 3600
+    @   IN  SOA  ns.sokoide.com. root.sokoide.com. (
+            2024010101 7200 3600 1209600 3600 )
 
-   foo.sokoide.com:10053 {
-       # Forward queries to VM2 (Child)
-       forward . 192.168.100.20:10053
-       log
-       errors
-   }
-   EOF
-   ```
+    @   IN  NS   ns.sokoide.com.
+    ns  IN  A    192.168.100.10
+    www IN  A    1.1.1.1
+    EOF
+    ```
 
-3. Create **Zone file** (Record definitions)
+### STEP 3: Build VM2 (Child): foo.sokoide.com
 
-   ```bash
-   cat <<'EOF' > db.sokoide.com
-   $ORIGIN sokoide.com.
-   $TTL 3600
-   @   IN  SOA  ns.sokoide.com. root.sokoide.com. (
-           2024010101 7200 3600 1209600 3600 )
+VM2 holds the authoritative data for the subdomain `foo.sokoide.com`.
 
-   @   IN  NS   ns.sokoide.com.
-   ns  IN  A    192.168.100.10
-   www IN  A    1.1.1.1
-   EOF
-   ```
+**Execute on VM2:**
 
----
+1. Create configuration file
 
-## Step 3. Build VM2 (Child): foo.sokoide.com
+    ```bash
+    mkdir -p ~/coredns_child && cd ~/coredns_child
+    cat <<'EOF' > Corefile
+    foo.sokoide.com:10053 {
+        file db.foo.sokoide.com
+        log
+        errors
+    }
+    EOF
+    ```
 
-VM2 manages the subdomain `foo.sokoide.com`. Register specific records (e.g., `test`) here.
+2. Create zone file
 
-**Execute on VM2 (`192.168.100.20`):**
+    ```bash
+    cat <<'EOF' > db.foo.sokoide.com
+    $ORIGIN foo.sokoide.com.
+    $TTL 3600
+    @   IN  SOA  ns1.foo.sokoide.com. root.foo.sokoide.com. (
+            2024010101 7200 3600 1209600 3600 )
 
-1. Create working directory
+    @   IN  NS   ns1.foo.sokoide.com.
+    ns1  IN  A    192.168.100.20
+    test IN  A    2.2.2.2
+    EOF
+    ```
 
-   ```bash
-   mkdir -p ~/coredns_child && cd ~/coredns_child
-   ```
+### STEP 4: Start DNS Servers
 
-2. Create **Corefile**
-
-   ```bash
-   cat <<'EOF' > Corefile
-   foo.sokoide.com:10053 {
-       file db.foo.sokoide.com
-       log
-       errors
-   }
-   EOF
-   ```
-
-3. Create **Zone file**
-
-   ```bash
-   cat <<'EOF' > db.foo.sokoide.com
-   $ORIGIN foo.sokoide.com.
-   $TTL 3600
-   @   IN  SOA  ns1.foo.sokoide.com. root.foo.sokoide.com. (
-           2024010101 7200 3600 1209600 3600 )
-
-   @   IN  NS   ns1.foo.sokoide.com.
-   ns1  IN  A    192.168.100.20
-   test IN  A    2.2.2.2
-   EOF
-   ```
-
----
-
-## Step 4. Start DNS Servers
-
-Start CoreDNS on each VM. Keep this terminal open to check logs (or use `screen`/`tmux` or background execution `&`).
-
-**VM1 (Parent) Terminal:**
-
-You can run without `sudo` if `/usr/local/bin` is in your PATH and you are using port `10053` (non-privileged).
+**Execute on both VM1 and VM2:**
 
 ```bash
-cd ~/coredns_parent
-sudo /usr/local/bin/coredns -conf Corefile
+# Navigate to each directory and start
+# sudo may not be required for port 10053
+coredns -conf Corefile
 ```
 
-**VM2 (Child) Terminal:**
+*Note: Keep it running to check the logs.*
 
-```bash
-cd ~/coredns_child
-sudo /usr/local/bin/coredns -conf Corefile
-```
+### STEP 5: Verify Operation (dig)
 
----
+Query from another terminal.
 
-## Step 5. Verify Operation (dig)
+1. **Direct Resolution**: Query `www.sokoide.com` to the parent server
 
-Verify using the `dig` command from another terminal (or local PC).
+   ```bash
+   dig @192.168.100.10 -p 10053 www.sokoide.com +short
+   # -> 1.1.1.1
+   ```
 
-### 1. Direct Lookup of Parent Zone
+2. **Forwarded Resolution**: Query `test.foo.sokoide.com` to the parent server
 
-Query `www.sokoide.com` to the parent server (VM1).
+   ```bash
+   dig @192.168.100.10 -p 10053 test.foo.sokoide.com
+   ```
 
-```bash
-dig @192.168.100.10 -p 10053 www.sokoide.com +short
-```
-
-> **Result:** Success if `1.1.1.1` is returned.
-
-### 2. Child Zone Resolution (Forwarding)
-
-Query `test.foo.sokoide.com` (which is in the child zone) to the parent server (VM1).
-
-```bash
-dig @192.168.100.10 -p 10053 test.foo.sokoide.com
-```
-
-**How to read the output:**
-
-```text
-;; ANSWER SECTION:
-test.foo.sokoide.com.   3600    IN      A       2.2.2.2  <-- Correct IP (Fetched from VM2)
-
-;; SERVER: 192.168.100.10#10053(192.168.100.10)          <-- Parent server is answering
-```
-
-### What happened?
-
-1. The client queried VM1 (`sokoide.com`).
-2. VM1 forwarded the query to VM2 according to the configuration (`forward . 192.168.100.20`).
-3. VM2 answered `2.2.2.2`.
-4. VM1 returned the result to the client.
-
-You can confirm the forwarding and access by checking VM1's logs (depending on log output settings).
+   **Result Check**: If `2.2.2.2` appears in the `ANSWER SECTION` and the `SERVER` is `192.168.100.10`, it confirms the parent "proxy-fetched" the answer from the child.
 
 ---
 
 ## Cleanup
 
-Cleanup after the workshop.
-
-1. **Stop processes:** Stop running `coredns` on each VM with `Ctrl+C`.
-2. **Delete files:**
+1. Stop CoreDNS with `Ctrl+C`.
+2. Delete working directories.
 
    ```bash
-   # On both VMs
    rm -rf ~/coredns_parent ~/coredns_child
-   # Delete binary if necessary
-   sudo rm /usr/local/bin/coredns
    ```
 
 ---
@@ -239,6 +216,13 @@ Cleanup after the workshop.
 ## Next Steps
 
 We used **Forwarding** this time, but the basis of DNS on the Internet is **Delegation**.
-To perform delegation, write the child's NS record (`foo IN NS ns1.foo...`) and glue record (`ns1.foo IN A ...`) in the parent's zone file (`db.sokoide.com`), allowing the client itself to go query the next server.
+In delegation, the parent does not fetch the answer on behalf of the client but instead gives an instruction (returning NS records) to the client: "Ask that server next."
 
-Changing the CoreDNS configuration to try out delegation behavior is also good learning.
+You can test delegation behavior by adding the child's NS records to the parent's `db.sokoide.com` and removing the `forward` plugin from the Corefile.
+
+---
+
+## References
+
+- [CoreDNS Official Documentation](https://coredns.io/docs/)
+- [RFC 1034 - Domain Names - Concepts and Facilities](https://tools.ietf.org/html/rfc1034)

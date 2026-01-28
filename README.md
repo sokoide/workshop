@@ -27,7 +27,7 @@ This repository contains hands-on materials for various technical topics.
   - Step-by-step guide from CA construction to certificate verification using OpenSSL.
 - [Container Runtime Workshop: Understanding the Reality of Containers through namespaces and cgroups](./infra/container_runtime_en.md)
   - Replicate the magic behind `podman run` by manually creating namespaces/cgroups.
-- [Redis Workshop: Real-time Game Leaderboard with Sorted Sets](./infra/cache.md)
+- [Redis Workshop: Real-time Game Leaderboard with Sorted Sets](./infra/cache_en.md)
   - Build a high-performance leaderboard using Redis Sorted Sets and manage banned users with Sets.
 - [Message Queue Workshop: Learning Pub/Sub and Queuing with RabbitMQ](./infra/rabbitmq_en.md)
   - Build a real-time crypto monitoring system using RabbitMQ Topic Exchange.

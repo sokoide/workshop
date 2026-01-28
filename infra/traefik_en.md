@@ -33,13 +33,13 @@ With traditional proxies like Nginx, you had to rewrite configuration files (`ng
 
 ## Architecture
 
-We will build dynamic routing based on container labels using the Docker provider.
+We will build dynamic routing based on container labels using the Docker provider. Traefik watches the Docker socket and immediately adds containers with labels to routing as they start.
 
 ```mermaid
 graph LR
-    Client[Client (curl/Browser)]
+    Client["Client (curl/Browser)"]
     Traefik[Traefik Proxy]
-    
+
     subgraph Backends [Backend Containers]
         App1[Whoami App A]
         App2[Whoami App B]
@@ -48,7 +48,7 @@ graph LR
 
     Client -- "Host: app.local" --> Traefik
     Client -- "Path: /api" --> Traefik
-    
+
     Traefik -- "Load Balancing" --> App1 & App2
     Traefik -- "Routing" --> App3
 
@@ -69,7 +69,7 @@ infra/assets/traefik/
 
 ### 1. Create Docker Compose Definition
 
-Create a `docker-compose.yml` with the following content (assumed to be provided as workshop assets).
+Create a `docker-compose.yml` with the following content. We will use the lightweight `traefik/whoami` image (an app that simply returns HTTP request info) as the backend.
 
 ```yaml
 version: "3"
@@ -120,7 +120,7 @@ docker-compose up -d
 ### STEP 1: Check Dashboard
 
 Access `http://localhost:8080` in your browser.
-Verify that Traefik has automatically detected the services running on Docker (`whoami-a`, `whoami-b`).
+Verify that Traefik has automatically detected the services running on Docker (`whoami-a`, `whoami-b`). The key point is that they are recognized without writing a configuration file.
 
 ### STEP 2: Host-based Routing and Load Balancing
 
@@ -136,7 +136,8 @@ curl -H "Host: whoami.localhost" http://localhost
 # Output: Hostname: <Container-ID-B>
 ```
 
-**Point**: Just by launching multiple containers with the same `Host` rule in `docker-compose.yml`, Traefik automatically handles load balancing.
+**Check Point**: The output `Hostname` is the container ID. If a different ID is displayed for each request, load balancing is successful.
+*Note*: Just by launching multiple containers with the same `Host` rule in `docker-compose.yml`, Traefik automatically handles load balancing.
 
 ### STEP 3: Add Path-based Routing
 

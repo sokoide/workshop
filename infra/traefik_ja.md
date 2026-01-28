@@ -33,13 +33,13 @@ Nginx などの従来のプロキシでは、バックエンドサーバーが�
 
 ## アーキテクチャ
 
-Docker プロバイダーを使用して、コンテナラベルに基づいた動的なルーティングを構築します。
+Docker プロバイダーを使用して、コンテナラベルに基づいた動的なルーティングを構築します。Traefik は Docker ソケットを監視し、ラベルが付いたコンテナが起動すると即座にルーティングに追加します。
 
 ```mermaid
 graph LR
-    Client[Client (curl/Browser)]
+    Client["Client (curl/Browser)"]
     Traefik[Traefik Proxy]
-    
+
     subgraph Backends [Backend Containers]
         App1[Whoami App A]
         App2[Whoami App B]
@@ -48,7 +48,7 @@ graph LR
 
     Client -- "Host: app.local" --> Traefik
     Client -- "Path: /api" --> Traefik
-    
+
     Traefik -- "Load Balancing" --> App1 & App2
     Traefik -- "Routing" --> App3
 
@@ -69,7 +69,7 @@ infra/assets/traefik/
 
 ### 1. Docker Compose 定義の作成
 
-以下の内容で `docker-compose.yml` を作成します（実習用アセットとして提供される想定）。
+以下の内容で `docker-compose.yml` を作成します。ここでは軽量な `traefik/whoami` イメージ（HTTP リクエスト情報を返すだけのアプリ）をバックエンドとして使用します。
 
 ```yaml
 version: "3"
@@ -120,7 +120,7 @@ docker-compose up -d
 ### STEP 1: ダッシュボードの確認
 
 ブラウザで `http://localhost:8080` にアクセスします。
-Traefik が Docker 上で実行されているサービス（`whoami-a`, `whoami-b`）を自動的に検出していることを確認します。
+Traefik が Docker 上で実行されているサービス（`whoami-a`, `whoami-b`）を自動的に検出していることを確認します。設定ファイルを書かなくても認識されている点がポイントです。
 
 ### STEP 2: ホストベース・ルーティングとロードバランシング
 
@@ -136,7 +136,8 @@ curl -H "Host: whoami.localhost" http://localhost
 # Output: Hostname: <Container-ID-B>
 ```
 
-**ポイント**: `docker-compose.yml` で同じ `Host` ルールを持つコンテナを複数起動するだけで、Traefik が自動的にロードバランシングを行います。
+**確認ポイント**: 出力される `Hostname` はコンテナ ID です。リクエストごとに異なる ID が表示されれば、ロードバランシングが成功しています。
+※ `docker-compose.yml` で同じ `Host` ルールを持つコンテナを複数起動するだけで、Traefik が自動的に負荷分散を行います。
 
 ### STEP 3: パスベース・ルーティングの追加
 

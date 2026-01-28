@@ -33,7 +33,8 @@ In a microservices architecture, unstable network communication is inevitable.
 
 ## Architecture
 
-Envoy receives requests from the client and forwards them to the backend service. We will generate intentional delays and errors (Fault Injection) on Envoy to verify behavior.
+Envoy receives requests from the client and forwards them to the backend service.
+In this workshop, we implement a backend app with features to "intentionally delay" or "return errors," and verify how Envoy handles them.
 
 ```mermaid
 graph LR
@@ -52,7 +53,7 @@ graph LR
 infra/assets/envoy/
 ├── envoy.yaml              # Envoy configuration file
 ├── docker-compose.yml      # Configuration definition
-└── app/                    # Test backend app
+└── app/                    # Test backend app (with delay/error generation features)
 ```
 
 ---
@@ -60,6 +61,8 @@ infra/assets/envoy/
 ## Preparation
 
 ### 1. Create Envoy Configuration (`envoy.yaml`)
+
+The following configuration defines a **2-second timeout** and **3 retries** for connections to the backend.
 
 ```yaml
 static_resources:
@@ -124,18 +127,18 @@ Verify that you can access the backend via Envoy (port 10000).
 curl -v http://localhost:10000/
 ```
 
-Check that `server: envoy` is included in the response header.
+Check that `server: envoy` is included in the response header. This is proof that it went through Envoy.
 
 ### STEP 2: Verify Timeout Behavior
 
-Check behavior when the backend service is delayed. The configuration file sets `timeout: 2s`.
-Request a 3-second sleep from the backend (a feature of the workshop app).
+Check Envoy's behavior when the backend service is delayed.
+Since `timeout: 2s` is set, request a **3-second sleep** from the backend (a feature of the workshop app).
 
 ```bash
 curl -v http://localhost:10000/sleep/3
 ```
 
-**Result**: Verify that Envoy cuts the connection in 2 seconds and returns `504 Gateway Timeout`. This prevents the application from waiting indefinitely for a response and exhausting resources.
+**Result**: Verify that Envoy cuts the connection after 2 seconds and returns `504 Gateway Timeout`. This prevents the client from waiting indefinitely due to backend issues.
 
 ### STEP 3: Verify Retry Behavior
 
@@ -153,14 +156,14 @@ Check Envoy's internal state.
 
 `http://localhost:9901/stats`
 
-Verify that `retry` and `timeout` occurrence counts are recorded as metrics here.
+Verify that `retry` and `timeout` occurrence counts are recorded as metrics here. This is crucial for monitoring system health.
 
 ---
 
 ## Relation to Clean Architecture
 
 Envoy can be viewed as the "Framework & Drivers" layer (details) in Clean Architecture.
-Business logic (Usecase/Domain) is protected from "details" like network instability and retry control, allowing focus on pure logic. This is the ultimate form of delegating infrastructure responsibilities from code to a sidecar.
+Business logic (Usecase/Domain) is protected from "infrastructure details" like network instability and retry control, allowing focus on pure logic. This is the ultimate form of delegating infrastructure responsibilities from code to a sidecar.
 
 ---
 

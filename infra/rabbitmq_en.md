@@ -1,14 +1,14 @@
 # RabbitMQ Workshop: Real-time Crypto Monitoring System with Topic Exchange
 
-In this workshop, you will build a system that flexibly filters and processes a vast stream of real-time cryptocurrency trade data (Ticker) using the powerful **Topic Exchange** feature of **RabbitMQ**.
+In this workshop, you will build a system that flexibly filters and processes real-time trade data using the powerful **Topic Exchange** feature of **RabbitMQ**.
 
-## Goals
+## Goal
 
-You will build a monitoring system based on **Clean Architecture** with the following features:
+Build a monitoring system based on **Clean Architecture** with the following features.
 
 ```mermaid
 sequenceDiagram
-    participant P as Ticker (Producer)
+    participant P as Ticker (Publisher)
     participant E as Topic Exchange
     participant L as Logger (market.#)
     participant J as Japan Desk (market.*.jpy)
@@ -23,83 +23,65 @@ sequenceDiagram
     P->>E: Publish: market.eth.jpy
     E-->>L: Route to Logger (market.#)
     E-->>J: Route to Japan Desk (market.*.jpy)
-
-    P->>E: Publish: market.sol.eur
-    E-->>L: Route to Logger (market.#)
 ```
 
-1. **Ticker (Publisher):** Generates random trade data and publishes it with a Routing Key in the format `market.<currency>.<target_currency>`.
-2. **Logger (All-records):** Subscribes to `market.#` and logs every transaction.
-3. **Japan Desk (JPY-pair Monitoring):** Subscribes to `market.*.jpy` and extracts only Japanese Yen transactions.
-4. **Whale Alert (Large Trade Detection):** Subscribes to `market.btc.#` and detects significant Bitcoin transactions.
+**What you will learn in this workshop:**
+
+1. **Pub/Sub Pattern**: Complete decoupling of senders and receivers.
+2. **Topic Exchange**: Advanced routing using dot-separated keys.
+3. **Wildcard Matching**: Using `*` (one word) and `#` (zero or more words).
+
+---
+
+## Challenges in Communication Design
+
+Directly communicating between microservices (e.g., via HTTP) presents several issues.
+
+### ❌ Challenges
+
+- **Tight Coupling**: The sender must know "who receives the data," requiring code changes whenever a new consumer is added.
+- **Fault Tolerance**: If the receiver is down, the sender's process may block or error out.
+- **Scalability**: Receivers can be overwhelmed by sudden bursts of data (spikes).
+
+### ✅ Message Queue (RabbitMQ) Solutions
+
+- **Asynchronous Communication**: The sender simply drops a message into the queue and moves on, independent of the receiver's state.
+- **Loose Coupling**: Senders only care about the "Exchange." RabbitMQ manages who gets the message.
+- **Buffering**: Unprocessed messages wait in the queue, allowing consumers to process them at their own pace.
 
 ---
 
 ## Architecture
 
-This system completely decouples the "Sender (Producer)" and the "Receiver (Consumer)" by placing RabbitMQ in between, achieving a loosely coupled design.
+The system centers around a Topic Exchange that dynamically controls message destinations.
 
-### Layer Structure and Dependencies
-
-```mermaid
-graph LR
-    subgraph Framework ["Framework Layer (cmd/)"]
-        Main[Ticker/Logger Main]
-    end
-    subgraph Usecase ["Usecase Layer (pkg/usecase)"]
-        UC[MarketSimulator / TradeObserver]
-    end
-    subgraph Domain ["Domain Layer (pkg/domain)"]
-        Model[Trade Entity]
-        Repo[Publisher/Subscriber Interface]
-    end
-    subgraph Infra ["Infra Layer (pkg/infra)"]
-        MQ[RabbitMQ Adapter]
-    end
-
-    Main --> UC
-    Main -- DI --> MQ
-    UC --> Repo
-    MQ -- Implements --> Repo
-    UC --> Model
-    MQ --> Model
-```
-
-### Layer Structure and Directory
+### Directory Structure
 
 ```text
 infra/assets/rabbitmq_crypto/
-├── cmd/                        # Framework Layer (Entry Points)
-│   ├── ticker/                 # Trade data generation & distribution
+├── cmd/                        # Entry points for each role
+│   ├── ticker/                 # Data generation & distribution
 │   ├── logger/                 # All-records logging
-│   ├── alert/                  # Whale alert
+│   ├── alert/                  # Whale alert detection
 │   └── japandesk/              # JPY monitoring
 └── pkg/
-    ├── domain/                 # Domain Layer (Entity, Interface)
-    ├── usecase/                # Usecase Layer (Business Logic)
-    └── infra/                  # Infra Layer (RabbitMQ Adapter)
+    ├── domain/                 # Entities, Repository Interface
+    ├── usecase/                # Simulation and Monitoring logic
+    └── infra/                  # RabbitMQ Adapter
 ```
-
-- **Topic Exchange (`crypto_market`):** Controls the message "destination" using dot-separated keywords (e.g., `market.btc.usd`).
-- **Routing Key:** A label attached at the time of sending.
-- **Binding Key:** A pattern specified by the receiver to define "which labels of messages it wants."
-  - `*`: Matches exactly one word.
-  - `#`: Matches zero or more words.
 
 ---
 
 ## Preparation
 
-### 1. Start RabbitMQ
-
-Start the RabbitMQ instance for the workshop. We use an image that includes the Management Plugin.
+### 1. Start RabbitMQ (with Management Plugin)
 
 ```bash
 cd infra/assets/rabbitmq_crypto
 make mq-up
 ```
 
-After starting, you can visualize the message flow by accessing [http://localhost:15672](http://localhost:15672) (guest/guest) in your browser.
+*Note: Access the management UI at [http://localhost:15672](http://localhost:15672) (guest/guest).*
 
 ### 2. Install Dependencies
 
@@ -113,47 +95,34 @@ go mod tidy
 
 ### STEP 1: Stream Market Data (Ticker)
 
-First, start the `ticker` which continuously generates trade data.
+Start the `ticker` that continuously generates trade data.
 
 ```bash
 go run cmd/ticker/main.go
 ```
 
-This program publishes messages to RabbitMQ every 500ms with keys like `market.eth.jpy` or `market.btc.usd`. At this point, messages are discarded as there are no receivers.
+*Note: It will keep publishing messages with keys like `market.btc.usd`.*
 
 ### STEP 2: Log All Transactions (Topic: `market.#`)
 
-Open another terminal and start the `logger` to catch all messages.
+Use the `#` wildcard to subscribe to all currency pairs.
 
 ```bash
 go run cmd/logger/main.go
 ```
 
-Since it uses the `#` wildcard, data for all currency pairs will be displayed.
+### STEP 3: Conditional Filtering
 
-### STEP 3: Conditional Filtering (Topic: `market.*.jpy` / `market.btc.#`)
+Start consumers matching specific conditions in separate terminals.
 
-Open even more terminals and start consumers that match specific conditions.
-
-- **Display only JPY-denominated transactions:**
-
-    ```bash
-    go run cmd/japandesk/main.go
-    ```
-
-- **Monitor only large Bitcoin transactions (> 3.0 BTC):**
-
-    ```bash
-    go run cmd/alert/main.go
-    ```
-
-Notice how RabbitMQ "copies and distributes" messages appropriately according to the receiver's Binding Key without changing a single line of the sender's code.
+- **JPY-pair only**: `go run cmd/japandesk/main.go` (Key: `market.*.jpy`)
+- **Large BTC trades**: `go run cmd/alert/main.go` (Key: `market.btc.#`)
 
 ---
 
 ## Clean Architecture Highlights
 
-In this workshop, the code communicates with RabbitMQ through the interface defined in `pkg/domain/repository.go`.
+The code communicates with RabbitMQ through an interface defined in `pkg/domain`.
 
 ```go
 type TradePublisher interface {
@@ -161,14 +130,19 @@ type TradePublisher interface {
 }
 ```
 
-This allows you to swap the message broker for Kafka or Google Cloud Pub/Sub in the future without modifying any business logic in `pkg/usecase` responsible for "generating trades" or "monitoring trades."
+This design allows you to swap the broker for Kafka or NATS in the future by simply replacing the infrastructure implementation without touching the business logic (UseCase).
 
 ---
 
 ## Cleanup
 
-When you are finished with the workshop, stop and remove the container.
-
 ```bash
 make mq-down
 ```
+
+---
+
+## References
+
+- [RabbitMQ Tutorial - Topic Exchange (Go)](https://www.rabbitmq.com/tutorials/tutorial-five-go.html)
+- [AMQP 0-9-1 Model Explained](https://www.rabbitmq.com/tutorials/amqp-concepts.html)

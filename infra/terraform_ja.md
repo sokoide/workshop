@@ -1,140 +1,10 @@
-# Terraformワークショップ：基礎から実践的なDNSサーバー構築まで
+# Terraform 実習：基礎から実践的な DNS サーバー構築まで
 
-このドキュメントは、Infrastructure as Code（IaC）ツールである Terraform の基礎を学び、最終的にコンテナ技術（Podman/Docker）と組み合わせて実践的な DNS サーバー環境を構築することを目的としたワークショップです。
+このワークショップでは、Infrastructure as Code (IaC) ツールである **Terraform** の基礎を学び、最終的にコンテナ技術と組み合わせて実践的な DNS サーバー環境を自動構築します。
 
-## パート1：Terraformの基礎と`local`プロバイダー
+## ゴール
 
-このパートでは、クラウドサービスを使わずに、ローカルマシン上のファイルを操作する`local`プロバイダーを通じて Terraform の基本的な概念とコマンドを学びます。
-
-### 1. 準備
-
-#### Terraformのインストール
-
-[公式サイトの手順](https://learn.hashicorp.com/tutorials/terraform/install-cli)に従って、お使いの OS に Terraform をインストールしてください。
-
-#### 作業ディレクトリの作成
-
-```bash
-mkdir terraform-handson
-cd terraform-handson
-mkdir part1
-cd part1
-```
-
-### 2. 最初のTerraformファイル
-
-1. `main.tf`という名前でファイルを作成し、以下の内容を記述します。これは「`hello.txt`というファイルを`hello-terraform`という内容で作成する」というインフラの構成を定義しています。
-
-    ```terraform
-    # main.tf
-    resource "local_file" "hello" {
-      content  = "hello-terraform"
-      filename = "${path.module}/hello.txt"
-    }
-    ```
-
-2. **初期化 (`init`)**: Terraform が必要なプロバイダー（この場合は`local`プロバイダー）をダウンロードします。
-
-    ```bash
-    terraform init
-    ```
-
-3. **実行計画 (`plan`)**: どのような変更が行われるかを確認します。
-
-    ```bash
-    terraform plan
-    ```
-
-    `+ create`という表示で、`local_file.hello`リソースが作成されることがわかります。
-
-4. **適用 (`apply`)**: 計画を承認し、実際にリソースを作成します。
-
-    ```bash
-    terraform apply
-    ```
-
-    確認を求められたら`yes`と入力します。`part1`ディレクトリに`hello.txt`が作成されていることを確認してください。
-
-### 3. 変数と出力
-
-ハードコーディングを避け、柔軟な構成にするために変数を使います。
-
-1. `variables.tf`を作成し、ファイル名を可変にします。
-
-    ```terraform
-    # variables.tf
-    variable "filename" {
-      description = "作成するファイル名"
-      type        = string
-      default     = "hello_from_variable.txt"
-    }
-    ```
-
-2. `main.tf`を修正して、変数を参照するようにします。
-
-    ```terraform
-    # main.tf
-    resource "local_file" "hello" {
-      content  = "hello-terraform"
-      filename = "${path.module}/${var.filename}" # var.filenameを参照
-    }
-    ```
-
-3. `outputs.tf`を作成し、作成されたファイル名を出力します。
-
-    ```terraform
-    # outputs.tf
-    output "created_filename" {
-      value = local_file.hello.filename
-    }
-    ```
-
-4. 再度`terraform apply`を実行してください。`default`で指定した名前のファイルが作成され、実行後に出力（`Outputs`）が表示されることを確認します。
-
-### 4. 複数のリソース (`for_each`)
-
-`for_each`を使うと、リストやマップに基づいて複数のリソースを効率的に作成できます。
-
-1. `main.tf`を以下のように修正し、複数のユーザー名のファイルを作成するようにします。
-
-    ```terraform
-    # main.tf
-    locals {
-      users = toset(["sato", "suzuki", "tanaka"])
-    }
-
-    resource "local_file" "user_files" {
-      for_each = local.users
-
-      content  = "hello, ${each.key}"
-      filename = "${path.module}/${each.value}.txt"
-    }
-    ```
-
-    * `for_each`にセット（重複しない文字列のリスト）を渡すと、セットの各要素に対してリソースが作成されます。
-    * `each.key`と`each.value`には、要素の値（この場合はユーザー名）が入ります。
-
-2. `terraform plan`と`terraform apply`を実行し、3 つのユーザーファイルが作成されることを確認します。
-
-### 5. リソースの破棄
-
-作成したリソースをすべて削除します。
-
-```bash
-terraform destroy
-```
-
-`yes`と入力すると、Terraform が管理していたすべてのファイルが削除されます。
-
----
-
-## パート2：TerraformとPodman/DockerでDNSサーバーを構築する
-
-このパートでは、パート 1 で学んだ知識を応用し、Podman/Docker コンテナを使って DNS サーバー環境を Terraform で構築します。
-
-**完成図:**
-
-このパートで構築する DNS 環境の全体像と、名前解決の流れは以下のようになります。
+Terraform の基本操作（init, plan, apply, destroy）を習得し、以下の 3 つのコンテナが連携する環境をコードで定義・構築します。
 
 ```mermaid
 graph LR
@@ -158,248 +28,301 @@ graph LR
     B -- "5. Aレコードを返す" --> A
 ```
 
-* `container-a`: `sokoide.com`の権威 DNS サーバーとして機能し、`foo.sokoide.com`への問い合わせは`container-b`へ転送（フォワード）します。
-* `container-b`: `foo.sokoide.com`の権威 DNS サーバーとして機能します。
-* `container-router`: `dig`コマンドを実行して名前解決をテストするためのクライアントです。
+**この実習で習得すること:**
 
-### 1. 準備 (パート2)
+1. **Terraform の基本**: リソースの定義、変数、出力。
+2. **プロバイダーの使用**: `local` プロバイダー（ファイル操作）と `docker` プロバイダー。
+3. **IaC による環境構築**: ネットワーク、設定ファイル、コンテナの一括管理。
 
-#### 作業ディレクトリの作成 (パート2)
+---
 
-```bash
-cd ../
-mkdir part2
-cd part2
+## インフラ管理の課題
+
+従来、サーバーやネットワークの構築は手作業（コマンド入力や GUI 操作）で行われてきました。
+
+### ❌ 課題
+
+- **再現性がない**: 同じ環境をもう一度作るのが難しく、手順書がすぐ古くなる。
+- **変更履歴が追えない**: 「誰がいつ何を変えたか」が分からず、トラブル時の復旧が困難。
+- **依存関係の複雑さ**: 複数のコンポーネントがある場合、作成順序を間違えるとエラーになる。
+
+### ✅ Terraform (IaC) の解決策
+
+- **宣言的記述**: 「あるべき姿」をコードで書けば、Terraform が差分を計算して構築。
+- **バージョン管理**: インフラ構成を Git で管理でき、レビューや差分確認が可能。
+- **自動化**: 大規模な構成でもコマンド一つでミスなくデプロイ。
+
+---
+
+## アーキテクチャ
+
+本実習は 2 つのパートに分かれています。
+
+### 想定ディレクトリ構造
+
+```text
+terraform-handson/
+├── part1/                # パート1: 基礎編
+│   ├── main.tf
+│   ├── variables.tf
+│   └── outputs.tf
+└── part2/                # パート2: 実践編 (DNSサーバー)
+    ├── Dockerfile        # CoreDNSイメージ用
+    ├── main.tf           # コンテナ・NW定義
+    └── versions.tf       # プロバイダー設定
 ```
 
-#### CoreDNSコンテナイメージの作成
+---
 
-1. CoreDNS（DNS サーバーソフトウェア）を含むコンテナイメージを作成します。以下の内容で`Dockerfile`を作成してください。
+## 実習：パート 1 (基礎編)
 
-    ```dockerfile
-    # Dockerfile
-    FROM alpine:3.17
-    ARG COREDNS_VERSION=1.10.0
-    RUN wget https://github.com/coredns/coredns/releases/download/v${COREDNS_VERSION}/coredns_${COREDNS_VERSION}_linux_amd64.tgz -O /tmp/coredns.tgz && \
-        tar -xvzf /tmp/coredns.tgz -C /usr/local/bin/ && \
-        rm /tmp/coredns.tgz
-    CMD ["/usr/local/bin/coredns", "-conf", "/etc/coredns/Corefile"]
-    ```
+ローカルファイルを操作する `local` プロバイダーを使って基本を学びます。
 
-2. イメージをビルドします。（Podman をお使いの場合は`docker`を`podman`に読み替えてください）
+### STEP 1: 最初のリソース定義
 
-    ```bash
-    docker build -t coredns-handson .
-    ```
+`part1/main.tf` を作成します。
 
-### 2. Terraformプロジェクトのセットアップ
+```terraform
+resource "local_file" "hello" {
+  content  = "hello-terraform"
+  filename = "${path.module}/hello.txt"
+}
+```
 
-1. `versions.tf`を作成し、Docker プロバイダーを指定します。（このプロバイダーは Podman とも互換性があります）
+### STEP 2: 初期化・計画・適用
 
-    ```terraform
-    # versions.tf
-    terraform {
-      required_providers {
-        docker = {
-          source  = "kreuzwerker/docker"
-          version = "3.0.2"
-        }
-      }
+```bash
+cd part1
+terraform init    # プロバイダーのダウンロード
+terraform plan    # 変更内容の確認
+terraform apply   # 実行 (yes と入力)
+```
+
+※ `hello.txt` が作成されたことを確認してください。
+
+### STEP 3: 変数と出力の活用
+
+`variables.tf` と `outputs.tf` を作成し、構成を柔軟にします。
+
+```terraform
+# variables.tf
+variable "filename" {
+  default = "hello_variable.txt"
+}
+
+# outputs.tf
+output "file_path" {
+  value = local_file.hello.filename
+}
+```
+
+`main.tf` を修正して変数を参照します。
+
+```terraform
+resource "local_file" "hello" {
+  content  = "hello-terraform"
+  filename = "${path.module}/${var.filename}"
+}
+```
+
+再び `terraform apply` を実行してください。
+
+### STEP 4: 複数リソースの作成 (`for_each`)
+
+`for_each` を使うと、リストに基づいて複数のリソースを効率的に作成できます。
+
+```terraform
+# main.tf を上書き
+locals {
+  users = toset(["sato", "suzuki", "tanaka"])
+}
+
+resource "local_file" "user_files" {
+  for_each = local.users
+  content  = "hello, ${each.key}"
+  filename = "${path.module}/${each.value}.txt"
+}
+```
+
+※ `outputs.tf` が以前のリソース `local_file.hello` を参照している場合、エラーが発生します。STEP 4 を実行する前に `outputs.tf` を削除するか、コメントアウトしてください。
+
+`terraform plan` と `terraform apply` を実行し、3 つのユーザーファイルが作成されることを確認します。
+
+---
+
+## 実習：パート 2 (実践編：DNS サーバー)
+
+Docker/Podman プロバイダーを使用し、複雑なネットワーク構成を自動構築します。
+
+### STEP 0: CoreDNS イメージのビルド
+
+```bash
+cd ../part2
+```
+
+`Dockerfile` を作成します。
+
+```dockerfile
+FROM alpine:3.17
+ARG COREDNS_VERSION=1.10.0
+RUN wget https://github.com/coredns/coredns/releases/download/v${COREDNS_VERSION}/coredns_${COREDNS_VERSION}_linux_amd64.tgz -O /tmp/coredns.tgz && \
+    tar -xvzf /tmp/coredns.tgz -C /usr/local/bin/ && \
+    rm /tmp/coredns.tgz
+CMD ["/usr/local/bin/coredns", "-conf", "/etc/coredns/Corefile"]
+```
+
+イメージをビルドします（Podman の場合は `docker` を `podman` に読み替えてください）。
+
+```bash
+docker build -t coredns-handson .
+```
+
+### STEP 1: Docker プロバイダーの設定
+
+`part2/versions.tf` を作成します。
+
+```terraform
+terraform {
+  required_providers {
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "3.0.2"
     }
-    ```
+  }
+}
+```
 
-2. プロバイダーを初期化します。
+### STEP 2: コンテナとネットワークの定義
 
-    ```bash
-    terraform init
-    ```
+`part2/main.tf` にネットワーク、設定ファイル、コンテナを定義します。
 
-### 3. TerraformによるDNS環境の構築
+```terraform
+# ネットワーク定義
+resource "docker_network" "net_a" {
+  name = "net_a"
+  ipam_config {
+    subnet = "192.168.10.0/24"
+  }
+}
 
-1. `main.tf`に、ネットワーク、CoreDNS 設定ファイル、ゾーンファイル、そしてコンテナの定義をすべて記述します。
+resource "docker_network" "net_b" {
+  name = "net_b"
+  ipam_config {
+    subnet = "192.168.20.0/24"
+  }
+}
 
-    ```terraform
-    # main.tf
-
-    # 1. ネットワークの定義
-    resource "docker_network" "net_a" {
-      name = "net_a"
-      ipam_config {
-        subnet = "192.168.10.0/24"
-      }
+# CoreDNS 設定ファイル (sokoide.com)
+resource "local_file" "coredns_a" {
+  content = <<-EOF
+  sokoide.com:53 {
+    log
+    errors
+    cache
+    forward . 192.168.20.10:53
+    template IN A www.sokoide.com {
+      answer "{{ .Name }} 60 IN A 1.1.1.1"
     }
+  }
+  EOF
+  filename = "${path.module}/Corefile.a"
+}
 
-    resource "docker_network" "net_b" {
-      name = "net_b"
-      ipam_config {
-        subnet = "192.168.20.0/24"
-      }
+# CoreDNS 設定ファイル (foo.sokoide.com)
+resource "local_file" "coredns_b" {
+  content = <<-EOF
+  foo.sokoide.com:53 {
+    log
+    errors
+    cache
+    template IN A server.foo.sokoide.com {
+      answer "{{ .Name }} 60 IN A 2.2.2.2"
     }
+  }
+  EOF
+  filename = "${path.module}/Corefile.b"
+}
 
-    # 2. CoreDNS設定ファイルとゾーンファイルの生成
-    # コンテナa用 (sokoide.com)
-    resource "local_file" "corefile_a" {
-      content = <<-EOF
-    . {
-        log
-        errors
-        forward . 8.8.8.8
-    }
-    sokoide.com {
-        file /etc/coredns/sokoide.com.db
-    }
-    foo.sokoide.com {
-        forward . 192.168.20.10
-    }
-    EOF
-      filename = "${path.module}/Corefile_a"
-    }
+# CoreDNS コンテナ
+resource "docker_container" "dns_a" {
+  name  = "container-a"
+  image = "coredns-handson:latest"
+  networks_advanced {
+    name         = docker_network.net_a.name
+    ipv4_address = "192.168.10.10"
+  }
+  # Bへの転送用にnet_bにも接続
+  networks_advanced {
+    name         = docker_network.net_b.name
+    ipv4_address = "192.168.20.11"
+  }
+  uploads {
+    content        = local_file.coredns_a.content
+    file           = "/etc/coredns/Corefile"
+    executable     = false
+  }
+  command = ["-conf", "/etc/coredns/Corefile"]
+}
 
-    resource "local_file" "zonefile_a" {
-      content = <<-EOF
-    sokoide.com.   IN SOA sns.dns.icann.org. noc.dns.icann.org. 2015082541 7200 3600 1209600 3600
-    www.sokoide.com. IN A 1.2.3.4
-    EOF
-      filename = "${path.module}/sokoide.com.db"
-    }
+resource "docker_container" "dns_b" {
+  name  = "container-b"
+  image = "coredns-handson:latest"
+  networks_advanced {
+    name         = docker_network.net_b.name
+    ipv4_address = "192.168.20.10"
+  }
+  uploads {
+    content        = local_file.coredns_b.content
+    file           = "/etc/coredns/Corefile"
+    executable     = false
+  }
+  command = ["-conf", "/etc/coredns/Corefile"]
+}
 
-    # コンテナb用 (foo.sokoide.com)
-    resource "local_file" "corefile_b" {
-      content = <<-EOF
-    . {
-        log
-        errors
-        forward . 8.8.8.8
-    }
-    foo.sokoide.com {
-        file /etc/coredns/foo.sokoide.com.db
-    }
-    EOF
-      filename = "${path.module}/Corefile_b"
-    }
+# ルーターコンテナ (検証用)
+resource "docker_container" "router" {
+  name  = "container-router"
+  image = "alpine:3.17"
+  command = ["sleep", "infinity"]
+  networks_advanced {
+    name = docker_network.net_a.name
+  }
+}
+```
 
-    resource "local_file" "zonefile_b" {
-      content = <<-EOF
-    foo.sokoide.com.   IN SOA sns.dns.icann.org. noc.dns.icann.org. 2015082541 7200 3600 1209600 3600
-    server.foo.sokoide.com. IN A 5.6.7.8
-    EOF
-      filename = "${path.module}/foo.sokoide.com.db"
-    }
+### STEP 3: 環境のデプロイと検証
 
-    # 3. コンテナの定義
-    resource "docker_container" "container_a" {
-      name  = "container-a"
-      image = "coredns-handson"
-      networks_advanced {
-        name         = docker_network.net_a.name
-        ipv4_address = "192.168.10.10"
-      }
-      # container-bへ転送（フォワード）するためにnet_bにも接続
-      networks_advanced {
-        name = docker_network.net_b.name
-      }
-      volumes {
-        host_path      = local_file.corefile_a.filename
-        container_path = "/etc/coredns/Corefile"
-        read_only      = true
-      }
-      volumes {
-        host_path      = local_file.zonefile_a.filename
-        container_path = "/etc/coredns/sokoide.com.db"
-        read_only      = true
-      }
-    }
+```bash
+cd ../part2
+terraform init
+terraform apply
+```
 
-    resource "docker_container" "container_b" {
-      name  = "container-b"
-      image = "coredns-handson"
-      networks_advanced {
-        name         = docker_network.net_b.name
-        ipv4_address = "192.168.20.10"
-      }
-      volumes {
-        host_path      = local_file.corefile_b.filename
-        container_path = "/etc/coredns/Corefile"
-        read_only      = true
-      }
-      volumes {
-        host_path      = local_file.zonefile_b.filename
-        container_path = "/etc/coredns/foo.sokoide.com.db"
-        read_only      = true
-      }
-    }
+構築後、`router` コンテナに入って `dig` コマンドで名前解決をテストします。
 
-    resource "docker_container" "router" {
-      name  = "container-router"
-      image = "alpine:3.17"
-      command = ["sleep", "3600"]
-      networks_advanced {
-        name = docker_network.net_a.name
-      }
-      networks_advanced {
-        name = docker_network.net_b.name
-      }
-    }
-    ```
+```bash
+docker exec -it container-router sh
+# コンテナ内で
+apk add bind-tools
+# Aレコードの直接解決をテスト
+dig @192.168.10.10 www.sokoide.com
+# Bへの転送（再帰解決）をテスト
+dig @192.168.10.10 server.foo.sokoide.com
+```
 
-### 4. 実行と動作確認
+---
 
-1. `terraform apply`を実行して、すべてのリソース（ネットワーク、設定ファイル、コンテナ）を構築します。`yes`と入力します。
-
-2. コンテナが起動していることを確認します。
-
-    ```bash
-    docker ps
-    ```
-
-3. `router`コンテナに入り、`dig`コマンド（DNS クエリツール）をインストールして実行します。
-
-    ```bash
-    docker exec -it container-router sh
-
-    # コンテナ内で以下を実行
-    apk update && apk add bind-tools
-    ```
-
-4. `dig`で名前解決をテストします。
-
-    * `container-a`に`sokoide.com`の問い合わせ
-
-    ```sh
-    # dig @192.168.10.10 www.sokoide.com
-    # ...
-    # ;; ANSWER SECTION:
-    # www.sokoide.com.    3600    IN    A    1.2.3.4
-    ```
-
-    * `container-a`に`foo.sokoide.com`の問い合わせ (b へフォワードされる)
-
-    ```sh
-    # dig @192.168.10.10 server.foo.sokoide.com
-    # ...
-    # ;; ANSWER SECTION:
-    # server.foo.sokoide.com. 3600    IN    A    5.6.7.8
-    ```
-
-    * `container-b`に`foo.sokoide.com`の問い合わせ
-
-    ```sh
-    # dig @192.168.20.10 server.foo.sokoide.com
-    # ...
-    # ;; ANSWER SECTION:
-    # server.foo.sokoide.com. 3600    IN    A    5.6.7.8
-    ```
-
-    コンテナから出るには `exit` と入力します。
-
-### 5. クリーンアップ
-
-ワークショップが終わったら、`destroy`コマンドで作成したすべてのリソースを削除します。
+## 片付け
 
 ```bash
 terraform destroy
 ```
 
-ローカルに作成された設定ファイルも不要であれば削除してください。
+※ すべてのコンテナ、ネットワーク、一時ファイルが一括で削除されます。
 
-以上でワークショップは終了です。この演習を通じて、Terraform の基本操作から、より実践的な複数コンポーネント構成の管理までを体験できました。
+---
+
+## 参考文献
+
+- [Terraform Documentation](https://developer.hashicorp.com/terraform/docs)
+- [Terraform Docker Provider](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)

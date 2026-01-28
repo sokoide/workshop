@@ -1,70 +1,10 @@
 # Redis 実習：Sorted Sets で作るリアルタイム・ゲームランキング
 
 この実習では、Redis の強力なデータ構造である **Sorted Sets (ZSET)** を使用して、数百万人のユーザーにも対応可能な「リアルタイム・ゲームランキングシステム」を構築します。
-Go 言語を用いて CLI ツールを実装し、ランキングの更新、取得、そして不正ユーザーの除外（フィルタリング）といった実戦的な機能を学びます。
 
 ## ゴール
 
 以下の機能を備えたランキングシステムを **Clean Architecture** に基づいて構築します。
-
-1. **スコア登録 (ZADD):** ユーザーのスコアを登録・更新。
-2. **リアルタイム順位取得 (ZREVRANK):** 特定のユーザーが現在何位か（1 位から開始）を即座に取得。
-3. **トップランカー表示 (ZREVRANGE):** 上位 N 名のリストを表示。
-4. **チーター対策 (Sets - SADD):** 特定のユーザーを Ban し、ランキング表示から除外。
-
----
-
-## アーキテクチャ
-
-本実習の Go アプリケーションは、メンテナンス性と拡張性を考慮し 4 層の Clean Architecture で構成されています。
-
-### レイヤー構造と依存関係
-
-```mermaid
-graph LR
-    subgraph Entry ["Framework (Entry)"]
-        Main["main.go"]
-    end
-
-    subgraph UC_Layer ["Usecase Layer"]
-        UC["LeaderboardUsecase"]
-    end
-
-    subgraph Domain_Layer ["Domain Layer"]
-        Intf["LeaderboardRepository (Interface)"]
-    end
-
-    subgraph Adapter_Layer ["Infra Adapter Layer"]
-        RepoImpl["RedisRepository (Implementation)"]
-    end
-
-    subgraph SDK ["Framework (Library)"]
-        Lib["go-redis (SDK)"]
-    end
-
-    subgraph Infra_Layer ["Infra Layer"]
-        Redis[("Redis Server")]
-    end
-
-    %% 依存性のチェーン
-    Main -- 依存注入 --> UC
-    Main -- インスタンス化 --> RepoImpl
-    UC -- 利用 --> Intf
-    RepoImpl -- 実装 --> Intf
-    RepoImpl -- 使用 --> Lib
-    Lib -- 通信 --> Redis
-```
-
-- **Domain Layer:** ビジネスエンティティ（UserScore）とリポジトリインターフェースを定義。
-- **Usecase Layer:** ランキング取得時のフィルタリングロジックなど、ビジネスルールを実装。
-- **Infra Layer:** Redis への具体的なアクセス（go-redis を使用）を担当。
-- **Framework Layer (Main):** 依存性の注入 (DI) と CLI の入出力。
-
----
-
-## システムフロー：ランキング取得 (Top Rankers)
-
-Usecase レイヤーがどのように Infra レイヤー（Redis）を利用して、Ban されたユーザーをフィルタリングするかの流れを示します。
 
 ```mermaid
 sequenceDiagram
@@ -90,7 +30,47 @@ sequenceDiagram
 
     Note over UC: Ban ユーザーを除外し、順位を再割り当て
     UC-->>CLI: []domain.UserScore (Filtered)
-    CLI->>CLI: 結果をフォーマットして表示
+```
+
+**この実習で習得すること:**
+
+1. **Sorted Sets (ZSET)**: スコアに基づいた自動ソート機能の活用。
+2. **Sets**: 重複のない集合（Ban リスト等）の効率的な管理。
+3. **Clean Architecture**: 外部ストレージ（Redis）の詳細をドメイン層から分離。
+
+---
+
+## リアルタイム集計の課題
+
+従来、数百万人のユーザーの順位を RDBMS (SQL) で管理しようとすると、パフォーマンスが大きな壁となります。
+
+### ❌ 課題
+
+- **ソートコスト**: 数百万行のデータをスコア順に並び替える処理は、書き込みのたびに行うと極めて重い。
+- **ロック競合**: 高頻度なスコア更新が発生すると、DB のロック待ちが発生しスループットが低下する。
+- **計算の重複**: 各ユーザーが自分の順位を知るために、毎回全件スキャンに近い処理が必要になる。
+
+### ✅ Redis Sorted Sets の解決策
+
+- **インメモリ・ソート**: 書き込み時に $O(\log N)$ でソート済みの状態を維持するため、読み取りは一瞬。
+- **豊富なコマンド**: 「上位 N 名の取得」や「特定ユーザーの順位取得」が専用コマンドで提供されている。
+
+---
+
+## アーキテクチャ
+
+Go アプリケーションは、ビジネスロジックを Redis の詳細から独立させています。
+
+### 想定ディレクトリ構造
+
+```text
+infra/assets/redis_leaderboard/
+├── domain/         # エンティティとインターフェース
+├── usecase/        # ランキング・Banロジック
+├── infra/          # Redis アダプター
+├── cmd/            # CLI エントリーポイント
+├── main.go         # 依存注入
+└── go.mod
 ```
 
 ---
@@ -98,8 +78,6 @@ sequenceDiagram
 ## 準備
 
 ### 1. Redis の起動 (Podman/Docker)
-
-開発・検証用の Redis を起動します。
 
 ```bash
 podman run -d --name redis-leaderboard -p 6379:6379 redis:latest
@@ -114,31 +92,11 @@ go mod tidy
 
 ---
 
-## 実装のポイント
+## 実習ステップ
 
-### Sorted Sets (ZSET) の活用
+### STEP 1: スコアの登録 (ZADD)
 
-Redis の Sorted Set は、スコア（数値）に関連付けられたユニークなメンバー（ユーザーID 等）を保持します。
-データが追加・更新されるたびに Redis 内部で自動的にソートされるため、アプリケーション側でソート処理を行う必要がなく、非常に高速です。
-
-- `ZADD`: スコアの追加・更新。$O(\log N)$
-- `ZREVRANGE`: スコアの高い順に範囲指定で取得。$O(\log N + M)$
-- `ZREVRANK`: 指定したメンバーの降順順位を取得。$O(\log N)$
-
-### Sets による Ban リスト管理
-
-特定のユーザーをランキングに表示させないために、Redis の **Sets** データ構造を使用して Ban ユーザーリストを管理します。
-
-- `SADD`: ユーザーを Ban リストに追加。
-- `SISMEMBER`: ユーザーが Ban されているかを $O(1)$ で判定。
-
----
-
-## 動かしてみる
-
-実装した CLI ツールを使用して、ランキングを操作してみましょう。
-
-### 1. スコアの追加
+ユーザーのスコアを登録・更新します。Redis 内部で自動的に順序が入れ替わります。
 
 ```bash
 go run main.go add user1 100
@@ -146,46 +104,47 @@ go run main.go add user2 250
 go run main.go add user3 180
 ```
 
-### 2. ランキングの表示
+### STEP 2: トップランカーの表示 (ZREVRANGE)
+
+上位 N 名を即座に取得します。
 
 ```bash
 go run main.go top 3
+# 期待される結果: user2(250), user3(180), user1(100)
 ```
 
-**期待される出力:**
+### STEP 3: 不正ユーザーの Ban (Sets)
 
-```text
---- Top 3 Rankers ---
-1. user2: 250.00
-2. user3: 180.00
-3. user1: 100.00
-```
-
-### 3. 特定ユーザーの順位確認
-
-```bash
-go run main.go rank user3
-```
-
-### 4. 不正ユーザーの Ban
+特定のユーザーを Ban リストに追加し、ランキングから除外します。
 
 ```bash
 go run main.go ban user2
 go run main.go top 3
-```
-
-**期待される出力:**
-`user2` が除外され、`user3` が 1 位に繰り上がります。
-
-```text
---- Top 3 Rankers ---
-1. user3: 180.00
-2. user1: 100.00
+# 期待される結果: user2 が消え、user3 が 1 位に繰り上がる
 ```
 
 ---
 
-## まとめ
+## Clean Architecture のポイント
 
-Redis の Sorted Sets を利用することで、アプリケーション側で複雑な計算や並び替えを行うことなく、大規模なランキングシステムを極めて効率的に構築できることがわかりました。
-また、Clean Architecture を採用することで、将来的に Redis 以外のストレージに変更したり、Web API 化したりする場合も、コアとなるロジック（Usecase）を変更せずに対応可能です。
+ビジネスルール（Usecase 層）は、**「Ban されているユーザーはランキングに表示しない」**というルールのみを知っています。
+
+- **Domain**: `LeaderboardRepository` インターフェースを定義。
+- **Infra**: `go-redis` を使ってインターフェースを実装。
+
+この構成により、将来的にランキングの保存先を Redis から別の高速な DB に変更しても、ビジネスロジック（Usecase）を一切修正せずに済みます。
+
+---
+
+## 片付け
+
+```bash
+podman rm -f redis-leaderboard
+```
+
+---
+
+## 参考文献
+
+- [Redis Documentation: Sorted Sets](https://redis.io/docs/data-types/sorted-sets/)
+- [go-redis Guide](https://redis.uptrace.dev/)
