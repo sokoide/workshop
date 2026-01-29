@@ -2,8 +2,11 @@ package redis
 
 import (
 	"context"
+	"errors"
+	"fmt"
+
 	"github.com/redis/go-redis/v9"
-	"github.com/sokoide/workshop/infra/assets/redis_leaderboard/domain"
+	"github.com/sokoide/workshop/leaderboard/domain"
 )
 
 type RedisLeaderboardRepository struct {
@@ -33,13 +36,17 @@ func (r *RedisLeaderboardRepository) GetTopRankers(ctx context.Context, n int64)
 		return nil, err
 	}
 
-	result := make([]domain.UserScore, len(zs))
+	result := make([]domain.UserScore, 0, len(zs))
 	for i, z := range zs {
-		result[i] = domain.UserScore{
-			UserID: z.Member.(string),
+		userID, ok := z.Member.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid member type at index %d: expected string, got %T", i, z.Member)
+		}
+		result = append(result, domain.UserScore{
+			UserID: userID,
 			Score:  z.Score,
 			Rank:   int64(i + 1),
-		}
+		})
 	}
 	return result, nil
 }
@@ -47,7 +54,7 @@ func (r *RedisLeaderboardRepository) GetTopRankers(ctx context.Context, n int64)
 func (r *RedisLeaderboardRepository) GetRank(ctx context.Context, userID string) (int64, error) {
 	rank, err := r.client.ZRevRank(ctx, r.key, userID).Result()
 	if err != nil {
-		if err == redis.Nil {
+		if errors.Is(err, redis.Nil) {
 			return 0, nil // Not found
 		}
 		return 0, err

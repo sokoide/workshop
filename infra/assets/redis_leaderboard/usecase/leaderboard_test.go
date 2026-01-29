@@ -2,7 +2,8 @@ package usecase
 
 import (
 	"context"
-	"github.com/sokoide/workshop/infra/assets/redis_leaderboard/domain"
+
+	"github.com/sokoide/workshop/leaderboard/domain"
 	"testing"
 )
 

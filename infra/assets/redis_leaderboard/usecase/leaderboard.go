@@ -2,31 +2,25 @@ package usecase
 
 import (
 	"context"
-	"github.com/sokoide/workshop/infra/assets/redis_leaderboard/domain"
+
+	"github.com/sokoide/workshop/leaderboard/domain"
 )
 
-type LeaderboardUsecase interface {
-	AddScore(ctx context.Context, userID string, score float64) error
-	GetTopRankers(ctx context.Context, n int64) ([]domain.UserScore, error)
-	GetRank(ctx context.Context, userID string) (int64, error)
-	BanUser(ctx context.Context, userID string) error
-}
-
-type leaderboardUsecase struct {
+type LeaderboardUsecase struct {
 	repo domain.LeaderboardRepository
 }
 
-func NewLeaderboardUsecase(repo domain.LeaderboardRepository) LeaderboardUsecase {
-	return &leaderboardUsecase{
+func NewLeaderboardUsecase(repo domain.LeaderboardRepository) *LeaderboardUsecase {
+	return &LeaderboardUsecase{
 		repo: repo,
 	}
 }
 
-func (u *leaderboardUsecase) AddScore(ctx context.Context, userID string, score float64) error {
+func (u *LeaderboardUsecase) AddScore(ctx context.Context, userID string, score float64) error {
 	return u.repo.AddScore(ctx, userID, score)
 }
 
-func (u *leaderboardUsecase) GetTopRankers(ctx context.Context, n int64) ([]domain.UserScore, error) {
+func (u *LeaderboardUsecase) GetTopRankers(ctx context.Context, n int64) ([]domain.UserScore, error) {
 	// The Usecase handles the business logic: filtering banned users.
 	// Since Redis ZREVRANGE might return users who are banned, we filter them here.
 	// Note: For large N, this might need more sophisticated handling (like over-fetching from Redis),
@@ -54,10 +48,10 @@ func (u *leaderboardUsecase) GetTopRankers(ctx context.Context, n int64) ([]doma
 	return result, nil
 }
 
-func (u *leaderboardUsecase) GetRank(ctx context.Context, userID string) (int64, error) {
+func (u *LeaderboardUsecase) GetRank(ctx context.Context, userID string) (int64, error) {
 	return u.repo.GetRank(ctx, userID)
 }
 
-func (u *leaderboardUsecase) BanUser(ctx context.Context, userID string) error {
+func (u *LeaderboardUsecase) BanUser(ctx context.Context, userID string) error {
 	return u.repo.BanUser(ctx, userID)
 }

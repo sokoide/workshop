@@ -68,8 +68,7 @@ infra/assets/redis_leaderboard/
 ├── domain/         # Entities and Interfaces
 ├── usecase/        # Ranking and Ban logic
 ├── infra/          # Redis Adapter
-├── cmd/            # CLI Entry points
-├── main.go         # Dependency Injection
+├── main.go         # Entry point & Dependency Injection
 └── go.mod
 ```
 
@@ -79,8 +78,16 @@ infra/assets/redis_leaderboard/
 
 ### 1. Start Redis (Podman/Docker)
 
+Using Makefile (recommended):
+
 ```bash
-podman run -d --name redis-leaderboard -p 6379:6379 redis:latest
+make redis-up
+```
+
+Or directly with podman:
+
+```bash
+podman run -d --name workshop-redis -p 6379:6379 docker.io/library/redis:alpine
 ```
 
 ### 2. Project Setup
@@ -99,9 +106,9 @@ go mod tidy
 Register or update user scores. Redis automatically re-orders them internally.
 
 ```bash
-go run main.go add user1 100
-go run main.go add user2 250
-go run main.go add user3 180
+go run main.go -action add -user user1 -score 100
+go run main.go -action add -user user2 -score 250
+go run main.go -action add -user user3 -score 180
 ```
 
 ### STEP 2: Display Top Rankers (ZREVRANGE)
@@ -109,7 +116,7 @@ go run main.go add user3 180
 Retrieve the top N members instantly.
 
 ```bash
-go run main.go top 3
+go run main.go -action top -n 3
 # Expected output: user2(250), user3(180), user1(100)
 ```
 
@@ -118,8 +125,8 @@ go run main.go top 3
 Add specific users to a Ban list and exclude them from rankings.
 
 ```bash
-go run main.go ban user2
-go run main.go top 3
+go run main.go -action ban -user user2
+go run main.go -action top -n 3
 # Expected result: user2 disappears, and user3 is promoted to 1st place.
 ```
 
@@ -138,8 +145,17 @@ This configuration ensures that even if you change the storage from Redis to ano
 
 ## Cleanup
 
+Using Makefile (recommended):
+
 ```bash
-podman rm -f redis-leaderboard
+make redis-down
+```
+
+Or directly with podman:
+
+```bash
+podman stop workshop-redis
+podman rm workshop-redis
 ```
 
 ---

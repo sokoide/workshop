@@ -68,8 +68,7 @@ infra/assets/redis_leaderboard/
 ├── domain/         # エンティティとインターフェース
 ├── usecase/        # ランキング・Banロジック
 ├── infra/          # Redis アダプター
-├── cmd/            # CLI エントリーポイント
-├── main.go         # 依存注入
+├── main.go         # エントリーポイント & 依存注入
 └── go.mod
 ```
 
@@ -79,8 +78,16 @@ infra/assets/redis_leaderboard/
 
 ### 1. Redis の起動 (Podman/Docker)
 
+Makefile を使用する場合（推奨）:
+
 ```bash
-podman run -d --name redis-leaderboard -p 6379:6379 redis:latest
+make redis-up
+```
+
+podman を直接使用する場合:
+
+```bash
+podman run -d --name workshop-redis -p 6379:6379 docker.io/library/redis:alpine
 ```
 
 ### 2. プロジェクトのセットアップ
@@ -99,9 +106,9 @@ go mod tidy
 ユーザーのスコアを登録・更新します。Redis 内部で自動的に順序が入れ替わります。
 
 ```bash
-go run main.go add user1 100
-go run main.go add user2 250
-go run main.go add user3 180
+go run main.go -action add -user user1 -score 100
+go run main.go -action add -user user2 -score 250
+go run main.go -action add -user user3 -score 180
 ```
 
 ### STEP 2: トップランカーの表示 (ZREVRANGE)
@@ -109,7 +116,7 @@ go run main.go add user3 180
 上位 N 名を即座に取得します。
 
 ```bash
-go run main.go top 3
+go run main.go -action top -n 3
 # 期待される結果: user2(250), user3(180), user1(100)
 ```
 
@@ -118,8 +125,8 @@ go run main.go top 3
 特定のユーザーを Ban リストに追加し、ランキングから除外します。
 
 ```bash
-go run main.go ban user2
-go run main.go top 3
+go run main.go -action ban -user user2
+go run main.go -action top -n 3
 # 期待される結果: user2 が消え、user3 が 1 位に繰り上がる
 ```
 
@@ -138,8 +145,17 @@ go run main.go top 3
 
 ## 片付け
 
+Makefile を使用する場合（推奨）:
+
 ```bash
-podman rm -f redis-leaderboard
+make redis-down
+```
+
+podman を直接使用する場合:
+
+```bash
+podman stop workshop-redis
+podman rm workshop-redis
 ```
 
 ---
