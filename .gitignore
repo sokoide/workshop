@@ -15,6 +15,9 @@ Thumbs.db
 *~
 
 # AI & Tools
+.claude/
+.codex/
+.gemini/
 .serena/
 **/.serena/
 conductor/archive
@@ -61,6 +64,9 @@ dist/
 
 # Node.js
 node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
 
 # Log files
 
