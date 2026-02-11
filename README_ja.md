@@ -39,6 +39,8 @@
   - Envoy プロキシを手動配置してトラフィック制御（リトライ・タイムアウト・ルーティング）
 - [オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API](./infra/minio_ja.md)
   - MinIO 構築 + AWS CLI/SDK でバケット操作・署名付き URL 生成
+- [TCP/IP プロトコルスタック実習：スクラッチからネットワークスタックを構築する](./infra/tcpip_stack_ja.md)
+  - Go と C (CGO) で Ethernet/IP/ICMP/UDP を実装し、raw socket からパケットを理解
 
 #### インフラ: 今後追加予定のコンテンツ
 

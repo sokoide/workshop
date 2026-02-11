@@ -39,6 +39,8 @@ This repository contains hands-on materials for various technical topics.
   - Manually deploy Envoy proxies for traffic control (retries, timeouts, routing).
 - [Object Storage Workshop: Learning S3-Compatible API with MinIO](./infra/minio_en.md)
   - MinIO construction + bucket operations and signed URL generation using AWS CLI/SDK.
+- [TCP/IP Protocol Stack Workshop: Building a Network Stack from Scratch](./infra/tcpip_stack_en.md)
+  - Implement Ethernet/IP/ICMP/UDP with Go and C (CGO), understanding packets from raw socket.
 
 #### Infrastructure: Contents planned for the future
 
