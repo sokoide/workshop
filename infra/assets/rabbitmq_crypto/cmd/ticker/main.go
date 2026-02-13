@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/pkg/infra/rabbitmq"
-	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/pkg/usecase"
+	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/infra/rabbitmq"
+	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/usecase"
 )
 
 func main() {

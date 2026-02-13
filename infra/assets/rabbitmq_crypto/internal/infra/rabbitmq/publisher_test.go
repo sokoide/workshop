@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/pkg/domain"
+	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/domain"
 )
 
 func TestPublisher_Publish(t *testing.T) {

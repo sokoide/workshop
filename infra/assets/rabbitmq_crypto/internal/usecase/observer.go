@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/pkg/domain"
+	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/domain"
 )
 
 // TradeObserver monitors trade events from a subscriber.

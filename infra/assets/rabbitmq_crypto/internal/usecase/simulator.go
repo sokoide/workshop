@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/pkg/domain"
+	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/domain"
 )
 
 // MarketSimulator generates random crypto trade events.

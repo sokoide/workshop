@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/pkg/domain"
+	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/domain"
 )
 
 type mockSubscriber struct {
