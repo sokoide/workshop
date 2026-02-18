@@ -39,6 +39,8 @@
   - Envoy プロキシを手動配置してトラフィック制御（リトライ・タイムアウト・ルーティング）
 - [オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API](./infra/minio_ja.md)
   - MinIO 構築 + AWS CLI/SDK でバケット操作・署名付き URL 生成
+- [Sharding Fundamentals: Sparse Table, Segment Tree, Elasticsearch, and Cortex](./infra/sharding_en.md)
+  - Elasticsearch/Cortex を題材にしたシャーディング設計の実践ガイド（Cortex PR #7266 / #7270 の要点を含む、英語）。
 - [TCP/IP プロトコルスタック実習：スクラッチからネットワークスタックを構築する](./infra/tcpip_stack_ja.md)
   - Go と C (CGO) で Ethernet/IP/ICMP/UDP を実装し、raw socket からパケットを理解
 
