@@ -8,8 +8,8 @@ import (
 	"time"
 
 	vaultapi "github.com/hashicorp/vault/api"
-	"github.com/sokoide/workshop/secret_management/infra/vault"
-	"github.com/sokoide/workshop/secret_management/usecase"
+	"github.com/sokoide/workshop/secret_management/internal/infra/vault"
+	"github.com/sokoide/workshop/secret_management/internal/usecase"
 )
 
 func main() {

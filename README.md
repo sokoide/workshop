@@ -41,6 +41,8 @@ This repository contains hands-on materials for various technical topics.
   - MinIO construction + bucket operations and signed URL generation using AWS CLI/SDK.
 - [Sharding Fundamentals: Sparse Table, Segment Tree, Elasticsearch, and Cortex](./infra/sharding_en.md)
   - Practical sharding design with Elasticsearch and Cortex examples, including a summary of Cortex PRs #7266 and #7270.
+- [TCP/IP Protocol Stack Workshop: Building a Network Stack from Scratch](./infra/tcpip_stack_en.md)
+  - Implement Ethernet/IP/ICMP/UDP with Go and C (CGO), understanding packets from raw socket.
 
 #### Infrastructure: Contents planned for the future
 
