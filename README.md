@@ -39,6 +39,8 @@ This repository contains hands-on materials for various technical topics.
   - Manually deploy Envoy proxies for traffic control (retries, timeouts, routing).
 - [Object Storage Workshop: Learning S3-Compatible API with MinIO](./infra/minio_en.md)
   - MinIO construction + bucket operations and signed URL generation using AWS CLI/SDK.
+- [Sharding Fundamentals: Sparse Table, Segment Tree, Elasticsearch, and Cortex](./infra/sharding_en.md)
+  - Practical sharding design with Elasticsearch and Cortex examples, including a summary of Cortex PRs #7266 and #7270.
 
 #### Infrastructure: Contents planned for the future
 
