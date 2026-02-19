@@ -39,6 +39,8 @@ This repository contains hands-on materials for various technical topics.
   - Manually deploy Envoy proxies for traffic control (retries, timeouts, routing).
 - [Object Storage Workshop: Learning S3-Compatible API with MinIO](./infra/minio_en.md)
   - MinIO construction + bucket operations and signed URL generation using AWS CLI/SDK.
+- [HTTP Persistent Connection Workshop: Keep-Alive, WebSocket, HTTP/2, gRPC, HTTP/3](./infra/http_persistent_en.md)
+  - Comparison of connection reuse and 0-RTT mechanisms from HTTP/1.1 to the latest HTTP/3 (QUIC).
 - [Sharding Fundamentals: Sparse Table, Segment Tree, Elasticsearch, and Cortex](./infra/sharding_en.md)
   - Practical sharding design with Elasticsearch and Cortex examples, including a summary of Cortex PRs #7266 and #7270.
 - [TCP/IP Protocol Stack Workshop: Building a Network Stack from Scratch](./infra/tcpip_stack_en.md)

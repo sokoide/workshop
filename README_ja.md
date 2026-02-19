@@ -39,6 +39,8 @@
   - Envoy プロキシを手動配置してトラフィック制御（リトライ・タイムアウト・ルーティング）
 - [オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API](./infra/minio_ja.md)
   - MinIO 構築 + AWS CLI/SDK でバケット操作・署名付き URL 生成
+- [HTTP 永続接続実習：Keep-Alive, WebSocket, HTTP/2, gRPC, HTTP/3](./infra/http_persistent_ja.md)
+  - HTTP/1.1 から最新の HTTP/3 (QUIC) まで、接続再利用と 0-RTT の仕組みを比較
 - [シャーディング基礎: Sparse Table, Segment Tree, Elasticsearch, Cortex](./infra/sharding_ja.md)
   - Elasticsearch/Cortex を題材にしたシャーディング設計の実践ガイド（Cortex PR #7266 / #7270 の要点を含む、日本語）。
 - [TCP/IP プロトコルスタック実習：スクラッチからネットワークスタックを構築する](./infra/tcpip_stack_ja.md)

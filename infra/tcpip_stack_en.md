@@ -8,7 +8,7 @@ In this workshop, you will combine Go and C to **build a TCP/IP protocol stack f
 
 The essence of network communication is "Encapsulation." Higher-layer data is wrapped as the "payload" of lower layers.
 
-```
+```text
 +----------------------------------------------------+
 | Ethernet Frame (L2)                                |
 | +------------------------------------------------+ |
@@ -26,7 +26,7 @@ The essence of network communication is "Encapsulation." Higher-layer data is wr
 ### Components to Implement
 
 | Layer | Component | File | Description |
-|-------|-----------|------|-------------|
+| :--- | :--- | :--- | :--- |
 | L1 | Raw Socket | `pkg/rawsock/` | Bypass kernel, communicate directly with NIC |
 | L2 | Ethernet Frame | `pkg/ethernet/frame.go` | MAC address-based frame handling |
 | L3 | IPv4 Packet | `pkg/ipv4/packet.go` | IP address-based packet handling |
@@ -354,7 +354,7 @@ func GetMAC(iface string) (net.HardwareAddr, error) {
 
 AF_PACKET is a Linux socket family for **direct access to the Data Link Layer (L2)**. With regular sockets (AF_INET), the kernel automatically handles TCP/IP headers. Using AF_PACKET, you can send/receive **the entire Ethernet frame as raw bytes**.
 
-```
+```text
 Regular Socket (AF_INET)
 +-----------+     +------------------------+
 |   App     | <-- | Kernel handles TCP/IP  |
@@ -378,7 +378,7 @@ int fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 ```
 
 | Argument | Value | Meaning |
-|----------|-------|---------|
+| :--- | :--- | :--- |
 | Domain | `AF_PACKET` | Packet-level socket (L2) |
 | Type | `SOCK_RAW` | Get raw packets including headers |
 | Protocol | `ETH_P_ALL` (0x0003) | Receive all protocol types |
@@ -386,7 +386,7 @@ int fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 ##### Other Protocol Values
 
 | Protocol | Value | Description |
-|----------|-------|-------------|
+| :--- | :--- | :--- |
 | `ETH_P_ALL` | 0x0003 | Receive all packets |
 | `ETH_P_IP` | 0x0800 | Receive IPv4 only |
 | `ETH_P_IPV6` | 0x86DD | Receive IPv6 only |
@@ -443,7 +443,7 @@ Ethernet controls communication with physically adjacent devices using MAC addre
 
 #### Ethernet II Frame Structure
 
-```
+```text
 ┌───────────────────┬───────────────────┬──────────────┬─────────────┐
 │  Dst MAC (6bytes) │  Src MAC (6bytes) │ Type (2B)    │ Payload     │
 ├───────────────────┴───────────────────┴──────────────┴─────────────┤
@@ -574,7 +574,7 @@ IPv4 enables communication between different network segments. It uses 32-bit IP
 
 #### IPv4 Header Structure
 
-```
+```text
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -784,7 +784,7 @@ ICMP (Internet Control Message Protocol) is used for network diagnostics. The mo
 
 #### ICMP Echo Message Structure
 
-```
+```text
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -1179,7 +1179,7 @@ sudo tcpdump -i veth-host -nn -vv icmp
 
 ## 📊 Packet Flow Diagram
 
-```
+```text
 =================== Receive Path (Rx) ===================
 
 NIC --> Raw Socket --> Ethernet.Parse --> IPv4.Parse --> ICMP.Parse
@@ -1197,6 +1197,7 @@ NIC <-- Raw Socket <-- Ethernet.Marshal <-- IPv4.Marshal <-- ICMP.Reply
 ```
 
 **Legend:**
+
 - `-->` : Data flow (packet/byte sequence)
 - `|` : Processing branch point
 - `v` : Next processing step
@@ -1208,7 +1209,7 @@ NIC <-- Raw Socket <-- Ethernet.Marshal <-- IPv4.Marshal <-- ICMP.Reply
 
 Processing flow when a Ping request arrives:
 
-```
+```text
 Step 1: NIC → Raw Socket
 ────────────────────────
 ・NIC converts electrical signals to bit sequence
@@ -1244,7 +1245,7 @@ Step 4: ICMP.Parse
 
 Processing flow when sending Echo Reply:
 
-```
+```text
 Step 1: ICMP.Reply Generation
 ─────────────────────────────
 ・Create Reply from received Echo Request
@@ -1273,7 +1274,7 @@ Step 4: Raw Socket → NIC
 
 ### Concrete Example: Ping Request-Reply Sequence
 
-```
+```text
 T1: Execute ping 192.168.100.1 from Namespace
     |
     v

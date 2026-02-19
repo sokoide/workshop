@@ -1,0 +1,11 @@
+
+ 
+proto/greeter.protopb""
+HelloRequest
+name (	Rname"&
+
+HelloReply
+message (	Rmessage2m
+Greeter,
+SayHello.pb.HelloRequest.pb.HelloReply4
+SayHelloStream.pb.HelloRequest.pb.HelloReply0BBZ@github.com/sokoide/workshop/infra/assets/http_persistent_conn/pbbproto3
