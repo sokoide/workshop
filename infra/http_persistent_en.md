@@ -196,19 +196,32 @@ sequenceDiagram
 
 2. **Install Tools**
 
-    Install the base tools (Podman, Go, Protoc, etc.) using the following commands:
+   Install the system-level tools using `apt`, and use **Homebrew (Linuxbrew)** for development tools to ensure the latest versions and easy installation of `websocat`.
 
-    ```bash
-    # Example for Ubuntu 24.04
-    sudo apt update
-    sudo apt install -y podman podman-compose golang-go protobuf-compiler curl websocat
-    ```
+   ```bash
+   # 1. Install system essentials via apt
+   sudo apt update
+   sudo apt install -y podman podman-compose git make openssl curl
+   
+   # 2. Install development tools via Homebrew
+   # If you haven't installed Homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   brew install websocat go protobuf grpcurl
+   ```
 
-    Next, set up Go-specific tools (`protoc-gen-go`, `grpcurl`, etc.) using `go install`:
+   > [!IMPORTANT]
+   > Ensure both Homebrew and Go binary directories are in your `PATH`.
+>
+   > ```bash
+   > # Example for ~/.bashrc or ~/.zshrc
+   > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+   > export PATH=$PATH:$(go env GOPATH)/bin
+   > ```
 
-    ```bash
-    make setup
-    ```
+   Next, set up the Go-specific Protobuf plugins using `make setup`:
+
+   ```bash
+   make setup
+   ```
 
 3. **Generate Self-Signed Certificate**
 
@@ -339,11 +352,26 @@ HTTP/3 completely abandons TCP in favor of the UDP-based **QUIC** protocol.
 curl --http3 -k -v https://localhost:8444/
 ```
 
+> [!TIP]
+> **If you see "Unknown option --http3" or "Option --http3 is not supported"**:
+> The standard `curl` in Ubuntu 24.04 may have HTTP/3 support disabled. In that case, use a pre-built containerized `curl`:
+>
+> ```bash
+> podman run --rm --network host curlimages/curl --http3 -k -v https://localhost:8444/
+> ```
+
 **Observation Points**:
 
 1. **Protocol Difference**: Check for `ALPN: h3` in the `curl` log.
-2. **Socket Monitoring (UDP)**: Use `ss -unp`. Since UDP is connectionless, it may show as `UNCONN`, but the port should be open.
-    - To be sure packets are flowing: `sudo tcpdump -i lo -n port 8444`
+2. **Socket Monitoring (UDP)**: Use `ss -unp`.
+    - **Status Display**: Since UDP is a "connectionless" protocol, it may appear as `UNCONN` (Unconnected) or simply `ESTAB` (after packets start flowing).
+    - **Real-time Monitoring**:
+
+      ```bash
+      watch -n 0.1 "ss -unp | grep :8444"
+      ```
+
+    - For more detailed packet analysis: `sudo tcpdump -i lo -n port 8444`
 
 ### STEP 5: Diverse Streaming Experiences with gRPC (HTTP/2)
 

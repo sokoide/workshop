@@ -5,7 +5,7 @@ setup:
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 	go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
-	go install github.com/containers/podman-compose@latest
+	@echo "Please ensure \$$(go env GOPATH)/bin is in your PATH."
 
 # CERT: Generate self-signed certificate for HTTP/2
 cert:
@@ -14,8 +14,8 @@ cert:
 # GENERATE: Generate gRPC code from proto
 gen:
 	mkdir -p pb
-	protoc --go_out=. --go_opt=paths=source_relative 
-	    --go-grpc_out=. --go-grpc_opt=paths=source_relative 
+	protoc --go_out=. --go_opt=paths=source_relative \
+	    --go-grpc_out=. --go-grpc_opt=paths=source_relative \
 	    proto/greeter.proto
 
 # RUN: Start the server

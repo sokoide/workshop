@@ -199,15 +199,28 @@ sequenceDiagram
 
 2. **ツールのインストール**
 
-   以下のコマンドで、ベースとなるツール群（Podman, Go, Protoc 等）をインストールします。
+   Ubuntu 24.04 では、最新の開発ツール（`websocat`, `go`, `protobuf` 等）を簡単に導入するため、**Homebrew (Linuxbrew)** の使用を推奨します。
 
    ```bash
-   # Ubuntu 24.04 での実行例
+   # 1. システム基盤ツールのインストール (apt)
    sudo apt update
-   sudo apt install -y podman podman-compose golang-go protobuf-compiler curl websocat
+   sudo apt install -y podman podman-compose git make openssl curl
+
+   # 2. 開発ツールのインストール (Homebrew)
+   # Homebrew が未インストールの場合は: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   brew install websocat go protobuf grpcurl
    ```
 
-   次に、Go 言語専用のツール（`protoc-gen-go`, `grpcurl` 等）を `go install` を使って一括セットアップします。
+   > [!IMPORTANT]
+   > Homebrew と Go のバイナリパスを通す必要があります。
+>
+   > ```bash
+   > # ~/.bashrc や ~/.zshrc に追記例
+   > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+   > export PATH=$PATH:$(go env GOPATH)/bin
+   > ```
+
+   次に、Go 言語専用のプロトコルバッファ用プラグインを `make setup` でセットアップします。
 
    ```bash
    make setup
@@ -331,7 +344,7 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 
 HTTP/3 は TCP ではなく、UDP ベースの **QUIC** プロトコル上で動作します。
 
-> **なぜ TCP をやめたのか？ (TCP レベルの HoL Blocking 解消)**:
+> **なぜ TCP をやめたのか？ (TCP レベル of HoL Blocking 解消)**:
 > TCP は順序保証を全データに対して一括で行う「一本のパイプ」です。QUIC は、順序保証を「ストリーム単位」で行うため、パケットロスが起きた「特定のストリーム」だけを再送し、他のストリームは止めることなく流し続けることができます。これが HoL Blocking 解消の技術的本質です。
 
 ```bash
@@ -339,11 +352,26 @@ HTTP/3 は TCP ではなく、UDP ベースの **QUIC** プロトコル上で動
 curl --http3 -k -v https://localhost:8444/
 ```
 
+> [!TIP]
+> **curl で "Unknown option --http3" や "Option --http3 is not supported" と出る場合**:
+> Ubuntu 24.04 の標準 `curl` は HTTP/3 対応が無効な場合があります。その場合は、Podman を使って HTTP/3 対応済みの curl イメージを動かしてみてください。
+>
+> ```bash
+> podman run --rm --network host curlimages/curl --http3 -k -v https://localhost:8444/
+> ```
+
 **観察ポイント**:
 
 1. **プロトコルの違い**: `curl` のログで `ALPN: h3` を確認。
-2. **Socket 監視 (UDP)**: `ss -unp` で監視。UDP は状態管理を行わないため、表示が `UNCONN` になる場合がありますが、ポートが開いていれば問題ありません。
-    - より確実に確認したい場合: `sudo tcpdump -i lo -n port 8444`
+2. **Socket 監視 (UDP)**: `ss -unp` で監視。
+    - **状態表示**: UDP は接続（Handshake）を行わない「コネクションレス」なプロトコルであるため、OS レベルでは `UNCONN` (Unconnected) または単に `ESTAB` (パケットが流れた後) と表示されることがあります。
+    - **リアルタイム監視**:
+
+      ```bash
+      watch -n 0.1 "ss -unp | grep :8444"
+      ```
+
+    - より確実に確認したい場合（パケットの中身）: `sudo tcpdump -i lo -n port 8444`
 
 ### STEP 5: gRPC (HTTP/2) での多種多様なストリーム通信
 
