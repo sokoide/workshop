@@ -224,6 +224,8 @@ sequenceDiagram
 
    ```bash
    make setup
+   # (ツールのパスが表示されます。インストール済みの場合は出力がありません)
+   which protoc-gen-go grpcurl
    ```
 
 3. **自己署名証明書の生成**
