@@ -36,7 +36,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			log.Printf("recv: %s", message)
-			err = conn.WriteMessage(mt, message)
+			reply := fmt.Sprintf("echo: %s", message)
+			err = conn.WriteMessage(mt, []byte(reply))
 			if err != nil {
 				log.Println("write:", err)
 				break
