@@ -222,6 +222,10 @@ sequenceDiagram
    ```bash
    make setup
    ```
+   ```bash
+   # (Tool paths appear; no output if already installed)
+   which protoc-gen-go grpcurl
+   ```
 
 3. **Generate Self-Signed Certificate**
 

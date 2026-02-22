@@ -7,6 +7,9 @@
 ehthumbs.db
 Thumbs.db
 
+# Protobuf
+pb/
+
 # IDE settings
 .vscode/
 .idea/
@@ -70,9 +73,11 @@ yarn.lock
 
 # Log files
 
-*.log
-
-
+# Local Go toolchain caches created by automation
+.cache/
+.gopath/
+.gocache/
+.gomodcache/
 
 # Certificates and Keys
 
