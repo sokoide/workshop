@@ -208,7 +208,7 @@ sequenceDiagram
 
    # 2. 開発ツールのインストール (Homebrew)
    # Homebrew が未インストールの場合は: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   brew install websocat go protobuf grpcurl
+   brew install websocat go protobuf grpcurl watch
    ```
 
    > [!IMPORTANT]
@@ -228,7 +228,7 @@ sequenceDiagram
    which protoc-gen-go grpcurl
    ```
 
-3. **自己署名証明書の生成**
+1. **自己署名証明書の生成**
 
    HTTP/2/3 は TLS・QUIC を前提にするため、ローカル用の証明書を作成します。
 
@@ -236,7 +236,7 @@ sequenceDiagram
    make cert
    ```
 
-4. **Protobuf のコード生成**
+2. **Protobuf のコード生成**
 
    `proto/greeter.proto` から Go の stub を生成し、`pb/greeter.pb.go` を吐き出します。
 
@@ -244,7 +244,7 @@ sequenceDiagram
    make gen
    ```
 
-5. **サーバーを起動**
+3. **サーバーを起動**
 
    ```bash
    make run
@@ -275,12 +275,14 @@ curl -v http://localhost:8080/ http://localhost:8080/
 **観察ポイント**:
 
 1. **curl のログ**: 2 回目のリクエストのログに `Re-using existing connection! (#0) with host localhost` という表示があることを確認してください。TCP の接続が 1 回で済んでいることがわかります。
-2. **Socket の状態 (ss コマンド)**: 別ターミナルで以下のコマンドを実行し、`:8080` への接続（ESTAB 状態のソケット）が **1 つだけ** であることを確認します。
+2. **Socket の状態 (ss コマンド)**: 別ターミナルで以下のコマンドを実行し、`:8080` への接続が **1 つだけ** であることを確認します。
 
     ```bash
-    # Ubuntu 24.04: サーバーへの接続状況をリアルタイムで監視
-    watch -n 0.1 "ss -ntp | grep :8080"
+    # Ubuntu 24.04: -a を付けることで、一瞬で終わる通信の残像（TIME-WAIT）も表示されます
+    watch -n 0.1 "ss -ntap | grep :8080"
     ```
+
+    **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
 
     ※ macOS の場合は `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` 等を利用してください。
 
@@ -304,8 +306,12 @@ WebSocket は **HTTP/1.1 の `Upgrade` ヘッダー** を利用して開始さ�
 > - **共通の注意点**: どちらのプロキシも、一定時間通信がないとコネクションを切り捨てる（Idle Timeout）設定があるため、WebSocket を維持するには **Heartbeat（Ping/Pong）** が不可欠です。
 
 ```bash
-# WebSocket 接続の開始
-websocat -v ws://localhost:8080/ws
+# WebSocket で 5 件送信しながらエコー確認
+( for i in {1..5}; do
+    printf 'message %d\n' "$i"
+    sleep 1
+done
+) | websocat -v ws://localhost:8080/ws
 ```
 
 **観察ポイント**:
@@ -346,6 +352,12 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 
 HTTP/3 は TCP ではなく、UDP ベースの **QUIC** プロトコル上で動作します。
 
+> **補足**: Ubuntu 24.04 の標準 curl (apt) には HTTP/3 サポートが入っていません。`curl --version` を実行して `Features` に `HTTP3` が含まれているか確認してください。表示されていないときは、すでに使っているように **Linuxbrew 版 curl** を入れてください。
+>
+> brew install curl
+> export PATH="$(brew --prefix)/bin:$PATH"
+> curl --version | grep HTTP3
+>
 > **なぜ TCP をやめたのか？ (TCP レベル of HoL Blocking 解消)**:
 > TCP は順序保証を全データに対して一括で行う「一本のパイプ」です。QUIC は、順序保証を「ストリーム単位」で行うため、パケットロスが起きた「特定のストリーム」だけを再送し、他のストリームは止めることなく流し続けることができます。これが HoL Blocking 解消の技術的本質です。
 

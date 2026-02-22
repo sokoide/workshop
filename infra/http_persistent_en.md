@@ -107,7 +107,7 @@ sequenceDiagram
     S-->>C: Response
     C->>S: GET /bar (Re-use)
     S-->>C: Response
-    
+
     Note over C,S: Parallel (2 Sessions)
     C->>S: Conn 1: GET /image1.jpg
     C->>S: Conn 2: GET /image2.jpg
@@ -202,7 +202,7 @@ sequenceDiagram
    # 1. Install system essentials via apt
    sudo apt update
    sudo apt install -y podman podman-compose git make openssl curl
-   
+
    # 2. Install development tools via Homebrew
    # If you haven't installed Homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
    brew install websocat go protobuf grpcurl
@@ -222,12 +222,13 @@ sequenceDiagram
    ```bash
    make setup
    ```
+
    ```bash
    # (Tool paths appear; no output if already installed)
    which protoc-gen-go grpcurl
    ```
 
-3. **Generate Self-Signed Certificate**
+1. **Generate Self-Signed Certificate**
 
     Since HTTP/2/3 require TLS/QUIC, create a local certificate.
 
@@ -235,7 +236,7 @@ sequenceDiagram
     make cert
     ```
 
-4. **Generate Protobuf Code**
+2. **Generate Protobuf Code**
 
     Generate Go stubs from `proto/greeter.proto`.
 
@@ -243,7 +244,7 @@ sequenceDiagram
     make gen
     ```
 
-5. **Start the Server**
+3. **Start the Server**
 
     ```bash
     make run
@@ -273,12 +274,14 @@ curl -v http://localhost:8080/ http://localhost:8080/
 **Observation Points**:
 
 1. **curl Logs**: Check for `Re-using existing connection! (#0) with host localhost` in the second request's log. This shows the TCP connection is reused.
-2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** ESTAB connection to `:8080`.
+2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** connection to `:8080`.
 
     ```bash
-    # Ubuntu 24.04: Monitor connection status in real-time
-    watch -n 0.1 "ss -ntp | grep :8080"
+    # Ubuntu 24.04: Using -a allows you to see the "remnants" of short-lived connections (TIME-WAIT)
+    watch -n 0.1 "ss -ntap | grep :8080"
     ```
+
+    **Criteria**: Even if you send two requests, if only **one line** (such as TIME-WAIT) remains after completion, it proves that a single connection was reused.
 
     *Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"`.*
 
@@ -302,8 +305,12 @@ WebSocket starts with an **HTTP/1.1 `Upgrade` header**, but once established, it
 > - **Common Caution**: Both proxies have Idle Timeout settings that can drop inactive connections. Application-level **Heartbeats (Ping/Pong)** are essential for maintaining WebSockets.
 
 ```bash
-# Start WebSocket connection
-websocat -v ws://localhost:8080/ws
+# Send 5 messages and observe the echo responses
+( for i in {1..5}; do
+    printf 'message %d\n' "$i"
+    sleep 1
+done
+) | websocat -v ws://localhost:8080/ws
 ```
 
 **Observation Points**:
@@ -348,6 +355,12 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 
 HTTP/3 completely abandons TCP in favor of the UDP-based **QUIC** protocol.
 
+> **Note**: The stock `curl` on Ubuntu 24.04 may not include HTTP/3 support. Run `curl --version` and look for `HTTP3` under `Features`. If `HTTP3` is missing, install the Homebrew (Linuxbrew) build of `curl` you already installed for the workshop tools and prepend it to `PATH`:
+>
+> brew install curl
+> export PATH="$(brew --prefix)/bin:$PATH"
+> curl --version | grep HTTP3
+>
 > **Why abandon TCP? (Resolving TCP-level HoL Blocking)**:
 > TCP treats all data as a "single pipe" and performs order guarantee for the entire stream. QUIC performs order guarantee on a **"per-stream"** basis. If a packet for one stream is lost, only that stream waits for retransmission, while other streams continue without being blocked. This is the technical essence of resolving HoL Blocking.
 
