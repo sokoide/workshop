@@ -1,20 +1,13 @@
 services:
   traefik:
     image: traefik:v3.0
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--entrypoints.web.address=:80"
+    command: ["--configFile=/etc/traefik/traefik.yml"]
     ports:
-      - "80:80"
+      - "18080:80"
       - "8081:8080" # Traefik dashboard
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik.yml:/etc/traefik/traefik.yml:ro"
+      - "./traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro"
 
   app:
     build: .
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`localhost`)"
-      - "traefik.http.routers.app.entrypoints=web"
-      - "traefik.http.services.app.loadbalancer.server.port=8080"

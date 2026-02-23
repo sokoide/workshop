@@ -268,21 +268,39 @@ sequenceDiagram
 HTTP/1.1 では、デフォルトで接続が維持されます。`curl -v` で確認します。
 
 ```bash
-# 2回連続でリクエストを送る
+# 1. デフォルト (Keep-Aliveあり) で 2 回連続リクエスト
 curl -v http://localhost:8080/ http://localhost:8080/
+
+# 2. Connection: close を指定して Keep-Alive を無効化（HTTP/1.0相当の挙動）
+curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 ```
 
 **観察ポイント**:
 
-1. **curl のログ**: 2 回目のリクエストのログに `Re-using existing connection! (#0) with host localhost` という表示があることを確認してください。TCP の接続が 1 回で済んでいることがわかります。
-2. **Socket の状態 (ss コマンド)**: 別ターミナルで以下のコマンドを実行し、`:8080` への接続が **1 つだけ** であることを確認します。
+- **Keep-Alive あり（デフォルト）の場合**:
+    1. **curl のログ**: 2 回目のリクエストのログに `Re-using existing connection! (#0) with host localhost` という表示があることを確認してください。TCP の接続が 1 回で済んでいることがわかります。
+    2. **Socket の状態**: Linux なら `ss` で、macOS なら `lsof` で定期的に確認します。
 
-    ```bash
-    # Ubuntu 24.04: -a を付けることで、一瞬で終わる通信の残像（TIME-WAIT）も表示されます
-    watch -n 0.1 "ss -ntap | grep :8080"
-    ```
+        ```bash
+        # Linux (Ubuntu 24.04): -a で TIME-WAIT 等も拾える
+        watch -n 0.1 "ss -ntap | grep :8080"
+        ```
 
-    **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
+        ```bash
+        # macOS: netstat で 8080 に関係するソケットをループ観測。サーバーを先に起動してから実行してください。
+        while true; do
+            clear
+            netstat -anp tcp | grep 8080
+            sleep 0.1
+        done
+        ```
+
+        macOS では `netstat` に `ESTABLISHED`/`TIME_WAIT`/`CLOSE_WAIT` が一度に出るので、Keep-Alive の接続が見えるようになるはずです。`curl` で `http://localhost:8080/` を投げて `Connection refused` にならなければ、`netstat` の出力に `*:8080` や `127.0.0.1.8080` が常に滞留するようになります。
+    3. **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
+
+- **Keep-Alive なし（Connection: close）の場合**:
+    1. **curl のログ**: 1 回目のレスポンス後に `Closing connection 0` となり、2 回目のリクエストで `Re-using existing connection!` が **表示されない** ことを確認してください。
+    2. **Socket の状態**: `ss` で監視していると、**2 つの異なる接続**（クライアント側のポート番号が異なるもの）が作成され、それぞれが終了（TIME-WAIT 等）していく様子が見えます。
 
     ※ macOS の場合は `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` 等を利用してください。
 
@@ -318,23 +336,29 @@ done
 
 1. **ハンドシェイク**: `websocat -v` のログで、`HTTP/1.1 101 Switching Protocols` という応答を確認。これが「HTTP から WebSocket への切り替え」の合図です。
 2. **双方向性の確認**: このサンプル実装は「エコーサーバー」です。クライアントで入力した内容が即座に返ることを確認してください（サーバー起点の定期 Push は未実装）。
-3. **Socket 監視**: `ss` で監視。通信中、ソケットの状態が **ESTAB** のまま維持され、パケットをやり取りしてもソケット自体は 1 つのままであることを確認します。
+3. **Socket 監視**: `ss` で監視。通信中、ソケットの状態が **ESTABLISHED** のまま維持され、パケットをやり取りしてもソケット自体は 1 つのままであることを確認します。
 
 ### STEP 2b: Traefik を介した WebSocket 接続 (Optional)
 
 ```bash
-# サーバーと Traefik を起動
+# サーバーと Traefik (file provider 構成) を起動
 podman-compose up --build -d
 
-# Traefik (ポート 80) 経由で WebSocket 接続
-websocat -v ws://localhost/ws
+# Traefik (ホスト 18080) 経由で WebSocket 接続（STEP 2 と同じ 5 件ループ）
+(
+    for i in {1..5}; do
+        printf 'message %d\n' "$i"
+        sleep 1
+    done
+) | websocat -v ws://localhost:18080/ws
 ```
 
 **観察ポイント**:
 
-1. **自動検知**: Traefik は特別な設定なしで `Upgrade` ヘッダーを検知し、適切にバックエンド（Go アプリ）へリクエストを転送します。
-2. **透過性**: クライアント（websocat）から見れば、直接接続したときとほぼ同じ挙動になります。プロキシがプロトコルの中身を邪魔せず、ストリームを中継していることがわかります。
-3. **注意**: `podman-compose down` で後片付けを忘れないようにしてください。
+1. **設定ファイルで明示的にルーティング**: `infra/assets/http_persistent_conn/traefik.yml` と `traefik-dynamic.yml` により、Traefik は `Host(\`localhost\`)` を聞いて `<http://app:8080`> へ転送します。Docker ソケットの共有は不要です。
+2. **ホスト 18080 へのアクセス**: Compose は `18080:80` をバインドしているので、`websocat -v ws://localhost:18080/ws` や `curl http://localhost:18080/` を使って、Traefik → app:8080 への通信が通ることを確認できます。
+3. **透過性**: クライアント（websocat）から見れば、直接接続したときとほぼ同じ挙動になります。プロキシがプロトコルの中身を邪魔せず、ストリームを中継していることがわかります。
+4. **注意**: `podman-compose down` で後片付けを忘れないようにしてください。
 
 ### STEP 3: HTTP/2 のマルチプレキシング（多重化）
 
@@ -355,7 +379,7 @@ HTTP/3 は TCP ではなく、UDP ベースの **QUIC** プロトコル上で動
 > **補足**: Ubuntu 24.04 の標準 curl (apt) には HTTP/3 サポートが入っていません。`curl --version` を実行して `Features` に `HTTP3` が含まれているか確認してください。表示されていないときは、すでに使っているように **Linuxbrew 版 curl** を入れてください。
 >
 > brew install curl
-> export PATH="$(brew --prefix)/bin:$PATH"
+> alias curl=$(find $(brew --prefix) -name curl |grep bin/curl)
 > curl --version | grep HTTP3
 >
 > **なぜ TCP をやめたのか？ (TCP レベル of HoL Blocking 解消)**:
@@ -377,15 +401,10 @@ curl --http3 -k -v https://localhost:8444/
 **観察ポイント**:
 
 1. **プロトコルの違い**: `curl` のログで `ALPN: h3` を確認。
-2. **Socket 監視 (UDP)**: `ss -unp` で監視。
-    - **状態表示**: UDP は接続（Handshake）を行わない「コネクションレス」なプロトコルであるため、OS レベルでは `UNCONN` (Unconnected) または単に `ESTAB` (パケットが流れた後) と表示されることがあります。
-    - **リアルタイム監視**:
-
-      ```bash
-      watch -n 0.1 "ss -unp | grep :8444"
-      ```
-
-    - より確実に確認したい場合（パケットの中身）: `sudo tcpdump -i lo -n port 8444`
+2. **Socket 監視 (UDP)**:
+    - UDP は接続（Handshake）を行わない「コネクションレス」なプロトコルでです。
+    - Linux: `sudo tcpdump -i lo -n port 8444`
+    - macos: `sudo tcpdump -i lo0 -n port 8444`
 
 ### STEP 5: gRPC (HTTP/2) での多種多様なストリーム通信
 
