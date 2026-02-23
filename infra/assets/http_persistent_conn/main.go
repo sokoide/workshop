@@ -37,6 +37,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			}
 			log.Printf("recv: %s", message)
 			reply := fmt.Sprintf("echo: %s", message)
+			time.Sleep(2 * time.Second)
 			err = conn.WriteMessage(mt, []byte(reply))
 			if err != nil {
 				log.Println("write:", err)
@@ -48,7 +49,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	// Normal HTTP/1.1
 	log.Printf("HTTP/1.1 request from %s", r.RemoteAddr)
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 	fmt.Fprintf(w, "Hello from HTTP/1.1! Protocol: %s\n", r.Proto)
 }
 
@@ -79,6 +80,7 @@ type greeterServer struct {
 }
 
 func (s *greeterServer) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
+	time.Sleep(2 * time.Second)
 	return &pb.HelloReply{Message: "Hello " + in.Name}, nil
 }
 
@@ -87,7 +89,7 @@ func (s *greeterServer) SayHelloStream(in *pb.HelloRequest, stream pb.Greeter_Sa
 		if err := stream.Send(&pb.HelloReply{Message: fmt.Sprintf("Hello %s (%d)", in.Name, i)}); err != nil {
 			return err
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 	return nil
 }
@@ -102,6 +104,7 @@ func (s *greeterServer) Chat(stream pb.Greeter_ChatServer) error {
 		if err := stream.Send(&pb.HelloReply{Message: "Echo: " + in.Name}); err != nil {
 			return err
 		}
+		time.Sleep(2 * time.Second)
 	}
 }
 
@@ -122,6 +125,7 @@ func main() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			log.Printf("HTTP/2 request from %s, Proto: %s", r.RemoteAddr, r.Proto)
+			time.Sleep(2 * time.Second)
 			fmt.Fprintf(w, "Hello from %s!\n", r.Proto)
 		})
 
@@ -140,6 +144,7 @@ func main() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			log.Printf("HTTP/3 request from %s, Proto: %s", r.RemoteAddr, r.Proto)
+			time.Sleep(2 * time.Second)
 			fmt.Fprintf(w, "Hello from %s (QUIC)!\n", r.Proto)
 		})
 
