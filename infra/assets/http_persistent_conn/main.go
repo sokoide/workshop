@@ -67,7 +67,8 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("SSE client connected from %s", r.RemoteAddr)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
+		log.Printf("SSE sending message %d to %s", i, r.RemoteAddr)
 		fmt.Fprintf(w, "data: Message %d at %s\n\n", i, time.Now().Format(time.RFC3339))
 		flusher.Flush()
 		time.Sleep(2 * time.Second)
