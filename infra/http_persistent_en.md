@@ -403,11 +403,13 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 HTTP/3 completely abandons TCP in favor of the UDP-based **QUIC** protocol.
 
 > **Note**: The stock `curl` on Ubuntu 24.04 may not include HTTP/3 support. Run `curl --version` and look for `HTTP3` under `Features`. If `HTTP3` is missing, install the Homebrew (Linuxbrew) build of `curl` you already installed for the workshop tools and prepend it to `PATH`:
->
-> brew install curl
-> alias curl=$(find $(brew --prefix) -name curl |grep bin/curl)
-> curl --version | grep HTTP3
->
+
+```bash
+brew install curl
+alias curl=$(find $(brew --prefix) -name curl |grep bin/curl)
+curl --version | grep HTTP3
+```
+
 > **Why abandon TCP? (Resolving TCP-level HoL Blocking)**:
 > TCP treats all data as a "single pipe" and performs order guarantee for the entire stream. QUIC performs order guarantee on a **"per-stream"** basis. If a packet for one stream is lost, only that stream waits for retransmission, while other streams continue without being blocked. This is the technical essence of resolving HoL Blocking.
 
@@ -415,14 +417,6 @@ HTTP/3 completely abandons TCP in favor of the UDP-based **QUIC** protocol.
 # Access via HTTP/3
 curl --http3 -k -v https://localhost:8444/
 ```
-
-> [!TIP]
-> **If you see "Unknown option --http3" or "Option --http3 is not supported"**:
-> The standard `curl` in Ubuntu 24.04 may have HTTP/3 support disabled. In that case, use a pre-built containerized `curl`:
->
-> ```bash
-> podman run --rm --network host curlimages/curl --http3 -k -v https://localhost:8444/
-> ```
 
 **Observation Points**:
 
