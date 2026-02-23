@@ -283,19 +283,21 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 
         ```bash
         # Linux (Ubuntu 24.04): -a で TIME-WAIT 等も拾える
-        watch -n 0.1 "ss -ntap | grep :8080"
+        watch -n 0.1 "ss -ntp | grep :8080"
         ```
 
         ```bash
         # macOS: netstat で 8080 に関係するソケットをループ観測。サーバーを先に起動してから実行してください。
         while true; do
             clear
-            netstat -anp tcp | grep 8080
+            netstat -anp tcp | grep 8080 | grep -v TIME_WAIT
             sleep 0.1
         done
         ```
 
         macOS では `netstat` に `ESTABLISHED`/`TIME_WAIT`/`CLOSE_WAIT` が一度に出るので、Keep-Alive の接続が見えるようになるはずです。`curl` で `http://localhost:8080/` を投げて `Connection refused` にならなければ、`netstat` の出力に `*:8080` や `127.0.0.1.8080` が常に滞留するようになります。
+        > **TIME_WAIT を除外したいとき**は `grep -v TIME_WAIT` を挟むと、ESTABLISHED や CLOSE_WAIT だけを確認できます。
+        > **Linux で ESTABLISHED (と少しの CLOSE_WAIT) を見たいなら**、下の `watch` コマンドで `ss -ntp` を使っています。`TIME_WAIT` も確認したいときは `ss -ntap` あるいは `ss -na | grep :8080` のように `-a` を追加してください（遅延応答 1 秒で ESTABLISHED の行も追いやすくなっています）。
     3. **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
 
 - **Keep-Alive なし（Connection: close）の場合**:
@@ -361,7 +363,7 @@ podman-compose up --build -d
     - **Linux**:
 
         ```bash
-        watch -n 0.1 "ss -ntap | grep :18080"
+        watch -n 0.1 "ss -ntp | grep :18080"
         ```
 
     - **macOS**:
@@ -373,6 +375,8 @@ podman-compose up --build -d
             sleep 0.1
         done
         ```
+
+        > Linux では `ss -ntp` を使って ESTABLISHED を拾っています。`TIME_WAIT` も確認したいときは `ss -ntap` を再実行してください。
 
 4. **透過性**: クライアント（websocat）から見れば、直接接続したときとほぼ同じ挙動になります。プロキシがプロトコルの中身を邪魔せず、ストリームを中継していることがわかります。
 5. **注意**: `podman-compose down` で後片付けを忘れないようにしてください。
@@ -392,7 +396,7 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
     - **Linux**:
 
         ```bash
-        watch -n 0.1 "ss -ntap | grep :8443"
+        watch -n 0.1 "ss -ntp | grep :8443"
         ```
 
     - **macOS**:
@@ -404,6 +408,8 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
             sleep 0.1
         done
         ```
+
+        > Linux では `ss -ntp` を使っており、`TIME_WAIT` は表示されません。`TIME_WAIT` も確認したい場合は `ss -ntap` を再実行してください。
 
 ### STEP 4: HTTP/3 (QUIC) の 0-RTT と UDP への移行
 
@@ -476,7 +482,7 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
     1. **Linux**:
 
         ```bash
-        watch -n 0.1 "ss -ntap | grep :50051"
+        watch -n 0.1 "ss -ntp | grep :50051"
         ```
 
     2. **macOS**: `watch`/`ss` が無いので代わりに:
@@ -484,9 +490,10 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
         ```bash
         while true; do
             clear
-            netstat -anp tcp | grep 50051
+            netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
             sleep 0.1
         done
+        > **TIME_WAIT を含めたい場合**は `grep -v TIME_WAIT` を省略すると、TIME_WAIT も含めた出力が流れます。
         ```
 
 ### STEP 6: Server-Sent Events (SSE) による軽量通知
@@ -505,7 +512,7 @@ curl -v http://localhost:8080/sse
     - **Linux**:
 
         ```bash
-        watch -n 0.1 "ss -ntap | grep :8080"
+        watch -n 0.1 "ss -ntp | grep :8080"
         ```
 
     - **macOS**:
