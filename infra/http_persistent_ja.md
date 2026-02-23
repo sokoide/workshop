@@ -480,7 +480,7 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
 - gRPC の真価（1 接続多重化）は、アプリケーション内で `ClientConn` を長寿命で再利用したときに最大化されます。
 - **Socket 監視**:
     1. **Linux**:
- 
+
         ```bash
         watch -n 0.1 "ss -ntp | grep :50051"
         ```
@@ -496,6 +496,7 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
             sleep 0.1
         done
         ```
+
         > **TIME_WAIT を含めたい場合**は `grep -v TIME_WAIT` を省略すると、TIME_WAIT も含めた出力が流れます。
 
 ### STEP 6: Server-Sent Events (SSE) による軽量通知
@@ -537,30 +538,36 @@ Clean Architecture において、通信プロトコルは最外周の「詳細 
 
 ```mermaid
 graph LR
-    subgraph UseCase / Domain
-        UC[Business Logic]
-        Gate_IF[Gateway Interface]
+    subgraph Domain
+        DomainLogic[ドメインロジック]
+        DomainPort[通知ポート（インターフェース）]
     end
 
-    subgraph Interface Adapters / Infrastructure
-        In_Ctrl[Inbound Controller]
-        Out_Gate[Outbound Gateway Adapter]
+    subgraph UseCase
+        UC[ユースケース・インタラクター]
     end
 
-    subgraph Framework & Drivers
-        GRPC_SDK[gRPC SDK / Library]
-        HTTP_Hdl[HTTP Handler]
+    subgraph Infra Adapters
+        InboundCtrl[インバウンド Controller]
+        InfraImpl[インフラアダプター]
     end
 
-    HTTP_Hdl --> In_Ctrl
-    In_Ctrl --> UC
-    UC --> Gate_IF
-    Out_Gate -- implements --> Gate_IF
-    Out_Gate -- uses --> GRPC_SDK
+    subgraph Framework and Drivers
+        HTTP_Hdl[HTTP ハンドラー]
+        GRPC_SDK[gRPC SDK / ライブラリ]
+    end
+
+    HTTP_Hdl --> InboundCtrl
+    InboundCtrl --> UC
+    UC --> DomainPort
+    InfraImpl -- implements --> DomainPort
+    DomainPort --> DomainLogic
+    InfraImpl --> GRPC_SDK
 ```
 
-1. **Inbound (受信時)**: HTTP ハンドラーや gRPC スタブ（Framework）がリクエストを受け、Controller がドメイン形式に変換して UseCase を呼び出します。
-2. **Outbound (送信時)**: UseCase は抽象（Interface）に依存し、Infra 層の Adapter が具体的な gRPC SDK 等（Framework）を使って外部へ送信します。
+1. **受信フロー**: HTTP ハンドラーや gRPC などの Framework は Controller を呼び出し、UseCase へ入力を渡します。
+2. **ドメインのインターフェース**: Domain が `通知ポート` のようなインターフェース/ポートを所有し、UseCase はそれに依存します。
+3. **送信フロー**: Infra アダプターは Domain ポートを実装し、gRPC SDK 等を使って実際の通信を行います。
 
 **設計パターン：BFF (Backend For Frontend) による中継**
 実務では、ブラウザフロントエンドに直接 gRPC streaming を刺すのは難易度が高いケースがあります。その場合、**BFF が gRPC でバックエンドと通信し、フロントには WebSocket や SSE で情報を中継する** 構成が Clean Architecture 的にも整合性が高く、広く採用されています。
