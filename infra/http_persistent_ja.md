@@ -410,11 +410,13 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 HTTP/3 は TCP ではなく、UDP ベースの **QUIC** プロトコル上で動作します。
 
 > **補足**: Ubuntu 24.04 の標準 curl (apt) には HTTP/3 サポートが入っていません。`curl --version` を実行して `Features` に `HTTP3` が含まれているか確認してください。表示されていないときは、すでに使っているように **Linuxbrew 版 curl** を入れてください。
->
-> brew install curl
-> alias curl=$(find $(brew --prefix) -name curl |grep bin/curl)
-> curl --version | grep HTTP3
->
+
+```bash
+brew install curl
+alias curl=$(find $(brew --prefix) -name curl |grep bin/curl)
+curl --version | grep HTTP3
+```
+
 > **なぜ TCP をやめたのか？ (TCP レベル of HoL Blocking 解消)**:
 > TCP は順序保証を全データに対して一括で行う「一本のパイプ」です。QUIC は、順序保証を「ストリーム単位」で行うため、パケットロスが起きた「特定のストリーム」だけを再送し、他のストリームは止めることなく流し続けることができます。これが HoL Blocking 解消の技術的本質です。
 
@@ -422,14 +424,6 @@ HTTP/3 は TCP ではなく、UDP ベースの **QUIC** プロトコル上で動
 # HTTP/3 でアクセス
 curl --http3 -k -v https://localhost:8444/
 ```
-
-> [!TIP]
-> **curl で "Unknown option --http3" や "Option --http3 is not supported" と出る場合**:
-> Ubuntu 24.04 の標準 `curl` は HTTP/3 対応が無効な場合があります。その場合は、Podman を使って HTTP/3 対応済みの curl イメージを動かしてみてください。
->
-> ```bash
-> podman run --rm --network host curlimages/curl --http3 -k -v https://localhost:8444/
-> ```
 
 **観察ポイント**:
 
