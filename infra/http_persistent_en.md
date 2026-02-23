@@ -364,6 +364,22 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 
 1. **Multiplexing**: In the `curl` log, check for different odd stream IDs (e.g., `[HTTP/2] [1] GET /a`, `[HTTP/2] [3] GET /b`) running simultaneously.
 2. **Socket Monitoring**: Verify that the OS-level TCP socket remains **always single** even when multiple requests are flying.
+3. **Socket Monitoring (Platform Specific)**:
+    - **Linux**:
+
+        ```bash
+        watch -n 0.1 "ss -ntap | grep :8443"
+        ```
+
+    - **macOS**:
+
+        ```bash
+        while true; do
+            clear
+            lsof -nP -iTCP:8443 | grep 8443
+            sleep 0.1
+        done
+        ```
 
 ### STEP 4: HTTP/3 (QUIC) 0-RTT and Transition to UDP
 
@@ -437,6 +453,22 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
 **Observation Points**:
 
 - Note that `grpcurl` starts a new process for each command, usually resulting in a new connection per call. The true power of gRPC (1-connection multiplexing) is maximized when reusing a long-lived `ClientConn` within an application.
+- **Socket Monitoring**:
+    1. **Linux**:
+
+        ```bash
+        watch -n 0.1 "ss -ntap | grep :50051"
+        ```
+
+    2. **macOS**:
+
+        ```bash
+        while true; do
+            clear
+            netstat -anp tcp | grep 50051
+            sleep 0.1
+        done
+        ```
 
 ### STEP 6: Lightweight Notifications with Server-Sent Events (SSE)
 
@@ -451,6 +483,22 @@ curl -v http://localhost:8080/sse
 
 1. **Content-Type**: Check for `text/event-stream`. Data arrives sequentially without closing the connection.
 2. **Lightweight**: Observe how it's implemented as a "long HTTP response" rather than complex framing like WebSocket.
+3. **Socket Monitoring (Platform Specific)**:
+    - **Linux**:
+
+        ```bash
+        watch -n 0.1 "ss -ntap | grep :8080"
+        ```
+
+    - **macOS**:
+
+        ```bash
+        while true; do
+            clear
+            lsof -nP -iTCP:8080 | grep 8080
+            sleep 0.1
+        done
+        ```
 
 ---
 
