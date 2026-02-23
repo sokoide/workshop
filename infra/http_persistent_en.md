@@ -267,23 +267,31 @@ sequenceDiagram
 In HTTP/1.1, connections are maintained by default. Verify this using `curl -v`.
 
 ```bash
-# Send two consecutive requests
+# 1. Default (with Keep-Alive): Send two consecutive requests
 curl -v http://localhost:8080/ http://localhost:8080/
+
+# 2. Disable Keep-Alive with "Connection: close" (simulating HTTP/1.0-like behavior)
+curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 ```
 
 **Observation Points**:
 
-1. **curl Logs**: Check for `Re-using existing connection! (#0) with host localhost` in the second request's log. This shows the TCP connection is reused.
-2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** connection to `:8080`.
+- **With Keep-Alive (Default)**:
+    1. **curl Logs**: Check for `Re-using existing connection! (#0) with host localhost` in the second request's log. This confirms the TCP connection is reused.
+    2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** connection to `:8080`.
 
-    ```bash
-    # Ubuntu 24.04: Using -a allows you to see the "remnants" of short-lived connections (TIME-WAIT)
-    watch -n 0.1 "ss -ntap | grep :8080"
-    ```
+        ```bash
+        # Ubuntu 24.04: -a allows you to see connection remnants like TIME-WAIT
+        watch -n 0.1 "ss -ntap | grep :8080"
+        ```
 
-    **Criteria**: Even if you send two requests, if only **one line** (such as TIME-WAIT) remains after completion, it proves that a single connection was reused.
+    3. **Criteria**: If only **one line** (e.g., TIME-WAIT) remains after both requests finish, it proves a single connection was reused.
 
-    *Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"`.*
+- **Without Keep-Alive (Connection: close)**:
+    1. **curl Logs**: Note that `Closing connection 0` appears after the first response, and `Re-using existing connection!` **does not appear** for the second request.
+    2. **Socket Status**: While monitoring with `ss`, you will see **two distinct connections** (with different client-side port numbers) being created and moving to completion (e.g., TIME-WAIT).
+
+    *Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` or similar.*
 
 > **Note on Timeout**:
 > Servers typically have a **Keep-Alive Timeout**. If no request arrives within a certain period, the server sends a TCP disconnect (FIN). If the connection disappears during the exercise, simply send another request to perform a new handshake.
@@ -317,25 +325,31 @@ done
 
 1. **Handshake**: Check for `HTTP/1.1 101 Switching Protocols` in the `websocat -v` log.
 2. **Bi-directional Check**: This sample is an "echo server." Verify that whatever you type is immediately returned.
-3. **Socket Monitoring**: Use `ss`. The socket remains in **ESTAB** state while you interact, remaining as a single socket.
+3. **Socket Monitoring**: Use `ss`. The socket remains in **ESTABLISHED** state while you interact, remaining as a single socket.
 
 ### STEP 2b: WebSocket Connection via Traefik (Optional)
 
 Experience how modern reverse proxies handle WebSockets as "tunnels" in a containerized environment.
 
 ```bash
-# Start server and Traefik
+# Start server and Traefik (file-provider configuration)
 podman-compose up --build -d
 
-# Connect via Traefik (Port 80)
-websocat -v ws://localhost/ws
+# Connect via Traefik (Host 18080) using the same 5-message loop from STEP 2
+(
+    for i in {1..5}; do
+        printf 'message %d\n' "$i"
+        sleep 1
+    done
+) | websocat -v ws://localhost:18080/ws
 ```
 
 **Observation Points**:
 
-1. **Automatic Detection**: Traefik detects the `Upgrade` header and forwards the request without special configuration.
-2. **Transparency**: From the client's perspective, it behaves exactly like a direct connection.
-3. **Note**: Don't forget to cleanup with `podman-compose down`.
+1. **Explicit Routing by Files**: The static `traefik.yml` + `traefik-dynamic.yml` pair ensures Traefik listens for `Host(`localhost`)` and forwards to `http://app:8080` without sharing `/var/run/docker.sock`.
+2. **Host Port 18080 Access**: Compose binds host `18080:80`, so confirm Traefik → app communication using `websocat -v ws://localhost:18080/ws` or `curl http://localhost:18080/`.
+3. **Transparency**: From the client's perspective, it behaves exactly like a direct connection.
+4. **Note**: Don't forget to cleanup with `podman-compose down`.
 
 ### STEP 3: HTTP/2 Multiplexing
 
@@ -358,7 +372,7 @@ HTTP/3 completely abandons TCP in favor of the UDP-based **QUIC** protocol.
 > **Note**: The stock `curl` on Ubuntu 24.04 may not include HTTP/3 support. Run `curl --version` and look for `HTTP3` under `Features`. If `HTTP3` is missing, install the Homebrew (Linuxbrew) build of `curl` you already installed for the workshop tools and prepend it to `PATH`:
 >
 > brew install curl
-> export PATH="$(brew --prefix)/bin:$PATH"
+> alias curl=$(find $(brew --prefix) -name curl |grep bin/curl)
 > curl --version | grep HTTP3
 >
 > **Why abandon TCP? (Resolving TCP-level HoL Blocking)**:
@@ -380,15 +394,10 @@ curl --http3 -k -v https://localhost:8444/
 **Observation Points**:
 
 1. **Protocol Difference**: Check for `ALPN: h3` in the `curl` log.
-2. **Socket Monitoring (UDP)**: Use `ss -unp`.
-    - **Status Display**: Since UDP is a "connectionless" protocol, it may appear as `UNCONN` (Unconnected) or simply `ESTAB` (after packets start flowing).
-    - **Real-time Monitoring**:
-
-      ```bash
-      watch -n 0.1 "ss -unp | grep :8444"
-      ```
-
-    - For more detailed packet analysis: `sudo tcpdump -i lo -n port 8444`
+2. **Socket Monitoring (UDP)**:
+    - **Status Display**: Since UDP is a "connectionless" protocol.
+    - Linux: `sudo tcpdump -i lo -n port 8444`
+    - macos: `sudo tcpdump -i lo0 -n port 8444`
 
 ### STEP 5: Diverse Streaming Experiences with gRPC (HTTP/2)
 
