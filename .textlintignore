@@ -5,3 +5,4 @@
 .serena/*
 conductor/*
 node_modules/*
+.gomodcache/**

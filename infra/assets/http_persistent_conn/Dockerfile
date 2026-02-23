@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine AS builder
+FROM docker.io/library/golang:1.23-alpine AS builder
 WORKDIR /app
 COPY go.mod ./
 # Copy local pb directory if it exists, otherwise it will fail. 
@@ -6,7 +6,7 @@ COPY go.mod ./
 COPY . .
 RUN go mod tidy && go build -o main .
 
-FROM alpine:latest
+FROM docker.io/library/alpine:latest
 WORKDIR /root/
 COPY --from=builder /app/main .
 COPY --from=builder /app/server.crt .

@@ -371,6 +371,22 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 
 1. **マルチプレキシング**: `curl` のログで `[HTTP/2] [1] GET /a`, `[HTTP/2] [3] GET /b` のように、異なる奇数のストリーム ID が同時に動いていることを確認。
 2. **Socket 監視**: 複数のリクエストを投げている間も、OS レベルで見える TCP ソケットは **常に 1 つだけ** であることを確認します。
+3. **Socket Monitoring (platform specific)**:
+    - **Linux**:
+
+        ```bash
+        watch -n 0.1 "ss -ntap | grep :8443"
+        ```
+
+    - **macOS**:
+
+        ```bash
+        while true; do
+            clear
+            lsof -nP -iTCP:8443 | grep 8443
+            sleep 0.1
+        done
+        ```
 
 ### STEP 4: HTTP/3 (QUIC) の 0-RTT と UDP への移行
 
@@ -445,6 +461,22 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
 
 - `grpcurl` はコマンドごとに新しいプロセスが起動するため、通常は呼び出しごとに新しい接続になります。
 - gRPC の真価（1 接続多重化）は、アプリケーション内で `ClientConn` を長寿命で再利用したときに最大化されます。
+- **Socket 監視**:
+    1. **Linux**:
+
+        ```bash
+        watch -n 0.1 "ss -ntap | grep :50051"
+        ```
+
+    2. **macOS**: `watch`/`ss` が無いので代わりに:
+
+        ```bash
+        while true; do
+            clear
+            netstat -anp tcp | grep 50051
+            sleep 0.1
+        done
+        ```
 
 ### STEP 6: Server-Sent Events (SSE) による軽量通知
 
@@ -458,6 +490,22 @@ curl -v http://localhost:8080/sse
 1. **Content-Type**: `text/event-stream` が返り、データが逐次届くことを確認。
 2. **この実装の挙動**: サンプルコードでは 2 秒おきに 10 件送信した後に接続を閉じます（無限配信ではありません）。
 3. **軽量性**: WebSocket のような複雑なフレーム制御ではなく、「長めの HTTP レスポンス」として実装できる点を確認します。
+4. **Socket Monitoring (platform specific)**:
+    - **Linux**:
+
+        ```bash
+        watch -n 0.1 "ss -ntap | grep :8080"
+        ```
+
+    - **macOS**:
+
+        ```bash
+        while true; do
+            clear
+            lsof -nP -iTCP:8080 | grep 8080
+            sleep 0.1
+        done
+        ```
 
 ---
 
