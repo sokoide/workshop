@@ -498,6 +498,7 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
             sleep 0.1
         done
         ```
+
         > Remove `| grep -v TIME_WAIT` if you want to include TIME_WAIT entries in the output.
 
 ### STEP 6: Lightweight Notifications with Server-Sent Events (SSE)
@@ -540,30 +541,36 @@ In Clean Architecture, communication protocols belong to the outermost **"Framew
 
 ```mermaid
 graph LR
-    subgraph UseCase / Domain
-        UC[Business Logic]
-        Gate_IF[Gateway Interface]
+    subgraph Domain
+        DomainLogic[Domain Logic]
+        DomainPort["Notification Port (Interface)"]
     end
 
-    subgraph Interface Adapters / Infrastructure
-        In_Ctrl[Inbound Controller]
-        Out_Gate[Outbound Gateway Adapter]
+    subgraph Use Case
+        UC[Use Case Interactor]
     end
 
-    subgraph Framework & Drivers
-        GRPC_SDK[gRPC SDK / Library]
+    subgraph Infra Adapters
+        InboundCtrl[Inbound Controller]
+        InfraImpl[Infra Adapter]
+    end
+
+    subgraph Framework and Drivers
         HTTP_Hdl[HTTP Handler]
+        GRPC_SDK[gRPC SDK / Library]
     end
 
-    HTTP_Hdl --> In_Ctrl
-    In_Ctrl --> UC
-    UC --> Gate_IF
-    Out_Gate -- implements --> Gate_IF
-    Out_Gate -- uses --> GRPC_SDK
+    HTTP_Hdl --> InboundCtrl
+    InboundCtrl --> UC
+    UC --> DomainPort
+    InfraImpl -- implements --> DomainPort
+    DomainPort --> DomainLogic
+    InfraImpl --> GRPC_SDK
 ```
 
-1. **Inbound (Receiving)**: Frameworks (HTTP Handlers, gRPC stubs) receive requests, and Controllers convert them to domain formats to call UseCases.
-2. **Outbound (Sending)**: UseCases depend on abstractions (Interfaces), and Infrastructure Adapters use specific Frameworks (gRPC SDKs, etc.) to send data externally.
+1. **Inbound (Receiving)**: Frameworks (HTTP Handlers, gRPC/gateway) receive requests and hand control to Controllers, which invoke UseCases.
+2. **Domain Interfaces**: The Domain layer owns ports/interfaces (e.g., Notification Port). UseCases depend on these abstractions rather than concrete infra.
+3. **Outbound (Sending)**: Infra Adapters implement the Domain port/interface and carry out the concrete communication (gRPC SDK, HTTP handler, etc.).
 
 **Design Pattern: BFF (Backend For Frontend)**
 In practice, directly hitting gRPC streaming from a browser can be difficult. A common, Clean Architecture-aligned approach is to use a **BFF that communicates with the backend via gRPC and relays information to the frontend via WebSocket or SSE**.
