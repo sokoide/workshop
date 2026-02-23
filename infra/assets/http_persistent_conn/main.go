@@ -48,6 +48,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	// Normal HTTP/1.1
 	log.Printf("HTTP/1.1 request from %s", r.RemoteAddr)
+	time.Sleep(1 * time.Second)
 	fmt.Fprintf(w, "Hello from HTTP/1.1! Protocol: %s\n", r.Proto)
 }
 
