@@ -282,10 +282,22 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 
         ```bash
         # Ubuntu 24.04: -a allows you to see connection remnants like TIME-WAIT
-        watch -n 0.1 "ss -ntap | grep :8080"
+        watch -n 0.1 "ss -ntp | grep :8080"
         ```
 
     3. **Criteria**: If only **one line** (e.g., TIME-WAIT) remains after both requests finish, it proves a single connection was reused.
+
+        > The Linux watcher above uses `ss -ntp`, so it suppresses TIME_WAIT entries by default. Run it again with `ss -ntap` or add `-a` if you want to observe TIME_WAIT. On macOS, you can also iterate:
+        >
+        > ```bash
+        > while true; do
+        >     clear
+        >     netstat -anp tcp | grep 8080 | grep -v TIME_WAIT
+        >     sleep 0.1
+        > done
+        > ```
+        >
+        > Removing `| grep -v TIME_WAIT` shows everything, including TIME_WAIT lines.
 
 - **Without Keep-Alive (Connection: close)**:
     1. **curl Logs**: Note that `Closing connection 0` appears after the first response, and `Re-using existing connection!` **does not appear** for the second request.
@@ -352,7 +364,7 @@ podman-compose up --build -d
     - **Linux**:
 
         ```bash
-        watch -n 0.1 "ss -ntap | grep :18080"
+        watch -n 0.1 "ss -ntp | grep :18080"
         ```
 
     - **macOS**:
@@ -364,6 +376,8 @@ podman-compose up --build -d
             sleep 0.1
         done
         ```
+
+        > The Linux watcher above uses `ss -ntp` to keep TIME_WAIT hidden. Re-run it with `ss -ntap` when you want to see TIME_WAIT entries.
 
 4. **Transparency**: From the client's perspective, it behaves exactly like a direct connection.
 5. **Note**: Don't forget to cleanup with `podman-compose down`.
@@ -385,7 +399,7 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
     - **Linux**:
 
         ```bash
-        watch -n 0.1 "ss -ntap | grep :8443"
+        watch -n 0.1 "ss -ntp | grep :8443"
         ```
 
     - **macOS**:
@@ -397,6 +411,8 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
             sleep 0.1
         done
         ```
+
+        > The Linux watcher uses `ss -ntp`, which hides TIME_WAIT entries. Re-run it with `ss -ntap` if you need to observe queued sockets.
 
 ### STEP 4: HTTP/3 (QUIC) 0-RTT and Transition to UDP
 
@@ -468,7 +484,7 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
     1. **Linux**:
 
         ```bash
-        watch -n 0.1 "ss -ntap | grep :50051"
+        watch -n 0.1 "ss -ntp | grep :50051"
         ```
 
     2. **macOS**:
@@ -476,9 +492,10 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
         ```bash
         while true; do
             clear
-            netstat -anp tcp | grep 50051
+            netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
             sleep 0.1
         done
+        > Remove `| grep -v TIME_WAIT` if you want to include TIME_WAIT entries in the output.
         ```
 
 ### STEP 6: Lightweight Notifications with Server-Sent Events (SSE)
@@ -498,7 +515,7 @@ curl -v http://localhost:8080/sse
     - **Linux**:
 
         ```bash
-        watch -n 0.1 "ss -ntap | grep :8080"
+        watch -n 0.1 "ss -ntp | grep :8080"
         ```
 
     - **macOS**:
