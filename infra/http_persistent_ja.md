@@ -357,8 +357,25 @@ podman-compose up --build -d
 
 1. **設定ファイルで明示的にルーティング**: `infra/assets/http_persistent_conn/traefik.yml` と `traefik-dynamic.yml` により、Traefik は `Host(\`localhost\`)` を聞いて `<http://app:8080`> へ転送します。Docker ソケットの共有は不要です。
 2. **ホスト 18080 へのアクセス**: Compose は `18080:80` をバインドしているので、`websocat -v ws://localhost:18080/ws` や `curl http://localhost:18080/` を使って、Traefik → app:8080 への通信が通ることを確認できます。
-3. **透過性**: クライアント（websocat）から見れば、直接接続したときとほぼ同じ挙動になります。プロキシがプロトコルの中身を邪魔せず、ストリームを中継していることがわかります。
-4. **注意**: `podman-compose down` で後片付けを忘れないようにしてください。
+3. **Socket 監視（プラットフォーム別）**:
+    - **Linux**:
+
+        ```bash
+        watch -n 0.1 "ss -ntap | grep :18080"
+        ```
+
+    - **macOS**:
+
+        ```bash
+        while true; do
+            clear
+            lsof -nP -iTCP:18080 | grep 18080
+            sleep 0.1
+        done
+        ```
+
+4. **透過性**: クライアント（websocat）から見れば、直接接続したときとほぼ同じ挙動になります。プロキシがプロトコルの中身を邪魔せず、ストリームを中継していることがわかります。
+5. **注意**: `podman-compose down` で後片付けを忘れないようにしてください。
 
 ### STEP 3: HTTP/2 のマルチプレキシング（多重化）
 
