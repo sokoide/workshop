@@ -480,10 +480,12 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
 - gRPC の真価（1 接続多重化）は、アプリケーション内で `ClientConn` を長寿命で再利用したときに最大化されます。
 - **Socket 監視**:
     1. **Linux**:
-
+ 
         ```bash
         watch -n 0.1 "ss -ntp | grep :50051"
         ```
+
+        > Linux では `ss -ntp` を使って TIME_WAIT を除外しています。`TIME_WAIT` も確認したいなら `ss -ntap` を再実行してください。
 
     2. **macOS**: `watch`/`ss` が無いので代わりに:
 
@@ -493,8 +495,8 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
             netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
             sleep 0.1
         done
-        > **TIME_WAIT を含めたい場合**は `grep -v TIME_WAIT` を省略すると、TIME_WAIT も含めた出力が流れます。
         ```
+        > **TIME_WAIT を含めたい場合**は `grep -v TIME_WAIT` を省略すると、TIME_WAIT も含めた出力が流れます。
 
 ### STEP 6: Server-Sent Events (SSE) による軽量通知
 
@@ -514,6 +516,8 @@ curl -v http://localhost:8080/sse
         ```bash
         watch -n 0.1 "ss -ntp | grep :8080"
         ```
+
+        > Linux では `ss -ntp` を使って TIME_WAIT を隠しています。`TIME_WAIT` も確認したい場合は `ss -ntap` を再実行してください。
 
     - **macOS**:
 

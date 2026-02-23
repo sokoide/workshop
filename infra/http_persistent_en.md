@@ -487,6 +487,8 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
         watch -n 0.1 "ss -ntp | grep :50051"
         ```
 
+        > The Linux watcher hides TIME_WAIT entries by using `ss -ntp`. Run it again with `ss -ntap` if you want to examine them.
+
     2. **macOS**:
 
         ```bash
@@ -495,8 +497,8 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
             netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
             sleep 0.1
         done
-        > Remove `| grep -v TIME_WAIT` if you want to include TIME_WAIT entries in the output.
         ```
+        > Remove `| grep -v TIME_WAIT` if you want to include TIME_WAIT entries in the output.
 
 ### STEP 6: Lightweight Notifications with Server-Sent Events (SSE)
 
@@ -517,6 +519,8 @@ curl -v http://localhost:8080/sse
         ```bash
         watch -n 0.1 "ss -ntp | grep :8080"
         ```
+
+        > The Linux watcher keeps TIME_WAIT hidden via `ss -ntp`. Re-run with `ss -ntap` if you want to include those entries.
 
     - **macOS**:
 
