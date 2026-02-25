@@ -87,6 +87,8 @@ func NewPinger(iface, targetIP string) (*Pinger, error) {
 }
 
 func resolveMAC(iface string, srcIP, dstIP net.IP) (net.HardwareAddr, net.IP, error) {
+	broadcastMAC := ethernet.BroadcastMAC()
+
 	// Check if same subnet
 	srcMask := getLocalMask(iface)
 	if srcMask != nil {
@@ -94,27 +96,29 @@ func resolveMAC(iface string, srcIP, dstIP net.IP) (net.HardwareAddr, net.IP, er
 		dstNet := &net.IPNet{IP: dstIP.Mask(srcMask), Mask: srcMask}
 		if srcNet.IP.Equal(dstNet.IP) {
 			// Same subnet - try to resolve target MAC via ARP
-			_, err := arpResolve(iface, dstIP)
-			if err == nil {
+			mac, err := arpResolve(iface, dstIP)
+			if err == nil && mac != nil {
 				// MAC resolved successfully
-				return nil, nil, nil
+				return mac, nil, nil
 			}
+			// ARP未実装時はブロードキャストで送信を継続
+			return broadcastMAC, nil, nil
 		}
 	}
 
 	// Different subnet or ARP failed - use gateway
 	gatewayIP, _, err := getDefaultGateway(iface)
 	if err != nil {
-		return nil, nil, fmt.Errorf("no gateway found: %w", err)
+		return broadcastMAC, nil, nil
 	}
 
 	// Resolve gateway MAC via ARP
-	_, err = arpResolve(iface, gatewayIP)
-	if err != nil {
-		return nil, gatewayIP, fmt.Errorf("resolve gateway MAC: %w", err)
+	mac, err := arpResolve(iface, gatewayIP)
+	if err == nil && mac != nil {
+		return mac, gatewayIP, nil
 	}
 
-	return nil, gatewayIP, nil
+	return broadcastMAC, gatewayIP, nil
 }
 
 func getLocalMask(iface string) net.IPMask {
@@ -162,14 +166,14 @@ func (p *Pinger) SendPing() error {
 
 	// Build IP packet
 	ipPkt := &ipv4.Packet{
-		Version:     4,
-		IHL:         20,
-		TOS:         0,
-		TTL:         64,
-		Protocol:    ipv4.ProtocolICMP,
-		SrcIP:       p.srcIP,
-		DstIP:       p.dstIP,
-		Payload:     icmpData,
+		Version:  4,
+		IHL:      20,
+		TOS:      0,
+		TTL:      64,
+		Protocol: ipv4.ProtocolICMP,
+		SrcIP:    p.srcIP,
+		DstIP:    p.dstIP,
+		Payload:  icmpData,
 	}
 
 	ipData := ipPkt.Marshal()
@@ -232,7 +236,12 @@ func (p *Pinger) Run(ctx context.Context, count int, interval time.Duration) err
 				}
 
 				if msg.IsEchoReply() && msg.ID == 12345 {
-					replyChan <- msg
+					select {
+					case replyChan <- msg:
+					case <-ctx.Done():
+						return
+					default:
+					}
 				}
 			}
 		}

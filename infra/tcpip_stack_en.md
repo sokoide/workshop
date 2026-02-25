@@ -51,7 +51,7 @@ sudo apt update && sudo apt install -y golang-go gcc tcpdump wireshark iproute2
 mkdir -p tcpip_stack/pkg/{rawsock,ethernet,ipv4,icmp}
 mkdir -p tcpip_stack/cmd/ping
 cd tcpip_stack
-go mod init tcpip_stack
+go mod init github.com/sokoide/workshop/infra/assets/tcpip_stack
 ```
 
 ### 3. Creating a "Safe" Sandbox (Network Namespace)
@@ -772,7 +772,7 @@ func (p *Packet) PseudoHeader() []byte {
 
 - **IHL (Internet Header Length)**: Header length in 4-byte units (usually 5 = 20 bytes)
 - **TTL**: Loop prevention. Decremented at each router, discarded when 0
-- **Checksum**: Detects header corruption. Calculated on send, verified on receive
+- **Checksum**: Detects header corruption. In the current implementation, it is calculated on send; on receive, we mainly validate length/format (header checksum value verification itself is not implemented yet)
 
 ---
 
@@ -805,7 +805,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"tcpip_stack/pkg/ipv4"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
 )
 
 const (
@@ -930,10 +930,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"tcpip_stack/pkg/ethernet"
-	"tcpip_stack/pkg/icmp"
-	"tcpip_stack/pkg/ipv4"
-	"tcpip_stack/pkg/rawsock"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ethernet"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/icmp"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/rawsock"
 )
 
 // Stack represents the TCP/IP stack
