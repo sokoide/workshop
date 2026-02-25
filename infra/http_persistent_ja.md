@@ -357,7 +357,7 @@ podman-compose up --build -d
 
 **観察ポイント**:
 
-1. **設定ファイルで明示的にルーティング**: `infra/assets/http_persistent_conn/traefik.yml` と `traefik-dynamic.yml` により、Traefik は `Host(\`localhost\`)` を聞いて `<http://app:8080`> へ転送します。Docker ソケットの共有は不要です。
+1. **設定ファイルで明示的にルーティング**: `infra/assets/http_persistent_conn/traefik.yml` と `traefik-dynamic.yml` により、Traefik は `Host(\`localhost\`)` を聞いて `<http://app:8080`> へ転送します。`/run/podman/podman.sock` の共有は不要です。
 2. **ホスト 18080 へのアクセス**: Compose は `18080:80` をバインドしているので、`websocat -v ws://localhost:18080/ws` や `curl http://localhost:18080/` を使って、Traefik → app:8080 への通信が通ることを確認できます。
 3. **Socket 監視（プラットフォーム別）**:
     - **Linux**:
@@ -509,7 +509,7 @@ curl -v http://localhost:8080/sse
 **観察ポイント**:
 
 1. **Content-Type**: `text/event-stream` が返り、データが逐次届くことを確認。
-2. **この実装の挙動**: サンプルコードでは 2 秒おきに 10 件送信した後に接続を閉じます（無限配信ではありません）。
+2. **この実装の挙動**: サンプルコードでは 2 秒おきに 5 件送信した後に接続を閉じます（無限配信ではありません）。
 3. **軽量性**: WebSocket のような複雑なフレーム制御ではなく、「長めの HTTP レスポンス」として実装できる点を確認します。
 4. **Socket Monitoring (platform specific)**:
     - **Linux**:

@@ -83,13 +83,16 @@ ping-test:
 
 # Build for multiple platforms
 build-all: deps
-	@echo "Building for multiple platforms..."
 	@mkdir -p bin
-	GOARCH=amd64 GOOS=linux go build -o bin/tcpip_stack-linux-amd64 main.go
-	GOARCH=arm64 GOOS=linux go build -o bin/tcpip_stack-linux-arm64 main.go
-	GOARCH=amd64 GOOS=darwin go build -o bin/tcpip_stack-darwin-amd64 main.go
-	GOARCH=arm64 GOOS=darwin go build -o bin/tcpip_stack-darwin-arm64 main.go
-	@echo "Build complete: bin/"
+	@arch=$$(go env GOARCH); \
+	if [ "$$(uname -s)" != "Linux" ]; then \
+		echo "Skipping build-all: Linux host required (raw socket + cgo)."; \
+		echo "Run this target on Linux to build tcpip_stack-linux-$$arch."; \
+	else \
+		echo "Building native Linux target (workshop assumes Linux networking)..."; \
+		CGO_ENABLED=1 GOOS=linux GOARCH=$$arch go build -o bin/tcpip_stack-linux-$$arch main.go; \
+		echo "Build complete: bin/"; \
+	fi
 
 # Format code
 fmt:

@@ -27,13 +27,13 @@ type secretManager struct {
 }
 
 // NewSecretManager creates a new SecretManager.
-func NewSecretManager(repo domain.SecretRepository) SecretManager {
+func NewSecretManager(repo domain.SecretRepository) (SecretManager, error) {
 	if repo == nil {
-		panic("repository cannot be nil")
+		return nil, fmt.Errorf("repository cannot be nil")
 	}
 	return &secretManager{
 		repo: repo,
-	}
+	}, nil
 }
 
 // RetrieveSecret fetches a secret with business logic validation.

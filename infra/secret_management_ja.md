@@ -145,13 +145,13 @@ podman exec workshop-vault vault kv metadata get secret/api/key
 
 ### STEP 5: アーキテクチャの理解
 
-`usecase` レイヤーのコードを見て、Vault への依存が一切ない（インターフェースにのみ依存している）ことを確認してください。
+`internal/usecase` レイヤーのコードを見て、Vault への依存が一切ない（`internal/domain` のインターフェースにのみ依存している）ことを確認してください。
 
 ---
 
 ## クリーンアーキテクチャのポイント
 
-ビジネスロジックは、**「シークレットが Vault にあるか AWS にあるか」**を気にしません。`domain/repository.go` で定義された抽象的な操作を通じてシークレットを取得します。これにより、インフラの変更に対して非常に堅牢なシステムになります。
+ビジネスロジックは、**「シークレットが Vault にあるか AWS にあるか」**を気にしません。`internal/domain/repository.go` で定義された抽象的な操作を通じてシークレットを取得し、`internal/infra` が実装詳細を担います。これにより、インフラの変更に対して非常に堅牢なシステムになります。
 
 ---
 

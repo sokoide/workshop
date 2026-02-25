@@ -74,7 +74,7 @@ infra/assets/minio/
 
 ```bash
 cd infra/assets/minio
-docker-compose up -d
+podman compose up -d
 ```
 
 MinIO Console: `http://localhost:9001`
@@ -146,7 +146,7 @@ Command:
 
 ```bash
 go run main.go share sample.jpg
-# Output: https://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
+# Output: http://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
 ```
 
 **Why is it secure?**: The URL contains a cryptographic signature, so if any part of the path or expiration time is tampered with, it becomes invalid.
@@ -169,7 +169,7 @@ This allows switching between local disk in development, AWS S3 in production, a
 ## Cleanup
 
 ```bash
-docker-compose down
+podman compose down
 ```
 
 If data persistence is not configured, data will be lost when containers are removed.

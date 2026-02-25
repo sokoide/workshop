@@ -25,6 +25,13 @@ func main() {
 
 	flag.Parse()
 
+	scoreProvided := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "score" {
+			scoreProvided = true
+		}
+	})
+
 	// Require action
 	if action == "" {
 		flag.Usage()
@@ -52,8 +59,8 @@ func main() {
 			fmt.Fprintln(os.Stderr, "Error: add requires -user flag")
 			os.Exit(1)
 		}
-		if score == 0 {
-			fmt.Fprintln(os.Stderr, "Error: add requires -score flag (non-zero)")
+		if !scoreProvided {
+			fmt.Fprintln(os.Stderr, "Error: add requires -score flag")
 			os.Exit(1)
 		}
 		if err := uc.AddScore(ctx, user, score); err != nil {

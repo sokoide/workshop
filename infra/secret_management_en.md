@@ -145,13 +145,13 @@ podman exec workshop-vault vault kv metadata get secret/api/key
 
 ### STEP 5: Understand the Architecture
 
-Examine the `usecase` layer code and confirm it has zero dependencies on Vault (it only depends on the interface).
+Examine the `internal/usecase` layer code and confirm it has zero dependencies on Vault (it only depends on the interface defined in `internal/domain`).
 
 ---
 
 ## Clean Architecture Highlights
 
-The business logic doesn't care **"whether the secret is in Vault or AWS."** It retrieves secrets through abstract operations defined in `domain/repository.go`. This makes the system extremely resilient to infrastructure changes.
+The business logic doesn't care **"whether the secret is in Vault or AWS."** It retrieves secrets through abstract operations defined in `internal/domain/repository.go`, while infrastructure details are implemented in `internal/infra`. This makes the system extremely resilient to infrastructure changes.
 
 ---
 

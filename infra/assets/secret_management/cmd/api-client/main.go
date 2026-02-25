@@ -58,7 +58,10 @@ func main() {
 	}
 
 	// Create usecases
-	sm := usecase.NewSecretManager(repo)
+	sm, err := usecase.NewSecretManager(repo)
+	if err != nil {
+		log.Fatalf("[ERROR] Failed to create secret manager: %v", err)
+	}
 	apiClient := usecase.NewAPIClient(sm)
 
 	// Make API call with secret from Vault

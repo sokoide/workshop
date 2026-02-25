@@ -52,7 +52,10 @@ func main() {
 	}
 
 	// Create usecase
-	sm := usecase.NewSecretManager(repo)
+	sm, err := usecase.NewSecretManager(repo)
+	if err != nil {
+		log.Fatalf("[ERROR] Failed to create secret manager: %v", err)
+	}
 
 	// Retrieve secret
 	secret, err := sm.RetrieveSecret(ctx, secretKey)

@@ -31,7 +31,7 @@ graph LR
 **What you will learn in this workshop:**
 
 1. **Terraform Basics**: Defining resources, variables, and outputs.
-2. **Using Providers**: The `local` provider (file manipulation) and the `docker` provider.
+2. **Using Providers**: The `local` provider (file manipulation) and a Podman-compatible container provider.
 3. **Environment Building with IaC**: Managing networks, configuration files, and containers together.
 
 ---
@@ -152,7 +152,7 @@ Run `terraform plan` and `terraform apply`, and verify that three user files are
 
 ## Workshop: Part 2 (Practical: DNS Server)
 
-Use the Docker/Podman provider to automatically build a complex network configuration.
+Use a Podman-compatible provider to automatically build a complex network configuration.
 
 ### STEP 0: Build CoreDNS Image
 
@@ -171,13 +171,13 @@ RUN wget https://github.com/coredns/coredns/releases/download/v${COREDNS_VERSION
 CMD ["/usr/local/bin/coredns", "-conf", "/etc/coredns/Corefile"]
 ```
 
-Build the image (replace `docker` with `podman` if using Podman):
+Build the image with Podman:
 
 ```bash
-docker build -t coredns-handson .
+podman build -t coredns-handson .
 ```
 
-### STEP 1: Configure Docker Provider
+### STEP 1: Configure Podman-Compatible Provider
 
 Create `part2/versions.tf`:
 
@@ -301,7 +301,7 @@ terraform apply
 After deployment, enter the `router` container and test name resolution with the `dig` command.
 
 ```bash
-docker exec -it container-router sh
+podman exec -it container-router sh
 # Inside container
 apk add bind-tools
 # Test direct resolution of A record
@@ -325,4 +325,4 @@ terraform destroy
 ## References
 
 - [Terraform Documentation](https://developer.hashicorp.com/terraform/docs)
-- [Terraform Docker Provider](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)
+- [Terraform Podman-Compatible Provider (kreuzwerker/docker)](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)

@@ -31,7 +31,10 @@ func main() {
 
 	log.Println("Logger starting (market.#)...")
 	err = obs.Start(ctx, "market.#", func(trade domain.Trade) error {
-		b, _ := json.Marshal(trade)
+		b, err := json.Marshal(trade)
+		if err != nil {
+			return fmt.Errorf("failed to marshal trade: %w", err)
+		}
 		fmt.Println(string(b))
 		return nil
 	})

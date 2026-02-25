@@ -31,7 +31,7 @@ graph LR
 **この実習で習得すること:**
 
 1. **Terraform の基本**: リソースの定義、変数、出力。
-2. **プロバイダーの使用**: `local` プロバイダー（ファイル操作）と `docker` プロバイダー。
+2. **プロバイダーの使用**: `local` プロバイダー（ファイル操作）と Podman 互換のコンテナプロバイダー。
 3. **IaC による環境構築**: ネットワーク、設定ファイル、コンテナの一括管理。
 
 ---
@@ -152,7 +152,7 @@ resource "local_file" "user_files" {
 
 ## 実習：パート 2 (実践編：DNS サーバー)
 
-Docker/Podman プロバイダーを使用し、複雑なネットワーク構成を自動構築します。
+Podman 互換プロバイダーを使用し、複雑なネットワーク構成を自動構築します。
 
 ### STEP 0: CoreDNS イメージのビルド
 
@@ -171,13 +171,13 @@ RUN wget https://github.com/coredns/coredns/releases/download/v${COREDNS_VERSION
 CMD ["/usr/local/bin/coredns", "-conf", "/etc/coredns/Corefile"]
 ```
 
-イメージをビルドします（Podman の場合は `docker` を `podman` に読み替えてください）。
+Podman でイメージをビルドします。
 
 ```bash
-docker build -t coredns-handson .
+podman build -t coredns-handson .
 ```
 
-### STEP 1: Docker プロバイダーの設定
+### STEP 1: Podman 互換プロバイダーの設定
 
 `part2/versions.tf` を作成します。
 
@@ -301,7 +301,7 @@ terraform apply
 構築後、`router` コンテナに入って `dig` コマンドで名前解決をテストします。
 
 ```bash
-docker exec -it container-router sh
+podman exec -it container-router sh
 # コンテナ内で
 apk add bind-tools
 # Aレコードの直接解決をテスト
@@ -325,4 +325,4 @@ terraform destroy
 ## 参考文献
 
 - [Terraform Documentation](https://developer.hashicorp.com/terraform/docs)
-- [Terraform Docker Provider](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)
+- [Terraform Podman 互換プロバイダー (kreuzwerker/docker)](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)
