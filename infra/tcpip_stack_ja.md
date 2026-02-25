@@ -51,7 +51,7 @@ sudo apt update && sudo apt install -y golang-go gcc tcpdump wireshark iproute2
 mkdir -p tcpip_stack/pkg/{rawsock,ethernet,ipv4,icmp}
 mkdir -p tcpip_stack/cmd/ping
 cd tcpip_stack
-go mod init tcpip_stack
+go mod init github.com/sokoide/workshop/infra/assets/tcpip_stack
 ```
 
 ### 3. 安全な実験場の作成 (Network Namespace)
@@ -769,7 +769,7 @@ func (p *Packet) PseudoHeader() []byte {
 
 - **IHL (Internet Header Length)**: ヘッダ長を 4 bytes 単位で表現（通常は 5 = 20 bytes）
 - **TTL**: ループ防止用。ルータを通過するたびに減算され、0 で破棄
-- **チェックサム**: ヘッダの破損を検出。送信時に計算、受信時に検証
+- **チェックサム**: ヘッダの破損を検出。現実装は送信時に計算し、受信時は主に長さ・形式を検証（ヘッダチェックサム値そのものの照合は未実装）
 
 ---
 
@@ -802,7 +802,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"tcpip_stack/pkg/ipv4"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
 )
 
 const (
@@ -927,10 +927,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"tcpip_stack/pkg/ethernet"
-	"tcpip_stack/pkg/icmp"
-	"tcpip_stack/pkg/ipv4"
-	"tcpip_stack/pkg/rawsock"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ethernet"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/icmp"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/rawsock"
 )
 
 // Stack は TCP/IP スタックを表す

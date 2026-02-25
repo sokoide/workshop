@@ -12,11 +12,15 @@ import (
 // MarketSimulator generates random crypto trade events.
 type MarketSimulator struct {
 	pub domain.TradePublisher
+	rng *rand.Rand
 }
 
-// NewMarketSimulator creates a new MarketSimulator.
+// NewMarketSimulator creates a new MarketSimulator with a seeded RNG.
 func NewMarketSimulator(pub domain.TradePublisher) *MarketSimulator {
-	return &MarketSimulator{pub: pub}
+	return &MarketSimulator{
+		pub: pub,
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+	}
 }
 
 var (
@@ -36,10 +40,10 @@ func (s *MarketSimulator) Run(ctx context.Context, interval time.Duration) error
 		case <-ticker.C:
 			trade := domain.Trade{
 				ID:             uuid.New().String(),
-				Symbol:         symbols[rand.Intn(len(symbols))],
-				TargetCurrency: targets[rand.Intn(len(targets))],
-				Price:          rand.Float64()*50000 + 10,
-				Amount:         rand.Float64() * 5,
+				Symbol:         symbols[s.rng.Intn(len(symbols))],
+				TargetCurrency: targets[s.rng.Intn(len(targets))],
+				Price:          s.rng.Float64()*50000 + 10,
+				Amount:         s.rng.Float64() * 5,
 				Timestamp:      time.Now(),
 			}
 

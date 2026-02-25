@@ -1,7 +1,7 @@
 package rawsock
 
 /*
-#cgo LDFLAGS: -lpcap
+#include <stdlib.h>
 #include "rawsock.h"
 */
 import "C"
@@ -13,8 +13,8 @@ import (
 
 // Socket represents a raw socket
 type Socket struct {
-	fd     C.int
-	iface  string
+	fd    C.int
+	iface string
 }
 
 // Open creates a new raw socket on the specified interface

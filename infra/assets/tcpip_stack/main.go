@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ethernet"
@@ -72,6 +74,13 @@ func NewStack(iface string) (*Stack, error) {
 func (s *Stack) Run(ctx context.Context) error {
 	buf := make([]byte, 65536)
 	log.Printf("Listening on %s (%s, MAC: %s)", s.iface, s.srcIP, s.srcMAC)
+	var closeOnce sync.Once
+	go func() {
+		<-ctx.Done()
+		closeOnce.Do(func() {
+			_ = s.sock.Close()
+		})
+	}()
 
 	for {
 		select {
@@ -80,6 +89,11 @@ func (s *Stack) Run(ctx context.Context) error {
 		default:
 			n, err := s.sock.Recv(buf)
 			if err != nil {
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+				}
 				continue
 			}
 
@@ -143,7 +157,7 @@ func (s *Stack) handlePacket(data []byte) error {
 // shouldProcessFrame checks if we should process this frame
 func (s *Stack) shouldProcessFrame(frame *ethernet.Frame) bool {
 	// Process if addressed to us
-	if frame.DstMAC.String() == s.srcMAC.String() {
+	if bytes.Equal(frame.DstMAC, s.srcMAC) {
 		return true
 	}
 	// Process if broadcast
@@ -165,14 +179,14 @@ func (s *Stack) sendEchoReply(reqPkt *ipv4.Packet, reqMsg *icmp.Message, dstMAC 
 
 	// Build IP packet
 	ipPkt := &ipv4.Packet{
-		Version:     4,
-		IHL:         20,
-		TOS:         0,
-		TTL:         64,
-		Protocol:    ipv4.ProtocolICMP,
-		SrcIP:       s.srcIP,
-		DstIP:       reqPkt.SrcIP,
-		Payload:     icmpData,
+		Version:  4,
+		IHL:      20,
+		TOS:      0,
+		TTL:      64,
+		Protocol: ipv4.ProtocolICMP,
+		SrcIP:    s.srcIP,
+		DstIP:    reqPkt.SrcIP,
+		Payload:  icmpData,
 	}
 
 	ipData := ipPkt.Marshal()

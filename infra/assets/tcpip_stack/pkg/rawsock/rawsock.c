@@ -107,9 +107,9 @@ int rawsock_set_promisc(int fd, const char *iface, int enable) {
     mr.mr_ifindex = if_nametoindex(iface);
     mr.mr_type = PACKET_MR_PROMISC;
 
-    int opt = enable ? 1 : 0;
-    if (setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr)) < 0) {
-        perror("setsockopt PACKET_ADD_MEMBERSHIP");
+    int optname = enable ? PACKET_ADD_MEMBERSHIP : PACKET_DROP_MEMBERSHIP;
+    if (setsockopt(fd, SOL_PACKET, optname, &mr, sizeof(mr)) < 0) {
+        perror(enable ? "setsockopt PACKET_ADD_MEMBERSHIP" : "setsockopt PACKET_DROP_MEMBERSHIP");
         return -1;
     }
 

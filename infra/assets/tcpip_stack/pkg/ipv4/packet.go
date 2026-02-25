@@ -27,8 +27,8 @@ const (
 // Packet represents an IPv4 packet
 type Packet struct {
 	Version        uint8
-	IHL            uint8  // Internet Header Length in 32-bit words
-	TOS            uint8  // Type of Service
+	IHL            uint8 // Internet Header Length in 32-bit words
+	TOS            uint8 // Type of Service
 	TotalLength    uint16
 	ID             uint16
 	Flags          uint8
@@ -57,13 +57,20 @@ func Parse(data []byte) (*Packet, error) {
 	if len(data) < int(ihl) {
 		return nil, fmt.Errorf("packet too short for IHL: %d < %d", len(data), ihl)
 	}
+	totalLen := binary.BigEndian.Uint16(data[2:4])
+	if totalLen < uint16(ihl) {
+		return nil, fmt.Errorf("invalid total length: %d < ihl=%d", totalLen, ihl)
+	}
+	if int(totalLen) > len(data) {
+		return nil, fmt.Errorf("packet too short for total length: %d < %d", len(data), totalLen)
+	}
 
 	flagsFragment := binary.BigEndian.Uint16(data[6:8])
 	pkt := &Packet{
 		Version:        version,
 		IHL:            ihl,
 		TOS:            data[1],
-		TotalLength:    binary.BigEndian.Uint16(data[2:4]),
+		TotalLength:    totalLen,
 		ID:             binary.BigEndian.Uint16(data[4:6]),
 		Flags:          uint8((flagsFragment >> 13) & 0x07),
 		FragmentOffset: flagsFragment & 0x1FFF,
@@ -72,7 +79,7 @@ func Parse(data []byte) (*Packet, error) {
 		Checksum:       binary.BigEndian.Uint16(data[10:12]),
 		SrcIP:          net.IP(data[12:16]),
 		DstIP:          net.IP(data[16:20]),
-		Payload:        data[ihl:],
+		Payload:        data[ihl:totalLen],
 	}
 
 	if ihl > HeaderSize {
@@ -142,7 +149,7 @@ func Checksum(data []byte) uint16 {
 
 	// Fold 32-bit sum to 16 bits
 	for sum>>16 > 0 {
-		sum = (sum & 0xFFFF) + (sum>>16)
+		sum = (sum & 0xFFFF) + (sum >> 16)
 	}
 
 	return ^uint16(sum)
