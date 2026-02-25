@@ -64,7 +64,7 @@ infra/assets/rabbitmq_crypto/
 │   ├── logger/                 # All-records logging
 │   ├── alert/                  # Whale alert detection
 │   └── japandesk/              # JPY monitoring
-└── pkg/
+└── internal/
     ├── domain/                 # Entities, Repository Interface
     ├── usecase/                # Simulation and Monitoring logic
     └── infra/                  # RabbitMQ Adapter
@@ -122,7 +122,7 @@ Start consumers matching specific conditions in separate terminals.
 
 ## Clean Architecture Highlights
 
-The code communicates with RabbitMQ through an interface defined in `pkg/domain`.
+The code communicates with RabbitMQ through an interface defined in `internal/domain`.
 
 ```go
 type TradePublisher interface {

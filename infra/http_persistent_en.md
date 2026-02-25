@@ -358,7 +358,7 @@ podman-compose up --build -d
 
 **Observation Points**:
 
-1. **Explicit Routing by Files**: The static `traefik.yml` + `traefik-dynamic.yml` pair ensures Traefik listens for `Host(`localhost`)` and forwards to `http://app:8080` without sharing `/var/run/docker.sock`.
+1. **Explicit Routing by Files**: The static `traefik.yml` + `traefik-dynamic.yml` pair ensures Traefik listens for `Host(`localhost`)` and forwards to `http://app:8080` without sharing `/run/podman/podman.sock`.
 2. **Host Port 18080 Access**: Compose binds host `18080:80`, so confirm Traefik → app communication using `websocat -v ws://localhost:18080/ws` or `curl http://localhost:18080/`.
 3. **Socket Monitoring (Platform Specific)**:
     - **Linux**:

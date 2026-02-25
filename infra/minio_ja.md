@@ -74,7 +74,7 @@ infra/assets/minio/
 
 ```bash
 cd infra/assets/minio
-docker-compose up -d
+podman compose up -d
 ```
 
 MinIO コンソール: `http://localhost:9001`
@@ -146,7 +146,7 @@ func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
 
 ```bash
 go run main.go share sample.jpg
-# Output: https://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
+# Output: http://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
 ```
 
 **なぜ安全なのか？**: URL には暗号学的な署名が含まれており、有効期限やパスの一部でも改ざんされると無効になります。
@@ -169,7 +169,7 @@ go run main.go share sample.jpg
 ## 片付け
 
 ```bash
-docker-compose down
+podman compose down
 ```
 
 データの永続化設定をしていない場合、コンテナ削除と共にデータも消えます。

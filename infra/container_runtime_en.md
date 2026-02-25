@@ -152,7 +152,7 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 
 1. Containers are "restricted processes" realized through a combination of Linux kernel features.
 2. **Namespaces** control the "view" and **Cgroups** control the "resources."
-3. Understanding low-layer mechanisms leads to a deeper grasp of Docker and Kubernetes behavior.
+3. Understanding low-layer mechanisms leads to a deeper grasp of Podman and Kubernetes behavior.
 
 ---
 

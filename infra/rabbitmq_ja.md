@@ -64,7 +64,7 @@ infra/assets/rabbitmq_crypto/
 │   ├── logger/                 # 全件記録
 │   ├── alert/                  # 大口アラート
 │   └── japandesk/              # 日本円監視
-└── pkg/
+└── internal/
     ├── domain/                 # エンティティ、リポジトリ I/F
     ├── usecase/                # シミュレーション・監視ロジック
     └── infra/                  # RabbitMQ アダプター
@@ -122,7 +122,7 @@ go run cmd/logger/main.go
 
 ## クリーンアーキテクチャのポイント
 
-本実習では、`pkg/domain` で抽象化されたインターフェースを使用しています。
+本実習では、`internal/domain` で抽象化されたインターフェースを使用しています。
 
 ```go
 type TradePublisher interface {

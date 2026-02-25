@@ -76,7 +76,7 @@ infra/assets/redis_leaderboard/
 
 ## 準備
 
-### 1. Redis の起動 (Podman/Docker)
+### 1. Redis の起動 (Podman)
 
 Makefile を使用する場合（推奨）:
 

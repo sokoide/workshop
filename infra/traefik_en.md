@@ -25,7 +25,7 @@ With traditional proxies like Nginx, you had to rewrite configuration files (`ng
 
 ### ✅ Traefik's Approach
 
-- **Service Discovery**: Watches Docker or Kubernetes API to automatically update configuration
+- **Service Discovery**: Watches Podman or Kubernetes API to automatically update configuration
 - **Dynamic Configuration**: Applies routing rules immediately without restarts
 - **Middleware**: Applies features like authentication and rate limiting as plugins
 
@@ -33,7 +33,7 @@ With traditional proxies like Nginx, you had to rewrite configuration files (`ng
 
 ## Architecture
 
-We will build dynamic routing based on container labels using the Docker provider. Traefik watches the Docker socket and immediately adds containers with labels to routing as they start.
+We will build dynamic routing based on container labels using Podman's Docker-compatible API provider. Traefik watches the Podman socket and immediately adds containers with labels to routing as they start.
 
 ```mermaid
 graph LR
@@ -52,7 +52,7 @@ graph LR
     Traefik -- "Load Balancing" --> App1 & App2
     Traefik -- "Routing" --> App3
 
-    Traefik -.->|Watch Events| DockerSocket((Docker Socket))
+    Traefik -.->|Watch Events| PodmanSocket((Podman Socket))
 ```
 
 ### Directory Structure
@@ -67,7 +67,7 @@ infra/assets/traefik/
 
 ## Preparation
 
-### 1. Create Docker Compose Definition
+### 1. Create Podman Compose Definition
 
 Create a `docker-compose.yml` with the following content. We will use the lightweight `traefik/whoami` image (an app that simply returns HTTP request info) as the backend.
 
@@ -87,7 +87,7 @@ services:
       - "80:80"
       - "8080:8080" # Dashboard
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/podman/podman.sock:/var/run/docker.sock:ro
 
   # Backend A (Whoami)
   whoami-a:
@@ -110,8 +110,10 @@ services:
 
 ```bash
 cd infra/assets/traefik
-docker-compose up -d
+podman compose up -d
 ```
+
+> Note: This repository includes `infra/assets/traefik` as a sample directory. Review and adjust the files as needed while following this guide.
 
 ---
 
@@ -120,7 +122,7 @@ docker-compose up -d
 ### STEP 1: Check Dashboard
 
 Access `http://localhost:8080` in your browser.
-Verify that Traefik has automatically detected the services running on Docker (`whoami-a`, `whoami-b`). The key point is that they are recognized without writing a configuration file.
+Verify that Traefik has automatically detected the services running on Podman (`whoami-a`, `whoami-b`). The key point is that they are recognized without writing a configuration file.
 
 ### STEP 2: Host-based Routing and Load Balancing
 
@@ -141,10 +143,10 @@ curl -H "Host: whoami.localhost" http://localhost
 
 ### STEP 3: Add Path-based Routing
 
-Add a new Nginx container and make it accessible at the `/nginx` path. This can be done dynamically via `docker run` without editing `docker-compose.yml`.
+Add a new Nginx container and make it accessible at the `/nginx` path. This can be done dynamically via `podman run` without editing `docker-compose.yml`.
 
 ```bash
-docker run -d --name nginx-demo \
+podman run -d --name nginx-demo \
   --label "traefik.enable=true" \
   --label "traefik.http.routers.nginx.rule=Host(`localhost`) && PathPrefix(`/nginx`)" \
   --label "traefik.http.services.nginx.loadbalancer.server.port=80" \
@@ -186,8 +188,8 @@ Traefik mainly handles "Edge (External to Internal)" traffic, while controlling 
 ## Cleanup
 
 ```bash
-docker-compose down
-docker rm -f nginx-demo
+podman compose down
+podman rm -f nginx-demo
 ```
 
 ---

@@ -112,8 +112,10 @@ static_resources:
 
 ```bash
 cd infra/assets/envoy
-docker-compose up -d
+podman compose up -d
 ```
+
+> 注: このリポジトリには `infra/assets/envoy` のサンプルディレクトリが含まれています。必要に応じて内容を確認・編集して進めてください。
 
 ---
 
@@ -170,7 +172,7 @@ Clean Architecture における「Framework & Drivers」層（詳細）として
 ## 片付け
 
 ```bash
-docker-compose down
+podman compose down
 ```
 
 ---

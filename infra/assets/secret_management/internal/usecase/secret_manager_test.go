@@ -112,7 +112,8 @@ func TestSecretManager_RetrieveSecret(t *testing.T) {
 			mock := &mockSecretRepository{}
 			tt.setupMock(mock)
 
-			sm := NewSecretManager(mock)
+			sm, err := NewSecretManager(mock)
+			require.NoError(t, err)
 			ctx := context.Background()
 
 			secret, err := sm.RetrieveSecret(ctx, tt.key)
@@ -183,10 +184,11 @@ func TestSecretManager_StoreSecret(t *testing.T) {
 			mock := &mockSecretRepository{}
 			tt.setupMock(mock)
 
-			sm := NewSecretManager(mock)
+			sm, err := NewSecretManager(mock)
+			require.NoError(t, err)
 			ctx := context.Background()
 
-			err := sm.StoreSecret(ctx, tt.key, tt.value)
+			err = sm.StoreSecret(ctx, tt.key, tt.value)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -247,7 +249,8 @@ func TestSecretManager_ListAllSecrets(t *testing.T) {
 			mock := &mockSecretRepository{}
 			tt.setupMock(mock)
 
-			sm := NewSecretManager(mock)
+			sm, err := NewSecretManager(mock)
+			require.NoError(t, err)
 			ctx := context.Background()
 
 			secrets, err := sm.ListAllSecrets(ctx)
@@ -266,7 +269,8 @@ func TestSecretManager_ListAllSecrets(t *testing.T) {
 }
 
 func TestSecretManager_NilRepository(t *testing.T) {
-	assert.Panics(t, func() {
-		NewSecretManager(nil)
-	}, "Expected panic when repository is nil")
+	sm, err := NewSecretManager(nil)
+	require.Error(t, err)
+	assert.Nil(t, sm)
+	assert.Contains(t, err.Error(), "repository cannot be nil")
 }

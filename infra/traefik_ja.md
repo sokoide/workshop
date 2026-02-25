@@ -25,7 +25,7 @@ Nginx などの従来のプロキシでは、バックエンドサーバーが�
 
 ### ✅ Traefik のアプローチ
 
-- **サービスディスカバリ**: Docker や Kubernetes API を監視し、設定を自動更新
+- **サービスディスカバリ**: Podman や Kubernetes API を監視し、設定を自動更新
 - **動的設定**: 再起動なしでルーティングルールを即座に反映
 - **ミドルウェア**: 認証やレート制限などをプラグインのように適用可能
 
@@ -33,7 +33,7 @@ Nginx などの従来のプロキシでは、バックエンドサーバーが�
 
 ## アーキテクチャ
 
-Docker プロバイダーを使用して、コンテナラベルに基づいた動的なルーティングを構築します。Traefik は Docker ソケットを監視し、ラベルが付いたコンテナが起動すると即座にルーティングに追加します。
+Podman の Docker 互換 API プロバイダーを使用して、コンテナラベルに基づいた動的なルーティングを構築します。Traefik は Podman ソケットを監視し、ラベルが付いたコンテナが起動すると即座にルーティングに追加します。
 
 ```mermaid
 graph LR
@@ -52,7 +52,7 @@ graph LR
     Traefik -- "Load Balancing" --> App1 & App2
     Traefik -- "Routing" --> App3
 
-    Traefik -.->|Watch Events| DockerSocket((Docker Socket))
+    Traefik -.->|Watch Events| PodmanSocket((Podman Socket))
 ```
 
 ### 想定ディレクトリ構造
@@ -67,7 +67,7 @@ infra/assets/traefik/
 
 ## 準備
 
-### 1. Docker Compose 定義の作成
+### 1. Podman Compose 定義の作成
 
 以下の内容で `docker-compose.yml` を作成します。ここでは軽量な `traefik/whoami` イメージ（HTTP リクエスト情報を返すだけのアプリ）をバックエンドとして使用します。
 
@@ -87,7 +87,7 @@ services:
       - "80:80"
       - "8080:8080" # Dashboard
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/podman/podman.sock:/var/run/docker.sock:ro
 
   # バックエンド A (Whoami)
   whoami-a:
@@ -110,8 +110,10 @@ services:
 
 ```bash
 cd infra/assets/traefik
-docker-compose up -d
+podman compose up -d
 ```
+
+> 注: このリポジトリには `infra/assets/traefik` のサンプルディレクトリが含まれています。必要に応じて内容を確認・編集して進めてください。
 
 ---
 
@@ -120,7 +122,7 @@ docker-compose up -d
 ### STEP 1: ダッシュボードの確認
 
 ブラウザで `http://localhost:8080` にアクセスします。
-Traefik が Docker 上で実行されているサービス（`whoami-a`, `whoami-b`）を自動的に検出していることを確認します。設定ファイルを書かなくても認識されている点がポイントです。
+Traefik が Podman 上で実行されているサービス（`whoami-a`, `whoami-b`）を自動的に検出していることを確認します。設定ファイルを書かなくても認識されている点がポイントです。
 
 ### STEP 2: ホストベース・ルーティングとロードバランシング
 
@@ -141,10 +143,10 @@ curl -H "Host: whoami.localhost" http://localhost
 
 ### STEP 3: パスベース・ルーティングの追加
 
-新しい Nginx コンテナを追加し、`/nginx` パスでアクセスできるようにします。これは `docker-compose.yml` を編集せずに、`docker run` で動的に追加できます。
+新しい Nginx コンテナを追加し、`/nginx` パスでアクセスできるようにします。これは `docker-compose.yml` を編集せずに、`podman run` で動的に追加できます。
 
 ```bash
-docker run -d --name nginx-demo \
+podman run -d --name nginx-demo \
   --label "traefik.enable=true" \
   --label "traefik.http.routers.nginx.rule=Host(`localhost`) && PathPrefix(`/nginx`)" \
   --label "traefik.http.services.nginx.loadbalancer.server.port=80" \
@@ -186,8 +188,8 @@ Traefik は主に「エッジ（外部から内部）」のトラフィックを
 ## 片付け
 
 ```bash
-docker-compose down
-docker rm -f nginx-demo
+podman compose down
+podman rm -f nginx-demo
 ```
 
 ---

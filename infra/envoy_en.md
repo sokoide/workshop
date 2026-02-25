@@ -112,8 +112,10 @@ static_resources:
 
 ```bash
 cd infra/assets/envoy
-docker-compose up -d
+podman compose up -d
 ```
+
+> Note: This repository includes `infra/assets/envoy` as a sample directory. Review and adjust the files as needed while following this guide.
 
 ---
 
@@ -170,7 +172,7 @@ Business logic (Usecase/Domain) is protected from "infrastructure details" like 
 ## Cleanup
 
 ```bash
-docker-compose down
+podman compose down
 ```
 
 ---

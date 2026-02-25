@@ -76,7 +76,7 @@ infra/assets/redis_leaderboard/
 
 ## Preparation
 
-### 1. Start Redis (Podman/Docker)
+### 1. Start Redis (Podman)
 
 Using Makefile (recommended):
 
