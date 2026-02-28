@@ -1,289 +1,350 @@
-# シャーディング基礎: Sparse Table, Segment Tree, Elasticsearch, Cortex
+# シャーディング: 原理から Go 実装まで
 
-このガイドは、分散システムにおける実践的なシャーディング設計を、次の実システムと結びつけて整理します。
+このドキュメントは、シャーディングを「概念説明」ではなく「実装して運用できる設計」として整理します。
 
-- **Elasticsearch** におけるインデックス/データ分割
-- **Cortex** におけるハッシュリングベースの時系列シャーディング
-- シャード選択や負荷分散に使える補助データ構造としての **Sparse Table** と **Segment Tree**
+扱う内容:
 
-## ゴール
-
-この資料を読むことで、以下を判断できるようになることを目指します。
-
-1. ワークロード形状に応じて戦略（hash/range/tenant-aware）を選べる。
-2. スキューとクロスシャード fan-out を抑えるシャードキーを選べる。
-3. シャーディング制御面で Sparse Table / Segment Tree の使い分けができる。
-4. Elasticsearch と Cortex に概念を対応づけられる。
-5. Cortex PR #7266 / #7270 がリング制御ループへ与える影響を説明できる。
+1. シャーディングが必要になる理由
+2. 戦略選定（hash / range / tenant）
+3. fan-out・ホットスポット・再シャーディング
+4. 制御プレーン安定性の重要性
+5. Sparse Table / Segment Tree とシャーディングの関係
+6. Go での実装パターン
+7. Elasticsearch / Cortex への対応づけ
 
 ---
 
-## なぜシャーディングが必要か
+## 1) シャーディングとは何か
 
-単一ノードは、いずれ以下のどれかで限界に達します。
+シャーディングは、データとトラフィックを複数ノードへ水平分割する設計です。
 
-- 保存容量
-- 書き込みスループット
-- クエリ同時実行性
-- 障害ドメインの広さ
+単一ノード集中:
 
-シャーディングはデータとトラフィックを分割し、水平スケールと障害時の影響局所化を実現します。
+```text
+all data -> one machine
+```
 
----
+分割後:
 
-## 代表的なシャーディング戦略
+```text
+data partitioned -> many machines
+```
 
-### 1. ハッシュベース
+各分割単位を **shard** と呼びます。
 
-- `hash(key) % N`（または一貫性ハッシュリング）で振り分ける。
-- 書き込み分散に強い。
-- 主要アクセスがキー局所でないと fan-out が増えやすい。
+必要になる背景:
 
-### 2. レンジベース
+- 保存容量の上限
+- 書き込みスループットの上限
+- クエリ同時実行数の上限
+- 障害時の blast radius 拡大
 
-- 時刻帯や ID 範囲など、キー範囲で振り分ける。
-- 範囲検索に強い。
-- 新規書き込みが一部レンジに集中するとホットシャード化しやすい。
+ただし、スケールと引き換えに次の課題が増えます。
 
-### 3. テナント/ドメインベース
-
-- tenant/org/customer などの境界で振り分ける。
-- ノイジーネイバー対策や SLO 分離に有効。
-- テナント規模差が大きいと偏りやすい。
-
----
-
-## シャードキー選定フレームワーク
-
-シャードキー選定時は、まず以下を確認します。
-
-1. 主体は write-heavy / point read / range scan のどれか。
-2. ホットキーが生じるか（少数 ID にアクセス集中するか）。
-3. 代表クエリを単一シャードで完結できるか。
-4. 将来の再分割でキー移動が頻繁に発生しないか。
-
-よくある選択:
-
-- 書き込み中心かつキー分布が均一: ハッシュ分割
-- 時系列範囲検索中心: レンジ分割または time+hash のハイブリッド
-- マルチテナント SaaS: テナント分割 + 必要に応じてテナント内ハッシュ
-
-アンチパターン:
-
-- 低カーディナリティ列をそのままシャードキー化
-- 主要クエリ条件と無関係なキー選定
-- 再シャーディング手順を設計せずに本番投入
+- クロスシャード fan-out
+- スキューとホットスポット
+- オンライン再分配の複雑化
+- ルーティング整合性
+- 制御プレーン収束の不安定化
 
 ---
 
-## 一貫性ハッシュと再配置コスト
+## 2) 最初に固定すべきコア概念
 
-単純な `hash(key) % N` はノード数 `N` の変更時に大半キーが再配置されます。  
-一貫性ハッシュは、スケール時の再配置量を抑えます。
+### 2.1 シャードキー
+
+「このデータはどのシャードが持つか」を決める軸です。
+
+悪いキー選定は:
+
+- 負荷偏り
+- ホットパーティション
+- 高コストな多シャード検索
+
+につながります。
+
+### 2.2 ルーティング関数
+
+キーが決まると、ルーティングは次です。
+
+```text
+route(key) -> shard
+```
+
+代表パターン:
+
+- modulo hash
+- consistent hash ring
+- range map
+- tenant/domain map
+
+### 2.3 レプリケーション
+
+シャーディングは分散、レプリケーションは可用性です。
+
+組み合わせにより以下が決まります。
+
+- 書き込みクォーラムと耐久性
+- 読み取り整合性
+- 部分障害時の挙動
+
+---
+
+## 3) 戦略選定: Hash / Range / Tenant
+
+### 3.1 ハッシュ分割
+
+キーをハッシュして振り分けます。
+
+向いているケース:
+
+- 高書き込み
+- キー分布が比較的均一
+
+トレードオフ:
+
+- 書き込み分散はしやすい
+- 集計クエリは fan-out しやすい
+
+### 3.2 レンジ分割
+
+時刻帯や ID 範囲で分割します。
+
+向いているケース:
+
+- 時系列ウィンドウ検索
+- 範囲スキャン
+
+トレードオフ:
+
+- 範囲読み取りが効率的
+- 最新レンジがホット化しやすい
+
+定番対策:
+
+- time partition + hash suffix
+
+### 3.3 テナント分割
+
+tenant/org/customer 境界で分割します。
+
+向いているケース:
+
+- マルチテナント SaaS
+- ノイジーネイバー分離
+- テナント別 SLO
+
+トレードオフ:
+
+- 大規模テナントが容量を圧迫しやすい
+
+定番対策:
+
+- shuffle sharding
+- テナント内ハッシュ
+
+---
+
+## 4) 一貫性ハッシュと再配置コスト
+
+単純な modulo 方式:
+
+```text
+hash(key) % N
+```
+
+問題:
+
+`N` の変更で多くのキーが再配置される。
+
+一貫性ハッシュはスケール時の移動量を抑えます。
 
 実装パターン:
 
 - 仮想ノード付きトークンリング
 - Rendezvous (HRW) hashing
-- 低メモリなクライアント側ルーティングに向く Jump Consistent Hash
+- Jump Consistent Hash
 
 運用上の要点:
 
-- 仮想ノードは分布平滑化に有効
-- レプリカ配置はトポロジ（ゾーン）を考慮
-- スケールイベントはキャッシュミス急増を避けるため段階的に実行
+- 仮想ノード数で分布平滑化
+- レプリカ配置はトポロジを考慮
+- スケールイベントは段階実行
 
 ---
 
-## Sparse Table と Segment Tree の使い分け
+## 5) Sparse Table / Segment Tree とシャーディングの関係
 
-これらはシャーディング方式そのものではなく、**シャード選択・負荷分散判断のための補助データ構造**です。
+これらはシャーディング方式そのものではありません。**シャード制御判断を高速化する制御プレーン向けデータ構造**です。
 
-### Sparse Table（静的レンジクエリ向け）
+### 5.1 どこで使うか
 
-- 値更新が少ないケースに向く。
-- RMQ/min/max/GCD などを前計算して保持。
-- min/max のような冪等演算ではクエリ `O(1)`。
-- 構築 `O(n log n)`、更新は重い。
+- データプレーン:
+  - 実トラフィックの write/read
+- 制御プレーン:
+  - シャード状態スナップショット
+  - 負荷ベース選択
+  - 再配置判断
 
-使いどころ:
+Sparse Table / Segment Tree は制御プレーンで効きます。
 
-- シャード遅延の最小値スナップショットを定期再構築
-- 読み取り主体のルーティング判断
+### 5.2 Sparse Table（静的レンジクエリ向け）
 
-### Segment Tree（動的レンジクエリ向け）
+シャードメタデータが「一定期間ほぼ不変」の場合に使います。
 
-- 値が継続的に変化するケースに向く。
-- クエリ/一点更新ともに `O(log n)` が基本。
-- メトリクス更新頻度が高いオンライン負荷分散に適する。
+性質:
 
-使いどころ:
+- 構築: `O(n log n)`
+- クエリ（min/max など）: `O(1)`
+- 更新: 重い（再構築前提）
 
-- シャードごとの QPS / p95 / p99 / queue depth を動的管理
-- 範囲内の低負荷シャード探索
+シャーディング文脈での用途:
 
-### 実務上の目安
+- 期間スナップショットから最小遅延シャードを即時参照
+- バッチ更新されるプランナーメタデータの高速参照
+- 静的区間統計に基づく候補シャード抽出
 
-- ほぼ静的なメタデータ + 高クエリ頻度: **Sparse Table**
-- 高頻度更新されるメタデータ: **Segment Tree**
+### 5.3 Segment Tree（動的レンジクエリ向け）
 
----
+シャード負荷メトリクスが継続的に変化する場合に使います。
 
-## ホットスポット対策
+性質:
 
-### 書き込みホットスポット
+- 構築: `O(n)` もしくは `O(n log n)`
+- 一点更新: `O(log n)`
+- 範囲クエリ: `O(log n)`
 
-- key salting（例: `user_id#bucket`）
-- ホットレンジの自動分割
-- バッファリングとバッチ書き込み
+シャーディング文脈での用途:
 
-### 読み取りホットスポット
+- shard ごとの QPS / p95 / queue depth の動的更新
+- 一部範囲から最小負荷 shard を選ぶ
+- テレメトリ駆動のオンライン再分配
 
-- リクエスト集約（singleflight）
-- 許容遅延つきリードレプリカ
-- キー特性に応じた TTL 設計
+### 5.4 使い分け基準
 
-### テナント偏り
+- ほぼ静的メタデータ + 高クエリ頻度 -> Sparse Table
+- 高頻度更新メタデータ -> Segment Tree
 
-- shuffle sharding によるテナント分離
-- テナント別クォータと公平スケジューリング
-- ノイジーネイバー用サーキットブレーカー
-
----
-
-## リバランスと再シャーディング
-
-再シャーディングは緊急対応ではなく、通常運用機能として設計します。
-
-安全な移行パターン:
-
-1. `dual-write + old read` を開始
-2. 新配置へバックフィル
-3. shadow read で整合性比較
-4. read を新配置へ切替
-5. 検証期間後に旧配置を廃止
-
-移行時の監視項目:
-
-- クロスシャード遅延と fan-out 数
-- old/new 読み取り差分率
-- エラーバジェット消費速度
-- キュー深さとリトライ急増兆候
+要点は、シャーディングの安定性は「どのデータ構造で制御判断を回すか」に強く依存することです。
 
 ---
 
-## クエリ fan-out 制御
+## 6) Fan-out、ホットスポット、再シャーディング
 
-シャーディングの隠れコストは fan-out です。
+### 6.1 Fan-out は隠れコスト
+
+1 クエリが多数シャードへ広がると:
+
+- tail latency が悪化
+- メモリ/マージコストが増加
+- 部分障害の影響確率が上昇
 
 低減策:
 
-- シャードキーを主要フィルタ条件に寄せる
-- 事前集計インデックスを導入
-- tenant/partition/time window などの routing hint を活用
-- 二段階検索（候補シャード特定 -> 対象取得）
+- 主要フィルタとシャードキーを一致させる
+- 時間窓を絞る
+- tenant/partition ヒントでルーティングする
+- 二段階クエリ（候補抽出 -> 対象取得）
+
+### 6.2 ホットスポット対策
+
+- 書き込み偏り: key salting, adaptive split, buffering
+- 読み取り偏り: coalescing, replicas, cache tiers
+- テナント偏り: shuffle sharding, quota, fairness scheduler
+
+### 6.3 安全な再シャーディング
+
+1. dual-write + old read
+2. 新配置へ backfill
+3. shadow read で比較
+4. read を切替
+5. 検証後に旧配置廃止
+
+シャードキー変更を即時対応で済ませないことが重要です。
 
 ---
 
-## レプリケーションと障害ドメイン
+## 7) データプレーンと制御プレーン
 
-シャーディングのみでは可用性は十分ではありません。レプリケーション戦略を同時に設計します。
+データプレーンはユーザートラフィック処理。
+制御プレーンは所有権、リング更新、ヘルス伝播、再配置ループ処理。
 
-設計ポイント:
+重大障害の多くは、ハッシュ関数そのものではなく制御プレーン不安定化で発生します。
 
-- データ重要度別レプリカ数
-- ゾーン分散配置
-- リーダー選出と書き込みクォーラム
-- 部分障害時の読み取り整合性（strong / eventual）
+### Cortex のリングループ最適化
 
----
+- PR #7266: **2026年2月16日**にマージ
+  - [cortexproject/cortex#7266](https://github.com/cortexproject/cortex/pull/7266)
+  - DynamoDB watch loop の `time.After(...)` を再利用 `time.Timer` へ置換
+  - PR 掲載ベンチ: 約 `248 B/op, 3 allocs/op` -> `0 B/op, 0 allocs/op`
+- PR #7270: **2026年2月20日**にマージ
+  - [cortexproject/cortex#7270](https://github.com/cortexproject/cortex/pull/7270)
+  - lifecycler / backoff ループまで timer 再利用を拡張
 
-## 例1: Elasticsearch
+シャーディングへの意味:
 
-Elasticsearch はインデックスを **primary shards**（+ replica）へ分割し、書き込み/検索をシャード単位で処理して結果をマージします。
-
-### 概念対応
-
-- 既定ルーティングは（既定では `_id` の）ハッシュで primary shard を決定。
-- 検索は多シャード fan-out + マージになりやすい。
-- ルーティングキーや時系列偏りでホットシャードが発生しやすい。
-
-### 実務上の設計ポイント
-
-- テナント局所性が必要なら custom routing を検討
-- シャードサイズとライフサイクルを早期に設計
-- 時間範囲とインデックスパターンを絞って fan-out を抑制
-- シャード偏りを定常的に監視し、先手で再配置
+制御ループは常時動作するため、微小な allocation でも GC ジッタを増幅し、所有権収束遅延や遷移不安定化を招きます。
 
 ---
 
-## 例2: Cortex
+## 8) 実システムへの対応づけ
 
-Cortex は **consistent hash ring** を使い、ingester などのリング対象コンポーネントへ時系列責務を分散します。
+### 8.1 Elasticsearch
 
-```mermaid
-graph LR
-    D[Distributor] -->|series labels をハッシュ| R[(Ring)]
-    R --> I1[Ingester A]
-    R --> I2[Ingester B]
-    R --> I3[Ingester C]
-    Q[Querier] --> R
+- index を primary shards + replicas へ分割
+- `_id`（または custom key）ハッシュで routing
+- 検索は fan-out 後にマージ
+
+設計示唆:
+
+- 局所性が必要なら routing key を設計
+- 時間範囲と index 対象を絞って fan-out 抑制
+- shard サイズと lifecycle を初期段階で決定
+
+### 8.2 Cortex
+
+- series labels を consistent-hash ring に投入
+- ring から replication set を選択
+- ring 収束品質が ingestion/query 安定性に直結
+
+設計示唆:
+
+- ring backend レイテンシは所有権伝播に影響
+- rollout 時の token movement を制御
+- 制御ループ効率がシャード安定性を左右
+
+---
+
+## 9) Go 実装リファレンス
+
+実行可能なサンプルを追加しています:
+
+- `infra/assets/sharding/main.go`
+
+含まれる内容:
+
+1. modulo hash router
+2. 仮想ノード付き consistent hash ring + 複製セット取得
+3. tenant-aware routing
+4. Sparse Table による静的 range-min クエリ
+5. Segment Tree による動的 range-min クエリ
+
+実行:
+
+```bash
+go run infra/assets/sharding/main.go
 ```
 
-### 概念対応
-
-- ハッシュ分割により series をトークン範囲へ割り当て
-- 複数 ingester へのレプリケーションで HA を確保
-- リング収束速度と健全性が ingestion/query 安定性へ直結
-
-### Cortex運用の注意点
-
-- ring backend の遅延は所有権伝播遅延に直結
-- ロールアウト時のトークン移動量は制御が必要
-- マルチテナントでは shuffle-sharding 的な隔離が有効
-
 ---
 
-## Cortex PR（リング監視ループ最適化）
+## 10) 最終設計ルール
 
-### PR #7266
-
-- URL: [cortexproject/cortex#7266](https://github.com/cortexproject/cortex/pull/7266)
-- タイトル: `ring/kv/dynamodb: reuse timers in watch loops to avoid per-poll allocations`
-- 状態: **2026年2月16日にマージ済み**
-- 変更点:
-  - DynamoDB watch loop の `time.After(...)` を再利用可能 `time.Timer` に置換
-  - 安全な `resetTimer`（stop + drain + reset）を導入
-  - ベンチマーク `pkg/ring/kv/dynamodb/client_timer_benchmark_test.go` を追加
-- PR 記載のベンチ結果:
-  - `time.After`: 約 `248 B/op`, `3 allocs/op`
-  - reusable timer: `0 B/op`, `0 allocs/op`
-
-### PR #7270
-
-- URL: [cortexproject/cortex#7270](https://github.com/cortexproject/cortex/pull/7270)
-- タイトル: `[ENHANCEMENT] ring/backoff: reuse timers in lifecycler and backoff loops`
-- 状態: **2026年2月18日時点で open**
-- 変更点:
-  - `lifecycler`, `basic_lifecycler`, `util/backoff` へ timer 再利用を拡張
-  - `pkg/ring/ticker.go` に安全な timer helper を共通化
-  - DynamoDB CAS で `make(map..., len(buf))` による小さな割り当て最適化
-
-### シャーディング観点での意義
-
-ring watch/backoff/lifecycler は制御プレーンの常時ループです。  
-反復ごとのメモリアロケーション削減は GC 圧とジッタを下げ、シャード所有権遷移とリング収束の安定化に寄与します。
-
----
-
-## 実践チェックリスト
-
-1. スキーマ都合ではなくアクセスパターンでシャードキーを決める。
-2. 本番前に再分割手順（split/migrate/throttle）を定義する。
-3. シャード単位の QPS/p95/p99/queue depth を監視する。
-4. fan-out 指標に上限 SLO を設定して追跡する。
-5. 制御プレーン安定性とデータプレーン性能を分離して予算化する。
-6. メタデータ更新特性で Sparse Table / Segment Tree を使い分ける。
+1. シャードキーはスキーマ都合ではなく主要クエリで決める。
+2. 本番前に再シャーディング経路を設計する。
+3. shard 単位メトリクス（QPS, p95/p99, queue depth, fan-out）を常時監視する。
+4. 制御ループは低 allocation で予測可能に保つ。
+5. レプリケーションとトポロジ考慮は必須。
+6. Sparse Table / Segment Tree は更新特性で使い分ける。
 
 ---
 
