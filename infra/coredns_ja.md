@@ -2,6 +2,8 @@
 
 ソフトウェアエンジニア向けに、DNS の基本的な仕組み（権威サーバー、フォワーディング、委譲）を、**CoreDNS** を使って実際に構築しながら学びます。
 
+> **💡 用語集**: この実習で登場する[権威 DNS サーバー](glossary.md#network)や[フォワーディング](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 以下の親子関係を持つ DNS 構成を構築し、名前解決の流れを理解します。
@@ -94,6 +96,11 @@ sudo mv coredns /usr/local/bin/
 coredns -version
 ```
 
+### ✅ チェックポイント
+
+- [ ] `coredns -version` でバージョン情報が表示されることを確認した
+- [ ] `/usr/local/bin/coredns` に実行権限があることを確認した
+
 ### STEP 2: VM1 (親) の構築: sokoide.com
 
 VM1 は親ドメイン `sokoide.com` を管理し、`foo.sokoide.com` 宛の問い合わせを VM2 へ転送します。
@@ -135,6 +142,10 @@ VM1 は親ドメイン `sokoide.com` を管理し、`foo.sokoide.com` 宛の問�
     EOF
     ```
 
+### ✅ チェックポイント
+
+- [ ] `~/coredns_parent` 内に `Corefile` と `db.sokoide.com` が存在することを確認した
+
 ### STEP 3: VM2 (子) の構築: foo.sokoide.com
 
 VM2 はサブドメイン `foo.sokoide.com` の正解データを持ちます。
@@ -169,6 +180,10 @@ VM2 はサブドメイン `foo.sokoide.com` の正解データを持ちます。
     EOF
     ```
 
+### ✅ チェックポイント
+
+- [ ] `~/coredns_child` 内に `Corefile` と `db.foo.sokoide.com` が存在することを確認した
+
 ### STEP 4: DNS サーバーの起動
 
 **VM1, VM2 それぞれで実行:**
@@ -179,6 +194,10 @@ VM2 はサブドメイン `foo.sokoide.com` の正解データを持ちます。
 coredns -conf Corefile
 ```
 
+### ✅ チェックポイント
+
+- [ ] CoreDNS のログに `CoreDNS-1.13.2` (または指定したバージョン) が表示され、起動に成功したことを確認した
+
 ※ 起動したままにしてログを確認してください。
 
 ### STEP 5: 動作確認 (dig)
@@ -187,18 +206,18 @@ coredns -conf Corefile
 
 1. **直接解決**: 親サーバーに `www.sokoide.com` を聞く
 
-   ```bash
-   dig @192.168.100.10 -p 10053 www.sokoide.com +short
-   # -> 1.1.1.1
-   ```
+    ```bash
+    dig @192.168.100.10 -p 10053 www.sokoide.com +short
+    # -> 1.1.1.1
+    ```
 
 2. **転送解決**: 親サーバーに `test.foo.sokoide.com` を聞く
 
-   ```bash
-   dig @192.168.100.10 -p 10053 test.foo.sokoide.com
-   ```
+    ```bash
+    dig @192.168.100.10 -p 10053 test.foo.sokoide.com
+    ```
 
-   **結果の確認**: `ANSWER SECTION` に `2.2.2.2` が表示され、`SERVER` が `192.168.100.10` になっていれば、親が子から答えを「代行取得」したことがわかります。
+    **結果の確認**: `ANSWER SECTION` に `2.2.2.2` が表示され、`SERVER` が `192.168.100.10` になっていれば、親が子から答えを「代行取得」したことがわかります。
 
 ---
 
@@ -207,9 +226,9 @@ coredns -conf Corefile
 1. `Ctrl+C` で CoreDNS を停止します。
 2. 作業ディレクトリを削除します。
 
-   ```bash
-   rm -rf ~/coredns_parent ~/coredns_child
-   ```
+    ```bash
+    rm -rf ~/coredns_parent ~/coredns_child
+    ```
 
 ---
 
@@ -226,3 +245,48 @@ coredns -conf Corefile
 
 - [CoreDNS Official Documentation](https://coredns.io/docs/)
 - [RFC 1034 - Domain Names - Concepts and Facilities](https://tools.ietf.org/html/rfc1034)
+
+---
+
+## 🔧 トラブルシューティング
+
+### ポート 10053 が既に使用されている
+
+**症状**: `listen tcp :10053: bind: address already in use`
+
+**原因と対処**:
+
+- **重複起動**: 既に CoreDNS プロセスが動いています。
+
+    ```bash
+    ps aux | grep coredns
+    kill <PID>
+    ```
+
+### 名前解決ができない (NXDOMAIN)
+
+**症状**: `dig` の結果が空、または `status: NXDOMAIN`
+
+**原因と対処**:
+
+- **レコード不足**: `db.sokoide.com` に `www` などの A レコードが正しく記載されているか確認してください。
+- **Corefile の不整合**: Corefile 内のファイル名と実際のファイル名が一致しているか確認してください。
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+- `dnsutils` の代わりに `bind` パッケージをインストールしてください。
+
+    ```bash
+    brew install bind
+    ```
+
+- CoreDNS バイナリは Darwin 用のものをダウンロードしてください。
+
+### Windows の場合
+
+- WSL2 (Ubuntu) 上で実行可能です。
+- Windows 側のファイアウォールで UDP/TCP 10053 ポートの通信を許可する必要がある場合があります。

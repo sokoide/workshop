@@ -2,6 +2,8 @@
 
 In this workshop, you will build a system that flexibly filters and processes real-time trade data using the powerful **Topic Exchange** feature of **RabbitMQ**.
 
+> **💡 Glossary**: Please refer to the [Pub/Sub Pattern](glossary.md#mq) or [Wildcard Matching](glossary.md#mq) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Build a monitoring system based on **Clean Architecture** with the following features.
@@ -81,7 +83,12 @@ cd infra/assets/rabbitmq_crypto
 make mq-up
 ```
 
-*Note: Access the management UI at [http://localhost:15672](http://localhost:15672) (guest/guest).*
+_Note: Access the management UI at [http://localhost:15672](http://localhost:15672) (guest/guest)._
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `workshop-mq` is `Up` via `podman ps`.
+- [ ] Confirmed the management UI at [http://localhost:15672](http://localhost:15672) is accessible.
 
 ### 2. Install Dependencies
 
@@ -101,7 +108,7 @@ Start the `ticker` that continuously generates trade data.
 go run cmd/ticker/main.go
 ```
 
-*Note: It will keep publishing messages with keys like `market.btc.usd`.*
+_Note: It will keep publishing messages with keys like `market.btc.usd`._
 
 ### STEP 2: Log All Transactions (Topic: `market.#`)
 

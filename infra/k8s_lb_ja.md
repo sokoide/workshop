@@ -3,6 +3,8 @@
 この実習は、[vlan_ja.md](./vlan_ja.md) の環境を拡張して行います。
 Kubernetes の `Service (Type: LoadBalancer)` や `MetalLB` が、裏側でどのようにパケットを操作しているかを、Linux の基本機能だけで再現して学びます。
 
+> **💡 用語集**: この実習で登場する[LoadBalancer](glossary.md#network)や[iptables](glossary.md#network)、[VIP](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 外部の公開ネットワークから、Kubernetes 内部の Pod ネットワークで稼働するサービスへ、仮想 IP（VIP）経由でアクセスする構成を構築します。
@@ -56,38 +58,38 @@ Kubernetes の Pod は動的に作成・削除され、そのたびに IP アド
 
 ## アーキテクチャ
 
- Router コンテナが「LB + Node + kube-proxy」の役割をすべて担います。
+Router コンテナが「LB + Node + kube-proxy」の役割をすべて担います。
 
 ### パケットフローとコンポーネントの対応
 
- 実習で行う `iptables` 設定は、Kubernetes の以下のコンポーネントの挙動を再現しています。
+実習で行う `iptables` 設定は、Kubernetes の以下のコンポーネントの挙動を再現しています。
 
- ```mermaid
- graph LR
-     subgraph Public_Net [VLAN 10: Public Network]
-         Client[Client Container A<br>192.168.10.10]
-     end
- 
-     subgraph Router [Router Container (Simulating K8s Node)]
-         direction TB
-         VIP[VIP: 192.168.10.100<br>(MetalLB Speaker)]
-         
-         subgraph KubeProxy [kube-proxy Role]
-             DNAT(DNAT: Dest -> Pod IP<br>Service LoadBalancer)
-             SNAT(SNAT: Src -> Router IP<br>Masquerade)
-         end
-     end
- 
-     subgraph Pod_Net [VLAN 20: Pod Network]
-         Pod[Pod Container B<br>192.168.20.20]
-     end
- 
-     Client -- "1. Access VIP" --> VIP
-     VIP -- "2. Forward" --> DNAT
-     DNAT -- "3. Route to Pod" --> Pod
-     Pod -. "4. Reply" .-> SNAT
-     SNAT -. "5. Restore Src" .-> Client
- ```
+```mermaid
+graph LR
+    subgraph Public_Net [VLAN 10: Public Network]
+        Client[Client Container A<br>192.168.10.10]
+    end
+
+    subgraph Router [Router Container (Simulating K8s Node)]
+        direction TB
+        VIP[VIP: 192.168.10.100<br>(MetalLB Speaker)]
+
+        subgraph KubeProxy [kube-proxy Role]
+            DNAT(DNAT: Dest -> Pod IP<br>Service LoadBalancer)
+            SNAT(SNAT: Src -> Router IP<br>Masquerade)
+        end
+    end
+
+    subgraph Pod_Net [VLAN 20: Pod Network]
+        Pod[Pod Container B<br>192.168.20.20]
+    end
+
+    Client -- "1. Access VIP" --> VIP
+    VIP -- "2. Forward" --> DNAT
+    DNAT -- "3. Route to Pod" --> Pod
+    Pod -. "4. Reply" .-> SNAT
+    SNAT -. "5. Restore Src" .-> Client
+```
 
 - **VIP (MetalLB)**: `192.168.10.100` へのアクセスを受け付ける（ARP 応答）。
 - **DNAT (kube-proxy)**: 宛先を VIP から Pod の IP (`192.168.20.20`) に書き換える。
@@ -121,6 +123,11 @@ sudo podman exec b apk add --no-cache busybox-extras
 sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello from Pod B' | nc -l -p 80; done"
 ```
 
+### ✅ チェックポイント
+
+- [ ] `podman exec b ps aux | grep nc` で Web サーバー（nc）が起動していることを確認した
+- [ ] 同一ネットワーク内の `router` から `curl http://192.168.20.20` でレスポンスが返ることを確認した
+
 ### STEP 2: ネットワークの分断 (Firewall)
 
 「Pod IP には直接アクセスせず、Service IP を使う」原則を強制するため、直接通信をブロックします。
@@ -129,6 +136,11 @@ sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello fr
 # Router で転送をブロック (VLAN 10 -> VLAN 20)
 sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
 ```
+
+### ✅ チェックポイント
+
+- [ ] `podman exec a ping -c 1 192.168.20.20` が失敗（タイムアウト）することを確認した
+- [ ] ルーター経由の直接通信が遮断されていることを確認した
 
 ※ `a` から `b` (192.168.20.20) への Ping が失敗することを確認してください。
 
@@ -139,6 +151,11 @@ sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
 ```bash
 sudo podman exec router ip addr add 192.168.10.100/32 dev eth1
 ```
+
+### ✅ チェックポイント
+
+- [ ] `podman exec router ip addr show eth1` で `192.168.10.100` が追加されていることを確認した
+- [ ] `podman exec a ping -c 1 192.168.10.100` が成功することを確認した
 
 ※ これにより、ルーターが VIP 宛の ARP リクエストに応答するようになります（MetalLB の挙動）。
 
@@ -152,6 +169,10 @@ sudo podman exec router iptables -t nat -A PREROUTING \
   -d 192.168.10.100 -p tcp --dport 80 \
   -j DNAT --to-destination 192.168.20.20:80
 ```
+
+### ✅ チェックポイント
+
+- [ ] `sudo podman exec router iptables -t nat -L PREROUTING` で DNAT ルールが登録されていることを確認した
 
 ### STEP 5: 戻りパケットの処理 (SNAT)
 
@@ -167,9 +188,13 @@ sudo podman exec router iptables -t nat -A POSTROUTING \
 
 ```bash
 # VIP にアクセス
-sudo podman exec a curl http://192.168.10.100
 # -> "Hello from Pod B" と出れば成功！
 ```
+
+### ✅ チェックポイント
+
+- [ ] `curl http://192.168.10.100` で "Hello from Pod B" というメッセージが返ることを確認した
+- [ ] `podman exec router iptables -t nat -L -v` で、パケット（pkts）のカウントが増加していることを確認した
 
 ---
 
@@ -199,3 +224,37 @@ sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 
 - [Kubernetes Documentation: Service](https://kubernetes.io/docs/concepts/services-networking/service/)
 - [MetalLB Official Site](https://metallb.universe.tf/)
+
+---
+
+## 🔧 トラブルシューティング
+
+### VIP にアクセスできない
+
+**症状**: `curl: (7) Failed to connect to 192.168.10.100 port 80: Connection timed out`
+
+**原因と対処**:
+
+- **iptables の設定順序**: `PREROUTING` チェーンにルールが正しく追加されているか確認してください。
+- **FORWARD チェーンの競合**: STEP 2 で設定した `DROP` ルールが、DNAT 後のパケットまでブロックしていないか確認してください（通常 DNAT 後のパケットは FORWARD を通りますが、ポリシーにより挙動が変わります）。
+
+### 戻りパケットが届かない
+
+**症状**: 通信が途中で止まる、またはタイムアウトする
+
+**原因と対処**:
+
+- **MASQUERADE (SNAT) の不足**: ルーターで `POSTROUTING` の MASQUERADE 設定が漏れていると、Container B が直接 Container A に返信しようとして失敗します。
+
+---
+
+## 💻 環境別注意事項
+
+### Linux の場合
+
+- ホスト OS の `iptables` と競合しないよう、コンテナ（router）内の `iptables` を使用してください。
+
+### macOS / Windows の場合
+
+- Podman/Docker Desktop の Linux VM 内で完結しているため、基本的には追加設定なしで実行可能です。
+- VIP は VM 内部でのみ有効なため、ホストブラウザから直接アクセスするにはポートフォワーディング等の追加設定が必要です。

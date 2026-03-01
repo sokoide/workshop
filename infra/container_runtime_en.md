@@ -2,6 +2,8 @@
 
 In this workshop, you will learn how containers are built and restricted by manually manipulating Linux's standard features: **namespaces** and **cgroups**. Finally, you will create your own container runtime using the Go language.
 
+> **💡 Glossary**: Please refer to [namespaces](glossary.md#container) and [cgroups](glossary.md#container) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Demystify the "magic" of containers and implement process isolation by combining low-layer technologies (namespaces, resource limits, and virtual networking).
@@ -94,20 +96,25 @@ mkdir -p rootfs && tar -xf rootfs.tar -C rootfs
 cp /etc/resolv.conf rootfs/etc/resolv.conf
 ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed the existence of `/bin/sh` using `ls -F rootfs/bin/sh`.
+- [ ] Confirmed successful copy of `resolv.conf`.
+
 ### STEP 2: Isolation with Namespaces
 
 Experience manual isolation using the `unshare` command.
 
 1. **PID Namespace**: `sudo unshare --pid --fork /bin/sh`
-   - Verify that `echo $$` outputs PID 1.
+    - Verify that `echo $$` outputs PID 1.
 2. **Mount Namespace and chroot**:
 
-   ```bash
-   sudo unshare --pid --fork --mount /bin/sh
-   chroot rootfs /bin/sh
-   mount -t proc proc /proc
-   ps # Only processes inside the container are visible
-   ```
+    ```bash
+    sudo unshare --pid --fork --mount /bin/sh
+    chroot rootfs /bin/sh
+    mount -t proc proc /proc
+    ps # Only processes inside the container are visible
+    ```
 
 ### STEP 3: Apply Resource Control (Cgroups v2)
 
@@ -123,6 +130,11 @@ echo 0 | sudo tee /sys/fs/cgroup/workshop/memory.swap.max
 echo $TARGET_PID | sudo tee /sys/fs/cgroup/workshop/cgroup.procs
 ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `cat /sys/fs/cgroup/workshop/memory.max` is 52428800 (50MB).
+- [ ] Confirmed that the process is registered in the cgroup.
+
 ### STEP 4: Network Connection via Virtual Ethernet (veth)
 
 Connect the host and the namespace with a virtual LAN cable.
@@ -135,6 +147,11 @@ sudo ip link set veth-child netns container1
 sudo ip addr add 10.0.0.1/24 dev veth-host
 sudo ip link set veth-host up
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `container1` netns exists via `ip netns list`.
+- [ ] Confirmed `10.0.0.1` is assigned to `veth-host`.
 
 ### STEP 5: Implement Container in Go
 
@@ -160,3 +177,47 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 
 - [Linux manual page: namespaces(7)](https://man7.org/linux/man-pages/man7/namespaces.7.html)
 - [Control Groups v2 (Official Kernel Docs)](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html)
+
+---
+
+## 🔧 Troubleshooting
+
+### `syscall.CLONE_NEWPID` Fails
+
+**Symptoms**: `operation not permitted` or `invalid argument`
+
+**Causes and Solutions**:
+
+- **Insufficient Permissions**: Creating namespaces other than the user namespace requires root privileges.
+
+    ```bash
+    sudo ./mycontainer
+    ```
+
+### cgroup v2 is Not Mounted
+
+**Symptoms**: Files cannot be created under `/sys/fs/cgroup`.
+
+**Causes and Solutions**:
+
+- The kernel version is old or cgroup v1 is in use.
+
+    ```bash
+    mount | grep cgroup
+    ```
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+**This workshop is for Linux environment only.**
+
+- Namespaces and cgroups are features unique to the Linux kernel, so they do not work on macOS.
+- **Recommendation**: Use Lima, Colima, or an Ubuntu instance on the cloud.
+
+### For Windows Users
+
+- **WSL2**: Most features will work in the latest WSL2 environments.
+- **Recommendation**: Running on an Ubuntu instance on the cloud is the most reliable way.

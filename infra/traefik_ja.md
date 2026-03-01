@@ -2,6 +2,8 @@
 
 この実習では、クラウドネイティブなエッジルーターである **Traefik** を使用して、Kubernetes Ingress コントローラーの背後にある仕組み（L7 ルーティング、ロードバランシング、サービスディスカバリ）を学びます。
 
+> **💡 用語集**: この実習で登場する[Reverse Proxy](glossary.md#network)や[Ingress](glossary.md#architecture)、[Service Discovery](glossary.md#architecture)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 この実習を完了すると、以下のことができるようになります：
@@ -75,43 +77,48 @@ infra/assets/traefik/
 version: "3"
 
 services:
-  # Traefik リバースプロキシ
-  traefik:
-    image: traefik:v2.10
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "80:80"
-      - "8080:8080" # Dashboard
-    volumes:
-      - /run/podman/podman.sock:/var/run/docker.sock:ro
+    # Traefik リバースプロキシ
+    traefik:
+        image: traefik:v2.10
+        command:
+            - "--api.insecure=true"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entrypoints.web.address=:80"
+        ports:
+            - "80:80"
+            - "8080:8080" # Dashboard
+        volumes:
+            - /run/podman/podman.sock:/var/run/docker.sock:ro
 
-  # バックエンド A (Whoami)
-  whoami-a:
-    image: traefik/whoami
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+    # バックエンド A (Whoami)
+    whoami-a:
+        image: traefik/whoami
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+            - "traefik.http.services.whoami.loadbalancer.server.port=80"
 
-  # バックエンド B (Whoami - 同一サービスとしてLB)
-  whoami-b:
-    image: traefik/whoami
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+    # バックエンド B (Whoami - 同一サービスとしてLB)
+    whoami-b:
+        image: traefik/whoami
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+            - "traefik.http.services.whoami.loadbalancer.server.port=80"
 ```
 
 ### 2. コンテナの起動
 
 ```bash
-cd infra/assets/traefik
 podman compose up -d
 ```
+
+### ✅ チェックポイント
+
+- [ ] `podman ps` で `traefik`, `whoami-a`, `whoami-b` が実行中であることを確認した
+- [ ] ブラウザで `http://localhost:8080` を開き、Dashboard が表示されることを確認した
+- [ ] Dashboard の `HTTP Routers` タブに `whoami` ルールが存在することを確認した
 
 > 注: このリポジトリには `infra/assets/traefik` のサンプルディレクトリが含まれています。必要に応じて内容を確認・編集して進めてください。
 
@@ -159,6 +166,12 @@ podman run -d --name nginx-demo \
 curl http://localhost/nginx
 ```
 
+### ✅ チェックポイント
+
+- [ ] `curl -H "Host: whoami.localhost" http://localhost` を複数回実行し、異なるコンテナ ID が返ることを確認した
+- [ ] `podman run` で追加した nginx コンテナが Dashboard に即座に現れることを確認した
+- [ ] `/nginx` へのアクセスで nginx の Welcome ページ（または 404 Nginx 版）が返ることを確認した
+
 ### STEP 4: ミドルウェアの適用（Basic 認証）
 
 Traefik の強力な機能であるミドルウェアを試します。特定のルートに Basic 認証をかけます。
@@ -199,3 +212,37 @@ podman rm -f nginx-demo
 - **HTTPS 化**: Let's Encrypt と連携した自動証明書発行
 - **Kubernetes へのデプロイ**: Helm チャートを使用した Traefik の導入
 - **サービスメッシュ**: Envoy を使用したより高度なトラフィック制御（次の実習）
+
+---
+
+## 🔧 トラブルシューティング
+
+### Dashboard にアクセスできない (404)
+
+**症状**: `http://localhost:8080` が 404 になる、または接続できない
+
+**原因と対処**:
+
+- **API 未有効化**: `docker-compose.yml` の `command` に `--api.insecure=true` が含まれているか確認してください。
+- **ポートマッピング**: `ports` に `8080:8080` が正しく記述されているか確認してください。
+
+### サービスが検出されない (Service Discovery)
+
+**症状**: Dashboard に `whoami` ルーターが表示されない
+
+**原因と対処**:
+
+- **ソケットの権限**: `podman.sock` のマウントパスが正しいか、読み取り権限 (`ro`) があるか確認してください。
+- **ラベルの誤記**: `traefik.enable=true` ラベルを忘れていないか確認してください。
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+- Podman Desktop を使用している場合、`podman.sock` のパスが `/var/run/docker.sock` ではない場合があります。必要に応じて環境変数 `DOCKER_HOST` を確認してください。
+
+### Windows の場合
+
+- WSL2 で実行する場合、localhost 転送を有効にする必要があります。ブラウザから Dashboard にアクセスできない場合は `wsl.conf` や Windows のファイアウォール設定を確認してください。

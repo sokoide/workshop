@@ -2,6 +2,8 @@
 
 このワークショップでは、Infrastructure as Code (IaC) ツールである **Terraform** の基礎を学び、最終的にコンテナ技術と組み合わせて実践的な DNS サーバー環境を自動構築します。
 
+> **💡 用語集**: この実習で登場する[IaC](glossary.md#architecture)や[Terraform](glossary.md#architecture)、[Provider](glossary.md#architecture)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 Terraform の基本操作（init, plan, apply, destroy）を習得し、以下の 3 つのコンテナが連携する環境をコードで定義・構築します。
@@ -98,7 +100,11 @@ terraform plan    # 変更内容の確認
 terraform apply   # 実行 (yes と入力)
 ```
 
-※ `hello.txt` が作成されたことを確認してください。
+### ✅ チェックポイント
+
+- [ ] `terraform init` が正常に完了し、`.terraform` ディレクトリが作成されていることを確認した
+- [ ] `terraform apply` 実行後、ローカルに `hello.txt` が生成されていることを確認した
+- [ ] `terraform show` で現在の状態（State）が表示されることを確認した
 
 ### STEP 3: 変数と出力の活用
 
@@ -148,6 +154,11 @@ resource "local_file" "user_files" {
 
 `terraform plan` と `terraform apply` を実行し、3 つのユーザーファイルが作成されることを確認します。
 
+### ✅ チェックポイント
+
+- [ ] `sato.txt`, `suzuki.txt`, `tanaka.txt` の 3 つのファイルが作成されていることを確認した
+- [ ] `terraform destroy` を実行し、作成されたファイルがすべて削除されることを確認した
+
 ---
 
 ## 実習：パート 2 (実践編：DNS サーバー)
@@ -176,6 +187,11 @@ Podman でイメージをビルドします。
 ```bash
 podman build -t coredns-handson .
 ```
+
+### ✅ チェックポイント
+
+- [ ] `podman images` で `coredns-handson:latest` が存在することを確認した
+- [ ] `part2/versions.tf` で Docker プロバイダーが指定されていることを確認した
 
 ### STEP 1: Podman 互換プロバイダーの設定
 
@@ -305,10 +321,14 @@ podman exec -it container-router sh
 # コンテナ内で
 apk add bind-tools
 # Aレコードの直接解決をテスト
-dig @192.168.10.10 www.sokoide.com
-# Bへの転送（再帰解決）をテスト
 dig @192.168.10.10 server.foo.sokoide.com
 ```
+
+### ✅ チェックポイント
+
+- [ ] `podman network ls` で `net_a` と `net_b` が作成されていることを確認した
+- [ ] `podman ps` で `container-a`, `container-b`, `container-router` が起動していることを確認した
+- [ ] `dig` コマンドの結果、期待通りの IP アドレス（1.1.1.1 や 2.2.2.2）が返ってくることを確認した
 
 ---
 
@@ -326,3 +346,36 @@ terraform destroy
 
 - [Terraform Documentation](https://developer.hashicorp.com/terraform/docs)
 - [Terraform Podman 互換プロバイダー (kreuzwerker/docker)](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)
+
+---
+
+## 🔧 トラブルシューティング
+
+### terraform init でエラーが出る
+
+**症状**: `Error: Failed to install provider`
+
+**原因と対処**:
+
+- **ネットワークエラー**: プロキシ環境下では環境変数 `HTTP_PROXY` / `HTTPS_PROXY` を設定してください。
+- **バージョン不整合**: `versions.tf` に記述したバージョンが最新過ぎるか古すぎる可能性があります。Terraform Registry で最新版を確認してください。
+
+### コンテナの作成に失敗する
+
+**症状**: `Error: Error creating container: API error (404): no such image`
+
+**原因と対処**:
+
+- **イメージ不足**: `podman build` が成功しているか、タグ名が `coredns-handson:latest` で一致しているか確認してください。
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+- Podman Desktop を使用している場合、`podman.sock` のパスを環境変数 `DOCKER_HOST` に設定する必要がある場合があります。
+
+### Windows の場合
+
+- WSL2 上で Terraform を動かす際、Windows 側の `terraform.exe` ではなく、WSL 内部の Linux 版 Terraform をインストールして使用してください。

@@ -2,6 +2,8 @@
 
 このワークショップでは、OpenSSL を使用して独自の認証局 (CA) を構築し、サーバー証明書を発行・検証するプロセスを通じて、TLS/SSL および証明書チェーンの仕組みを学びます。
 
+> **💡 用語集**: この実習で登場する専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 独自のルート CA を構築し、SAN (Subject Alternative Name) に対応したサーバー証明書を発行して、Traefik による HTTPS 終端を構成します。
@@ -59,6 +61,11 @@ graph TD
 
 ## 実習ステップ
 
+### ✅ チェックポイント
+
+- [ ] `openssl version` で OpenSSL がインストールされていることを確認した
+- [ ] `podman version` または `docker version` でコンテナ実行環境があることを確認した
+
 ### STEP 1: ルート CA (Root CA) の構築
 
 すべての信頼の源となる「自分専用の認証局」を作成します。
@@ -96,6 +103,11 @@ EOF
 openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial \
   -out server.crt -days 365 -sha256 -extfile server.ext
 ```
+
+### ✅ チェックポイント
+
+- [ ] `ls -la server.crt` で証明書ファイルが生成されていることを確認した
+- [ ] `openssl x509 -in server.crt -noout -text` で `Subject Alternative Name` に `server.workshop.local` が含まれていることを確認した
 
 ### STEP 3: 証明書の検証
 
@@ -161,3 +173,84 @@ rm rootCA.* server.* dynamic_conf.yaml
 
 - [OpenSSL Documentation](https://www.openssl.org/docs/)
 - [Traefik TLS Documentation](https://doc.traefik.io/traefik/https/tls/)
+
+---
+
+## トラブルシューティング
+
+### curl で証明書エラーが発生する
+
+**症状**: `curl: (60) SSL certificate problem: unable to get local issuer certificate`
+
+**原因と対処**:
+
+- CA 証明書が正しく指定されているか確認
+
+    ```bash
+    curl --cacert rootCA.crt https://server.workshop.local
+    ```
+
+- サーバー証明書が CA で署名されているか確認
+
+    ```bash
+    openssl verify -CAfile rootCA.crt server.crt
+    # server.crt: OK と表示されるはず
+    ```
+
+### Traefik が起動しない
+
+**症状**: Traefik コンテナがすぐに終了する
+
+**原因と対処**:
+
+- 証明書ファイルのパスが正しいか確認
+
+    ```bash
+    ls -la rootCA.crt server.crt server.key
+    ```
+
+- dynamic_conf.yaml の構文を確認
+
+    ```bash
+    cat dynamic_conf.yaml
+    ```
+
+- Traefik のログを確認
+
+    ```bash
+    sudo podman logs traefik
+    ```
+
+### 証明書の検証に失敗する
+
+**症状**: `openssl verify` でエラー
+
+**原因と対処**:
+
+- SAN (Subject Alternative Name) が正しく設定されているか確認
+
+    ```bash
+    openssl x509 -in server.crt -noout -text | grep -A1 "Subject Alternative Name"
+    ```
+
+- ドメイン名が一致しているか確認
+
+    ```bash
+    cat /etc/hosts | grep server.workshop.local
+    ```
+
+---
+
+## 環境別注意事項
+
+### macOS の場合
+
+OpenSSL コマンドは同じですが、Traefik を Podman で動かす場合は VM 環境が必要です。
+
+- Docker Desktop for Mac を使用する場合、ポートフォワーディング設定を確認
+- `brew install openssl` で最新版の OpenSSL をインストール可能
+
+### Windows の場合
+
+- WSL2 上の Ubuntu で実行することを推奨
+- PowerShell ではなく WSL2 のターミナルでコマンドを実行

@@ -2,6 +2,8 @@
 
 In this workshop, you will learn how to build **iSCSI**, a traditional block storage protocol, and use it as a PersistentVolume in a Kubernetes cluster.
 
+> **💡 Glossary**: Please refer to [iSCSI](glossary.md#storage), [PersistentVolume](glossary.md#storage), or [LUN](glossary.md#storage) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Build the following configuration, mount external storage into a Pod, and verify data persistence.
@@ -108,13 +110,18 @@ sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backsto
 ```
 
 Next, allow connection from VM1.
-*Note: Run `cat /etc/iscsi/initiatorname.iscsi` on VM1 to check the IQN.*
+_Note: Run `cat /etc/iscsi/initiatorname.iscsi` on VM1 to check the IQN._
 
 ```bash
 # Grant access using VM1's IQN
 sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/acls create <VM1_IQN>
 sudo targetcli saveconfig
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `/iscsi`, `/backstores/fileio`, and `/iscsi/.../luns` are correctly set via `targetcli ls`.
+- [ ] Confirmed VM1's IQN is registered in the ACLs.
 
 ### STEP 2: Verify Operation via Manual Mount (VM1)
 
@@ -132,6 +139,11 @@ sudo iscsiadm -m node --targetname iqn.2025-12.world.server:storage --portal 192
 lsblk # You should see /dev/sdb or similar
 sudo mkfs.ext4 /dev/sdb
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed a 1GB disk (e.g., `/dev/sdb`) from the target is visible in `lsblk`.
+- [ ] Confirmed `LOGGED_IN` status via `iscsiadm -m session -P 1`.
 
 ### STEP 3: Prepare Kubernetes (Minikube) (VM1)
 
@@ -153,16 +165,16 @@ Register physical storage with Kubernetes and issue a Claim.
     apiVersion: v1
     kind: PersistentVolume
     metadata:
-      name: iscsi-pv
+        name: iscsi-pv
     spec:
-      capacity:
-        storage: 1Gi
-      accessModes: [ReadWriteOnce]
-      iscsi:
-        targetPortal: "192.168.1.12:3260"
-        iqn: "iqn.2025-12.world.server:storage"
-        lun: 0
-        fsType: 'ext4'
+        capacity:
+            storage: 1Gi
+        accessModes: [ReadWriteOnce]
+        iscsi:
+            targetPortal: "192.168.1.12:3260"
+            iqn: "iqn.2025-12.world.server:storage"
+            lun: 0
+            fsType: "ext4"
     ```
 
 2. **PersistentVolumeClaim (iscsi-pvc.yaml)**
@@ -171,12 +183,12 @@ Register physical storage with Kubernetes and issue a Claim.
     apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
-      name: iscsi-pvc
+        name: iscsi-pvc
     spec:
-      accessModes: [ReadWriteOnce]
-      resources:
-        requests:
-          storage: 1Gi
+        accessModes: [ReadWriteOnce]
+        resources:
+            requests:
+                storage: 1Gi
     ```
 
 ```bash
@@ -184,6 +196,11 @@ kubectl apply -f iscsi-pv.yaml
 kubectl apply -f iscsi-pvc.yaml
 kubectl get pvc # Success if Status becomes Bound
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `iscsi-pv` status is `Bound` via `kubectl get pv`.
+- [ ] Confirmed `iscsi-pvc` status is `Bound` via `kubectl get pvc`.
 
 ### STEP 5: Verification via Pod
 
@@ -202,6 +219,11 @@ kubectl apply -f test-pod.yaml
 kubectl exec test-pod -- cat /data/hello.txt
 # -> Persistence successful if "Hello persistent" is shown!
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `/data/hello.txt` content is preserved after Pod restart.
+- [ ] Confirmed `iscsi-pv` is mounted at `/data` via `kubectl describe pod test-pod`.
 
 ---
 
@@ -231,3 +253,37 @@ sudo iscsiadm -m node --logout
 
 - [Kubernetes Documentation: Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
 - [Open-iSCSI Official Site](http://www.open-iscsi.com/)
+
+---
+
+## 🔧 Troubleshooting
+
+### iSCSI Login Fails
+
+**Symptoms**: `iscsiadm: Could not log into all portals`
+
+**Causes and Solutions**:
+
+- **ACL Missing**: Re-verify that VM1's IQN is correctly registered in VM2's ACLs.
+- **Networking**: Ensure TCP port 3260 is open on VM2 (`ss -nl | grep 3260`).
+
+### PVC Stuck in Pending
+
+**Symptoms**: `kubectl get pvc` shows `Pending` status.
+
+**Causes and Solutions**:
+
+- **PV/PVC Mismatch**: Ensure capacity (1Gi) and accessModes (ReadWriteOnce) match between PV and PVC.
+- **iSCSI Connection Issue**: Check OS logs on the Node (VM1) via `sudo journalctl -u iscsid`.
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+- Running Kubernetes via Docker Desktop or Colima requires an iSCSI initiator on the host OS (macOS). Completing everything within a Linux VM is recommended.
+
+### For Windows Users
+
+- Using an iSCSI initiator within WSL2 may require a kernel rebuild. Running on an Ubuntu Server VM is recommended.

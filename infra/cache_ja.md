@@ -2,6 +2,8 @@
 
 この実習では、Redis の強力なデータ構造である **Sorted Sets (ZSET)** を使用して、数百万人のユーザーにも対応可能な「リアルタイム・ゲームランキングシステム」を構築します。
 
+> **💡 用語集**: この実習で登場する[Sorted Set (ZSET)](glossary.md#cache)や[Sets](glossary.md#cache)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 以下の機能を備えたランキングシステムを **Clean Architecture** に基づいて構築します。
@@ -97,6 +99,11 @@ cd infra/assets/redis_leaderboard
 go mod tidy
 ```
 
+### ✅ チェックポイント
+
+- [ ] `podman ps` で `workshop-redis` が `Up` 状態であることを確認した
+- [ ] `redis-cli ping`（インストール済みの場合）または `podman exec workshop-redis redis-cli ping` で `PONG` が返ることを確認した
+
 ---
 
 ## 実習ステップ
@@ -164,3 +171,82 @@ podman rm workshop-redis
 
 - [Redis Documentation: Sorted Sets](https://redis.io/docs/data-types/sorted-sets/)
 - [go-redis Guide](https://redis.uptrace.dev/)
+
+---
+
+## トラブルシューティング
+
+### Redis に接続できない
+
+**症状**: `dial tcp: connection refused`
+
+**原因と対処**:
+
+- Redis コンテナが起動しているか確認
+
+    ```bash
+    podman ps | grep redis
+    # または
+    make redis-status  # Makefile に定義されている場合
+    ```
+
+- ポート 6379 が正しく公開されているか確認
+
+    ```bash
+    podman port workshop-redis
+    # 6379/tcp -> 0.0.0.0:6379 と表示されるはず
+    ```
+
+### プログラムがパニックになる
+
+**症状**: `runtime error: invalid memory address`
+
+**原因と対処**:
+
+- Redis サーバーが起動していない状態でプログラムを実行
+
+    ```bash
+    # 先に Redis を起動
+    make redis-up
+    # または
+    podman start workshop-redis
+    ```
+
+### スコアが正しく反映されない
+
+**症状**: ランキングに追加したユーザーが表示されない
+
+**原因と対処**:
+
+- Redis 内のデータを直接確認
+
+    ```bash
+    podman exec -it workshop-redis redis-cli
+    > ZREVRANGE game_leaderboard 0 -1 WITHSCORES
+    ```
+
+- Ban リストを確認
+
+    ```bash
+    > SMEMBERS banned_users
+    ```
+
+---
+
+## 環境別注意事項
+
+### macOS の場合
+
+Podman は動作しますが、Homebrew で Redis を直接インストールすることも可能です。
+
+```bash
+brew install redis
+brew services start redis
+```
+
+この場合、コード内の接続先を `localhost:6379` に変更してください。
+
+### Windows の場合
+
+- WSL2 上の Ubuntu で Podman を使用することを推奨
+- または Docker Desktop for Windows でも同じコマンドが動作します（`podman` → `docker` に置き換え）

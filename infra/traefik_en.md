@@ -2,6 +2,8 @@
 
 In this workshop, you will learn the mechanics behind Kubernetes Ingress Controllers (L7 routing, load balancing, service discovery) using **Traefik**, a cloud-native edge router.
 
+> **💡 Glossary**: Please refer to [Reverse Proxy](glossary.md#network), [Ingress](glossary.md#architecture), or [Service Discovery](glossary.md#architecture) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 By completing this workshop, you will be able to:
@@ -75,43 +77,48 @@ Create a `docker-compose.yml` with the following content. We will use the lightw
 version: "3"
 
 services:
-  # Traefik Reverse Proxy
-  traefik:
-    image: traefik:v2.10
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "80:80"
-      - "8080:8080" # Dashboard
-    volumes:
-      - /run/podman/podman.sock:/var/run/docker.sock:ro
+    # Traefik Reverse Proxy
+    traefik:
+        image: traefik:v2.10
+        command:
+            - "--api.insecure=true"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entrypoints.web.address=:80"
+        ports:
+            - "80:80"
+            - "8080:8080" # Dashboard
+        volumes:
+            - /run/podman/podman.sock:/var/run/docker.sock:ro
 
-  # Backend A (Whoami)
-  whoami-a:
-    image: traefik/whoami
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+    # Backend A (Whoami)
+    whoami-a:
+        image: traefik/whoami
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+            - "traefik.http.services.whoami.loadbalancer.server.port=80"
 
-  # Backend B (Whoami - LB as same service)
-  whoami-b:
-    image: traefik/whoami
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-      - "traefik.http.services.whoami.loadbalancer.server.port=80"
+    # Backend B (Whoami - LB as same service)
+    whoami-b:
+        image: traefik/whoami
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+            - "traefik.http.services.whoami.loadbalancer.server.port=80"
 ```
 
 ### 2. Start Containers
 
 ```bash
-cd infra/assets/traefik
 podman compose up -d
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `traefik`, `whoami-a`, and `whoami-b` are running via `podman ps`.
+- [ ] Confirmed Traefik Dashboard is accessible at `http://localhost:8080`.
+- [ ] Confirmed the `whoami` HTTP Router is visible in the dashboard.
 
 > Note: This repository includes `infra/assets/traefik` as a sample directory. Review and adjust the files as needed while following this guide.
 
@@ -139,7 +146,7 @@ curl -H "Host: whoami.localhost" http://localhost
 ```
 
 **Check Point**: The output `Hostname` is the container ID. If a different ID is displayed for each request, load balancing is successful.
-*Note*: Just by launching multiple containers with the same `Host` rule in `docker-compose.yml`, Traefik automatically handles load balancing.
+_Note_: Just by launching multiple containers with the same `Host` rule in `docker-compose.yml`, Traefik automatically handles load balancing.
 
 ### STEP 3: Add Path-based Routing
 
@@ -158,6 +165,12 @@ Verify:
 ```bash
 curl http://localhost/nginx
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed different container IDs are returned by `curl -H "Host: whoami.localhost" http://localhost`.
+- [ ] Confirmed the `nginx-demo` service immediately appears in the dashboard after starting it via `podman run`.
+- [ ] Confirmed `/nginx` returns the Nginx welcome page or response.
 
 ### STEP 4: Apply Middleware (Basic Auth)
 
@@ -199,3 +212,37 @@ podman rm -f nginx-demo
 - **HTTPS**: Automatic certificate issuance with Let's Encrypt
 - **Deploy to Kubernetes**: Installing Traefik using Helm Charts
 - **Service Mesh**: Advanced traffic control using Envoy (Next Workshop)
+
+---
+
+## 🔧 Troubleshooting
+
+### Dashboard Returning 404
+
+**Symptoms**: Accessing `http://localhost:8080` returns a 404 or connection error.
+
+**Causes and Solutions**:
+
+- **API Not Enabled**: Ensure `--api.insecure=true` is present in the Traefik `command` section.
+- **Port Mapping**: Verify port `8080:8080` is correctly mapped in `docker-compose.yml`.
+
+### Services Not Discovered
+
+**Symptoms**: `whoami` routers do not appear in the dashboard.
+
+**Causes and Solutions**:
+
+- **Socket Permissions**: Verify the `podman.sock` path and ensures it's mounted with `ro` (read-only).
+- **Missing Labels**: Ensure the `traefik.enable=true` label is present on your backend containers.
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+- If using Podman Desktop, the socket path might differ from `/var/run/docker.sock`. Check your `DOCKER_HOST` environment variable if connection fails.
+
+### For Windows Users
+
+- Ensure localhost forwarding is enabled between WSL2 and Windows. If the browser fails to connect, try using `curl` directly within your WSL terminal.

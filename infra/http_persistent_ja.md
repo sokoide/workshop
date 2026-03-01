@@ -18,15 +18,15 @@ HTTP/1.1 から最新の HTTP/3 まで、どのように接続を効率化して
 
 通信のたびに TCP 接続（3-way handshake）と TLS 接続（Handshake）をやり直すと、特に高レイテンシな環境では大きなオーバーヘッドになります。
 
-| プロトコル | 接続の扱い | 特徴 |
-| :--- | :--- | :--- |
-| **HTTP/1.0** | 短期接続 | リクエストごとに切断。オーバーヘッド大。 |
-| **HTTP/1.1** | 永続接続 (Keep-Alive) | 同一接続では基本的に直列処理。並列化には複数接続が必要で、レスポンス待ちによる **HoL Blocking** が発生しやすい。 |
-| **WebSocket** | 双方向接続 | HTTP からアップグレード。一度つなげば双方向から自由に送信可能だが、**TCP レベルの HoL Blocking** は残る。 |
-| **SSE** | サーバー送信イベント | HTTP 上でサーバーからクライアントへ片方向ストリームを流す。軽量で通知向き。**TCP レベルの HoL Blocking** は残る。 |
-| **HTTP/2** | 多重化接続 | 1 接続内に複数の「ストリーム」。サーバー設定の範囲内で並列処理が可能だが、**TCP レベルの HoL Blocking** は残る。 |
-| **gRPC** | ストリーミング | HTTP/2 を基盤とし、ストリームとフロー制御を活用して効率的に双方向通信。 |
-| **HTTP/3** | QUIC/UDP | UDP 上で信頼性と暗号化を再構築し、ストリーム単位の再送制御で **TCP レベルの HoL Blocking を回避**。 |
+| プロトコル    | 接続の扱い            | 特徴                                                                                                              |
+| :------------ | :-------------------- | :---------------------------------------------------------------------------------------------------------------- |
+| **HTTP/1.0**  | 短期接続              | リクエストごとに切断。オーバーヘッド大。                                                                          |
+| **HTTP/1.1**  | 永続接続 (Keep-Alive) | 同一接続では基本的に直列処理。並列化には複数接続が必要で、レスポンス待ちによる **HoL Blocking** が発生しやすい。  |
+| **WebSocket** | 双方向接続            | HTTP からアップグレード。一度つなげば双方向から自由に送信可能だが、**TCP レベルの HoL Blocking** は残る。         |
+| **SSE**       | サーバー送信イベント  | HTTP 上でサーバーからクライアントへ片方向ストリームを流す。軽量で通知向き。**TCP レベルの HoL Blocking** は残る。 |
+| **HTTP/2**    | 多重化接続            | 1 接続内に複数の「ストリーム」。サーバー設定の範囲内で並列処理が可能だが、**TCP レベルの HoL Blocking** は残る。  |
+| **gRPC**      | ストリーミング        | HTTP/2 を基盤とし、ストリームとフロー制御を活用して効率的に双方向通信。                                           |
+| **HTTP/3**    | QUIC/UDP              | UDP 上で信頼性と暗号化を再構築し、ストリーム単位の再送制御で **TCP レベルの HoL Blocking を回避**。               |
 
 > **HoL Blocking (Head-of-Line Blocking / 先頭での目詰まり)**:
 > 行列（キュー）の先頭にあるリクエストやパケットが、処理遅延やロスによって止まってしまうと、後続のリクエストやパケットがどれだけ正常に届いていても、全てが待たされてしまう現象を指します。
@@ -193,71 +193,70 @@ sequenceDiagram
 
 1. **リポジトリへ移動**
 
-   ```bash
-   cd infra/assets/http_persistent_conn
-   ```
+    ```bash
+    cd infra/assets/http_persistent_conn
+    ```
 
 2. **ツールのインストール**
 
-   Ubuntu 24.04 では、最新の開発ツール（`websocat`, `go`, `protobuf` 等）を簡単に導入するため、**Homebrew (Linuxbrew)** の使用を推奨します。
+    Ubuntu 24.04 では、最新の開発ツール（`websocat`, `go`, `protobuf` 等）を簡単に導入するため、**Homebrew (Linuxbrew)** の使用を推奨します。
 
-   ```bash
-   # 1. システム基盤ツールのインストール (apt)
-   sudo apt update
-   sudo apt install -y podman podman-compose git make openssl curl
+    ```bash
+    # 1. システム基盤ツールのインストール (apt)
+    sudo apt update
+    sudo apt install -y podman podman-compose git make openssl curl
 
-   # 2. 開発ツールのインストール (Homebrew)
-   # Homebrew が未インストールの場合は: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   brew install websocat go protobuf grpcurl watch
-   ```
+    # 2. 開発ツールのインストール (Homebrew)
+    # Homebrew が未インストールの場合は: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    brew install websocat go protobuf grpcurl watch
+    ```
 
-   > [!IMPORTANT]
-   > Homebrew と Go のバイナリパスを通す必要があります。
->
-   > ```bash
-   > # ~/.bashrc や ~/.zshrc に追記例
-   > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-   > export PATH=$PATH:$(go env GOPATH)/bin
-   > ```
+    > [!IMPORTANT]
+    > Homebrew と Go のバイナリパスを通す必要があります。
+    >
+    > ```bash
+    > # ~/.bashrc や ~/.zshrc に追記例
+    > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    > export PATH=$PATH:$(go env GOPATH)/bin
+    > ```
 
-   次に、Go 言語専用のプロトコルバッファ用プラグインを `make setup` でセットアップします。
+    次に、Go 言語専用のプロトコルバッファ用プラグインを `make setup` でセットアップします。
 
-   ```bash
-   make setup
-   # (ツールのパスが表示されます。インストール済みの場合は出力がありません)
-   which protoc-gen-go grpcurl
-   ```
+    ```bash
+    make setup
+    # (ツールのパスが表示されます。インストール済みの場合は出力がありません)
+    which protoc-gen-go grpcurl
+    ```
 
-1. **自己署名証明書の生成**
+3. **自己署名証明書の生成**
 
-   HTTP/2/3 は TLS・QUIC を前提にするため、ローカル用の証明書を作成します。
+    HTTP/2/3 は TLS・QUIC を前提にするため、ローカル用の証明書を作成します。
 
-   ```bash
-   make cert
-   ```
+    ```bash
+    make cert
+    ```
 
-2. **Protobuf のコード生成**
+4. **Protobuf のコード生成**
 
-   `proto/greeter.proto` から Go の stub を生成し、`pb/greeter.pb.go` を吐き出します。
+    `proto/greeter.proto` から Go の stub を生成し、`pb/greeter.pb.go` を吐き出します。
 
-   ```bash
-   make gen
-   ```
+    ```bash
+    make gen
+    ```
 
-3. **サーバーを起動**
+5. **サーバーを起動**
 
-   ```bash
-   make run
-   ```
+    ```bash
+    make run
+    ```
 
-   起動後のポート一覧:
+    起動後のポート一覧:
+    - `:8080` → HTTP/1.1 + WebSocket + SSE
+    - `:8443` → HTTP/2 (TLS)
+    - `:8444` → HTTP/3 (QUIC)
+    - `:50051` → gRPC (HTTP/2)
 
-   - `:8080` → HTTP/1.1 + WebSocket + SSE
-   - `:8443` → HTTP/2 (TLS)
-   - `:8444` → HTTP/3 (QUIC)
-   - `:50051` → gRPC (HTTP/2)
-
-   サーバーはこのターミナルで動かしたまま、別ターミナルで以下のステップを走らせていきます。
+    サーバーはこのターミナルで動かしたまま、別ターミナルで以下のステップを走らせていきます。
 
 ---
 
@@ -274,6 +273,11 @@ curl -v http://localhost:8080/ http://localhost:8080/
 # 2. Connection: close を指定して Keep-Alive を無効化（HTTP/1.0相当の挙動）
 curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 ```
+
+### ✅ チェックポイント
+
+- [ ] Keep-Alive ありの場合、`Re-using existing connection! (#0)` が表示されることを確認した
+- [ ] `Connection: close` の場合、リクエストごとに `Closing connection 0` が発生することを確認した
 
 **観察ポイント**:
 
@@ -296,8 +300,10 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
         ```
 
         macOS では `netstat` に `ESTABLISHED`/`TIME_WAIT`/`CLOSE_WAIT` が一度に出るので、Keep-Alive の接続が見えるようになるはずです。`curl` で `http://localhost:8080/` を投げて `Connection refused` にならなければ、`netstat` の出力に `*:8080` や `127.0.0.1.8080` が常に滞留するようになります。
+
         > **TIME_WAIT を除外したいとき**は `grep -v TIME_WAIT` を挟むと、ESTABLISHED や CLOSE_WAIT だけを確認できます。
         > **Linux で ESTABLISHED (と少しの CLOSE_WAIT) を見たいなら**、下の `watch` コマンドで `ss -ntp` を使っています。`TIME_WAIT` も確認したいときは `ss -ntap` あるいは `ss -na | grep :8080` のように `-a` を追加してください（遅延応答 1 秒で ESTABLISHED の行も追いやすくなっています）。
+
     3. **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
 
 - **Keep-Alive なし（Connection: close）の場合**:
@@ -313,11 +319,11 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 
 WebSocket は **HTTP/1.1 の `Upgrade` ヘッダー** を利用して開始されますが、一度接続が確立されると、もはや HTTP の「リクエスト・レスポンス」という枠組みを離れ、双方が自由なタイミングでデータを送り合える **「全二重通信」** に切り替わります。
 
-| 特徴 | HTTP/1.1 (Keep-Alive) | WebSocket |
-| :--- | :--- | :--- |
-| **通信方向** | クライアント起点の Request/Response | 全二重（双方が任意タイミングで送信可能） |
-| **データ単位** | HTTP メッセージ（Header + Body） | 軽量なフレーム（バイナリ/テキスト） |
-| **オーバーヘッド** | 毎回ヘッダーを送る必要がある | 接続後は最小限のフレームヘッダーのみ |
+| 特徴               | HTTP/1.1 (Keep-Alive)               | WebSocket                                |
+| :----------------- | :---------------------------------- | :--------------------------------------- |
+| **通信方向**       | クライアント起点の Request/Response | 全二重（双方が任意タイミングで送信可能） |
+| **データ単位**     | HTTP メッセージ（Header + Body）    | 軽量なフレーム（バイナリ/テキスト）      |
+| **オーバーヘッド** | 毎回ヘッダーを送る必要がある        | 接続後は最小限のフレームヘッダーのみ     |
 
 > **プロキシ（Nginx / Traefik）を介す場合**:
 >
@@ -333,6 +339,11 @@ WebSocket は **HTTP/1.1 の `Upgrade` ヘッダー** を利用して開始さ�
 done
 ) | websocat -v ws://localhost:8080/ws
 ```
+
+### ✅ チェックポイント
+
+- [ ] `101 Switching Protocols` というレスポンスを確認した
+- [ ] 送信したメッセージがそのまま返ってくる（エコー）ことを確認した
 
 **観察ポイント**:
 
@@ -357,7 +368,7 @@ podman-compose up --build -d
 
 **観察ポイント**:
 
-1. **設定ファイルで明示的にルーティング**: `infra/assets/http_persistent_conn/traefik.yml` と `traefik-dynamic.yml` により、Traefik は `Host(\`localhost\`)` を聞いて `<http://app:8080`> へ転送します。`/run/podman/podman.sock` の共有は不要です。
+1. **設定ファイルで明示的にルーティング**: `infra/assets/http_persistent_conn/traefik.yml` と `traefik-dynamic.yml` により、Traefik は `Host(\`localhost\`)`を聞いて`<http://app:8080`> へ転送します。`/run/podman/podman.sock` の共有は不要です。
 2. **ホスト 18080 へのアクセス**: Compose は `18080:80` をバインドしているので、`websocat -v ws://localhost:18080/ws` や `curl http://localhost:18080/` を使って、Traefik → app:8080 への通信が通ることを確認できます。
 3. **Socket 監視（プラットフォーム別）**:
     - **Linux**:
@@ -387,6 +398,11 @@ podman-compose up --build -d
 # HTTP/2 を強制して複数のファイルをダウンロード
 curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 ```
+
+### ✅ チェックポイント
+
+- [ ] ログに `[HTTP/2] [1] GET /a` のようにストリーム ID が表示されていることを確認した
+- [ ] 同時に 2 つのリクエストを送っても、TCP 接続（ポート番号）が 1 つであることを `ss` 等で確認した
 
 **観察ポイント**:
 
@@ -431,6 +447,11 @@ curl --version | grep HTTP3
 curl --http3 -k -v https://localhost:8444/
 ```
 
+### ✅ チェックポイント
+
+- [ ] `ALPN: h3` という表示を確認した
+- [ ] `tcpdump` 等で UDP ポート 8444 にパケットが流れていることを確認した
+
 **観察ポイント**:
 
 1. **プロトコルの違い**: `curl` のログで `ALPN: h3` を確認。
@@ -447,11 +468,11 @@ gRPC は HTTP/2 の長寿命コネクションとストリーム多重化を活�
 
 gRPC は 1 つの `ClientConn` を使い回す設計にすると、HTTP/1.1 Keep-Alive と比べて次のメリットがあります。
 
-| 機能 | HTTP/1.1 Keep-Alive | gRPC Unary (HTTP/2) |
-| :--- | :--- | :--- |
-| **並列性** | 直列処理（レスポンスを待つ必要がある） | **多重化 (Multiplexing)** |
-| **HoL Blocking** | 同一接続で前のレスポンス待ちが発生しやすい | **HTTP レイヤーの HoL は緩和**（ただし TCP レベルの HoL は残る） |
-| **リソース効率** | 並列化には複数の TCP 接続が必要 | 1 本の TCP 接続上で多ストリームを扱える（実際の上限は実装・設定依存） |
+| 機能             | HTTP/1.1 Keep-Alive                        | gRPC Unary (HTTP/2)                                                   |
+| :--------------- | :----------------------------------------- | :-------------------------------------------------------------------- |
+| **並列性**       | 直列処理（レスポンスを待つ必要がある）     | **多重化 (Multiplexing)**                                             |
+| **HoL Blocking** | 同一接続で前のレスポンス待ちが発生しやすい | **HTTP レイヤーの HoL は緩和**（ただし TCP レベルの HoL は残る）      |
+| **リソース効率** | 並列化には複数の TCP 接続が必要            | 1 本の TCP 接続上で多ストリームを扱える（実際の上限は実装・設定依存） |
 
 #### WebSocket と比べた gRPC の優位性
 
@@ -498,6 +519,11 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
         ```
 
         > **TIME_WAIT を含めたい場合**は `grep -v TIME_WAIT` を省略すると、TIME_WAIT も含めた出力が流れます。
+
+### ✅ チェックポイント
+
+- [ ] `SayHelloStream` で 5 つのレスポンスが逐次届くことを確認した
+- [ ] `Chat` で双方向の入力・出力ができることを確認した
 
 ### STEP 6: Server-Sent Events (SSE) による軽量通知
 
@@ -611,3 +637,42 @@ podman-compose down
 
 - **WebTransport への挑戦**: HTTP/3 (QUIC) ベースで、信頼性（Streams）と低遅延（Datagrams）を 1 つの接続で使い分けられる選択肢です。既存 WebSocket との差分を比較しながら評価してみてください。
 - **Load Balancer の設定**: L4 LB と L7 LB で、永続接続の扱いがどう変わるか（コネクションの偏り問題）を調査する。
+
+---
+
+## 🔧 トラブルシューティング
+
+### HTTP/3 でアクセスできない
+
+**症状**: `curl: (1) libcurl was built without HTTP3 support`
+
+**原因と対処**:
+
+- システム標準の `curl` が HTTP/3 に対応していません。
+
+    ```bash
+    brew install curl
+    # brew のパスを優先するように alias を設定
+    ```
+
+### gRPC の証明書エラー
+
+**症状**: `grpcurl` で `failed to dial server: x509: certificate signed by unknown authority`
+
+**原因と対処**:
+
+- 自己署名証明書を使用しているためです。`-insecure` フラグを付けるか、実習用サーバーが `-plaintext` (非 TLS) を許可している場合はそれを使用してください。
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+- `ss` コマンドがありません。代わりに `lsof -iP` または `netstat` を使用してください。
+- `brew install websocat grpcurl` でツールを導入してください。
+
+### Windows の場合
+
+- WSL2 上での実行を推奨します。
+- Windows のブラウザから WSL2 上の HTTP/3 サーバーにアクセスする場合、UDP ポートがブロックされていないか確認してください。

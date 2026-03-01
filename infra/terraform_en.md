@@ -2,6 +2,8 @@
 
 In this workshop, you will learn the fundamentals of **Terraform**, an Infrastructure as Code (IaC) tool, and ultimately automate the deployment of a practical DNS server environment using container technology.
 
+> **💡 Glossary**: Please refer to [IaC](glossary.md#architecture), [Terraform](glossary.md#architecture), or [Provider](glossary.md#architecture) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Master basic Terraform operations (init, plan, apply, destroy) and define/deploy an environment where three containers collaborate as a network.
@@ -98,7 +100,11 @@ terraform plan    # Review changes
 terraform apply   # Execute (type 'yes')
 ```
 
-*Check that `hello.txt` has been created.*
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `terraform init` finished successfully and created the `.terraform` directory.
+- [ ] Confirmed `hello.txt` was created locally after `terraform apply`.
+- [ ] Confirmed the current state is visible via `terraform show`.
 
 ### STEP 3: Using Variables and Outputs
 
@@ -144,9 +150,14 @@ resource "local_file" "user_files" {
 }
 ```
 
-*Note: If `outputs.tf` still references the previous `local_file.hello` resource, an error will occur. Delete or comment out `outputs.tf` before running STEP 4.*
+_Note: If `outputs.tf` still references the previous `local_file.hello` resource, an error will occur. Delete or comment out `outputs.tf` before running STEP 4._
 
 Run `terraform plan` and `terraform apply`, and verify that three user files are created.
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed the creation of `alice.txt`, `bob.txt`, and `charlie.txt`.
+- [ ] Confirmed all created files are removed after `terraform destroy`.
 
 ---
 
@@ -176,6 +187,11 @@ Build the image with Podman:
 ```bash
 podman build -t coredns-handson .
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `coredns-handson:latest` exists via `podman images`.
+- [ ] Confirmed the Docker provider is specified in `part2/versions.tf`.
 
 ### STEP 1: Configure Podman-Compatible Provider
 
@@ -305,10 +321,14 @@ podman exec -it container-router sh
 # Inside container
 apk add bind-tools
 # Test direct resolution of A record
-dig @192.168.10.10 www.sokoide.com
-# Test recursive resolution (forwarding to B)
 dig @192.168.10.10 server.foo.sokoide.com
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `net_a` and `net_b` are created via `podman network ls`.
+- [ ] Confirmed `container-a`, `container-b`, and `container-router` are running via `podman ps`.
+- [ ] Confirmed `dig` returns the expected IP addresses (1.1.1.1 or 2.2.2.2).
 
 ---
 
@@ -318,7 +338,7 @@ dig @192.168.10.10 server.foo.sokoide.com
 terraform destroy
 ```
 
-*Note: All containers, networks, and temporary files will be deleted at once.*
+_Note: All containers, networks, and temporary files will be deleted at once._
 
 ---
 
@@ -326,3 +346,36 @@ terraform destroy
 
 - [Terraform Documentation](https://developer.hashicorp.com/terraform/docs)
 - [Terraform Podman-Compatible Provider (kreuzwerker/docker)](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)
+
+---
+
+## 🔧 Troubleshooting
+
+### Error during terraform init
+
+**Symptoms**: `Error: Failed to install provider`
+
+**Causes and Solutions**:
+
+- **Network Error**: If you are behind a proxy, set the `HTTP_PROXY` / `HTTPS_PROXY` environment variables.
+- **Version Mismatch**: The version in `versions.tf` might be too old or too new. Check the latest version on Terraform Registry.
+
+### Container Creation Fails
+
+**Symptoms**: `Error: Error creating container: API error (404): no such image`
+
+**Causes and Solutions**:
+
+- **Missing Image**: Double-check if `podman build` succeeded and if the tag name exactly matches `coredns-handson:latest`.
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+- If using Podman Desktop, you may need to set the `DOCKER_HOST` environment variable to the path of `podman.sock`.
+
+### For Windows Users
+
+- When using Terraform on WSL2, install the Linux version of Terraform inside WSL instead of using the Windows `terraform.exe`.

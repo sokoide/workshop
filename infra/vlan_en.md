@@ -2,6 +2,8 @@
 
 This is a hands-on workshop for software engineers to build a simulated physical network environment using container technology (Podman) and Linux network features (macvlan, VLAN, iptables).
 
+> **💡 Glossary**: Please refer to the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Build the following configuration and understand the mechanisms of L2 isolation and L3 routing.
@@ -92,6 +94,11 @@ sudo podman info | grep rootless
 # rootless: false
 ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `rootless: false` with `sudo podman info | grep rootless`.
+- [ ] Verified the existence of the physical NIC with `ip link show eth0` (or `ens5`).
+
 ---
 
 ## Workshop Steps
@@ -110,6 +117,10 @@ sudo ip link add link $IF name $IF.20 type vlan id 20
 sudo ip link set $IF.10 up
 sudo ip link set $IF.20 up
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Ran `ip link show $IF.10` and confirmed it says `state UP`.
 
 ### STEP 2: Define Podman Networks
 
@@ -138,6 +149,10 @@ sudo podman exec router ip route del default via 192.168.10.1 dev eth1 2>/dev/nu
 sudo podman exec router ip route del default via 192.168.20.1 dev eth2 2>/dev/null || true
 ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed both `192.168.10.1` and `192.168.20.1` are visible with `sudo podman exec router ip addr show`.
+
 ### STEP 4: Configure NAT on Router
 
 ```bash
@@ -165,16 +180,16 @@ sudo podman run -d --name b --network net-vlan20 --ip 192.168.20.20 alpine sleep
 
 1. **Connectivity**: Confirm Ping from A to B.
 
-   ```bash
-   sudo podman exec a ping -c 3 192.168.20.20
-   ```
+    ```bash
+    sudo podman exec a ping -c 3 192.168.20.20
+    ```
 
 2. **Blocking Routing**: Verify that Ping fails when blocked at the router.
 
-   ```bash
-   sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
-   sudo podman exec a ping -c 3 -W 1 192.168.20.20 # Should fail
-   ```
+    ```bash
+    sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
+    sudo podman exec a ping -c 3 -W 1 192.168.20.20 # Should fail
+    ```
 
 ---
 

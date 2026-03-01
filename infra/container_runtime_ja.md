@@ -2,6 +2,8 @@
 
 このワークショップでは、Linux の標準機能である **namespaces** と **cgroups** を手動で操作し、コンテナがどのように構築・制限されているかを学びます。最終的に、Go 言語を使用して独自のコンテナランタイムを作成します。
 
+> **💡 用語集**: この実習で登場する[namespaces](glossary.md#container)や[cgroups](glossary.md#container)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 コンテナの「魔法」を解き明かし、低レイヤー技術（名前空間、リソース制限、仮想ネットワーク）の組み合わせによるプロセス隔離を実装・理解します。
@@ -94,20 +96,30 @@ mkdir -p rootfs && tar -xf rootfs.tar -C rootfs
 cp /etc/resolv.conf rootfs/etc/resolv.conf
 ```
 
+### ✅ チェックポイント
+
+- [ ] `ls -F rootfs/bin/sh` でファイルが存在することを確認した
+- [ ] `resolv.conf` が正しくコピーされていることを確認した
+
 ### STEP 2: 名前空間 (Namespaces) による隔離
 
 `unshare` コマンドで手動隔離を体験します。
 
 1. **PID 名前空間**: `sudo unshare --pid --fork /bin/sh`
-   - `echo $$` で PID が 1 になることを確認。
+    - `echo $$` で PID が 1 になることを確認。
 2. **Mount 名前空間と chroot**:
 
-   ```bash
-   sudo unshare --pid --fork --mount /bin/sh
-   chroot rootfs /bin/sh
-   mount -t proc proc /proc
-   ps # コンテナ内のプロセスだけが見える
-   ```
+    ```bash
+    sudo unshare --pid --fork --mount /bin/sh
+    chroot rootfs /bin/sh
+    mount -t proc proc /proc
+    ps # コンテナ内のプロセスだけが見える
+    ```
+
+   ### ✅ チェックポイント
+
+    - [ ] `echo $$` で PID が 1 となっていることを確認した
+    - [ ] `ps` でホスト側のプロセスが見えていないことを確認した
 
 ### STEP 3: リソース制限 (Cgroups v2) の適用
 
@@ -123,6 +135,11 @@ echo 0 | sudo tee /sys/fs/cgroup/workshop/memory.swap.max
 echo $TARGET_PID | sudo tee /sys/fs/cgroup/workshop/cgroup.procs
 ```
 
+### ✅ チェックポイント
+
+- [ ] `cat /sys/fs/cgroup/workshop/memory.max` が 52428800 (50MB) であることを確認した
+- [ ] プロセスが cgroup に登録されていることを確認した
+
 ### STEP 4: 仮想イーサネット (veth) による通信
 
 ホストと名前空間を仮想 LAN ケーブルで繋ぎます。
@@ -135,6 +152,11 @@ sudo ip link set veth-child netns container1
 sudo ip addr add 10.0.0.1/24 dev veth-host
 sudo ip link set veth-host up
 ```
+
+### ✅ チェックポイント
+
+- [ ] `ip netns list` で `container1` が存在することを確認した
+- [ ] `ip addr show veth-host` で 10.0.0.1 が割り当てられていることを確認した
 
 ### STEP 5: Go 言語によるランタイムの実装
 
@@ -160,3 +182,47 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 
 - [Linux manual page: namespaces(7)](https://man7.org/linux/man-pages/man7/namespaces.7.html)
 - [Control Groups v2 (Official Kernel Docs)](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html)
+
+---
+
+## 🔧 トラブルシューティング
+
+### syscall.CLONE_NEWPID が失敗する
+
+**症状**: `operation not permitted` または `invalid argument`
+
+**原因と対処**:
+
+- **権限不足**: ユーザー名前空間以外の名前空間の作成には root 権限が必要です。
+
+    ```bash
+    sudo ./mycontainer
+    ```
+
+### cgroup v2 がマウントされていない
+
+**症状**: `/sys/fs/cgroup` 以下にファイルが作成できない
+
+**原因と対処**:
+
+- カーネルバージョンが古いか、cgroup v1 が使われています。
+
+    ```bash
+    mount | grep cgroup
+    ```
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+**この実習は Linux 環境専用です。**
+
+- Namespaces や cgroups は Linux カーネル独自の機能であるため、macOS では動作しません。
+- **推奨**: Lima, Colima, あるいはクラウド上の Ubuntu を使用してください。
+
+### Windows の場合
+
+- **WSL2**: 最新の WSL2 であれば、ほとんどの機能が動作します。
+- **推奨**: クラウド上の Ubuntu インスタンスでの実行が確実です。

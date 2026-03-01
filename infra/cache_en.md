@@ -2,6 +2,8 @@
 
 In this workshop, you will build a "Real-time Game Leaderboard System" capable of handling millions of users using Redis's powerful data structure, **Sorted Sets (ZSET)**.
 
+> **💡 Glossary**: Please refer to the [Sorted Set (ZSET)](glossary.md#cache) or [Sets](glossary.md#cache) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Build a leaderboard system with the following features based on **Clean Architecture**.
@@ -96,6 +98,11 @@ podman run -d --name workshop-redis -p 6379:6379 docker.io/library/redis:alpine
 cd infra/assets/redis_leaderboard
 go mod tidy
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `workshop-redis` is `Up` via `podman ps`.
+- [ ] Confirmed `PONG` response with `podman exec workshop-redis redis-cli ping`.
 
 ---
 

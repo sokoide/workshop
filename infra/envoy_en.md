@@ -2,6 +2,8 @@
 
 In this workshop, you will learn how to implement advanced traffic control (retries, timeouts, circuit breaking) without changing application code, using **Envoy Proxy**, the de facto standard data plane for modern service meshes.
 
+> **💡 Glossary**: Please refer to [Sidecar pattern](glossary.md#architecture) or [L7 Traffic Control](glossary.md#network) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 By completing this workshop, you will be able to:
@@ -39,7 +41,7 @@ In this workshop, we implement a backend app with features to "intentionally del
 ```mermaid
 graph LR
     Client[Client] -- HTTP --> Envoy[Envoy Proxy (Sidecar)]
-    
+
     subgraph Service Mesh Pod
         Envoy -- Localhost --> App[Backend Service]
     end
@@ -66,46 +68,47 @@ The following configuration defines a **2-second timeout** and **3 retries** for
 
 ```yaml
 static_resources:
-  listeners:
-  - name: listener_0
-    address:
-      socket_address: { address: 0.0.0.0, port_value: 10000 }
-    filter_chains:
-    - filters:
-      - name: envoy.filters.network.http_connection_manager
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-          stat_prefix: ingress_http
-          route_config:
-            name: local_route
-            virtual_hosts:
-            - name: local_service
-              domains: ["*"]
-              routes:
-              - match: { prefix: "/" }
-                route: 
-                  cluster: service_backend
-                  timeout: 2s
-                  retry_policy:
-                    retry_on: "5xx"
-                    num_retries: 3
-          http_filters:
-          - name: envoy.filters.http.router
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+    listeners:
+        - name: listener_0
+          address:
+              socket_address: { address: 0.0.0.0, port_value: 10000 }
+          filter_chains:
+              - filters:
+                    - name: envoy.filters.network.http_connection_manager
+                      typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                          stat_prefix: ingress_http
+                          route_config:
+                              name: local_route
+                              virtual_hosts:
+                                  - name: local_service
+                                    domains: ["*"]
+                                    routes:
+                                        - match: { prefix: "/" }
+                                          route:
+                                              cluster: service_backend
+                                              timeout: 2s
+                                              retry_policy:
+                                                  retry_on: "5xx"
+                                                  num_retries: 3
+                          http_filters:
+                              - name: envoy.filters.http.router
+                                typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
-  clusters:
-  - name: service_backend
-    connect_timeout: 0.25s
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    load_assignment:
-      cluster_name: service_backend
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address: { address: backend, port_value: 80 }
+    clusters:
+        - name: service_backend
+          connect_timeout: 0.25s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+              cluster_name: service_backend
+              endpoints:
+                  - lb_endpoints:
+                        - endpoint:
+                              address:
+                                  socket_address:
+                                      { address: backend, port_value: 80 }
 ```
 
 ### 2. Start Environment
@@ -114,6 +117,11 @@ static_resources:
 cd infra/assets/envoy
 podman compose up -d
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed both Envoy and backend containers are running via `podman ps`.
+- [ ] Confirmed `envoy.yaml` is correctly placed.
 
 > Note: This repository includes `infra/assets/envoy` as a sample directory. Review and adjust the files as needed while following this guide.
 
@@ -131,6 +139,10 @@ curl -v http://localhost:10000/
 
 Check that `server: envoy` is included in the response header. This is proof that it went through Envoy.
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `HTTP/1.1 200 OK` and `server: envoy` in the `curl` output.
+
 ### STEP 2: Verify Timeout Behavior
 
 Check Envoy's behavior when the backend service is delayed.
@@ -141,6 +153,11 @@ curl -v http://localhost:10000/sleep/3
 ```
 
 **Result**: Verify that Envoy cuts the connection after 2 seconds and returns `504 Gateway Timeout`. This prevents the client from waiting indefinitely due to backend issues.
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed the response is `504 Gateway Timeout`.
+- [ ] Confirmed the communication time is approximately 2 seconds as configured.
 
 ### STEP 3: Verify Retry Behavior
 
@@ -159,6 +176,11 @@ Check Envoy's internal state.
 `http://localhost:9901/stats`
 
 Verify that `retry` and `timeout` occurrence counts are recorded as metrics here. This is crucial for monitoring system health.
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed access to `http://localhost:9901/stats` via browser or `curl`.
+- [ ] Confirmed metrics like `upstream_rq_retry` are increasing.
 
 ---
 
@@ -181,3 +203,40 @@ podman compose down
 
 - **Circuit Breaking**: Cut-off functionality to protect the entire system during massive error occurrences
 - **Istio**: Step up to a service mesh product that centrally manages Envoys via a control plane
+
+---
+
+## 🔧 Troubleshooting
+
+### Envoy Fails to Start (Configuration Error)
+
+**Symptoms**: `envoy` container status is `Exited`.
+
+**Causes and Solutions**:
+
+- **Syntax Error in envoy.yaml**: Check logs to identify the error.
+
+    ```bash
+    podman logs <container_id>
+    ```
+
+### Cannot Connect to Backend (503 Service Unavailable)
+
+**Symptoms**: Envoy returns 503.
+
+**Causes and Solutions**:
+
+- **Name Resolution Failure**: Ensure the `address` in the Envoy config matches the backend service name in docker-compose.
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+- If using Docker Desktop or Colima, localhost port forwarding is usually handled automatically.
+
+### For Windows Users
+
+- Can be run on WSL2 using `podman compose`.
+- If `localhost:10000` is inaccessible due to WSL2 networking, use the WSL2 IP address directly.

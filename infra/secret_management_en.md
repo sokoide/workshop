@@ -2,6 +2,8 @@
 
 In this workshop, you will build a secure secret management system using **HashiCorp Vault** and **Go**, learning how to manage sensitive data without hardcoding it.
 
+> **💡 Glossary**: Please refer to [Secret Management](glossary.md#security), [Vault](glossary.md#security), or [KV Engine](glossary.md#security) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Build and experience a secure secret management flow, acquiring the following skills:
@@ -103,9 +105,14 @@ make vault-up
 ### 2. Enable KV v2 Secrets Engine
 
 ```bash
-# Initialize inside the container
 make init
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `workshop-vault` is running via `podman ps`.
+- [ ] Confirmed the KV v2 engine is mounted at `secret/` after `make init`.
+- [ ] Confirmed the `VAULT_TOKEN` environment variable is set.
 
 ---
 
@@ -143,9 +150,13 @@ go run cmd/put-secret/main.go api/key "new-value"
 podman exec workshop-vault vault kv metadata get secret/api/key
 ```
 
-### STEP 5: Understand the Architecture
-
 Examine the `internal/usecase` layer code and confirm it has zero dependencies on Vault (it only depends on the interface defined in `internal/domain`).
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `go run cmd/put-secret` completed without error.
+- [ ] Confirmed `go run cmd/get-secret` retrieves the stored value.
+- [ ] Confirmed the secret version is incremented via the `metadata get` command.
 
 ---
 
@@ -167,3 +178,38 @@ make vault-down
 
 - **Dynamic Secrets**: Learn how to issue temporary database access on-demand.
 - **Transit Secrets Engine**: Learn how to encrypt data without storing the decryption key in the application.
+
+---
+
+## 🔧 Troubleshooting
+
+### Authentication Error (403 Forbidden)
+
+**Symptoms**: `Error making API request: 403 Forbidden`
+
+**Causes and Solutions**:
+
+- **Invalid Token**: Re-verify your `VAULT_TOKEN`. Check if it has expired.
+- **Policy Restrictions**: Ensure your token has permissions for the specified path (e.g., `secret/api/*`).
+
+### Connection Refused
+
+**Symptoms**: `dial tcp 127.0.0.1:8200: connect: connection refused`
+
+**Causes and Solutions**:
+
+- **Vault Not Running**: Ensure `make vault-up` finished without errors.
+- **Incorrect Address**: Check that `VAULT_ADDR` is set to `http://127.0.0.1:8200`.
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+- Use `127.0.0.1` explicitly if `localhost` fails to connect.
+
+### For Windows Users
+
+- Ensure port-forwarding is active to access the Vault UI from your Windows browser.
+- Manage `VAULT_ADDR` in your WSL configuration (e.g., `.bashrc`) rather than Windows environment variables.

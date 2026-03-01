@@ -2,6 +2,8 @@
 
 この実習では、**HashiCorp Vault** と **Go** を使用して、API キー、データベース認証情報、その他のセンシティブデータをソースコードにハードコードすることなく安全に管理するシステムを構築します。
 
+> **💡 用語集**: この実習で登場する[Secret Management](glossary.md#security)や[Vault](glossary.md#security)、[KV Engine](glossary.md#security)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 安全なシークレット管理フローを構築・体験し、以下のスキルを習得します。
@@ -107,6 +109,12 @@ make vault-up
 make init
 ```
 
+### ✅ チェックポイント
+
+- [ ] `podman ps` で `workshop-vault` が実行中であることを確認した
+- [ ] `make init` 実行後、`secret/` パスに KV v2 エンジンがマウントされていることを確認した
+- [ ] `VAULT_TOKEN` 環境変数が適切に設定されていることを確認した
+
 ---
 
 ## 実習ステップ
@@ -143,9 +151,13 @@ go run cmd/put-secret/main.go api/key "new-value"
 podman exec workshop-vault vault kv metadata get secret/api/key
 ```
 
-### STEP 5: アーキテクチャの理解
-
 `internal/usecase` レイヤーのコードを見て、Vault への依存が一切ない（`internal/domain` のインターフェースにのみ依存している）ことを確認してください。
+
+### ✅ チェックポイント
+
+- [ ] `go run cmd/put-secret` がエラーなく保存を完了できた
+- [ ] `go run cmd/get-secret` で保存した値が正しく表示されることを確認した
+- [ ] `metadata get` コマンドでシークレットのバージョンが上がっていることを確認した
 
 ---
 
@@ -167,3 +179,38 @@ make vault-down
 
 - **動的シークレット**: データベースへの一時的なアクセス権限をオンデマンドで発行する機能を学ぶ。
 - **Transit 認証**: アプリケーション側で復号鍵を持たずにデータを暗号化する仕組みを学ぶ。
+
+---
+
+## 🔧 トラブルシューティング
+
+### 認証エラー (Permission Denied)
+
+**症状**: `Error making API request: 403 Forbidden`
+
+**原因と対処**:
+
+- **トークンの期限切れ**: `VAULT_TOKEN` が正しいか、有効期限が切れていないか確認してください。
+- **ポリシー不足**: 操作しようとしているパス (`secret/api/*` など) に対して適切な権限が付与されているか確認してください。
+
+### サーバーに接続できない
+
+**症状**: `dial tcp 127.0.0.1:8200: connect: connection refused`
+
+**原因と対処**:
+
+- **Vault が未起動**: `make vault-up` が完了しているか確認してください。
+- **アドレスの誤り**: `VAULT_ADDR` 環境変数が `http://127.0.0.1:8200` に設定されているか確認してください。
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+- `localhost` で接続できない場合は `127.0.0.1` を明示的に使用してください。
+
+### Windows の場合
+
+- WSL2 から Windows 側のブラウザで Vault UI を開くには、ポートフォワーディングが機能している必要があります。
+- Windows の環境変数ではなく、WSL 内部の `.bashrc` 等で `VAULT_ADDR` を管理することを推奨します。

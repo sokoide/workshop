@@ -2,6 +2,8 @@
 
 この実習では、Go と C を組み合わせて **TCP/IP プロトコルスタックをゼロから構築** します。OS カーネルが隠蔽している「パケットの生成・分解」を自らの手で実装することで、ネットワークの動作原理を抽象概念ではなく、具体的なデータ構造として理解することを目標とします。
 
+> **💡 用語集**: この実習で登場する専門用語は [用語集](glossary.md) を参照してください。
+
 ---
 
 ## 🏗 アーキテクチャ：ロシアのマトリョーシカ（カプセル化）
@@ -25,13 +27,13 @@
 
 ### 今回実装するコンポーネント
 
-| レイヤー | コンポーネント | ファイル | 実装内容 |
-| :--- | :--- | :--- | :--- |
-| L1 | Raw Socket | `pkg/rawsock/` | カーネルをバイパスしてNICと直接通信 |
-| L2 | Ethernet Frame | `pkg/ethernet/frame.go` | MAC アドレスベースのフレーム処理 |
-| L3 | IPv4 Packet | `pkg/ipv4/packet.go` | IP アドレスベースのパケット処理 |
-| L4 | ICMP Message | `pkg/icmp/message.go` | Ping (Echo Request/Reply) の実装 |
-| App | Stack | `main.go` | 全体を統合するサーバー |
+| レイヤー | コンポーネント | ファイル                | 実装内容                            |
+| :------- | :------------- | :---------------------- | :---------------------------------- |
+| L1       | Raw Socket     | `pkg/rawsock/`          | カーネルをバイパスしてNICと直接通信 |
+| L2       | Ethernet Frame | `pkg/ethernet/frame.go` | MAC アドレスベースのフレーム処理    |
+| L3       | IPv4 Packet    | `pkg/ipv4/packet.go`    | IP アドレスベースのパケット処理     |
+| L4       | ICMP Message   | `pkg/icmp/message.go`   | Ping (Echo Request/Reply) の実装    |
+| App      | Stack          | `main.go`               | 全体を統合するサーバー              |
 
 ---
 
@@ -77,6 +79,12 @@ sudo ip addr add 192.168.100.1/24 dev veth-host
 sudo ip netns exec workshop ip addr add 192.168.100.2/24 dev veth-ns
 ```
 
+### ✅ チェックポイント
+
+- [ ] `ip netns list` で `workshop` が表示される
+- [ ] `ip addr show veth-host` で `192.168.100.1` が割り当てられている
+- [ ] `sudo ip netns exec workshop ip addr show veth-ns` で `192.168.100.2` が割り当てられている
+
 ---
 
 ## 🚀 実装ステップ
@@ -97,7 +105,7 @@ sudo ip netns exec workshop ip addr add 192.168.100.2/24 dev veth-ns
 extern "C" {
 #endif
 
-// Raw Socket を開く
+// 指定インターフェースで Raw Socket を開く
 // 戻り値: ファイルディスクリプタ、エラー時は -1
 int rawsock_open(const char *iface);
 
@@ -374,20 +382,20 @@ int fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 //              └─ ファミリ: データリンク層アクセス
 ```
 
-| 引数 | 値 | 意味 |
-| :--- | :--- | :--- |
-| ドメイン | `AF_PACKET` | パケットレベルのソケット（L2） |
-| タイプ | `SOCK_RAW` | ヘッダを含む生パケットを取得 |
-| プロトコル | `ETH_P_ALL` (0x0003) | 全プロトコルタイプを受信 |
+| 引数       | 値                   | 意味                           |
+| :--------- | :------------------- | :----------------------------- |
+| ドメイン   | `AF_PACKET`          | パケットレベルのソケット（L2） |
+| タイプ     | `SOCK_RAW`           | ヘッダを含む生パケットを取得   |
+| プロトコル | `ETH_P_ALL` (0x0003) | 全プロトコルタイプを受信       |
 
 ##### 他のプロトコル値の例
 
-| プロトコル | 値 | 説明 |
-| :--- | :--- | :--- |
-| `ETH_P_ALL` | 0x0003 | 全パケット受信 |
-| `ETH_P_IP` | 0x0800 | IPv4 のみ受信 |
-| `ETH_P_IPV6` | 0x86DD | IPv6 のみ受信 |
-| `ETH_P_ARP` | 0x0806 | ARP のみ受信 |
+| プロトコル   | 値     | 説明           |
+| :----------- | :----- | :------------- |
+| `ETH_P_ALL`  | 0x0003 | 全パケット受信 |
+| `ETH_P_IP`   | 0x0800 | IPv4 のみ受信  |
+| `ETH_P_IPV6` | 0x86DD | IPv6 のみ受信  |
+| `ETH_P_ARP`  | 0x0806 | ARP のみ受信   |
 
 ##### なぜ AF_PACKET が必要か？
 
@@ -429,6 +437,11 @@ n := C.rawsock_recv(s.fd, unsafe.Pointer(&buf[0]), C.int(len(buf)))
 ```c
 setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
 ```
+
+### ✅ チェックポイント
+
+- [ ] `pkg/rawsock/rawsock.c` 内で `socket(AF_PACKET, SOCK_RAW, ...)` を呼び出している
+- [ ] root 権限（sudo）なしで実行した際にエラーになることを確認した（Raw Socket の制約）
 
 ---
 
@@ -490,10 +503,10 @@ func Parse(data []byte) (*Frame, error) {
 	}
 
 	return &Frame{
-		DstMAC:    net.HardwareAddr(data[0:6]),  // 宛先 MAC
-		SrcMAC:    net.HardwareAddr(data[6:12]), // 送信元 MAC
+		DstMAC:    net.HardwareAddr(data[0:6]),          // 宛先 MAC
+		SrcMAC:    net.HardwareAddr(data[6:12]),         // 送信元 MAC
 		EtherType: binary.BigEndian.Uint16(data[12:14]), // プロトコルタイプ
-		Payload:   data[14:], // ペイロード（上位レイヤーのデータ）
+		Payload:   data[14:],                            // ペイロード（上位レイヤーのデータ）
 	}, nil
 }
 
@@ -599,7 +612,7 @@ import (
 )
 
 const (
-	// 最小ヘッダサイズ（オプションなし）
+	// 最小ヘッダサイズ（オプション除く）
 	HeaderSize = 20
 
 	// 最大パケットサイズ
@@ -611,16 +624,16 @@ const (
 	ProtocolUDP  = 17
 
 	// フラグ
-	FlagDF = 0x01 // Don't Fragment（フラグメント禁止）
-	FlagMF = 0x02 // More Fragments（後続フラグメントあり）
+	FlagDF = 0x01 // フラグメント禁止
+	FlagMF = 0x02 // まだ後続フラグメントあり
 )
 
 // Packet は IPv4 パケットを表す
 type Packet struct {
 	Version        uint8  // 常に 4
-	IHL            uint8  // Internet Header Length (4 bytes 単位)
+	IHL            uint8  // Internet Header Length（4 bytes 単位）
 	TOS            uint8  // Type of Service
-	TotalLength    uint16 // ヘッダ + ペイロード
+	TotalLength    uint16 // ヘッダ + ペイロード長
 	ID             uint16 // 識別子（フラグメント再構築用）
 	Flags          uint8
 	FragmentOffset uint16 // フラグメントオフセット（8 bytes 単位）
@@ -629,7 +642,7 @@ type Packet struct {
 	Checksum       uint16 // ヘッダチェックサム
 	SrcIP          net.IP
 	DstIP          net.IP
-	Options        []byte // IP オプション（通常は使用しない）
+	Options        []byte // IP オプション（通常は未使用）
 	Payload        []byte
 }
 
@@ -770,6 +783,11 @@ func (p *Packet) PseudoHeader() []byte {
 - **IHL (Internet Header Length)**: ヘッダ長を 4 bytes 単位で表現（通常は 5 = 20 bytes）
 - **TTL**: ループ防止用。ルータを通過するたびに減算され、0 で破棄
 - **チェックサム**: ヘッダの破損を検出。現実装は送信時に計算し、受信時は主に長さ・形式を検証（ヘッダチェックサム値そのものの照合は未実装）
+
+### ✅ チェックポイント
+
+- [ ] `Checksum` 関数が正しく実装されている（RFC 1071 準拠）
+- [ ] `IHL`（ヘッダ長）が 4 バイト単位で計算されている
 
 ---
 
@@ -999,6 +1017,7 @@ func (s *Stack) Run(ctx context.Context) error {
 			// パケット受信
 			n, err := s.sock.Recv(buf)
 			if err != nil {
+				log.Printf("recv error: %v", err)
 				continue
 			}
 
@@ -1326,3 +1345,115 @@ sudo ip netns delete workshop
 - [RFC 791 (IPv4)](https://datatracker.ietf.org/doc/html/rfc791)
 - [RFC 792 (ICMP)](https://datatracker.ietf.org/doc/html/rfc792)
 - [RFC 1071 (Checksum)](https://datatracker.ietf.org/doc/html/rfc1071)
+
+---
+
+## 🔧 トラブルシューティング
+
+### Raw Socket を開けない
+
+**症状**: `failed to open raw socket` エラー
+
+**原因と対処**:
+
+- root 権限で実行しているか確認
+
+    ```bash
+    sudo ./tcpip_stack -iface veth-host
+    ```
+
+- `CAP_NET_RAW` ケーパビリティがないか確認
+
+    ```bash
+    getcap ./tcpip_stack
+    # なければ付与
+    sudo setcap cap_net_raw+ep ./tcpip_stack
+    ```
+
+### Ping が通らない
+
+**症状**: `From 192.168.100.2 icmp_seq=1 Destination Host Unreachable`
+
+**原因と対処**:
+
+- カスタムスタックが起動しているか確認
+
+    ```bash
+    sudo ip netns exec workshop ping 192.168.100.1
+    ```
+
+- インターフェースの状態を確認
+
+    ```bash
+    ip link show veth-host
+    ip addr show veth-host
+    ```
+
+- tcpdump でパケットを確認
+
+    ```bash
+    sudo tcpdump -i veth-host -nn -vv icmp
+    ```
+
+### ビルドエラーが発生する
+
+**症状**: `cgo` 関連のエラー
+
+**原因と対処**:
+
+- GCC がインストールされているか確認
+
+    ```bash
+    gcc --version
+    # なければインストール
+    sudo apt install gcc
+    ```
+
+- Linux ヘッダーがインストールされているか確認
+
+    ```bash
+    sudo apt install linux-headers-$(uname -r)
+    ```
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+**この実習は macOS では動作しません。**
+
+理由:
+
+- macOS は `AF_PACKET` をサポートしていません
+- 代わりに `BPF (Berkeley Packet Filter)` を使用する必要があります
+
+代替案:
+
+- Linux VM (UTM, Parallels, VMware) を使用
+- クラウド上の Ubuntu インスタンスで実行
+- Docker Desktop with Linux VM
+
+### Windows の場合
+
+**この実習は Windows では動作しません。**
+
+理由:
+
+- Windows は `WinPcap/Npcap` を使用する必要があります
+
+代替案:
+
+- WSL2 上の Ubuntu で実行することを推奨
+- クラウド上の Ubuntu インスタンスで実行
+
+### WSL2 の場合
+
+WSL2 は Linux カーネルベースですが、Raw Socket のサポートに制限がある場合があります。
+
+```bash
+# WSL2 のカーネルバージョンを確認
+uname -r
+```
+
+問題が発生する場合は、クラウド上の Ubuntu VM での実行を推奨します。

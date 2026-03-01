@@ -2,6 +2,8 @@
 
 In this workshop, you will learn how TLS/SSL and certificate chains work by building your own Certificate Authority (CA) and issuing/verifying server certificates using OpenSSL.
 
+> **💡 Glossary**: Please refer to [TLS/SSL](glossary.md#security) or [CA](glossary.md#security) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Build your own Root CA, issue a server certificate that supports SAN (Subject Alternative Name), and configure HTTPS termination using Traefik.
@@ -59,6 +61,11 @@ In this workshop, we will reproduce all roles (CA, Server, Client) in a local en
 
 ## Workshop Steps
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed OpenSSL is installed via `openssl version`.
+- [ ] Confirmed Podman or Docker is available.
+
 ### STEP 1: Build a Root CA
 
 Create your own "Private Certificate Authority" as the source of all trust.
@@ -96,6 +103,11 @@ EOF
 openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial \
   -out server.crt -days 365 -sha256 -extfile server.ext
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `server.crt` exists.
+- [ ] Confirmed `Subject Alternative Name` includes `server.workshop.local` via `openssl x509 -in server.crt -noout -text`.
 
 ### STEP 3: Verify the Certificate
 

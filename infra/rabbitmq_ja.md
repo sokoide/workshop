@@ -2,6 +2,8 @@
 
 この実習では、メッセージブローカー **RabbitMQ** の強力な機能である **Topic Exchange** を使用して、リアルタイムに流れる取引データを柔軟にフィルタリング・処理するシステムを構築します。
 
+> **💡 用語集**: この実習で登場する専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 以下の機能を備えた監視システムを **Clean Architecture** に基づいて構築します。
@@ -81,6 +83,11 @@ cd infra/assets/rabbitmq_crypto
 make mq-up
 ```
 
+### ✅ チェックポイント
+
+- [ ] `podman ps` で `workshop-mq` が `Up` 状態であることを確認した
+- [ ] ブラウザで [http://localhost:15672](http://localhost:15672) (guest/guest) が開けることを確認した
+
 ※ [http://localhost:15672](http://localhost:15672) (guest/guest) で管理画面を確認できます。
 
 ### 2. 依存ライブラリのインストール
@@ -103,6 +110,11 @@ go run cmd/ticker/main.go
 
 ※ `market.btc.usd` などのキーでメッセージを投げ続けます。
 
+### ✅ チェックポイント
+
+- [ ] ターミナルに送信ログ（Routing Key 等）が表示されていることを確認した
+- [ ] 管理画面の `Exchanges` タブで `crypto.exchange` のグラフが動き出したことを確認した
+
 ### STEP 2: 全取引のロギング (Topic: `market.#`)
 
 ワイルドカード `#` を使い、全通貨ペアを購読します。
@@ -117,6 +129,12 @@ go run cmd/logger/main.go
 
 - **日本円建てのみ**: `go run cmd/japandesk/main.go` (Key: `market.*.jpy`)
 - **Bitcoin の大口取引**: `go run cmd/alert/main.go` (Key: `market.btc.#`)
+
+### ✅ チェックポイント
+
+- [ ] `logger` が全通貨ペアのデータを受信していることを確認した
+- [ ] `japandesk` が `.jpy` で終わるデータのみを受信していることを確認した
+- [ ] `alert` が `market.btc` で始まるデータのみを受信していることを確認した
 
 ---
 
@@ -146,3 +164,80 @@ make mq-down
 
 - [RabbitMQ Tutorial - Topic Exchange (Go)](https://www.rabbitmq.com/tutorials/tutorial-five-go.html)
 - [AMQP 0-9-1 Model Explained](https://www.rabbitmq.com/tutorials/amqp-concepts.html)
+
+---
+
+## トラブルシューティング
+
+### コンシューマーがメッセージを受け取らない
+
+**症状**: `logger` や `alert` を起動しても何も表示されない
+
+**原因と対処**:
+
+- `ticker` が起動しているか確認
+
+    ```bash
+    # 別ターミナルで
+    go run cmd/ticker/main.go
+    ```
+
+- Exchange が正しく作成されているか管理画面で確認
+  - <http://localhost:15672> にアクセス (guest/guest)
+  - 「Admin」→「Exchanges」タブで `crypto.exchange` が存在するか確認
+
+- Queue が正しくバインドされているか確認
+  - 「Queues」タブで各コンシューマーのキューが存在するか確認
+
+### 接続エラーが発生する
+
+**症状**: `dial tcp: connection refused`
+
+**原因と対処**:
+
+- RabbitMQ コンテナが起動しているか確認
+
+    ```bash
+    podman ps | grep rabbitmq
+    ```
+
+- ポート 5672 (AMQP) と 15672 (管理画面) が公開されているか確認
+
+    ```bash
+    podman port $(podman ps -q --filter "ancestor=rabbitmq")
+    ```
+
+### 管理画面にアクセスできない
+
+**症状**: <http://localhost:15672> が開かない
+
+**原因と対処**:
+
+- Management Plugin が有効になっているか確認
+
+    ```bash
+    podman logs $(podman ps -q --filter "ancestor=rabbitmq") | grep management
+    ```
+
+- ファイアウォールでポート 15672 がブロックされていないか確認
+
+---
+
+## 環境別注意事項
+
+### macOS の場合
+
+Homebrew で RabbitMQ を直接インストールすることも可能です。
+
+```bash
+brew install rabbitmq
+brew services start rabbitmq
+```
+
+この場合、管理画面は <http://localhost:15672> で、デフォルトユーザーは `guest/guest` です。
+
+### Windows の場合
+
+- WSL2 上の Ubuntu で Podman を使用することを推奨
+- または Docker Desktop for Windows でも同じコマンドが動作します（`podman` → `docker` に置き換え）
+- Windows ファイアウォールでポート 5672、15672 を許可する必要がある場合があります

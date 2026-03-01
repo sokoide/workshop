@@ -2,6 +2,8 @@
 
 この実習では、モダンなサービスメッシュのデータプレーンとして事実上の標準となっている **Envoy Proxy** を使用し、アプリケーションコードを変更することなく、高度なトラフィック制御（リトライ、タイムアウト、サーキットブレーカー）を実現する方法を学びます。
 
+> **💡 用意集**: この実習で登場する[サイドカーパターン](glossary.md#architecture)や[L7 トラフィック制御](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 この実習を完了すると、以下のことができるようになります：
@@ -39,7 +41,7 @@
 ```mermaid
 graph LR
     Client[Client] -- HTTP --> Envoy[Envoy Proxy (Sidecar)]
-    
+
     subgraph Service Mesh Pod
         Envoy -- Localhost --> App[Backend Service]
     end
@@ -66,46 +68,47 @@ infra/assets/envoy/
 
 ```yaml
 static_resources:
-  listeners:
-  - name: listener_0
-    address:
-      socket_address: { address: 0.0.0.0, port_value: 10000 }
-    filter_chains:
-    - filters:
-      - name: envoy.filters.network.http_connection_manager
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-          stat_prefix: ingress_http
-          route_config:
-            name: local_route
-            virtual_hosts:
-            - name: local_service
-              domains: ["*"]
-              routes:
-              - match: { prefix: "/" }
-                route: 
-                  cluster: service_backend
-                  timeout: 2s
-                  retry_policy:
-                    retry_on: "5xx"
-                    num_retries: 3
-          http_filters:
-          - name: envoy.filters.http.router
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+    listeners:
+        - name: listener_0
+          address:
+              socket_address: { address: 0.0.0.0, port_value: 10000 }
+          filter_chains:
+              - filters:
+                    - name: envoy.filters.network.http_connection_manager
+                      typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                          stat_prefix: ingress_http
+                          route_config:
+                              name: local_route
+                              virtual_hosts:
+                                  - name: local_service
+                                    domains: ["*"]
+                                    routes:
+                                        - match: { prefix: "/" }
+                                          route:
+                                              cluster: service_backend
+                                              timeout: 2s
+                                              retry_policy:
+                                                  retry_on: "5xx"
+                                                  num_retries: 3
+                          http_filters:
+                              - name: envoy.filters.http.router
+                                typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
-  clusters:
-  - name: service_backend
-    connect_timeout: 0.25s
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    load_assignment:
-      cluster_name: service_backend
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address: { address: backend, port_value: 80 }
+    clusters:
+        - name: service_backend
+          connect_timeout: 0.25s
+          type: STRICT_DNS
+          lb_policy: ROUND_ROBIN
+          load_assignment:
+              cluster_name: service_backend
+              endpoints:
+                  - lb_endpoints:
+                        - endpoint:
+                              address:
+                                  socket_address:
+                                      { address: backend, port_value: 80 }
 ```
 
 ### 2. 環境の起動
@@ -114,6 +117,11 @@ static_resources:
 cd infra/assets/envoy
 podman compose up -d
 ```
+
+### ✅ チェックポイント
+
+- [ ] `podman ps` で Envoy とバックエンドのコンテナが両方起動していることを確認した
+- [ ] `infra/assets/envoy/envoy.yaml` が正しく配置されていることを確認した
 
 > 注: このリポジトリには `infra/assets/envoy` のサンプルディレクトリが含まれています。必要に応じて内容を確認・編集して進めてください。
 
@@ -131,6 +139,10 @@ curl -v http://localhost:10000/
 
 レスポンスヘッダーに `server: envoy` が含まれていることを確認してください。これは Envoy を経由した証拠です。
 
+### ✅ チェックポイント
+
+- [ ] `curl` の出力に `HTTP/1.1 200 OK` と `server: envoy` が含まれていることを確認した
+
 ### STEP 2: タイムアウトの動作確認
 
 バックエンドサービスが遅延した場合の Envoy の挙動を確認します。
@@ -141,6 +153,11 @@ curl -v http://localhost:10000/sleep/3
 ```
 
 **結果**: Envoy が 2 秒経過した時点で接続を切り、`504 Gateway Timeout` を返すことを確認します。これにより、バックエンドの不調が原因でクライアントが無限に待たされるのを防ぎます。
+
+### ✅ チェックポイント
+
+- [ ] レスポンスが `504 Gateway Timeout` になることを確認した
+- [ ] 通信時間が設定通りの 約 2 秒であることを確認した
 
 ### STEP 3: リトライの動作確認
 
@@ -159,6 +176,11 @@ Envoy の内部状態を確認します。
 `http://localhost:9901/stats`
 
 ここで `retry` や `timeout` の発生回数がメトリクスとして記録されていることを確認します。これはシステムの健全性を監視するために重要です。
+
+### ✅ チェックポイント
+
+- [ ] ブラウザまたは `curl` で `http://localhost:9901/stats` にアクセスできることを確認した
+- [ ] `upstream_rq_retry` などのメトリクスが増加していることを確認した
 
 ---
 
@@ -181,3 +203,40 @@ podman compose down
 
 - **Circuit Breaking**: 大量のエラー発生時にシステム全体を守る遮断機能
 - **Istio**: Envoy をコントロールプレーンで集中管理するサービスメッシュ製品へのステップアップ
+
+---
+
+## 🔧 トラブルシューティング
+
+### Envoy が起動しない (設定エラー)
+
+**症状**: `envoy` コンテナが `Exited` になる
+
+**原因と対処**:
+
+- **envoy.yaml のシンタックスエラー**: ログを確認してエラー箇所を特定してください。
+
+    ```bash
+    podman logs <container_id>
+    ```
+
+### バックエンドに接続できない (503 Service Unavailable)
+
+**症状**: Envoy から 503 が返る
+
+**原因と対処**:
+
+- **名前解決の失敗**: Envoy 設定内の `address` が `backend` (docker-compose のサービス名) と一致しているか確認してください。
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+- Docker Desktop または Colima を使用している場合、`localhost` ポートフォワーディングが自動で行われます。
+
+### Windows の場合
+
+- WSL2 上で `podman compose` を使用して実行可能です。
+- WSL2 のネットワーク設定により、Windows 側から `localhost:10000` にアクセスできない場合は、WSL2 の IP アドレスを直接指定してください。

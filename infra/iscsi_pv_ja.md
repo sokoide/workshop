@@ -2,6 +2,8 @@
 
 このワークショップでは、伝統的なブロックストレージプロトコルである **iSCSI** を構築し、それを Kubernetes クラスタの永続ボリューム（PersistentVolume）として利用する一連の流れを学びます。
 
+> **💡 用語集**: この実習で登場する[iSCSI](glossary.md#storage)や[PersistentVolume](glossary.md#storage)、[LUN](glossary.md#storage)などの専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 以下の構成を構築し、外部ストレージを Pod からマウントしてデータの永続性を検証します。
@@ -54,41 +56,41 @@ graph TD
 
 ## アーキテクチャ
 
- Kubernetes におけるストレージの抽象化レイヤーと、実際の物理的な接続（iSCSI プロトコル）の関係を理解します。
+Kubernetes におけるストレージの抽象化レイヤーと、実際の物理的な接続（iSCSI プロトコル）の関係を理解します。
 
- ```mermaid
- graph TD
-     subgraph K8s_Cluster [VM1: Kubernetes Node / iSCSI Initiator]
-         style K8s_Cluster fill:#f9f9f9,stroke:#333,stroke-width:2px
-         
-         subgraph Logical_Layer [Logic: K8s Resources]
-             Pod[Pod]
-             PVC[PersistentVolumeClaim<br>(Request 1Gi)]
-             PV[PersistentVolume<br>(Pointer to iSCSI)]
-             
-             Pod -- "mounts" --> PVC
-             PVC -- "binds" --> PV
-         end
-         
-         subgraph OS_Layer [Physical: Linux Kernel]
-             Device[/dev/sdb<br>Attached Disk]
-             Initiator[iSCSI Initiator<br>(open-iscsi)]
-             
-             PV -. "refers to" .- Device
-             Device --- Initiator
-         end
-     end
- 
-     subgraph Storage_Server [VM2: iSCSI Target]
-         style Storage_Server fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-         Target[iSCSI Target Process]
-         Disk[(Disk Image<br>1GB)]
-         
-         Target -- "reads/writes" --> Disk
-     end
- 
-     Initiator == "iSCSI Protocol (TCP 3260)" ==> Target
- ```
+```mermaid
+graph TD
+    subgraph K8s_Cluster [VM1: Kubernetes Node / iSCSI Initiator]
+        style K8s_Cluster fill:#f9f9f9,stroke:#333,stroke-width:2px
+
+        subgraph Logical_Layer [Logic: K8s Resources]
+            Pod[Pod]
+            PVC[PersistentVolumeClaim<br>(Request 1Gi)]
+            PV[PersistentVolume<br>(Pointer to iSCSI)]
+
+            Pod -- "mounts" --> PVC
+            PVC -- "binds" --> PV
+        end
+
+        subgraph OS_Layer [Physical: Linux Kernel]
+            Device[/dev/sdb<br>Attached Disk]
+            Initiator[iSCSI Initiator<br>(open-iscsi)]
+
+            PV -. "refers to" .- Device
+            Device --- Initiator
+        end
+    end
+
+    subgraph Storage_Server [VM2: iSCSI Target]
+        style Storage_Server fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+        Target[iSCSI Target Process]
+        Disk[(Disk Image<br>1GB)]
+
+        Target -- "reads/writes" --> Disk
+    end
+
+    Initiator == "iSCSI Protocol (TCP 3260)" ==> Target
+```
 
 ### 重要なポイント
 
@@ -148,6 +150,11 @@ sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/acls create <VM1_IQN
 sudo targetcli saveconfig
 ```
 
+### ✅ チェックポイント
+
+- [ ] `targetcli ls` で `/iscsi`, `/backstores/fileio`, `/iscsi/.../luns` が正しく設定されていることを確認した
+- [ ] VM1 の IQN が ACL に登録されていることを確認した
+
 ### STEP 2: 手動マウントによる動作確認 (VM1)
 
 Kubernetes に通す前に、OS レベルで接続できるか確認します。
@@ -164,6 +171,11 @@ sudo iscsiadm -m node --targetname iqn.2025-12.world.server:storage --portal 192
 lsblk # /dev/sdb 等が増えているはず
 sudo mkfs.ext4 /dev/sdb
 ```
+
+### ✅ チェックポイント
+
+- [ ] `lsblk` の出力に、ターゲットから提供された 1GB のディスク（/dev/sdb 等）が表示されていることを確認した
+- [ ] `iscsiadm -m session -P 1` で正常に接続（LOGGED_IN）されていることを確認した
 
 ### STEP 3: Kubernetes (Minikube) の準備 (VM1)
 
@@ -185,16 +197,16 @@ sudo minikube start --driver=none
     apiVersion: v1
     kind: PersistentVolume
     metadata:
-      name: iscsi-pv
+        name: iscsi-pv
     spec:
-      capacity:
-        storage: 1Gi
-      accessModes: [ReadWriteOnce]
-      iscsi:
-        targetPortal: "192.168.1.12:3260"
-        iqn: "iqn.2025-12.world.server:storage"
-        lun: 0
-        fsType: 'ext4'
+        capacity:
+            storage: 1Gi
+        accessModes: [ReadWriteOnce]
+        iscsi:
+            targetPortal: "192.168.1.12:3260"
+            iqn: "iqn.2025-12.world.server:storage"
+            lun: 0
+            fsType: "ext4"
     ```
 
 2. **PersistentVolumeClaim (iscsi-pvc.yaml)**
@@ -203,12 +215,12 @@ sudo minikube start --driver=none
     apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
-      name: iscsi-pvc
+        name: iscsi-pvc
     spec:
-      accessModes: [ReadWriteOnce]
-      resources:
-        requests:
-          storage: 1Gi
+        accessModes: [ReadWriteOnce]
+        resources:
+            requests:
+                storage: 1Gi
     ```
 
 ```bash
@@ -216,6 +228,11 @@ kubectl apply -f iscsi-pv.yaml
 kubectl apply -f iscsi-pvc.yaml
 kubectl get pvc # Status が Bound になれば成功
 ```
+
+### ✅ チェックポイント
+
+- [ ] `kubectl get pv` で `iscsi-pv` のステータスが `Bound` であることを確認した
+- [ ] `kubectl get pvc` で `iscsi-pvc` のステータスが `Bound` であることを確認した
 
 ### STEP 5: Pod からの利用と永続性確認
 
@@ -234,6 +251,11 @@ kubectl apply -f test-pod.yaml
 kubectl exec test-pod -- cat /data/hello.txt
 # -> "Hello persistent" と出れば永続化成功！
 ```
+
+### ✅ チェックポイント
+
+- [ ] Pod を再起動した後も `/data/hello.txt` の内容が維持されていることを確認した
+- [ ] `kubectl describe pod test-pod` で `iscsi-pv` が `/data` にマウントされていることを確認した
 
 ---
 
@@ -263,3 +285,37 @@ sudo iscsiadm -m node --logout
 
 - [Kubernetes Documentation: Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
 - [Open-iSCSI Official Site](http://www.open-iscsi.com/)
+
+---
+
+## 🔧 トラブルシューティング
+
+### iSCSI ログインに失敗する
+
+**症状**: `iscsiadm: Could not log into all portals`
+
+**原因と対処**:
+
+- **ACL 設定漏れ**: VM2 (Target) 側の ACL に VM1 (Initiator) の IQN が正しく登録されているか確認してください。
+- **ネットワーク**: TCP ポート 3260 が VM2 で開放されているか確認してください (`ss -nl | grep 3260`)。
+
+### PVC が Pending のまま
+
+**症状**: `kubectl get pvc` でステータスが `Pending`
+
+**原因と対処**:
+
+- **PV と PVC の不一致**: 容量 (1Gi) やアクセスモード (ReadWriteOnce) が PV と PVC で一致しているか確認してください。
+- **iSCSI 接続の失敗**: Node (VM1) の OS ログを確認してください (`sudo journalctl -u iscsid`)。
+
+---
+
+## 💻 環境別注意事項
+
+### macOS の場合
+
+- Docker Desktop or Colima で Kubernetes を動かす場合、ホスト OS (macOS) 自体に iSCSI イニシエータが必要です。VM 内で完結させることを推奨します。
+
+### Windows の場合
+
+- WSL2 内で iSCSI イニシエータを動かすには、カーネルの再ビルドが必要な場合があります。Ubuntu Server VM 上での実行を推奨します。

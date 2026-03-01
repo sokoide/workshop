@@ -4,6 +4,8 @@
 
 In this workshop, you will learn about **connection reuse and streaming**, which are the foundations of modern web applications. You will understand how connections are optimized from HTTP/1.1 to the latest HTTP/3 through hands-on exercises.
 
+> **💡 Glossary**: Please refer to [Keep-Alive](glossary.md#protocol), [Multiplexing](glossary.md#protocol), or [HoL Blocking](glossary.md#protocol) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goals
 
 - Understand the effect of connection reuse with HTTP/1.1 **Keep-Alive**.
@@ -17,15 +19,15 @@ In this workshop, you will learn about **connection reuse and streaming**, which
 
 Re-establishing TCP connections (3-way handshake) and TLS connections (handshake) for every communication causes significant overhead, especially in high-latency environments.
 
-| Protocol | Connection Handling | Features |
-| :--- | :--- | :--- |
-| **HTTP/1.0** | Short-lived | Disconnect after each request. High overhead. |
-| **HTTP/1.1** | Persistent (Keep-Alive) | Reuse connections. In practice, requests are processed serially, leading to **HoL Blocking** due to response waiting. |
-| **WebSocket** | Bi-directional | Upgraded from HTTP. Allows bi-directional sending, but **TCP-level HoL Blocking** remains. |
-| **SSE** | Server-Sent Events | Unidirectional stream from server to client over HTTP. Lightweight for notifications. **TCP-level HoL Blocking** remains. |
-| **HTTP/2** | Multiplexed | Multiple "streams" within one connection. Allows parallel processing within server limits, but **TCP-level HoL Blocking** remains. |
-| **gRPC** | Streaming | Based on HTTP/2, utilizes streams and flow control for efficient bi-directional communication. |
-| **HTTP/3** | QUIC/UDP | Reduces TCP and TLS overhead. Rebuilds reliability over UDP, **resolving TCP-level HoL Blocking**. |
+| Protocol      | Connection Handling     | Features                                                                                                                           |
+| :------------ | :---------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| **HTTP/1.0**  | Short-lived             | Disconnect after each request. High overhead.                                                                                      |
+| **HTTP/1.1**  | Persistent (Keep-Alive) | Reuse connections. In practice, requests are processed serially, leading to **HoL Blocking** due to response waiting.              |
+| **WebSocket** | Bi-directional          | Upgraded from HTTP. Allows bi-directional sending, but **TCP-level HoL Blocking** remains.                                         |
+| **SSE**       | Server-Sent Events      | Unidirectional stream from server to client over HTTP. Lightweight for notifications. **TCP-level HoL Blocking** remains.          |
+| **HTTP/2**    | Multiplexed             | Multiple "streams" within one connection. Allows parallel processing within server limits, but **TCP-level HoL Blocking** remains. |
+| **gRPC**      | Streaming               | Based on HTTP/2, utilizes streams and flow control for efficient bi-directional communication.                                     |
+| **HTTP/3**    | QUIC/UDP                | Reduces TCP and TLS overhead. Rebuilds reliability over UDP, **resolving TCP-level HoL Blocking**.                                 |
 
 > **HoL Blocking (Head-of-Line Blocking)**:
 > A phenomenon where the first request or packet in a queue blocks all subsequent requests or packets from being processed, even if they have arrived normally.
@@ -171,7 +173,7 @@ Based on UDP, but QUIC ensures reliability. While the initial connection require
 
 - **Downloading 100 Images**:
   In addition to HTTP/2's benefits, QUIC performs order guarantee on a "per-stream" basis. Packet loss only causes the specific image data to wait for retransmission, while **other images (streams) continue to be transferred without interruption**. This completely resolves TCP-level HoL Blocking.
-  *Note: Application-layer or single-stream HoL Blocking due to ordering dependencies may still occur.*
+  _Note: Application-layer or single-stream HoL Blocking due to ordering dependencies may still occur._
 
 ```mermaid
 sequenceDiagram
@@ -196,39 +198,39 @@ sequenceDiagram
 
 2. **Install Tools**
 
-   Install the system-level tools using `apt`, and use **Homebrew (Linuxbrew)** for development tools to ensure the latest versions and easy installation of `websocat`.
+    Install the system-level tools using `apt`, and use **Homebrew (Linuxbrew)** for development tools to ensure the latest versions and easy installation of `websocat`.
 
-   ```bash
-   # 1. Install system essentials via apt
-   sudo apt update
-   sudo apt install -y podman podman-compose git make openssl curl
+    ```bash
+    # 1. Install system essentials via apt
+    sudo apt update
+    sudo apt install -y podman podman-compose git make openssl curl
 
-   # 2. Install development tools via Homebrew
-   # If you haven't installed Homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   brew install websocat go protobuf grpcurl
-   ```
+    # 2. Install development tools via Homebrew
+    # If you haven't installed Homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    brew install websocat go protobuf grpcurl
+    ```
 
-   > [!IMPORTANT]
-   > Ensure both Homebrew and Go binary directories are in your `PATH`.
->
-   > ```bash
-   > # Example for ~/.bashrc or ~/.zshrc
-   > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-   > export PATH=$PATH:$(go env GOPATH)/bin
-   > ```
+    > [!IMPORTANT]
+    > Ensure both Homebrew and Go binary directories are in your `PATH`.
+    >
+    > ```bash
+    > # Example for ~/.bashrc or ~/.zshrc
+    > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    > export PATH=$PATH:$(go env GOPATH)/bin
+    > ```
 
-   Next, set up the Go-specific Protobuf plugins using `make setup`:
+    Next, set up the Go-specific Protobuf plugins using `make setup`:
 
-   ```bash
-   make setup
-   ```
+    ```bash
+    make setup
+    ```
 
-   ```bash
-   # (Tool paths appear; no output if already installed)
-   which protoc-gen-go grpcurl
-   ```
+    ```bash
+    # (Tool paths appear; no output if already installed)
+    which protoc-gen-go grpcurl
+    ```
 
-1. **Generate Self-Signed Certificate**
+3. **Generate Self-Signed Certificate**
 
     Since HTTP/2/3 require TLS/QUIC, create a local certificate.
 
@@ -236,7 +238,7 @@ sequenceDiagram
     make cert
     ```
 
-2. **Generate Protobuf Code**
+4. **Generate Protobuf Code**
 
     Generate Go stubs from `proto/greeter.proto`.
 
@@ -244,7 +246,7 @@ sequenceDiagram
     make gen
     ```
 
-3. **Start the Server**
+5. **Start the Server**
 
     ```bash
     make run
@@ -273,6 +275,11 @@ curl -v http://localhost:8080/ http://localhost:8080/
 # 2. Disable Keep-Alive with "Connection: close" (simulating HTTP/1.0-like behavior)
 curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `Re-using existing connection! (#0)` appears when Keep-Alive is enabled.
+- [ ] Confirmed `Closing connection 0` occurs for each request when `Connection: close` is used.
 
 **Observation Points**:
 
@@ -303,7 +310,7 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
     1. **curl Logs**: Note that `Closing connection 0` appears after the first response, and `Re-using existing connection!` **does not appear** for the second request.
     2. **Socket Status**: While monitoring with `ss`, you will see **two distinct connections** (with different client-side port numbers) being created and moving to completion (e.g., TIME-WAIT).
 
-    *Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` or similar.*
+    _Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` or similar._
 
 > **Note on Timeout**:
 > Servers typically have a **Keep-Alive Timeout**. If no request arrives within a certain period, the server sends a TCP disconnect (FIN). If the connection disappears during the exercise, simply send another request to perform a new handshake.
@@ -312,11 +319,11 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 
 WebSocket starts with an **HTTP/1.1 `Upgrade` header**, but once established, it switches to **"Full-duplex communication"** where both parties can send data at any time, ignoring the HTTP request-response framework.
 
-| Feature | HTTP/1.1 (Keep-Alive) | WebSocket |
-| :--- | :--- | :--- |
-| **Communication Direction** | Client-initiated Request/Response | Full-duplex (Either side can send anytime) |
-| **Data Unit** | HTTP Message (Header + Body) | Lightweight Frame (Binary/Text) |
-| **Overhead** | Headers required for every request | Minimal frame headers after connection |
+| Feature                     | HTTP/1.1 (Keep-Alive)              | WebSocket                                  |
+| :-------------------------- | :--------------------------------- | :----------------------------------------- |
+| **Communication Direction** | Client-initiated Request/Response  | Full-duplex (Either side can send anytime) |
+| **Data Unit**               | HTTP Message (Header + Body)       | Lightweight Frame (Binary/Text)            |
+| **Overhead**                | Headers required for every request | Minimal frame headers after connection     |
 
 > **When using Proxies (Nginx / Traefik)**:
 >
@@ -332,6 +339,11 @@ WebSocket starts with an **HTTP/1.1 `Upgrade` header**, but once established, it
 done
 ) | websocat -v ws://localhost:8080/ws
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `101 Switching Protocols` response.
+- [ ] Confirmed sent messages are echoed back.
 
 **Observation Points**:
 
@@ -391,6 +403,11 @@ HTTP/2 creates multiple virtual "streams" within a single TCP connection to proc
 curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed stream IDs like `[HTTP/2] [1] GET /a` in the logs.
+- [ ] Confirmed a single TCP connection (source port) is used for both requests via `ss`.
+
 **Observation Points**:
 
 1. **Multiplexing**: In the `curl` log, check for different odd stream IDs (e.g., `[HTTP/2] [1] GET /a`, `[HTTP/2] [3] GET /b`) running simultaneously.
@@ -434,6 +451,11 @@ curl --version | grep HTTP3
 curl --http3 -k -v https://localhost:8444/
 ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `ALPN: h3` in the output.
+- [ ] Confirmed UDP packets are flowing to port 8444 via `tcpdump`.
+
 **Observation Points**:
 
 1. **Protocol Difference**: Check for `ALPN: h3` in the `curl` log.
@@ -450,11 +472,11 @@ gRPC utilizes HTTP/2's long-lived connections and stream multiplexing.
 
 When using a single `ClientConn`, gRPC Unary offers significant advantages over HTTP/1.1 Keep-Alive:
 
-| Feature | HTTP/1.1 Keep-Alive | gRPC Unary (HTTP/2) |
-| :--- | :--- | :--- |
-| **Parallelism** | Serial (Must wait for response) | **Multiplexing** |
-| **HoL Blocking** | Likely at connection level | **HTTP-layer HoL Mitigated** (TCP-level remains) |
-| **Resource Efficiency** | Parallelism needs multiple TCP conns | Many streams over **1 TCP connection** |
+| Feature                 | HTTP/1.1 Keep-Alive                  | gRPC Unary (HTTP/2)                              |
+| :---------------------- | :----------------------------------- | :----------------------------------------------- |
+| **Parallelism**         | Serial (Must wait for response)      | **Multiplexing**                                 |
+| **HoL Blocking**        | Likely at connection level           | **HTTP-layer HoL Mitigated** (TCP-level remains) |
+| **Resource Efficiency** | Parallelism needs multiple TCP conns | Many streams over **1 TCP connection**           |
 
 #### gRPC Advantages over WebSocket
 
@@ -500,6 +522,11 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
         ```
 
         > Remove `| grep -v TIME_WAIT` if you want to include TIME_WAIT entries in the output.
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed 5 sequential responses from `SayHelloStream`.
+- [ ] Confirmed bi-directional input/output in the `Chat` RPC.
 
 ### STEP 6: Lightweight Notifications with Server-Sent Events (SSE)
 
@@ -614,3 +641,42 @@ podman-compose down
 
 - **Challenge WebTransport**: Evaluate it as an alternative to WebSocket, comparing its multi-stream and low-latency (datagram) capabilities.
 - **Load Balancer Configuration**: Investigate how L4 LBs and L7 LBs handle persistent connections differently (e.g., connection imbalance issues).
+
+---
+
+## 🔧 Troubleshooting
+
+### Cannot Access via HTTP/3
+
+**Symptoms**: `curl: (1) libcurl was built without HTTP3 support`
+
+**Causes and Solutions**:
+
+- The system `curl` does not support HTTP/3.
+
+    ```bash
+    brew install curl
+    # Use an alias or update PATH to prioritize the brew version
+    ```
+
+### gRPC Certificate Error
+
+**Symptoms**: `grpcurl` returns `failed to dial server: x509: certificate signed by unknown authority`
+
+**Causes and Solutions**:
+
+- Caused by using a self-signed certificate. Use the `-insecure` flag or use `-plaintext` if the server allows it.
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+- `ss` command is unavailable. Use `lsof -iP` or `netstat` instead.
+- Install tools via `brew install websocat grpcurl`.
+
+### For Windows Users
+
+- Recommended to run on WSL2.
+- Ensure UDP ports are not blocked by the Windows Firewall when accessing the WSL2 HTTP/3 server from a Windows browser.

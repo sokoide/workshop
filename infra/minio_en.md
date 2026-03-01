@@ -2,6 +2,8 @@
 
 In this workshop, you will build an AWS S3-compatible object storage server using **MinIO** and learn how to implement file upload, download, and secure file sharing using Presigned URLs from a Go application.
 
+> **💡 Glossary**: Please refer to [Object Storage](glossary.md#storage), [Bucket](glossary.md#storage), or [Presigned URL](glossary.md#security) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 By completing this workshop, you will be able to:
@@ -44,12 +46,12 @@ graph TB
     subgraph App
         UC[Usecase: FileUpload] --> Repo[Interface: FileRepository]
     end
-    
+
     subgraph Infra
         Impl[MinIO Adapter] -.->|implements| Repo
         Impl --> SDK[AWS SDK Go v2]
     end
-    
+
     subgraph External
         MinIO[(MinIO Server)]
     end
@@ -79,8 +81,13 @@ podman compose up -d
 
 MinIO Console: `http://localhost:9001`
 
-- User: `minioadmin`
 - Pass: `minioadmin`
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed MinIO container is running via `podman ps`.
+- [ ] Confirmed MinIO Console is accessible at `http://localhost:9001`.
+- [ ] Confirmed a test bucket can be created via the console.
 
 ### 2. Client Setup (Alias)
 
@@ -131,13 +138,13 @@ Issue a time-limited access URL for a file in a private bucket. This allows you 
 func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
     // Use presign client
     presignClient := s3.NewPresignClient(u.client)
-    
+
     // Issue GET URL valid for 15 minutes
     req, _ := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
         Bucket: aws.String("workshop-images"),
         Key:    aws.String(key),
     }, s3.WithPresignExpires(15*time.Minute))
-    
+
     return req.URL, nil
 }
 ```
@@ -150,6 +157,12 @@ go run main.go share sample.jpg
 ```
 
 **Why is it secure?**: The URL contains a cryptographic signature, so if any part of the path or expiration time is tampered with, it becomes invalid.
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `go run main.go upload` succeeded and file is visible in MinIO.
+- [ ] Confirmed `go run main.go share` generates a valid-looking URL.
+- [ ] Confirmed `curl -I "<URL>"` returns HTTP 200 OK.
 
 ### STEP 3: Validate URL
 
@@ -180,3 +193,37 @@ If data persistence is not configured, data will be lost when containers are rem
 
 - **Event Notification**: Trigger Lambda (OpenFaaS) on file upload to perform image resizing
 - **Lifecycle Policy**: Configure automatic deletion/archiving of old files
+
+---
+
+## 🔧 Troubleshooting
+
+### Connection Refused
+
+**Symptoms**: `dial tcp 127.0.0.1:9000: connect: connection refused`
+
+**Causes and Solutions**:
+
+- **Container Not Running**: Ensure `podman compose up -d` completed successfully.
+- **Port Conflict**: Check if another process is using port 9000 (`lsof -i:9000`).
+
+### Signature Verification Error
+
+**Symptoms**: Accessing the generated URL returns a `SignatureDoesNotMatch` error.
+
+**Causes and Solutions**:
+
+- **Credentials Mismatch**: Ensure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in your app match MinIO's settings (`minioadmin`).
+- **Clock Skew**: Significant time difference between the client (Go app) and server (MinIO) can invalidate signatures.
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+- If `localhost` is unreachable, try `127.0.0.1` or the IP address of your Podman machine.
+
+### For Windows Users
+
+- When using WSL2, ensure localhost forwarding is working for your browser. Use `curl` inside WSL if browser access fails.

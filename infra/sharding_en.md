@@ -2,6 +2,8 @@
 
 This guide explains practical sharding design for distributed systems and connects theory to production systems:
 
+> **💡 Glossary**: Please refer to [Sharding](glossary.md#architecture), [Consistent Hashing](glossary.md#architecture), or [Fan-out](glossary.md#network) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 - **Elasticsearch** for index/data sharding
 - **Cortex** for time-series ingestion/query sharding with a hash ring
 - **Sparse Table** and **Segment Tree** as supporting data structures for shard-aware planning and balancing
@@ -50,6 +52,12 @@ Sharding splits data and traffic across nodes so the system can scale horizontal
 - Route by tenant, org, customer, or business domain.
 - Useful for noisy-neighbor isolation and SLO boundaries.
 - Risk: skew when tenants are very different in traffic volume.
+
+### ✅ Understanding Checkpoints
+
+- [ ] Can explain whether hash-based or range-based sharding is better for "range scans".
+- [ ] Can explain the mechanism that causes a "hotspot shard".
+- [ ] Can identify one sharding strategy suitable for your own project.
 
 ---
 
@@ -182,6 +190,12 @@ Reduction strategies:
 - use routing hints (tenant, partition key, time window)
 - execute two-phase queries (candidate shard discovery, then targeted fetch)
 
+### ✅ Understanding Checkpoints
+
+- [ ] Can list three negative impacts of excessive "Fan-out" on a system.
+- [ ] Can explain the strategy for selecting a shard key to improve query locality.
+- [ ] Can identify one way to reduce Fan-out without rebuilding the index.
+
 ---
 
 ## Replication and Failure Domains
@@ -241,6 +255,12 @@ graph LR
 - token movement should be controlled during rollouts
 - shuffle-sharding style isolation can reduce tenant blast radius in multi-tenant environments
 
+### ✅ Understanding Checkpoints
+
+- [ ] Can explain the role of a "Primary Shard" in Elasticsearch.
+- [ ] Understood how Cortex "Ingesters" maintain data consistency at a high level.
+- [ ] Can explain the benefits of a ring-based consistent hashing approach.
+
 ---
 
 ## Cortex PR Notes on Ring Watch Loop Optimization
@@ -282,8 +302,8 @@ Ring watch/backoff/lifecycler loops run continuously in control-plane paths. Red
 4. Track cross-shard fan-out and keep it within explicit SLO limits.
 5. Separate control-plane stability from data-plane throughput budgets.
 6. Use static vs dynamic metadata structures intentionally:
-   - static-heavy: Sparse Table
-   - update-heavy: Segment Tree
+    - static-heavy: Sparse Table
+    - update-heavy: Segment Tree
 
 ---
 

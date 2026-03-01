@@ -3,6 +3,8 @@
 This workshop extends the environment from [vlan_en.md](./vlan_en.md).
 We will learn how Kubernetes `Service (Type: LoadBalancer)` and `MetalLB` manipulate packets behind the scenes by reproducing the behavior using standard Linux features.
 
+> **💡 Glossary**: Please refer to [LoadBalancer](glossary.md#network), [iptables](glossary.md#network), or [VIP](glossary.md#network) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Build a configuration to access a service running on an internal Kubernetes Pod network from an external public network via a Virtual IP (VIP).
@@ -86,6 +88,11 @@ sudo podman exec b apk add --no-cache busybox-extras
 sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello from Pod B' | nc -l -p 80; done"
 ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed the web server (nc) is running via `podman exec b ps aux | grep nc`.
+- [ ] Confirmed response from `router` via `curl http://192.168.20.20`.
+
 ### STEP 2: Network Isolation (Firewall)
 
 To enforce the principle of "use Service IP instead of accessing Pod IP directly," we block direct communication.
@@ -95,7 +102,12 @@ To enforce the principle of "use Service IP instead of accessing Pod IP directly
 sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
 ```
 
-*Note: Confirm that Ping from `a` to `b` (192.168.20.20) fails.*
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `podman exec a ping -c 1 192.168.20.20` fails (timeout).
+- [ ] Confirmed direct communication through the router is blocked.
+
+_Note: Confirm that Ping from `a` to `b` (192.168.20.20) fails._
 
 ### STEP 3: Configure VIP (Virtual IP)
 
@@ -105,7 +117,12 @@ Add an external-facing IP (`192.168.10.100`) to the router's public interface.
 sudo podman exec router ip addr add 192.168.10.100/32 dev eth1
 ```
 
-*Note: This causes the router to respond to ARP requests for the VIP (simulating MetalLB behavior).*
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `192.168.10.100` is added to `eth1` via `podman exec router ip addr show eth1`.
+- [ ] Confirmed `podman exec a ping -c 1 192.168.10.100` succeeds.
+
+_Note: This causes the router to respond to ARP requests for the VIP (simulating MetalLB behavior)._
 
 ### STEP 4: Configure DNAT (Destination NAT)
 
@@ -117,6 +134,10 @@ sudo podman exec router iptables -t nat -A PREROUTING \
   -d 192.168.10.100 -p tcp --dport 80 \
   -j DNAT --to-destination 192.168.20.20:80
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed the DNAT rule is registered via `sudo podman exec router iptables -t nat -L PREROUTING`.
 
 ### STEP 5: Handle Return Traffic (SNAT)
 
@@ -132,9 +153,13 @@ sudo podman exec router iptables -t nat -A POSTROUTING \
 
 ```bash
 # Access VIP
-sudo podman exec a curl http://192.168.10.100
 # -> Should output "Hello from Pod B"!
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed communication to `http://192.168.10.100` returns "Hello from Pod B".
+- [ ] Confirmed packet counts are increasing via `podman exec router iptables -t nat -L -v`.
 
 ---
 
@@ -164,3 +189,37 @@ sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 
 - [Kubernetes Documentation: Service](https://kubernetes.io/docs/concepts/services-networking/service/)
 - [MetalLB Official Site](https://metallb.universe.tf/)
+
+---
+
+## 🔧 Troubleshooting
+
+### Cannot Access VIP
+
+**Symptoms**: `curl: (7) Failed to connect to 192.168.10.100 port 80: Connection timed out`
+
+**Causes and Solutions**:
+
+- **iptables Order**: Re-check that the rule is correctly placed in the `PREROUTING` chain.
+- **FORWARD Chain Conflict**: Ensure the `DROP` rule does not block the post-DNAT packets (which typically traversal the FORWARD chain).
+
+### Return Packets Lost
+
+**Symptoms**: Connection hangs or timeouts.
+
+**Causes and Solutions**:
+
+- **Missing MASQUERADE (SNAT)**: If MASQUERADE is missing on the router, Container B will attempt to respond directly to Container A, causing return packets to be lost.
+
+---
+
+## 💻 Environment Notes
+
+### For Linux Users
+
+- Use `iptables` within the `router` container to avoid interference with the host's firewall.
+
+### For macOS / Windows Users
+
+- Works out-of-the-box within the Podman/Docker Desktop Linux VM.
+- The VIP is only accessible within the VM network. Extra port-forwarding is needed for host browser access.

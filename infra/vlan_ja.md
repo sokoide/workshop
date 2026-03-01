@@ -2,6 +2,8 @@
 
 ソフトウェアエンジニア向けに、コンテナ技術（Podman）と Linux のネットワーク機能（macvlan, VLAN, iptables）を使って、擬似的な物理ネットワーク環境を構築する実習です。
 
+> **💡 用語集**: この実習で登場する専門用語は [用語集](glossary.md) を参照してください。
+
 ## ゴール
 
 以下の構成を構築し、L2 分離と L3 ルーティングの仕組みを理解します。
@@ -60,34 +62,34 @@ graph TD
 - **VLAN**: 1 つの物理ケーブルの中に、論理的に独立した「土管」を複数通します。
 - **macvlan**: コンテナに独自の MAC アドレスを割り当て、物理ネットワークに直結しているように見せます。これにより、仮想ブリッジのオーバーヘッドなしに高速な通信が可能です。
 
- ```mermaid
- graph TD
-     subgraph Host_OS [Host: Linux Kernel]
-         PhysNIC[Physical NIC (eth0)]
-         
-         subgraph VLAN_Interfaces [VLAN Sub-interfaces]
-             V10[eth0.10<br>(Tag: 10)]
-             V20[eth0.20<br>(Tag: 20)]
-         end
-         
-         PhysNIC --- V10
-         PhysNIC --- V20
-     end
- 
-     subgraph Containers [Podman Containers]
-         ContA[Container A<br>(IP: 192.168.10.10)]
-         ContB[Container B<br>(IP: 192.168.20.20)]
-     end
- 
-     V10 -. "macvlan<br>(Direct L2 Access)" .- ContA
-     V20 -. "macvlan<br>(Direct L2 Access)" .- ContB
-     
-     style PhysNIC fill:#eee,stroke:#333
-     style V10 fill:#d1e7dd,stroke:#0f5132
-     style V20 fill:#f8d7da,stroke:#842029
- ```
+```mermaid
+graph TD
+    subgraph Host_OS [Host: Linux Kernel]
+        PhysNIC[Physical NIC (eth0)]
 
- ---
+        subgraph VLAN_Interfaces [VLAN Sub-interfaces]
+            V10[eth0.10<br>(Tag: 10)]
+            V20[eth0.20<br>(Tag: 20)]
+        end
+
+        PhysNIC --- V10
+        PhysNIC --- V20
+    end
+
+    subgraph Containers [Podman Containers]
+        ContA[Container A<br>(IP: 192.168.10.10)]
+        ContB[Container B<br>(IP: 192.168.20.20)]
+    end
+
+    V10 -. "macvlan<br>(Direct L2 Access)" .- ContA
+    V20 -. "macvlan<br>(Direct L2 Access)" .- ContB
+
+    style PhysNIC fill:#eee,stroke:#333
+    style V10 fill:#d1e7dd,stroke:#0f5132
+    style V20 fill:#f8d7da,stroke:#842029
+```
+
+---
 
 ## アーキテクチャ
 
@@ -119,6 +121,11 @@ sudo podman info | grep rootless
 # rootless: false
 ```
 
+### ✅ チェックポイント
+
+- [ ] `sudo podman info | grep rootless` で `rootless: false` と表示される
+- [ ] `ip link show eth0` または `ip link show ens5` で対象の物理 NIC が存在することを確認した
+
 ---
 
 ## 実習ステップ
@@ -137,6 +144,10 @@ sudo ip link add link $IF name $IF.20 type vlan id 20
 sudo ip link set $IF.10 up
 sudo ip link set $IF.20 up
 ```
+
+### ✅ チェックポイント
+
+- [ ] `ip link show $IF.10` を実行し、`state UP` と表示されることを確認した
 
 ### STEP 2: Podman ネットワークを定義する
 
@@ -165,6 +176,10 @@ sudo podman exec router ip route del default via 192.168.10.1 dev eth1 2>/dev/nu
 sudo podman exec router ip route del default via 192.168.20.1 dev eth2 2>/dev/null || true
 ```
 
+### ✅ チェックポイント
+
+- [ ] `sudo podman exec router ip addr show` で、192.168.10.1 と 192.168.20.1 の両方が見えることを確認した
+
 ### STEP 4: ルーターで NAT を設定する
 
 ```bash
@@ -192,16 +207,16 @@ sudo podman run -d --name b --network net-vlan20 --ip 192.168.20.20 alpine sleep
 
 1. **疎通確認**: A から B への Ping が通ることを確認します。
 
-   ```bash
-   sudo podman exec a ping -c 3 192.168.20.20
-   ```
+    ```bash
+    sudo podman exec a ping -c 3 192.168.20.20
+    ```
 
 2. **ルーティング遮断実験**: ルーターで通信をブロックし、Ping が通らなくなることを確認します。
 
-   ```bash
-   sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
-   sudo podman exec a ping -c 3 -W 1 192.168.20.20 # 失敗する
-   ```
+    ```bash
+    sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
+    sudo podman exec a ping -c 3 -W 1 192.168.20.20 # 失敗する
+    ```
 
 ---
 
@@ -221,3 +236,80 @@ sudo ip link delete $IF.20
 1. **VLAN** を使うことで、物理インタフェースを論理的に分割できます。
 2. **macvlan** は、コンテナを物理スイッチに直接繋いだようなネットワーク構成を実現します。
 3. **Linux ルーター** は `ip_forward` と `iptables` だけで簡単に構築可能です。
+
+---
+
+## トラブルシューティング
+
+### コンテナ間で通信できない
+
+**症状**: `ping` が通らない
+
+**原因と対処**:
+
+- ルーターコンテナの `ip_forward` が有効になっているか確認
+
+    ```bash
+    sudo podman exec router sysctl net.ipv4.ip_forward
+    # net.ipv4.ip_forward = 1 でなければ有効化
+    ```
+
+- iptables のフォワードルールが正しく設定されているか確認
+
+    ```bash
+    sudo podman exec router iptables -L FORWARD -v -n
+    ```
+
+### Podman ネットワークの作成に失敗する
+
+**症状**: `podman network create` でエラー
+
+**原因と対処**:
+
+- VLAN サブインターフェースが正しく作成されているか確認
+
+    ```bash
+    ip link show | grep $IF
+    ```
+
+- Rootless モードで実行していないか確認
+
+    ```bash
+    sudo podman info | grep rootless
+    # rootless: false である必要あり
+    ```
+
+### NAT 経由でインターネットに接続できない
+
+**症状**: 外部への `ping` や `curl` が失敗
+
+**原因と対処**:
+
+- ルーターのデフォルトルートが正しく設定されているか確認
+
+    ```bash
+    sudo podman exec router ip route
+    # default via 192.168.1.1 dev eth0 などが表示されるはず
+    ```
+
+- MASQUERADE ルールが設定されているか確認
+
+    ```bash
+    sudo podman exec router iptables -t nat -L POSTROUTING -v -n
+    ```
+
+---
+
+## 環境別注意事項
+
+### macOS の場合
+
+Podman は動作しますが、Linux カーネル機能（VLAN、macvlan）は macOS では使用できません。以下の方法で対応してください：
+
+1. **VM を使用**: Lima または Docker Desktop with Linux VM を使用
+2. **クラウド**: AWS/GCP/Azure の Ubuntu インスタンスで実行
+
+### Windows の場合
+
+1. **WSL2**: Windows Subsystem for Linux 2 + Ubuntu で実行
+2. **クラウド**: Azure/AWS の Ubuntu インスタンスで実行

@@ -2,6 +2,8 @@
 
 This workshop is for software engineers to learn the basic mechanisms of DNS (Authoritative Servers, Forwarding, Delegation) by actually building them using **CoreDNS**.
 
+> **💡 Glossary**: Please refer to [Authoritative DNS Server](glossary.md#network) or [Forwarding](glossary.md#network) in the [Glossary](glossary.md) for technical terms used in this workshop.
+
 ## Goal
 
 Build the following DNS configuration with a parent-child relationship and understand the flow of name resolution.
@@ -65,7 +67,7 @@ Using two VMs, we will build the parent and child zones physically separated.
 
 - **VM1 (Parent):** IP `192.168.100.10` (Assumed)
 - **VM2 (Child):** IP `192.168.100.20` (Assumed)
-- *Note:* If your IP addresses are different, please replace them accordingly.
+- _Note:_ If your IP addresses are different, please replace them accordingly.
 
 ### 2. Tool Installation (Both VMs)
 
@@ -93,6 +95,11 @@ sudo mv coredns /usr/local/bin/
 # Verify operation
 coredns -version
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed version information with `coredns -version`.
+- [ ] Confirmed execute permissions for `/usr/local/bin/coredns`.
 
 ### STEP 2: Build VM1 (Parent): sokoide.com
 
@@ -135,6 +142,10 @@ VM1 manages the parent domain `sokoide.com` and forwards queries for `foo.sokoid
     EOF
     ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `Corefile` and `db.sokoide.com` exist in `~/coredns_parent`.
+
 ### STEP 3: Build VM2 (Child): foo.sokoide.com
 
 VM2 holds the authoritative data for the subdomain `foo.sokoide.com`.
@@ -169,6 +180,10 @@ VM2 holds the authoritative data for the subdomain `foo.sokoide.com`.
     EOF
     ```
 
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed `Corefile` and `db.foo.sokoide.com` exist in `~/coredns_child`.
+
 ### STEP 4: Start DNS Servers
 
 **Execute on both VM1 and VM2:**
@@ -179,7 +194,11 @@ VM2 holds the authoritative data for the subdomain `foo.sokoide.com`.
 coredns -conf Corefile
 ```
 
-*Note: Keep it running to check the logs.*
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed successful startup of CoreDNS with `CoreDNS-1.13.2` (or your version) appearing in the logs.
+
+_Note: Keep it running to check the logs._
 
 ### STEP 5: Verify Operation (dig)
 
@@ -187,18 +206,18 @@ Query from another terminal.
 
 1. **Direct Resolution**: Query `www.sokoide.com` to the parent server
 
-   ```bash
-   dig @192.168.100.10 -p 10053 www.sokoide.com +short
-   # -> 1.1.1.1
-   ```
+    ```bash
+    dig @192.168.100.10 -p 10053 www.sokoide.com +short
+    # -> 1.1.1.1
+    ```
 
 2. **Forwarded Resolution**: Query `test.foo.sokoide.com` to the parent server
 
-   ```bash
-   dig @192.168.100.10 -p 10053 test.foo.sokoide.com
-   ```
+    ```bash
+    dig @192.168.100.10 -p 10053 test.foo.sokoide.com
+    ```
 
-   **Result Check**: If `2.2.2.2` appears in the `ANSWER SECTION` and the `SERVER` is `192.168.100.10`, it confirms the parent "proxy-fetched" the answer from the child.
+    **Result Check**: If `2.2.2.2` appears in the `ANSWER SECTION` and the `SERVER` is `192.168.100.10`, it confirms the parent "proxy-fetched" the answer from the child.
 
 ---
 
@@ -207,9 +226,9 @@ Query from another terminal.
 1. Stop CoreDNS with `Ctrl+C`.
 2. Delete working directories.
 
-   ```bash
-   rm -rf ~/coredns_parent ~/coredns_child
-   ```
+    ```bash
+    rm -rf ~/coredns_parent ~/coredns_child
+    ```
 
 ---
 
@@ -226,3 +245,48 @@ You can test delegation behavior by adding the child's NS records to the parent'
 
 - [CoreDNS Official Documentation](https://coredns.io/docs/)
 - [RFC 1034 - Domain Names - Concepts and Facilities](https://tools.ietf.org/html/rfc1034)
+
+---
+
+## 🔧 Troubleshooting
+
+### Port 10053 Already in Use
+
+**Symptoms**: `listen tcp :10053: bind: address already in use`
+
+**Causes and Solutions**:
+
+- **Double Startup**: A CoreDNS process is already running.
+
+    ```bash
+    ps aux | grep coredns
+    kill <PID>
+    ```
+
+### Name Resolution Fails (NXDOMAIN)
+
+**Symptoms**: `dig` result is empty or `status: NXDOMAIN`
+
+**Causes and Solutions**:
+
+- **Missing Records**: Ensure A records like `www` are correctly listed in `db.sokoide.com`.
+- **Corefile Inconsistency**: Verify that filenames in the Corefile match the actual zone files.
+
+---
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+- Install the `bind` package as an alternative to `dnsutils`.
+
+    ```bash
+    brew install bind
+    ```
+
+- Download the Darwin version of the CoreDNS binary.
+
+### For Windows Users
+
+- Can be run on WSL2 (Ubuntu).
+- You may need to allow UDP/TCP 10053 in the Windows Firewall.
