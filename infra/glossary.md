@@ -9,7 +9,7 @@
 OSI 参照モデルまたは TCP/IP モデルのレイヤーを指します。
 
 | レイヤー | 名称 | 主なプロトコル/機器 | 説明 |
-|----------|------|-------------------|------|
+| :--- | :--- | :--- | :--- |
 | L1 | 物理層 | ケーブル、NIC | 電気信号の送受信 |
 | L2 | データリンク層 | Ethernet, MAC アドレス | 同一セグメント内の通信 |
 | L3 | ネットワーク層 | IP, ルーター | 異なるネットワーク間のルーティング |
@@ -27,7 +27,7 @@ OSI 参照モデルまたは TCP/IP モデルのレイヤーを指します。
 
 Media Access Control Address。ネットワークインターフェース（NIC）に割り当てられる 48bit の一意識別子。
 
-```
+```text
 例: 00:1A:2B:3C:4D:5E
 ```
 
@@ -35,7 +35,7 @@ Media Access Control Address。ネットワークインターフェース（NIC�
 
 Internet Protocol Address。ネットワーク上のデバイスを識別するためのアドレス。IPv4 は 32bit、IPv6 は 128bit。
 
-```
+```text
 IPv4 例: 192.168.1.1
 IPv6 例: 2001:db8::1
 ```
@@ -44,7 +44,7 @@ IPv6 例: 2001:db8::1
 
 IP アドレスのどの部分がネットワーク部で、どの部分がホスト部かを示す。
 
-```
+```text
 例: 255.255.255.0 (/24)
      -> 192.168.1.0 〜 192.168.1.255 の範囲
 ```
@@ -57,7 +57,7 @@ IP アドレスのどの部分がネットワーク部で、どの部分がホ�
 
 プライベート IP アドレスとグローバル IP アドレスを変換する技術。
 
-```
+```text
 プライベート: 192.168.1.10 ---[NAT]---> グローバル: 203.0.113.5
 ```
 
@@ -78,7 +78,7 @@ Linux カーネルの機能で、ネットワークスタック（インター�
 
 仮想のイーサネットケーブルペア。Network Namespace 間の接続に使用。
 
-```
+```text
 ┌─────────────┐     veth      ┌─────────────┐
 │ Namespace A │<------------->│ Namespace B │
 └─────────────┘   (peer)      └─────────────┘
@@ -121,7 +121,7 @@ Transport Layer Security / Secure Sockets Layer。通信を暗号化するプロ
 メッセージのルーティングを行うコンポーネント。RabbitMQ では複数のタイプが存在。
 
 | タイプ | 説明 |
-|--------|------|
+| :--- | :--- |
 | Direct | 完全一致のルーティングキー |
 | Fanout | 全てのキューに配信 |
 | Topic | ワイルドカードパターンマッチ |
@@ -131,7 +131,7 @@ Transport Layer Security / Secure Sockets Layer。通信を暗号化するプロ
 
 メッセージの宛先を指定するためのキー。ドット区切りの形式が一般的。
 
-```
+```text
 例: market.btc.usd
 ```
 
@@ -140,7 +140,7 @@ Transport Layer Security / Secure Sockets Layer。通信を暗号化するプロ
 Topic Exchange で使用するパターンマッチ文字。
 
 | 文字 | 説明 | 例 |
-|------|------|------|
+| :--- | :--- | :--- |
 | `*` | 1 単語にマッチ | `market.*.jpy` → `market.btc.jpy` にマッチ |
 | `#` | 0 個以上の単語にマッチ | `market.#` → `market.btc.usd` にマッチ |
 
@@ -152,7 +152,7 @@ Topic Exchange で使用するパターンマッチ文字。
 
 Redis のデータ構造。スコア順にソートされたメンバーの集合。
 
-```
+```text
 ZADD game_leaderboard 100 player1
 ZADD game_leaderboard 250 player2
 ZREVRANGE game_leaderboard 0 9  # 上位 10 名を取得
@@ -162,7 +162,7 @@ ZREVRANGE game_leaderboard 0 9  # 上位 10 名を取得
 
 重複を許さないメンバーの集合。
 
-```
+```text
 SADD banned_users player2
 SISMEMBER banned_users player2  # 1 (true)
 ```
@@ -179,7 +179,7 @@ TCP と IP を中心とするインターネット通信プロトコルの階層
 
 上位レイヤーのデータを下位レイヤーのペイロードとして包み込む処理。
 
-```
+```text
 [ICMP] → [IPv4 [ICMP]] → [Ethernet [IPv4 [ICMP]]]
 ```
 
@@ -219,7 +219,7 @@ Docker と互換性のあるコンテナエンジン。デーモンレスで roo
 
 依存関係を内側に向ける設計パターン。
 
-```
+```text
 Framework → UseCase → Domain ← Infra
             (depends on)
 ```
