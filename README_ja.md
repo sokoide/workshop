@@ -33,6 +33,8 @@
   - RabbitMQ の Topic Exchange を活用したリアルタイム仮想通貨監視システム構築
 - [シークレット管理実習：HashiCorp Vault による安全な API キー管理](./infra/secret_management_ja.md)
   - Vault KV v2 を活用したシークレットの集中管理・バージョニング・Clean Architecture による統合
+- [OAuth2 実習：Keycloak + Go + Podman で学ぶ認可フロー](./infra/oauth2_ja.md)
+  - Keycloak でトークン発行し、Go Resource Server で JWT を検証して保護 API を実装
 - [リバースプロキシ実習：Traefik で学ぶ K8s Ingress の裏側](./infra/traefik_ja.md)
   - Traefik + 複数バックエンドコンテナで SSL 終端・ルーティング・ヘルスチェック
 - [サービスメッシュ基礎実習：Envoy サイドカーで理解する L7 トラフィック制御](./infra/envoy_ja.md)
