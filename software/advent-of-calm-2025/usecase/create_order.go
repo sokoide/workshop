@@ -6,7 +6,6 @@ import (
 
 	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/entity"
 	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/repository"
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/service"
 )
 
 type CreateOrderInput struct {
@@ -17,33 +16,45 @@ type CreateOrderInput struct {
 }
 
 type CreateOrderUsecase struct {
-	orderRepo    repository.OrderRepository
-	orderService *service.OrderDomainService
-	paymentPub   repository.PaymentPublisher
-	idGen        repository.IDGenerator
+	orderRepo       repository.OrderRepository
+	inventoryClient repository.InventoryClient
+	paymentPub      repository.PaymentPublisher
+	idGen           repository.IDGenerator
 }
 
 func NewCreateOrderUsecase(
 	repo repository.OrderRepository,
-	svc *service.OrderDomainService,
+	invClient repository.InventoryClient,
 	pub repository.PaymentPublisher,
 	idGen repository.IDGenerator,
 ) *CreateOrderUsecase {
 	return &CreateOrderUsecase{
-		orderRepo:    repo,
-		orderService: svc,
-		paymentPub:   pub,
-		idGen:        idGen,
+		orderRepo:       repo,
+		inventoryClient: invClient,
+		paymentPub:      pub,
+		idGen:           idGen,
 	}
 }
 
 func (u *CreateOrderUsecase) Execute(ctx context.Context, input CreateOrderInput) error {
-	// 1. Domain Service を使用して在庫を確保
-	if err := u.orderService.ValidateAndReserveStock(ctx, input.ProductID, input.Quantity); err != nil {
-		return err
+	// 1. バリデーション
+	if input.ProductID == "" {
+		return entity.ErrInvalidProductID
+	}
+	if input.Quantity <= 0 {
+		return entity.ErrInvalidQuantity
 	}
 
-	// 2. エンティティの作成
+	// 2. 在庫確保 (Port を直接使用)
+	available, err := u.inventoryClient.CheckAndReserve(ctx, input.ProductID, input.Quantity)
+	if err != nil {
+		return err
+	}
+	if !available {
+		return entity.ErrInsufficientStock
+	}
+
+	// 3. エンティティの作成
 	order := &entity.Order{
 		ID:         u.idGen.GenerateID(),
 		CustomerID: input.CustomerID,
@@ -52,11 +63,11 @@ func (u *CreateOrderUsecase) Execute(ctx context.Context, input CreateOrderInput
 		CreatedAt:  time.Now(),
 	}
 
-	// 3. 永続化
+	// 4. 永続化
 	if err := u.orderRepo.Save(ctx, order); err != nil {
 		return err
 	}
 
-	// 4. 非同期処理の開始（支払い処理をキューへ）
+	// 5. 非同期処理の開始（支払い処理をキューへ）
 	return u.paymentPub.PublishPaymentTask(ctx, order)
 }

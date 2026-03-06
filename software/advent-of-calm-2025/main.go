@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/service"
 	"github.com/sokoide/advent-of-calm-2025/cleanarch/infra/client"
 	"github.com/sokoide/advent-of-calm-2025/cleanarch/infra/messaging"
 	"github.com/sokoide/advent-of-calm-2025/cleanarch/infra/repository"
@@ -24,18 +23,14 @@ func run() error {
 	inventoryClient := &client.RestInventoryClient{}
 	paymentPub := &messaging.RabbitMQPaymentPublisher{}
 	idGen := &util.UUIDGenerator{}
-
-	// 2. Setup Domain Service
-	orderDomainSvc := service.NewOrderDomainService(inventoryClient)
 	inventoryRepo := &repository.PostgresInventoryRepository{}
-	inventoryDomainSvc := service.NewInventoryDomainService(inventoryRepo)
 
-	// 3. Setup Usecase
-	createOrderUsecase := usecase.NewCreateOrderUsecase(orderRepo, orderDomainSvc, paymentPub, idGen)
-	checkInventoryUsecase := usecase.NewCheckInventoryUsecase(inventoryDomainSvc)
-	updateInventoryUsecase := usecase.NewUpdateInventoryUsecase(inventoryDomainSvc)
+	// 2. Setup Usecase (Directly injecting Repos/Clients)
+	createOrderUsecase := usecase.NewCreateOrderUsecase(orderRepo, inventoryClient, paymentPub, idGen)
+	checkInventoryUsecase := usecase.NewCheckInventoryUsecase(inventoryRepo)
+	updateInventoryUsecase := usecase.NewUpdateInventoryUsecase(inventoryRepo)
 
-	// 4. Run Usecase (Customer Flow)
+	// 3. Run Usecase (Customer Flow)
 	ctx := context.Background()
 	input := usecase.CreateOrderInput{
 		CustomerID: "customer-123",
@@ -49,7 +44,7 @@ func run() error {
 		return err
 	}
 
-	// 5. Run Usecase (Admin Flow)
+	// 4. Run Usecase (Admin Flow)
 	// Admin checks inventory
 	checkInput := usecase.CheckInventoryInput{ProductID: "product-456"}
 	output, err := checkInventoryUsecase.Execute(ctx, checkInput)

@@ -2,7 +2,8 @@ package usecase
 
 import (
 	"context"
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/service"
+	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/entity"
+	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/repository"
 )
 
 type CheckInventoryInput struct {
@@ -15,15 +16,19 @@ type CheckInventoryOutput struct {
 }
 
 type CheckInventoryUsecase struct {
-	inventoryService *service.InventoryDomainService
+	inventoryRepo repository.InventoryRepository
 }
 
-func NewCheckInventoryUsecase(svc *service.InventoryDomainService) *CheckInventoryUsecase {
-	return &CheckInventoryUsecase{inventoryService: svc}
+func NewCheckInventoryUsecase(repo repository.InventoryRepository) *CheckInventoryUsecase {
+	return &CheckInventoryUsecase{inventoryRepo: repo}
 }
 
 func (u *CheckInventoryUsecase) Execute(ctx context.Context, input CheckInventoryInput) (*CheckInventoryOutput, error) {
-	stock, err := u.inventoryService.GetStock(ctx, input.ProductID)
+	if input.ProductID == "" {
+		return nil, entity.ErrInvalidProductID
+	}
+
+	stock, err := u.inventoryRepo.GetStock(ctx, input.ProductID)
 	if err != nil {
 		return nil, err
 	}

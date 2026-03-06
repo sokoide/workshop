@@ -14,7 +14,7 @@ Clean Architecture（クリーンアーキテクチャ）は、ソフトウェ�
 1. **ドメイン層 (Domain Layer)** - `domain/`
     * **役割**: ビジネスの中核となるルールとデータ構造。
     * **特徴**: **他のどの層にも依存しません**。純粋な Go のコードのみで記述されます。
-    * **構成要素**: エンティティ (Entity), リポジトリインターフェース (Port), ドメインサービス (Domain Service)。
+    * **構成要素**: エンティティ (Entity), ポートインターフェース (Port), ドメインサービス (Domain Service: 複雑なロジック用)。
 
 2. **ユースケース層 (Usecase Layer)** - `usecase/`
     * **役割**: アプリケーション固有のビジネスルール（ユーザーが何をしたいか）。
@@ -55,8 +55,6 @@ graph TD
     subgraph DomainLayer [Domain]
         Entities[Order/Inventory Entities]
         Ports["Ports (Interfaces)"]
-        OrderDS[Order Domain Svc]
-        InvDS[Inventory Domain Svc]
     end
 
     subgraph InfraLayer [Infra Adapters]
@@ -76,14 +74,10 @@ graph TD
     InvAPI --> InvUC
 
     %% ユースケースからドメインへの依存
-    OrderUC --> OrderDS
     OrderUC --> Ports
-    InvUC --> InvDS
+    OrderUC --> Entities
     InvUC --> Ports
-
-    %% ドメインサービスからインターフェースへの依存
-    OrderDS --> Ports
-    InvDS --> Ports
+    InvUC --> Entities
 
     %% 依存性逆転 (DIP)
     OrderRepoImpl -- "implements" --> Ports
@@ -104,10 +98,10 @@ graph TD
 ```
 
 > **注記: 外部インターフェースの集約**
-> `Customer`（注文者）と `Admin`（在庫管理者）は、それぞれ `Gateway` レイヤーの適切な API エンドポイントを叩きます。また、`Order Service` 内の `Inventory REST Client` も、`Admin` と同じ `Inventory API` を利用することで、在庫操作のロジックを一箇所（Inventory UseCase）に集中させています。
+> `Customer`（注文者）と `Admin`（在庫管理者）は、それぞれ適切な API エンドポイントを叩きます。また、`Order Service` 内の `Inventory REST Client` も、`Admin` と同じ `Inventory API` を利用することで、在庫操作のロジックを一箇所（Inventory UseCase）に集中させています。
 >
 > **Ports とは？**
-> Ports は「内側のルールが外側に求める契約（インターフェース）」です。DBや外部APIの詳細は Ports の背後に隠れ、ユースケースやドメインサービスは Ports に依存して振る舞いだけを定義します。外側（Infra Adapters）は Ports を実装することで依存方向を内向きに保ちます。
+> Ports は「内側のルールが外側に求める契約（インターフェース）」です。DBや外部APIの詳細は Ports の背後に隠れ、ユースケースは Ports に依存して振る舞いだけを定義します。外側（Infra Adapters）は Ports を実装することで依存方向を内向きに保ちます。
 
 ### ポート設計とリポジトリ境界
 
@@ -123,16 +117,11 @@ graph TD
 
 ### Step 1: ドメイン層の設計 (`domain/`)
 
-ドメイン層はアプリケーションの**心臓部**であり、以下の 3 つの要素で構成されます。これらは外部（DB や Web）の都合に一切依存しません。
+ドメイン層はアプリケーションの**心臓部**であり、以下の要素で構成されます。これらは外部（DB や Web）の都合に一切依存しません。
 
 1. **Entity**: ビジネスデータとルール（例: `Order`, `Inventory`）。
-2. **Interface**: データの永続化や外部連携のための契約（例: `OrderRepository`, `InventoryClient`）。
-3. **Domain Service**: 複数のエンティティにまたがるロジック（例: `OrderDomainService`）。
-
-#### ドメインサービスのルール例
-
-* `OrderDomainService`: ProductID が空ならエラー、数量が 0 以下ならエラー。
-* `InventoryDomainService`: ProductID が空ならエラー、在庫数量が負ならエラー。
+2. **Interface (Port)**: データの永続化や外部連携のための契約（例: `OrderRepository`, `InventoryClient`）。
+3. **Domain Service**: 複数のエンティティにまたがる複雑な計算やロジック（※単純な I/O ラップは避ける）。
 
 まずはビジネスのコアとなる「注文 (Order)」と、外界と対話するための契約「インターフェース」を定義します。
 
@@ -168,41 +157,35 @@ type PaymentPublisher interface {
 }
 ```
 
-> **補足: context.Context の扱い**
-> Go では Ports に `context.Context` を渡す実装も一般的ですが、**純粋性を優先するなら usecase 層で止める**設計もあります。教材としては用途に応じたトレードオフとして理解してください。
-
 ### Step 2: ユースケース層の実装 (`usecase/`)
 
-ドメイン層の部品を組み合わせて、「注文を作成する」というアプリケーションの機能を実装します。
+ドメイン層の部品（Entity や Port）を組み合わせて、「注文を作成する」というアプリケーションの機能を実装します。
 
 **実装 (`usecase/create_order.go`)**
 
 ```go
 type CreateOrderUsecase struct {
 	orderRepo repository.OrderRepository // 抽象に依存
+	invClient repository.InventoryClient // 外部 API 連携も Port 経由
 	// ...
 }
 
 func (u *CreateOrderUsecase) Execute(ctx context.Context, input CreateOrderInput) error {
-	// 1. 在庫チェック (Domain Service利用)
+	// 1. バリデーションと在庫確保 (Port利用)
 	// 2. 注文エンティティ作成
 	// 3. データベース保存 (Repository利用)
 	// 4. イベント発行
 }
 ```
 
-ここでのポイントは、`CreateOrderUsecase` が具体的なデータベース（Postgres など）を知らないことです。知っているのは Ports（`OrderRepository` など）のみです。
-
-> **補足: 取引の一貫性（DB保存とMQ発行）**
-> この例では「DB保存 → MQ発行」を順に実行しています。現実のシステムでは、トランザクション境界や補償（Outboxパターン等）を検討し、二重送信や送信漏れを防ぐ設計が必要です。
+ここでのポイントは、`CreateOrderUsecase` が具体的なデータベース（Postgres など）や通信プロトコル（REST/gRPC）を知らないことです。知っているのは Ports（`OrderRepository` など）のみです。
 
 ### Step 3: インフラアダプター層の実装 (`infra/`)
 
-ここで初めて「PostgreSQL」や「REST API」といった具体的な技術が登場します。**Step 1で定義したドメイン層のインターフェースを実装**します。DB ドライバや SDK などの実体はフレームワーク層側に追い出します。
+ここで初めて「PostgreSQL」や「REST API」といった具体的な技術が登場します。**Step 1で定義したドメイン層のインターフェースを実装**します。
 
 * `PostgresOrderRepository` は `domain.OrderRepository` を実装。
 * `RestInventoryClient` は `domain.InventoryClient` を実装。
-* `RabbitMQPaymentPublisher` は `domain.PaymentPublisher` を実装。
 
 **リポジトリの実装 (`infra/repository/postgres_order_repository.go`)**
 
@@ -229,21 +212,16 @@ func main() {
 	orderRepo := &repository.PostgresOrderRepository{}
 	inventoryClient := &client.RestInventoryClient{}
 	paymentPub := &messaging.RabbitMQPaymentPublisher{}
-	idGen := &util.UUIDGenerator{} // ID生成器の実装
-
-	// 2. ドメインサービスの生成
-	orderDomainSvc := service.NewOrderDomainService(inventoryClient)
+	idGen := &util.UUIDGenerator{}
 	inventoryRepo := &repository.PostgresInventoryRepository{}
-	inventoryDomainSvc := service.NewInventoryDomainService(inventoryRepo)
 
-	// 3. ユースケースへの注入
-	createOrderUsecase := usecase.NewCreateOrderUsecase(orderRepo, orderDomainSvc, paymentPub, idGen)
-	checkInventoryUsecase := usecase.NewCheckInventoryUsecase(inventoryDomainSvc)
-	updateInventoryUsecase := usecase.NewUpdateInventoryUsecase(inventoryDomainSvc)
+	// 2. ユースケースへの直接注入 (Domain Port を実装した Adapter を渡す)
+	createOrderUsecase := usecase.NewCreateOrderUsecase(orderRepo, inventoryClient, paymentPub, idGen)
+	checkInventoryUsecase := usecase.NewCheckInventoryUsecase(inventoryRepo)
+	updateInventoryUsecase := usecase.NewUpdateInventoryUsecase(inventoryRepo)
 
-	// 4. 実行
+	// 3. 実行
 	createOrderUsecase.Execute(ctx, input)
-	checkInventoryUsecase.Execute(ctx, checkInput)
 }
 ```
 
@@ -255,7 +233,7 @@ func main() {
 
 1. **疎結合な設計**: 注文 (Order) と在庫 (Inventory) がドメインレベルで分離されており、将来的なマイクロサービス化が容易です。
 2. **ビジネスロジックの純粋性**: `domain` パッケージには外部ライブラリへの依存が一切なく、ビジネスルールのみが記述されています。
-3. **拡張性**: 新しい通知手段（メール、Slack 等）を追加する場合も、`domain/repository` にインターフェースを追加し、`infra` で実装するだけで対応可能です。
+3. **適切な責務分割**: 単なる I/O ラップを「ドメインサービス」と呼ぶ誤用を避け、UseCase がオーケストレーションを担うことで、真にビジネス価値のあるロジックだけを Domain に集中させています。
 
 ---
 
@@ -270,8 +248,6 @@ go mod tidy
 # アプリケーションの実行
 go run main.go
 ```
-
-成功すると、インフラアダプター層の実装が呼ばれ、注文処理のログ（擬似的な保存処理など）が出力されます。
 
 ## まとめ
 

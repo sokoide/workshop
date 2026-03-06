@@ -14,7 +14,7 @@ This workshop adopts a simple and practical **4-layer structure**.
 1. **Domain Layer** - `domain/`
     * **Role**: Core business rules and data structures.
     * **Characteristics**: **Depends on nothing**. Written purely in Go.
-    * **Components**: Entities, Ports (Interfaces), Domain Services.
+    * **Components**: Entities, Port Interfaces (Ports), Domain Services (for complex logic).
 
 2. **Usecase Layer** - `usecase/`
     * **Role**: Application-specific business rules (what the user wants to do).
@@ -55,8 +55,6 @@ graph TD
     subgraph DomainLayer [Domain]
         Entities[Order/Inventory Entities]
         Ports["Ports (Interfaces)"]
-        OrderDS[Order Domain Svc]
-        InvDS[Inventory Domain Svc]
     end
 
     subgraph InfraLayer [Infra Adapters]
@@ -76,14 +74,10 @@ graph TD
     InvAPI --> InvUC
 
     %% Usecase to Domain Dependency
-    OrderUC --> OrderDS
     OrderUC --> Ports
-    InvUC --> InvDS
+    OrderUC --> Entities
     InvUC --> Ports
-
-    %% Domain Service to Interface Dependency
-    OrderDS --> Ports
-    InvDS --> Ports
+    InvUC --> Entities
 
     %% Dependency Inversion (DIP)
     OrderRepoImpl -- "implements" --> Ports
@@ -104,10 +98,10 @@ graph TD
 ```
 
 > **Note: Unifying External Interfaces**
-> `Customer` (the person ordering) and `Admin` (inventory manager) interact with the system via the appropriate API endpoints in the `Gateway` layer. Furthermore, the `Inventory REST Client` within the `Order Service` uses the same `Inventory API` as the `Admin`, centralizing all inventory-related logic within the `Inventory Usecase`.
+> `Customer` (the person ordering) and `Admin` (inventory manager) interact with the system via the appropriate API endpoints. Furthermore, the `Inventory REST Client` within the `Order Service` uses the same `Inventory API` as the `Admin`, centralizing all inventory-related logic within the `Inventory Usecase`.
 >
 > **What are "Ports"?**
-> Ports are the "contracts (interfaces) that the inner rules demand from the outside." Details about the DB or external APIs are hidden behind Ports. Usecases and Domain Services depend on Ports to define behavior only. The outside layer (Infra Adapters) implements these Ports, keeping the dependency direction pointing inward.
+> Ports are the "contracts (interfaces) that the inner rules demand from the outside." Details about the DB or external APIs are hidden behind Ports. UseCases depend on Ports to define behavior only. The outside layer (Infra Adapters) implements these Ports, keeping the dependency direction pointing inward.
 
 ### Ports and Repository Boundary
 
@@ -123,16 +117,11 @@ We will implement a fictional "Order Creation System," starting from the inside 
 
 ### Step 1: Designing the Domain Layer (`domain/`)
 
-The Domain Layer is the **heart** of the application and consists of the following three elements. These do not depend on any external (DB or Web) concerns.
+The Domain Layer is the **heart** of the application and consists of the following elements. These do not depend on any external (DB or Web) concerns.
 
 1. **Entity**: Business data and rules (e.g., `Order`, `Inventory`).
-2. **Interface**: Contracts for data persistence or external integration (e.g., `OrderRepository`, `InventoryClient`).
-3. **Domain Service**: Logic that spans multiple entities (e.g., `OrderDomainService`).
-
-#### Domain Service Rule Examples
-
-* `OrderDomainService`: Error if `ProductID` is empty, or if quantity is 0 or less.
-* `InventoryDomainService`: Error if `ProductID` is empty, or if stock quantity is negative.
+2. **Interface (Port)**: Contracts for data persistence or external integration (e.g., `OrderRepository`, `InventoryClient`).
+3. **Domain Service**: Complex calculations or logic spanning multiple entities (avoid simple I/O wrapping).
 
 First, we define the core business object, the "Order," and the "Interfaces" used to interact with the outside world.
 
@@ -168,41 +157,35 @@ type PaymentPublisher interface {
 }
 ```
 
-> **Note: Handling context.Context**
-> In Go, it is common to pass `context.Context` to Ports. However, some designs prefer to **keep it within the Usecase layer** to prioritize purity. Understand this as a trade-off depending on the application's needs.
-
 ### Step 2: Implementing the Usecase Layer (`usecase/`)
 
-Combine the Domain Layer components to implement the application feature: "Create an Order."
+Combine the Domain Layer components (Entities and Ports) to implement the application feature: "Create an Order."
 
 **Implementation (`usecase/create_order.go`)**
 
 ```go
 type CreateOrderUsecase struct {
 	orderRepo repository.OrderRepository // Depends on abstraction
+	invClient repository.InventoryClient // External API integration via Port
 	// ...
 }
 
 func (u *CreateOrderUsecase) Execute(ctx context.Context, input CreateOrderInput) error {
-	// 1. Check stock (using Domain Service)
+	// 1. Validation and Stock Reservation (using Port)
 	// 2. Create Order entity
 	// 3. Save to database (using Repository)
 	// 4. Publish event
 }
 ```
 
-The key point here is that `CreateOrderUsecase` does not know about the concrete database (e.g., Postgres). It only knows the Ports (e.g., `OrderRepository`).
-
-> **Note: Transactional Consistency (DB Save vs. MQ Publish)**
-> In this example, "DB Save -> MQ Publish" are executed sequentially. In real-world systems, you should consider transaction boundaries and compensation (e.g., the Outbox pattern) to prevent double-sends or missing messages.
+The key point here is that `CreateOrderUsecase` does not know about the concrete database (e.g., Postgres) or communication protocols (REST/gRPC). It only knows the Ports (e.g., `OrderRepository`).
 
 ### Step 3: Implementing the Infra Adapters Layer (`infra/`)
 
-This is where concrete technologies like "PostgreSQL" or "REST API" appear. **We implement the Domain Layer interfaces defined in Step 1**. DB drivers and SDKs are pushed out to the Framework Layer.
+This is where concrete technologies like "PostgreSQL" or "REST API" appear. **We implement the Domain Layer interfaces defined in Step 1**.
 
 * `PostgresOrderRepository` implements `domain.OrderRepository`.
 * `RestInventoryClient` implements `domain.InventoryClient`.
-* `RabbitMQPaymentPublisher` implements `domain.PaymentPublisher`.
 
 **Repository Implementation (`infra/repository/postgres_order_repository.go`)**
 
@@ -229,21 +212,16 @@ func main() {
 	orderRepo := &repository.PostgresOrderRepository{}
 	inventoryClient := &client.RestInventoryClient{}
 	paymentPub := &messaging.RabbitMQPaymentPublisher{}
-	idGen := &util.UUIDGenerator{} // ID Generator implementation
-
-	// 2. Create Domain Service
-	orderDomainSvc := service.NewOrderDomainService(inventoryClient)
+	idGen := &util.UUIDGenerator{}
 	inventoryRepo := &repository.PostgresInventoryRepository{}
-	inventoryDomainSvc := service.NewInventoryDomainService(inventoryRepo)
 
-	// 3. Inject into Usecase
-	createOrderUsecase := usecase.NewCreateOrderUsecase(orderRepo, orderDomainSvc, paymentPub, idGen)
-	checkInventoryUsecase := usecase.NewCheckInventoryUsecase(inventoryDomainSvc)
-	updateInventoryUsecase := usecase.NewUpdateInventoryUsecase(inventoryDomainSvc)
+	// 2. Direct injection into Usecase (Pass Adapters that implement Domain Ports)
+	createOrderUsecase := usecase.NewCreateOrderUsecase(orderRepo, inventoryClient, paymentPub, idGen)
+	checkInventoryUsecase := usecase.NewCheckInventoryUsecase(inventoryRepo)
+	updateInventoryUsecase := usecase.NewUpdateInventoryUsecase(inventoryRepo)
 
-	// 4. Run
+	// 3. Run
 	createOrderUsecase.Execute(ctx, input)
-	checkInventoryUsecase.Execute(ctx, checkInput)
 }
 ```
 
@@ -255,7 +233,7 @@ This project maintains high design quality based on the following principles:
 
 1. **Loose Coupling**: Order and Inventory concerns are separated at the domain level, making it easy to split into microservices in the future.
 2. **Pure Business Logic**: The `domain` package has zero dependencies on external libraries, containing only business rules.
-3. **Extensibility**: Adding new notification methods (Email, Slack, etc.) only requires adding an interface to `domain/repository` and implementing it in `infra`.
+3. **Appropriate Responsibility Separation**: By avoiding the misuse of "Domain Services" as mere I/O wrappers and letting UseCases handle orchestration, we ensure that the Domain remains focused on logic with true business value.
 
 ---
 
@@ -270,8 +248,6 @@ go mod tidy
 # Run the application
 go run main.go
 ```
-
-If successful, the infrastructure implementation will be called, and logs (like simulated save operations) will be output.
 
 ## Summary
 
