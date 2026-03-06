@@ -38,67 +38,31 @@ Clean Architecture（クリーンアーキテクチャ）は、ソフトウェ�
 
 ```mermaid
 graph TD
-    %% 外部要素 (External)
-    Customer[Customer]
-    Admin[Admin]
+    Customer[Customer / Admin]
+    Framework[Framework<br>API Handler]
+    Usecase[Usecase<br>CreateOrder / CheckInventory]
+    Domain["Domain<br>Entities + Ports"]
+    Infra["Infra Adapters<br>Repo / REST Client"]
+    OrderDB[(Order DB)]
+    InvDB[(Inventory DB)]
+    ExternalInvAPI["Inventory Service API (External)"]
 
-    subgraph FrameworkLayer [Framework]
-        OrderAPI[Order API / Handler]
-        InvAPI[Inventory API / Handler]
-    end
+    Customer --> Framework
+    Framework --> Usecase
+    Usecase --> Domain
+    Infra --> Domain
+    Infra --> OrderDB
+    Infra --> InvDB
+    Infra --> ExternalInvAPI
 
-    subgraph UsecaseLayer [Usecase]
-        OrderUC[CreateOrder UC]
-        InvUC[Check/Update UC]
-    end
-
-    subgraph DomainLayer [Domain]
-        Entities[Order/Inventory Entities]
-        Ports["Ports (Interfaces)"]
-    end
-
-    subgraph InfraLayer [Infra Adapters]
-        OrderRepoImpl[Order Repository Impl]
-        InvRepoImpl[Inventory Repository Impl]
-        InvClientImpl[Inventory REST Client]
-        OrderDB[(Order DB)]
-        InvDB[(Inventory DB)]
-    end
-
-    %% 外部からのアクセス
-    Customer --> OrderAPI
-    Admin --> InvAPI
-
-    %% APIからユースケースへ
-    OrderAPI --> OrderUC
-    InvAPI --> InvUC
-
-    %% ユースケースからドメインへの依存
-    OrderUC --> Ports
-    OrderUC --> Entities
-    InvUC --> Ports
-    InvUC --> Entities
-
-    %% 依存性逆転 (DIP)
-    OrderRepoImpl -- "implements" --> Ports
-    InvRepoImpl -- "implements" --> Ports
-    InvClientImpl -- "implements" --> Ports
-
-    %% 実装から外部リソースへのアクセス
-    OrderRepoImpl --> OrderDB
-    InvRepoImpl --> InvDB
-
-    %% サービス間連携
-    InvClientImpl --> InvAPI
-
-    style DomainLayer fill:#f9f,stroke:#333,stroke-width:2px
-    style UsecaseLayer fill:#bbf,stroke:#333,stroke-width:2px
-    style InfraLayer fill:#bfb,stroke:#333,stroke-width:2px
-    style FrameworkLayer fill:#ffd,stroke:#333,stroke-width:2px
+    style Framework fill: #555, stroke-width:2px
+    style Usecase fill: #555, stroke-width:2px
+    style Domain fill: #555, stroke-width:2px
+    style Infra fill: #555, stroke-width:2px
 ```
 
 > **注記: 外部インターフェースの集約**
-> `Customer`（注文者）と `Admin`（在庫管理者）は、それぞれ適切な API エンドポイントを叩きます。また、`Order Service` 内の `Inventory REST Client` も、`Admin` と同じ `Inventory API` を利用することで、在庫操作のロジックを一箇所（Inventory UseCase）に集中させています。
+> `Customer`（注文者）と `Admin`（在庫管理者）は、それぞれ適切な API エンドポイントを叩きます。`Order Service` 内の `Inventory REST Client` が叩く先は、**同一プロセスの Framework ではなく外部 Inventory Service の API** として扱います（依存方向の誤解を防ぐため）。
 >
 > **Ports とは？**
 > Ports は「内側のルールが外側に求める契約（インターフェース）」です。DBや外部APIの詳細は Ports の背後に隠れ、ユースケースは Ports に依存して振る舞いだけを定義します。外側（Infra Adapters）は Ports を実装することで依存方向を内向きに保ちます。
@@ -202,6 +166,11 @@ func (r *PostgresOrderRepository) Save(ctx context.Context, order *entity.Order)
 }
 ```
 
+**エラー境界の注意**
+
+* Infra Adapter は `sql.ErrNoRows` などの driver error を上位にそのまま返さず、`entity.ErrOrderNotFound` のような Domain Error に変換して返します。
+* Framework は最終的に Domain/UseCase Error を HTTP status / gRPC status に変換します。
+
 ### Step 4: アプリケーションの組み立て (`main.go`)
 
 最後に、`main.go` で全てのパーツを組み立てます（Dependency Injection）。
@@ -224,6 +193,9 @@ func main() {
 	createOrderUsecase.Execute(ctx, input)
 }
 ```
+
+> **補足: Composition Root と Framework の分離**
+> このサンプルは説明簡略化のため `main.go` に組み立てと実行を同居させています。規約をより厳密に適用する場合は、`main.go` を Composition Root 専用にし、CLI/Web の入出力処理は `framework/...` に分離します。
 
 ---
 

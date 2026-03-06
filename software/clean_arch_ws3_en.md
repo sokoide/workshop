@@ -38,67 +38,31 @@ Source code dependencies must always point from lower-level details (concrete im
 
 ```mermaid
 graph TD
-    %% External
-    Customer[Customer]
-    Admin[Admin]
+    Customer[Customer / Admin]
+    Framework[Framework<br>API Handler]
+    Usecase[Usecase<br>CreateOrder / CheckInventory]
+    Domain["Domain<br>Entities + Ports"]
+    Infra["Infra Adapters<br>Repo / REST Client"]
+    OrderDB[(Order DB)]
+    InvDB[(Inventory DB)]
+    ExternalInvAPI["Inventory Service API (External)"]
 
-    subgraph FrameworkLayer [Framework]
-        OrderAPI[Order API / Handler]
-        InvAPI[Inventory API / Handler]
-    end
+    Customer --> Framework
+    Framework --> Usecase
+    Usecase --> Domain
+    Infra --> Domain
+    Infra --> OrderDB
+    Infra --> InvDB
+    Infra --> ExternalInvAPI
 
-    subgraph UsecaseLayer [Usecase]
-        OrderUC[CreateOrder UC]
-        InvUC[Check/Update UC]
-    end
-
-    subgraph DomainLayer [Domain]
-        Entities[Order/Inventory Entities]
-        Ports["Ports (Interfaces)"]
-    end
-
-    subgraph InfraLayer [Infra Adapters]
-        OrderRepoImpl[Order Repository Impl]
-        InvRepoImpl[Inventory Repository Impl]
-        InvClientImpl[Inventory REST Client]
-        OrderDB[(Order DB)]
-        InvDB[(Inventory DB)]
-    end
-
-    %% External Access
-    Customer --> OrderAPI
-    Admin --> InvAPI
-
-    %% API to Usecase
-    OrderAPI --> OrderUC
-    InvAPI --> InvUC
-
-    %% Usecase to Domain Dependency
-    OrderUC --> Ports
-    OrderUC --> Entities
-    InvUC --> Ports
-    InvUC --> Entities
-
-    %% Dependency Inversion (DIP)
-    OrderRepoImpl -- "implements" --> Ports
-    InvRepoImpl -- "implements" --> Ports
-    InvClientImpl -- "implements" --> Ports
-
-    %% Implementation to External Resources
-    OrderRepoImpl --> OrderDB
-    InvRepoImpl --> InvDB
-
-    %% Service Integration
-    InvClientImpl --> InvAPI
-
-    style DomainLayer fill:#f9f,stroke:#333,stroke-width:2px
-    style UsecaseLayer fill:#bbf,stroke:#333,stroke-width:2px
-    style InfraLayer fill:#bfb,stroke:#333,stroke-width:2px
-    style FrameworkLayer fill:#ffd,stroke:#333,stroke-width:2px
+    style Framework fill: #555, stroke-width:2px
+    style Usecase fill: #555, stroke-width:2px
+    style Domain fill: #555, stroke-width:2px
+    style Infra fill: #555, stroke-width:2px
 ```
 
 > **Note: Unifying External Interfaces**
-> `Customer` (the person ordering) and `Admin` (inventory manager) interact with the system via the appropriate API endpoints. Furthermore, the `Inventory REST Client` within the `Order Service` uses the same `Inventory API` as the `Admin`, centralizing all inventory-related logic within the `Inventory Usecase`.
+> `Customer` (the person ordering) and `Admin` (inventory manager) interact with the system via the appropriate API endpoints. The `Inventory REST Client` within the `Order Service` should be treated as calling an **external Inventory Service API, not the same-process Framework layer**, to avoid confusion about dependency direction.
 >
 > **What are "Ports"?**
 > Ports are the "contracts (interfaces) that the inner rules demand from the outside." Details about the DB or external APIs are hidden behind Ports. UseCases depend on Ports to define behavior only. The outside layer (Infra Adapters) implements these Ports, keeping the dependency direction pointing inward.
@@ -202,6 +166,11 @@ func (r *PostgresOrderRepository) Save(ctx context.Context, order *entity.Order)
 }
 ```
 
+**Error boundary note**
+
+* Infra Adapters should not return driver errors (e.g., `sql.ErrNoRows`) directly across boundaries; convert them into domain/usecase-level errors such as `entity.ErrOrderNotFound`.
+* Framework should convert domain/usecase errors into transport-level errors (HTTP status, gRPC status, etc.).
+
 ### Step 4: Assembling the Application (`main.go`)
 
 Finally, we wire up all the parts in `main.go` using **Dependency Injection**.
@@ -224,6 +193,9 @@ func main() {
 	createOrderUsecase.Execute(ctx, input)
 }
 ```
+
+> **Note: Composition Root vs Framework separation**
+> This sample keeps wiring and execution in `main.go` for simplicity. For stricter layering, keep `main.go` as composition root only, and move CLI/Web I/O handling into `framework/...`.
 
 ---
 
