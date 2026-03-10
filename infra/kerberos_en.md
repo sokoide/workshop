@@ -1,0 +1,291 @@
+# Kerberos / SPNEGO Authentication Workshop: Single Sign-On with NGINX and Podman
+
+For software engineers, this workshop explains the mechanism of **Kerberos** and **SPNEGO** authentication, which are standard in enterprise environments, by building them using **NGINX** and **Podman**.
+
+> **💡 Glossary**: For technical terms such as [Kerberos](glossary_en.md#network) or [SPN](glossary_en.md#network) appearing in this workshop, please refer to the [Glossary](glossary_en.md).
+
+## Goal
+
+Build a KDC (Key Distribution Center) and an NGINX server on Podman, and understand the flow of "Single Sign-On" where authentication succeeds without password entry from a browser (or curl).
+
+```mermaid
+sequenceDiagram
+    participant C as Client (Host)
+    participant K as KDC (kdc.test.local)
+    participant N as NGINX (nginx.test.local)
+
+    Note over C,K: (1) kinit (Obtain TGT)
+    C->>K: AS-REQ (User ID)
+    K-->>C: AS-REP (TGT)
+
+    Note over C,K: (2) Request HTTP Service Ticket
+    C->>K: TGS-REQ (TGT + SPN)
+    K-->>C: TGS-REP (Service Ticket)
+
+    Note over C,N: (3) SPNEGO Authentication
+    C->>N: HTTP GET (Authorization: Negotiate <Ticket>)
+    N-->>C: 200 OK (User: user1@TEST.LOCAL)
+```
+
+**What you will learn in this workshop:**
+
+1. **Basic Kerberos components:** The roles of KDC, Principals, and Keytabs.
+2. **SPN (Service Principal Name):** Linking name resolution and authentication to identify services.
+3. **SPNEGO (Negotiate):** The mechanism for performing Kerberos authentication over the HTTP protocol.
+4. **Integrating modules into NGINX:** Extending authentication functionality using dynamic modules.
+
+---
+
+## Why Kerberos / SPNEGO?
+
+In corporate networks like Active Directory environments, a mechanism that allows automatic login to multiple web services after a single login is essential for both security and convenience.
+
+- **Passwords are not sent over the network**: Ticket-based authentication reduces the risk of credential leakage.
+- **Mutual Authentication**: Not only the client, but the server can also be verified as authentic.
+- **Standard Protocol**: You can build a common authentication infrastructure across different OSs like Windows, Linux, and macOS.
+
+---
+
+## Architecture
+
+Using Podman-compose, run two containers, KDC and NGINX, within the same network.
+
+### Directory Structure
+
+```text
+kerberos_lab/
+├── docker-compose.yml
+├── Dockerfile.kdc
+├── Dockerfile.nginx
+├── krb5.conf          # Shared Kerberos configuration
+├── nginx.conf         # NGINX configuration with SPNEGO settings
+└── (krb5.keytab)      # Generated in STEP 2
+```
+
+---
+
+## Preparation
+
+### 1. Tool Installation (Host Machine)
+
+```bash
+# For Ubuntu/Debian
+sudo apt update && sudo apt install -y krb5-user curl podman podman-compose
+```
+
+### 2. Host Resolution Setup
+
+Add the following to the host machine's `/etc/hosts` so that container names can be resolved.
+
+```bash
+sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
+```
+
+---
+
+## Workshop Steps
+
+### STEP 1: Creating Configuration Files
+
+Create a working directory and place the necessary files.
+
+1. **krb5.conf** (Kerberos Configuration)
+
+    ```ini
+    [libdefaults]
+        default_realm = TEST.LOCAL
+        dns_lookup_realm = false
+        dns_lookup_kdc = false
+
+    [realms]
+        TEST.LOCAL = {
+            kdc = 127.0.0.1
+            admin_server = 127.0.0.1
+        }
+
+    [domain_realm]
+        .test.local = TEST.LOCAL
+        test.local = TEST.LOCAL
+    ```
+
+2. **nginx.conf** (NGINX Configuration)
+
+    ```nginx
+    load_module modules/ngx_http_auth_spnego_module.so;
+
+    events {}
+
+    http {
+        server {
+            listen 80;
+            server_name nginx.test.local;
+
+            location / {
+                auth_gss on;
+                auth_gss_realm TEST.LOCAL;
+                auth_gss_keytab /etc/nginx/krb5.keytab;
+                auth_gss_service_name HTTP/nginx.test.local;
+
+                return 200 "SPNEGO Authentication Successful. User: $remote_user\n";
+            }
+        }
+    }
+    ```
+
+### ✅ Checkpoint
+
+- [ ] Confirmed that `default_realm` in `krb5.conf` is `TEST.LOCAL`.
+- [ ] Confirmed that `ngx_http_auth_spnego_module.so` is loaded in `nginx.conf`.
+
+### STEP 2: Building Container Images
+
+Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
+
+1. **Dockerfile.kdc**
+
+    ```dockerfile
+    FROM ubuntu:22.04
+    ENV DEBIAN_FRONTEND=noninteractive
+    RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
+    COPY krb5.conf /etc/krb5.conf
+    RUN kdb5_util create -s -P admin_password
+    CMD ["krb5kdc", "-n"]
+    ```
+
+2. **Dockerfile.nginx**
+
+    ```dockerfile
+    FROM nginx:1.25.1 AS builder
+    RUN apt-get update && apt-get install -y git build-essential libkrb5-dev wget libpcre3-dev zlib1g-dev
+    RUN wget http://nginx.org/download/nginx-1.25.1.tar.gz && tar zxvf nginx-1.25.1.tar.gz
+    RUN git clone https://github.com/stnoonan/spnego-http-auth-nginx-module.git
+    WORKDIR /nginx-1.25.1
+    RUN ./configure --with-compat --add-dynamic-module=../spnego-http-auth-nginx-module && make modules
+
+    FROM nginx:1.25.1
+    RUN apt-get update && apt-get install -y krb5-user && rm -rf /var/lib/apt/lists/*
+    COPY --from=builder /nginx-1.25.1/objs/ngx_http_auth_spnego_module.so /etc/nginx/modules/
+    ```
+
+3. **docker-compose.yml**
+
+    ```yaml
+    version: "3"
+    services:
+      kdc:
+        build:
+          context: .
+          dockerfile: Dockerfile.kdc
+        ports:
+          - "88:88"
+          - "88:88/udp"
+        hostname: kdc.test.local
+
+      nginx:
+        build:
+          context: .
+          dockerfile: Dockerfile.nginx
+        ports:
+          - "8080:80"
+        volumes:
+          - ./nginx.conf:/etc/nginx/nginx.conf:ro
+          - ./krb5.keytab:/etc/nginx/krb5.keytab:ro
+          - ./krb5.conf:/etc/krb5.conf:ro
+        depends_on:
+          - kdc
+        hostname: nginx.test.local
+    ```
+
+### ✅ Checkpoint
+
+- [ ] Confirmed that `krb5.keytab` is mounted to NGINX in `docker-compose.yml`.
+
+### STEP 3: Starting KDC and Generating Keytab
+
+Since NGINX cannot start without a Keytab file (server-side password file), start only the KDC first and generate it.
+
+```bash
+# Start KDC
+podman-compose up -d kdc
+
+# Create user principal (Password: userpass)
+podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
+
+# Create SPN for NGINX
+podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "addprinc -randkey HTTP/nginx.test.local@TEST.LOCAL"
+
+# Export Keytab and extract to host
+podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
+podman cp $(podman ps -q -f name=kdc):/tmp/krb5.keytab ./krb5.keytab
+chmod 644 ./krb5.keytab
+```
+
+### ✅ Checkpoint
+
+- [ ] Confirmed that `krb5.keytab` was created in the current directory.
+
+### STEP 4: Starting NGINX and Verification
+
+```bash
+# Start NGINX
+podman-compose up -d nginx
+
+# 1. Obtain Ticket (TGT)
+export KRB5_CONFIG=$(pwd)/krb5.conf
+kinit user1@TEST.LOCAL
+# Password: userpass
+
+# 2. Verify Ticket (It's OK if krbtgt/TEST.LOCAL@TEST.LOCAL exists)
+klist
+
+# 3. Access via SPNEGO authentication
+curl --negotiate -u : http://nginx.test.local:8080/
+```
+
+**Example Successful Output:**
+`SPNEGO Authentication Successful. User: user1@TEST.LOCAL`
+
+### ✅ Checkpoint
+
+- [ ] Confirmed that a valid ticket is displayed with `klist`.
+- [ ] Confirmed that the `curl` result contains your username.
+
+---
+
+## Cleanup
+
+```bash
+podman-compose down
+rm krb5.keytab
+# Delete entries in /etc/hosts manually if needed
+```
+
+---
+
+## References
+
+- [MIT Kerberos Documentation](https://web.mit.edu/kerberos/krb5-latest/doc/)
+- [spnego-http-auth-nginx-module](https://github.com/stnoonan/spnego-http-auth-nginx-module)
+- [RFC 4559 - SPNEGO-based Kerberos HTTP Authentication in Microsoft Windows](https://datatracker.ietf.org/doc/html/rfc4559)
+
+---
+
+## 🔧 Troubleshooting
+
+### NGINX won't start / Error logs appear
+
+- **Cause**: No read permission for the Keytab file, or the path is incorrect.
+- **Solution**: Run `chmod 644 ./krb5.keytab` and double-check the `auth_gss_keytab` path in `nginx.conf`.
+
+### 401 Unauthorized with curl
+
+- **Cause**: TGT not obtained with `kinit` on the host machine, or `KRB5_CONFIG` is not set correctly.
+- **Solution**: Check for tickets with `klist`, and ensure `curl` is run in the same terminal session where `export KRB5_CONFIG=$(pwd)/krb5.conf` was executed.
+
+---
+
+## 💻 Environment-Specific Notes
+
+### WSL2
+
+- When accessing from a browser on the Windows host side, you will need `hosts` and Kerberos settings on the Windows side as well. It is recommended to complete the workshop within the WSL2 terminal (`curl`).

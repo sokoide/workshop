@@ -33,6 +33,8 @@ This repository contains hands-on materials for various technical topics.
   - Build a real-time crypto monitoring system using RabbitMQ Topic Exchange.
 - [Secret Management Workshop: Secure API Key Management with HashiCorp Vault](./infra/secret_management_en.md)
   - Centralized secret management, versioning, and Clean Architecture integration using Vault KV v2.
+- [Kerberos / SPNEGO Authentication Workshop: Single Sign-On with NGINX and Podman](./infra/kerberos_en.md)
+  - Experience passwordless authentication flow with KDC construction and NGINX SPNEGO module.
 - [OAuth2 Workshop: Learning Authorization Flow with Keycloak + Go + Podman](./infra/oauth2_en.md)
   - Issue tokens with Keycloak and implement protected APIs by validating JWTs in a Go Resource Server.
 - [Reverse Proxy Workshop: Understanding K8s Ingress through Traefik](./infra/traefik_en.md)
