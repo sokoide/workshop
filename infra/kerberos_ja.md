@@ -60,6 +60,8 @@ kerberos_lab/
 ├── krb5.conf          # 共通の Kerberos 設定
 ├── nginx.conf         # SPNEGO 設定を含む NGINX 設定
 ├── index.txt          # 認証後に返す固定レスポンス
+├── kdc-data/          # KDC DB 永続化ディレクトリ
+├── kdc-conf/          # KDC stash/設定の永続化ディレクトリ
 └── (krb5.keytab)      # STEP 2 で生成される
 ```
 
@@ -160,8 +162,7 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
     ENV DEBIAN_FRONTEND=noninteractive
     RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
     COPY krb5.conf /etc/krb5.conf
-    RUN kdb5_util create -s -P admin_password
-    CMD ["krb5kdc", "-n"]
+    CMD ["/bin/sh", "-c", "if [ ! -f /var/lib/krb5kdc/principal ]; then kdb5_util create -s -P admin_password; fi && exec krb5kdc -n"]
     ```
 
 2. **Dockerfile.nginx**
@@ -190,6 +191,9 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
           dockerfile: Dockerfile.kdc
         image: localhost/krb_kdc:latest
         pull_policy: never
+        volumes:
+          - ./kdc-data:/var/lib/krb5kdc
+          - ./kdc-conf:/etc/krb5kdc
         ports:
           - "10088:88"
           - "10088:88/udp"
@@ -223,6 +227,9 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
 Keytab ファイル（サーバー用パスワードファイル）がないと NGINX が起動できないため、まず KDC だけを起動して生成します。
 
 ```bash
+# KDCデータ永続化ディレクトリの作成
+mkdir -p ./kdc-data ./kdc-conf
+
 # イメージのビルド (KDC と NGINX 両方)
 # podman-compose の仕様により、片方のサービスのみを起動する場合でも
 # YAML に定義されたすべてのイメージがローカルに存在する必要があります
