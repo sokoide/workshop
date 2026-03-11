@@ -211,7 +211,8 @@ Since NGINX cannot start without a Keytab file (server-side password file), star
 
 ```bash
 # Start KDC
-podman compose up -d --build kdc
+podman compose build --no-cache kdc
+podman compose up -d kdc
 
 # Create user principal (Password: userpass)
 podman compose exec kdc kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
@@ -257,7 +258,8 @@ klist
 
 ```bash
 # Start NGINX
-podman compose up -d --build nginx
+podman compose build --no-cache nginx
+podman compose up -d nginx
 
 # 1. Obtain Ticket (TGT)
 export KRB5_CONFIG=$(pwd)/krb5.conf
@@ -395,7 +397,12 @@ rm krb5.keytab
 ### `krb_nginx did not resolve to an alias ...` / `docker://localhost/... connection refused`
 
 - **Cause**: On `podman compose v1.0.6`, auto-generated image-name resolution can be unstable, causing either unqualified-name errors or failed pulls to `https://localhost/v2`.
-- **Solution**: Explicitly set `image: localhost/krb_nginx:latest` and `pull_policy: never` in `docker-compose.yml` (same for KDC). On first run, execute `podman compose build --no-cache` and then `podman compose up -d`.
+- **Solution**: Explicitly set `image: localhost/krb_nginx:latest` and `pull_policy: never` in `docker-compose.yml` (same for KDC). Do not rely on `up --build`; run `podman compose build --no-cache nginx` and then `podman compose up -d nginx` as separate commands.
+
+### `localhost/krb_nginx:latest image not found`
+
+- **Cause**: Depending on the environment, `podman compose up -d --build nginx` can still validate `image:` before the build runs and fail early.
+- **Solution**: Run `podman compose build --no-cache nginx` first, then `podman compose up -d nginx`. Do the same split `build`/`up` flow for KDC.
 
 ---
 

@@ -211,7 +211,8 @@ Keytab ファイル（サーバー用パスワードファイル）がないと 
 
 ```bash
 # KDC 起動
-podman compose up -d --build kdc
+podman compose build --no-cache kdc
+podman compose up -d kdc
 
 # ユーザープリンシパルの作成 (パスワード: userpass)
 podman compose exec kdc kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
@@ -257,7 +258,8 @@ klist
 
 ```bash
 # NGINX 起動
-podman compose up -d --build nginx
+podman compose build --no-cache nginx
+podman compose up -d nginx
 
 # 1. チケット(TGT)の取得
 export KRB5_CONFIG=$(pwd)/krb5.conf
@@ -395,7 +397,12 @@ rm krb5.keytab
 ### `krb_nginx did not resolve to an alias ...` / `docker://localhost/... connection refused` が出る
 
 - **原因**: `podman compose v1.0.6` では自動生成イメージ名の解決が不安定で、未修飾名エラーまたは `https://localhost/v2` への pull で失敗することがある。
-- **対処**: `docker-compose.yml` に `image: localhost/krb_nginx:latest` と `pull_policy: never`（KDC も同様）を明示する。初回は `podman compose build --no-cache` の後に `podman compose up -d` を実行する。
+- **対処**: `docker-compose.yml` に `image: localhost/krb_nginx:latest` と `pull_policy: never`（KDC も同様）を明示する。`up --build` ではなく、`podman compose build --no-cache nginx` の後に `podman compose up -d nginx` のように `build` と `up` を分けて実行する。
+
+### `localhost/krb_nginx:latest image not found` が出る
+
+- **原因**: `podman compose up -d --build nginx` でも、環境によっては起動前に `image:` の存在確認が走り、ビルド前に失敗する。
+- **対処**: `podman compose build --no-cache nginx` を先に実行してから `podman compose up -d nginx` を実行する。KDC も同様に `build` と `up` を分離する。
 
 ---
 
