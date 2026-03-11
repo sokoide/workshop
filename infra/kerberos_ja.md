@@ -59,6 +59,7 @@ kerberos_lab/
 ├── Dockerfile.nginx
 ├── krb5.conf          # 共通の Kerberos 設定
 ├── nginx.conf         # SPNEGO 設定を含む NGINX 設定
+├── index.txt          # 認証後に返す固定レスポンス
 └── (krb5.keytab)      # STEP 2 で生成される
 ```
 
@@ -119,24 +120,25 @@ sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
         server {
             listen 80;
             server_name nginx.test.local;
+            root /usr/share/nginx/html;
+            default_type text/plain;
 
             location / {
                 auth_gss on;
                 auth_gss_realm TEST.LOCAL;
                 auth_gss_keytab /etc/nginx/krb5.keytab;
                 auth_gss_service_name HTTP/nginx.test.local;
-
-                # 重要: return は認証フェーズ(Access)の前に実行されるため、
-                # そのまま使うと認証がバイパスされ $remote_user が空になります。
-                # try_files を経由させることで認証を確実に実行させます。
-                try_files $uri @success;
-            }
-
-            location @success {
-                return 200 "SPNEGO Authentication Successful. User: $remote_user\n";
+                add_header X-Remote-User $remote_user always;
+                try_files /index.txt =404;
             }
         }
     }
+    ```
+
+3. **index.txt** (固定レスポンス)
+
+    ```text
+    SPNEGO Authentication Successful
     ```
 
 ### ✅ チェックポイント
@@ -200,6 +202,7 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
           - "8080:80"
         volumes:
           - ./nginx.conf:/etc/nginx/nginx.conf:ro
+          - ./index.txt:/usr/share/nginx/html/index.txt:ro
           - ./krb5.keytab:/etc/nginx/krb5.keytab:ro
           - ./krb5.conf:/etc/krb5.conf:ro
         depends_on:
@@ -224,7 +227,6 @@ podman compose build --no-cache
 
 # KDC 起動
 podman compose up -d kdc
-```
 
 # ユーザープリンシパルの作成 (パスワード: userpass)
 
@@ -244,7 +246,6 @@ KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
 echo "$KDC_CID" # IDを確認
 podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
-
 ```
 
 ### ✅ チェックポイント
@@ -254,6 +255,7 @@ chmod 644 ./krb5.keytab
 ### STEP 3.5: KDC の動作確認（kinit / klist / kdestroy）
 
 KDC 起動と principal 作成ができたら、いったん Kerberos クライアント操作だけを確認します。
+この時点では `kinit` は TGT しか取得しないため、`HTTP/nginx.test.local@TEST.LOCAL` はまだ表示されません。
 
 ```bash
 export KRB5_CONFIG=$(pwd)/krb5.conf
@@ -287,20 +289,22 @@ kinit user1@TEST.LOCAL
 klist
 
 # 3. SPNEGO 認証によるアクセス
-curl --negotiate -u : http://nginx.test.local:8080/
+curl -i --negotiate -u : http://nginx.test.local:8080/
 
 # 4. サービスチケットの取得を確認
 # curl 実行後に実行。HTTP/nginx.test.local@TEST.LOCAL が増えているはずです
 klist
 ```
 
-**成功時の出力:**
-`SPNEGO Authentication Successful. User: user1@TEST.LOCAL`
+**成功時の確認ポイント:**
+
+- `X-Remote-User: user1@TEST.LOCAL` がレスポンスヘッダに含まれる
+- `HTTP/nginx.test.local@TEST.LOCAL` が `klist` に追加される
 
 ### ✅ チェックポイント
 
 - [ ] `klist` で TGT (`krbtgt/...`) に加えて、サービスチケット (`HTTP/nginx.test.local@...`) が表示されていることを確認した
-- [ ] `curl` の結果に自分のユーザー名が含まれていることを確認した
+- [ ] `curl -i` のレスポンスヘッダに `X-Remote-User` が含まれていることを確認した
 
 ---
 

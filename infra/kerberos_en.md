@@ -59,6 +59,7 @@ kerberos_lab/
 ├── Dockerfile.nginx
 ├── krb5.conf          # Shared Kerberos configuration
 ├── nginx.conf         # NGINX configuration with SPNEGO settings
+├── index.txt          # Fixed response returned after auth
 └── (krb5.keytab)      # Generated in STEP 2
 ```
 
@@ -119,24 +120,25 @@ Create a working directory and place the necessary files.
         server {
             listen 80;
             server_name nginx.test.local;
+            root /usr/share/nginx/html;
+            default_type text/plain;
 
             location / {
                 auth_gss on;
                 auth_gss_realm TEST.LOCAL;
                 auth_gss_keytab /etc/nginx/krb5.keytab;
                 auth_gss_service_name HTTP/nginx.test.local;
-
-                # Note: 'return' is executed in the REWRITE phase (early),
-                # so using it here would bypass the authentication phase (ACCESS).
-                # Using 'try_files' ensures that the access check is completed.
-                try_files $uri @success;
-            }
-
-            location @success {
-                return 200 "SPNEGO Authentication Successful. User: $remote_user\n";
+                add_header X-Remote-User $remote_user always;
+                try_files /index.txt =404;
             }
         }
     }
+    ```
+
+3. **index.txt** (Fixed response)
+
+    ```text
+    SPNEGO Authentication Successful
     ```
 
 ### ✅ Checkpoint
@@ -200,6 +202,7 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
           - "8080:80"
         volumes:
           - ./nginx.conf:/etc/nginx/nginx.conf:ro
+          - ./index.txt:/usr/share/nginx/html/index.txt:ro
           - ./krb5.keytab:/etc/nginx/krb5.keytab:ro
           - ./krb5.conf:/etc/krb5.conf:ro
         depends_on:
@@ -247,6 +250,7 @@ chmod 644 ./krb5.keytab
 ### STEP 3.5: Verify KDC behavior (kinit / klist / kdestroy)
 
 After KDC startup and principal creation, quickly verify Kerberos client behavior first.
+At this point, `kinit` only gets a TGT, so `HTTP/nginx.test.local@TEST.LOCAL` will not appear yet.
 
 ```bash
 export KRB5_CONFIG=$(pwd)/krb5.conf
@@ -280,20 +284,22 @@ kinit user1@TEST.LOCAL
 klist
 
 # 3. Access via SPNEGO authentication
-curl --negotiate -u : http://nginx.test.local:8080/
+curl -i --negotiate -u : http://nginx.test.local:8080/
 
 # 4. Verify Service Ticket acquisition
 # Run this after curl. You should see HTTP/nginx.test.local@TEST.LOCAL added to the list.
 klist
 ```
 
-**Example Successful Output:**
-`SPNEGO Authentication Successful. User: user1@TEST.LOCAL`
+**Successful verification points:**
+
+- `X-Remote-User: user1@TEST.LOCAL` appears in the response headers
+- `HTTP/nginx.test.local@TEST.LOCAL` is added in `klist`
 
 ### ✅ Checkpoint
 
 - [ ] Confirmed that in addition to the TGT (`krbtgt/...`), the Service Ticket (`HTTP/nginx.test.local@...`) is displayed with `klist`.
-- [ ] Confirmed that the `curl` result contains your username.
+- [ ] Confirmed that `X-Remote-User` is present in the `curl -i` response headers.
 
 ---
 
