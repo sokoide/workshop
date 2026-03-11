@@ -144,7 +144,7 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
 1. **Dockerfile.kdc**
 
     ```dockerfile
-    FROM ubuntu:24.04
+    FROM docker.io/library/ubuntu:24.04
     ENV DEBIAN_FRONTEND=noninteractive
     RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
     COPY krb5.conf /etc/krb5.conf
@@ -155,14 +155,14 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
 2. **Dockerfile.nginx**
 
     ```dockerfile
-    FROM nginx:1.25.1 AS builder
+    FROM docker.io/library/nginx:1.25.1 AS builder
     RUN apt-get update && apt-get install -y git build-essential libkrb5-dev wget libpcre3-dev zlib1g-dev
     RUN wget http://nginx.org/download/nginx-1.25.1.tar.gz && tar zxvf nginx-1.25.1.tar.gz
     RUN git clone https://github.com/stnoonan/spnego-http-auth-nginx-module.git
     WORKDIR /nginx-1.25.1
     RUN ./configure --with-compat --add-dynamic-module=../spnego-http-auth-nginx-module && make modules
 
-    FROM nginx:1.25.1
+    FROM docker.io/library/nginx:1.25.1
     RUN apt-get update && apt-get install -y krb5-user && rm -rf /var/lib/apt/lists/*
     COPY --from=builder /nginx-1.25.1/objs/ngx_http_auth_spnego_module.so /etc/nginx/modules/
     ```
@@ -210,23 +210,34 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
 Keytab ファイル（サーバー用パスワードファイル）がないと NGINX が起動できないため、まず KDC だけを起動して生成します。
 
 ```bash
+# イメージのビルド (KDC と NGINX 両方)
+# podman-compose の仕様により、片方のサービスのみを起動する場合でも
+# YAML に定義されたすべてのイメージがローカルに存在する必要があります
+podman compose build --no-cache
+
 # KDC 起動
-podman compose build --no-cache kdc
 podman compose up -d kdc
+```
 
 # ユーザープリンシパルの作成 (パスワード: userpass)
-podman compose exec kdc kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
+
+podman compose exec kdc kadmin.local -q "addprinc -pw userpass <user1@TEST.LOCAL>"
 
 # NGINX 用の SPN 作成
+
 podman compose exec kdc kadmin.local -q "addprinc -randkey HTTP/nginx.test.local@TEST.LOCAL"
 
 # Keytab のエクスポートとホストへの取り出し
+
 podman compose exec kdc kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
+
 # KDC の実コンテナ名は環境により krb_kdc_1 / krb5_kdc_1 などに変わる
+
 KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
 echo "$KDC_CID" # IDを確認
 podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
+
 ```
 
 ### ✅ チェックポイント
@@ -257,8 +268,7 @@ klist
 ### STEP 4: NGINX の起動と動作確認
 
 ```bash
-# NGINX 起動
-podman compose build --no-cache nginx
+# NGINX 起動 (STEP 3 でビルド済みのため up のみ)
 podman compose up -d nginx
 
 # 1. チケット(TGT)の取得
@@ -401,8 +411,8 @@ rm krb5.keytab
 
 ### `localhost/krb_nginx:latest image not found` が出る
 
-- **原因**: `podman compose up -d --build nginx` でも、環境によっては起動前に `image:` の存在確認が走り、ビルド前に失敗する。
-- **対処**: `podman compose build --no-cache nginx` を先に実行してから `podman compose up -d nginx` を実行する。KDC も同様に `build` と `up` を分離する。
+- **原因**: `podman compose` の仕様により、特定のサービス（例: `kdc`）のみを起動する場合でも、`docker-compose.yml` に記載された他のすべてのイメージがローカルに存在している必要があります。
+- **対処**: `podman compose build --no-cache` を実行して、先にすべてのイメージをビルドしてください。 KDC と NGINX の両方のイメージが必要です。
 
 ---
 

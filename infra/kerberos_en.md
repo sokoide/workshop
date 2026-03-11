@@ -144,7 +144,7 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
 1. **Dockerfile.kdc**
 
     ```dockerfile
-    FROM ubuntu:24.04
+    FROM docker.io/library/ubuntu:24.04
     ENV DEBIAN_FRONTEND=noninteractive
     RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
     COPY krb5.conf /etc/krb5.conf
@@ -155,14 +155,14 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
 2. **Dockerfile.nginx**
 
     ```dockerfile
-    FROM nginx:1.25.1 AS builder
+    FROM docker.io/library/nginx:1.25.1 AS builder
     RUN apt-get update && apt-get install -y git build-essential libkrb5-dev wget libpcre3-dev zlib1g-dev
     RUN wget http://nginx.org/download/nginx-1.25.1.tar.gz && tar zxvf nginx-1.25.1.tar.gz
     RUN git clone https://github.com/stnoonan/spnego-http-auth-nginx-module.git
     WORKDIR /nginx-1.25.1
     RUN ./configure --with-compat --add-dynamic-module=../spnego-http-auth-nginx-module && make modules
 
-    FROM nginx:1.25.1
+    FROM docker.io/library/nginx:1.25.1
     RUN apt-get update && apt-get install -y krb5-user && rm -rf /var/lib/apt/lists/*
     COPY --from=builder /nginx-1.25.1/objs/ngx_http_auth_spnego_module.so /etc/nginx/modules/
     ```
@@ -210,8 +210,12 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
 Since NGINX cannot start without a Keytab file (server-side password file), start only the KDC first and generate it.
 
 ```bash
+# Build images (both KDC and NGINX)
+# Due to podman-compose specifications, all images defined in the YAML
+# must exist locally even when starting only one service.
+podman compose build --no-cache
+
 # Start KDC
-podman compose build --no-cache kdc
 podman compose up -d kdc
 
 # Create user principal (Password: userpass)
@@ -257,8 +261,7 @@ klist
 ### STEP 4: Starting NGINX and Verification
 
 ```bash
-# Start NGINX
-podman compose build --no-cache nginx
+# Start NGINX (already built in STEP 3, so just up)
 podman compose up -d nginx
 
 # 1. Obtain Ticket (TGT)
@@ -401,8 +404,8 @@ rm krb5.keytab
 
 ### `localhost/krb_nginx:latest image not found`
 
-- **Cause**: Depending on the environment, `podman compose up -d --build nginx` can still validate `image:` before the build runs and fail early.
-- **Solution**: Run `podman compose build --no-cache nginx` first, then `podman compose up -d nginx`. Do the same split `build`/`up` flow for KDC.
+- **Cause**: Due to `podman compose` specifications, all images listed in `docker-compose.yml` must exist locally, even when starting only a specific service (e.g., `kdc`).
+- **Solution**: Run `podman compose build --no-cache` to build all images first. Both KDC and NGINX images are required.
 
 ---
 
