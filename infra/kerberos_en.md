@@ -61,7 +61,6 @@ kerberos_lab/
 ├── nginx.conf         # NGINX configuration with SPNEGO settings
 ├── index.txt          # Fixed response returned after auth
 ├── kdc-data/          # Persistent KDC DB directory
-└── kdc-conf/          # Persistent KDC stash/config directory
 └── (krb5.keytab)      # Generated in STEP 2
 ```
 
@@ -193,7 +192,6 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
         pull_policy: never
         volumes:
           - ./kdc-data:/var/lib/krb5kdc
-          - ./kdc-conf:/etc/krb5kdc
         ports:
           - "10088:88"
           - "10088:88/udp"
@@ -228,7 +226,7 @@ Since NGINX cannot start without a Keytab file (server-side password file), star
 
 ```bash
 # Create directories for persistent KDC data
-mkdir -p ./kdc-data ./kdc-conf
+mkdir -p ./kdc-data
 
 # Build images (both KDC and NGINX)
 # Due to podman-compose specifications, all images defined in the YAML

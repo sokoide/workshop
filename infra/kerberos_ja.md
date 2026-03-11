@@ -61,7 +61,6 @@ kerberos_lab/
 ├── nginx.conf         # SPNEGO 設定を含む NGINX 設定
 ├── index.txt          # 認証後に返す固定レスポンス
 ├── kdc-data/          # KDC DB 永続化ディレクトリ
-├── kdc-conf/          # KDC stash/設定の永続化ディレクトリ
 └── (krb5.keytab)      # STEP 2 で生成される
 ```
 
@@ -193,7 +192,6 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
         pull_policy: never
         volumes:
           - ./kdc-data:/var/lib/krb5kdc
-          - ./kdc-conf:/etc/krb5kdc
         ports:
           - "10088:88"
           - "10088:88/udp"
@@ -228,7 +226,7 @@ Keytab ファイル（サーバー用パスワードファイル）がないと 
 
 ```bash
 # KDCデータ永続化ディレクトリの作成
-mkdir -p ./kdc-data ./kdc-conf
+mkdir -p ./kdc-data
 
 # イメージのビルド (KDC と NGINX 両方)
 # podman-compose の仕様により、片方のサービスのみを起動する場合でも
