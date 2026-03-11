@@ -422,12 +422,12 @@ rm krb5.keytab
 
 ### Ubuntu 24.04 で `GSS-Negotiate` 対応 `curl` を build する
 
-- **前提**: Ubuntu 24.04 (`noble`) では `cmake`, `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, `zlib1g-dev` が利用できる。`make install` に失敗する環境を避けるため、この教材では CMake を使う。
+- **前提**: Ubuntu 24.04 (`noble`) では `cmake`, `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, `zlib1g-dev`, `libpsl-dev`, `libidn2-dev` が利用できる。`make install` に失敗する環境を避けるため、この教材では CMake を使う。
 - **手順**:
 
 ```bash
 sudo apt update
-sudo apt install -y cmake build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev
+sudo apt install -y cmake build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev libpsl-dev libidn2-dev
 
 cd /tmp
 curl -LO https://curl.se/download/curl-8.18.0.tar.xz
@@ -448,6 +448,7 @@ sudo cmake --install build
 
 - **確認**: `/usr/local/bin/curl -V` の Features に `GSS-Negotiate` が含まれることを確認する。
 - **補足**: 既存の `/usr/bin/curl` と区別するため、実習では `/usr/local/bin/curl --negotiate ...` を明示して実行すると安全。
+- **補足2**: `libpsl not found` や `libidn2 not found` が出る場合は、それぞれ `libpsl-dev`, `libidn2-dev` を追加で入れる。必要なら `cmake` に `-DCURL_USE_LIBPSL=OFF` や `-DUSE_LIBIDN2=OFF` を追加して無効化できる。
 
 ### `cannot expose privileged port 88` が出る
 

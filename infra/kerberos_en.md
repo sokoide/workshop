@@ -417,12 +417,12 @@ rm krb5.keytab
 
 ### Build a `GSS-Negotiate`-enabled `curl` on Ubuntu 24.04
 
-- **Prerequisite**: On Ubuntu 24.04 (`noble`), `cmake`, `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, and `zlib1g-dev` are available. To avoid environments where `make install` fails, this tutorial uses CMake.
+- **Prerequisite**: On Ubuntu 24.04 (`noble`), `cmake`, `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, `zlib1g-dev`, `libpsl-dev`, and `libidn2-dev` are available. To avoid environments where `make install` fails, this tutorial uses CMake.
 - **Steps**:
 
 ```bash
 sudo apt update
-sudo apt install -y cmake build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev
+sudo apt install -y cmake build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev libpsl-dev libidn2-dev
 
 cd /tmp
 curl -LO https://curl.se/download/curl-8.18.0.tar.xz
@@ -443,6 +443,7 @@ sudo cmake --install build
 
 - **Verify**: Confirm that `GSS-Negotiate` appears in the Features section of `/usr/local/bin/curl -V`.
 - **Note**: To avoid mixing it with the system `/usr/bin/curl`, it is safer to run `/usr/local/bin/curl --negotiate ...` explicitly in this lab.
+- **Note 2**: If you get `libpsl not found` or `libidn2 not found`, install `libpsl-dev` or `libidn2-dev` respectively. If needed, add `-DCURL_USE_LIBPSL=OFF` or `-DUSE_LIBIDN2=OFF` to the `cmake` command to disable those features.
 
 ### `cannot expose privileged port 88`
 
