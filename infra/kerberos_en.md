@@ -176,7 +176,6 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
         build:
           context: .
           dockerfile: Dockerfile.kdc
-        image: localhost/krb_kdc:latest
         ports:
           - "10088:88"
           - "10088:88/udp"
@@ -186,7 +185,6 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
         build:
           context: .
           dockerfile: Dockerfile.nginx
-        image: localhost/krb_nginx:latest
         ports:
           - "8080:80"
         volumes:
@@ -389,10 +387,10 @@ rm krb5.keytab
 - **Cause**: In `podman exec -it $(podman ps -q -f name=kdc) ...`, the `$(...)` part is empty, so `kadmin.local` is interpreted as a container name.
 - **Solution**: Use `podman compose exec kdc ...`. For `podman cp`, get the ID via `podman ps -a -q --filter name=_kdc_` and verify with `echo "$KDC_CID"`. Names vary by environment (e.g. `krb_kdc_1`, `krb5_kdc_1`), so confirm with `podman ps -a --format '{{.ID}} {{.Names}}'` if needed.
 
-### `krb_nginx did not resolve to an alias and no unqualified-search registries ...`
+### `krb_nginx did not resolve to an alias ...` / `docker://localhost/... connection refused`
 
-- **Cause**: An unqualified image name like `krb_nginx` cannot be resolved, so Podman cannot decide where to pull from.
-- **Solution**: In `docker-compose.yml`, use `image: localhost/krb_nginx:latest` (and `localhost/krb_kdc:latest` for KDC). On first run, build locally with `podman compose up -d --build`.
+- **Cause**: `image:` resolution can vary by environment, causing either unqualified-name errors or failed pulls to `https://localhost/v2`.
+- **Solution**: In this tutorial, do not set `image:` in `docker-compose.yml`; use `build:` only. Start with `podman compose up -d --build`.
 
 ---
 

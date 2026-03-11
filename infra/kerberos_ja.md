@@ -176,7 +176,6 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
         build:
           context: .
           dockerfile: Dockerfile.kdc
-        image: localhost/krb_kdc:latest
         ports:
           - "10088:88"
           - "10088:88/udp"
@@ -186,7 +185,6 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
         build:
           context: .
           dockerfile: Dockerfile.nginx
-        image: localhost/krb_nginx:latest
         ports:
           - "8080:80"
         volumes:
@@ -389,10 +387,10 @@ rm krb5.keytab
 - **原因**: `podman exec -it $(podman ps -q -f name=kdc) ...` の `$(...)` が空になり、`kadmin.local` がコンテナ名として解釈される。
 - **対処**: `podman compose exec kdc ...` を使う。`podman cp` が必要な場合は `podman ps -a -q --filter name=_kdc_` で ID を取得し、`echo "$KDC_CID"` で確認する。名前は `krb_kdc_1` / `krb5_kdc_1` のように環境で変わるため、必要なら `podman ps -a --format '{{.ID}} {{.Names}}'` で実名を確認する。
 
-### `krb_nginx did not resolve to an alias and no unqualified-search registries ...` が出る
+### `krb_nginx did not resolve to an alias ...` / `docker://localhost/... connection refused` が出る
 
-- **原因**: `krb_nginx` のような未修飾イメージ名が解決できず、Podman が pull 先を決められない。
-- **対処**: `docker-compose.yml` で `image: localhost/krb_nginx:latest`（KDC も `localhost/krb_kdc:latest`）を使う。初回は `podman compose up -d --build` でローカルビルドする。
+- **原因**: `image:` の解決方式が環境差分でぶれ、未修飾名エラーまたは `https://localhost/v2` への pull で失敗する。
+- **対処**: 本教材では `docker-compose.yml` に `image:` を書かず、`build:` のみを使う。起動は `podman compose up -d --build` で統一する。
 
 ---
 
