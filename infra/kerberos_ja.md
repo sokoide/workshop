@@ -144,7 +144,7 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
 1. **Dockerfile.kdc**
 
     ```dockerfile
-    FROM ubuntu:22.04
+    FROM ubuntu:24.04
     ENV DEBIAN_FRONTEND=noninteractive
     RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
     COPY krb5.conf /etc/krb5.conf
@@ -206,17 +206,19 @@ Keytab ファイル（サーバー用パスワードファイル）がないと 
 
 ```bash
 # KDC 起動
-podman-compose up -d kdc
+podman compose up -d kdc
 
 # ユーザープリンシパルの作成 (パスワード: userpass)
-podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
+podman compose exec kdc kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
 
 # NGINX 用の SPN 作成
-podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "addprinc -randkey HTTP/nginx.test.local@TEST.LOCAL"
+podman compose exec kdc kadmin.local -q "addprinc -randkey HTTP/nginx.test.local@TEST.LOCAL"
 
 # Keytab のエクスポートとホストへの取り出し
-podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
-podman cp $(podman ps -q -f name=kdc):/tmp/krb5.keytab ./krb5.keytab
+podman compose exec kdc kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
+KDC_CID=$(podman ps -q --filter label=io.podman.compose.service=kdc | head -n1)
+test -n "$KDC_CID" || { echo "kdc コンテナが見つかりません"; exit 1; }
+podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
 ```
 
@@ -228,7 +230,7 @@ chmod 644 ./krb5.keytab
 
 ```bash
 # NGINX 起動
-podman-compose up -d nginx
+podman compose up -d nginx
 
 # 1. チケット(TGT)の取得
 export KRB5_CONFIG=$(pwd)/krb5.conf
@@ -252,10 +254,80 @@ curl --negotiate -u : http://nginx.test.local:8080/
 
 ---
 
+### STEP 5: Kerberos の相互認証 (Mutual Authentication) を理解する
+
+`curl --negotiate` の背後では、クライアントだけでなくサーバー側も「正しいサービス鍵を持っていること」を示し、相互認証が成立します。
+
+```mermaid
+sequenceDiagram
+    participant C as Client (user1)
+    participant K as KDC (AS/TGS)
+    participant S as Service (nginx)
+
+    Note over C: K_user = userの長期鍵(パスワード由来)
+    Note over K: K_tgs = krbtgt鍵, K_svc = HTTP/nginx.test.local鍵
+
+    C->>K: AS-REQ (+ preauth: TS を K_user で暗号化)
+    K-->>C: AS-REP (TGT{...}_K_tgs + K_c,tgs を K_user で暗号化)
+
+    C->>K: TGS-REQ (TGT + Authenticator{...}_K_c,tgs + SPN)
+    K-->>C: TGS-REP (Ticket_svc{...}_K_svc + K_c,s を K_c,tgs で暗号化)
+
+    C->>S: AP-REQ (Ticket_svc + Authenticator{...}_K_c,s)
+    S->>S: keytab から K_svc で Ticket_svc を復号
+    S-->>C: AP-REP (TS+1 を K_c,s で暗号化)
+
+    Note over C,S: C が AP-REP を K_c,s で復号できれば mutual auth 成立
+```
+
+#### どの鍵で何を暗号化・復号するか
+
+1. **AS-REQ / AS-REP（TGT取得）**
+   - クライアント: `K_user` で preauth（タイムスタンプ）を暗号化して送信。
+   - KDC: 受信した preauth を `K_user` で復号して本人性を確認。
+   - KDC: `K_c,tgs`（クライアント-TGS セッション鍵）を `K_user` で暗号化して返却。
+   - KDC: TGT 本体は `K_tgs` で暗号化（クライアントは中身を読めない）。
+
+2. **TGS-REQ / TGS-REP（サービスチケット取得）**
+   - クライアント: Authenticator を `K_c,tgs` で暗号化。
+   - KDC: TGT を `K_tgs` で復号し、`K_c,tgs` を取り出して Authenticator を復号。
+   - KDC: `K_c,s`（クライアント-サービスセッション鍵）を `K_c,tgs` で暗号化して返却。
+   - KDC: サービスチケット `Ticket_svc` を `K_svc` で暗号化（サービスだけが読める）。
+
+3. **AP-REQ / AP-REP（実サービスアクセス + 相互認証）**
+   - クライアント: `Ticket_svc` と Authenticator(`K_c,s` 暗号化) を送信。
+   - サービス: keytab の `K_svc` で `Ticket_svc` を復号し、`K_c,s` を取得。
+   - サービス: `K_c,s` で Authenticator を復号し、クライアント真正性を確認。
+   - サービス: AP-REP（典型的には `TS+1`）を `K_c,s` で暗号化して返す。
+   - クライアント: AP-REP を `K_c,s` で復号できれば、サーバー真正性を確認。
+
+#### 手軽な確認方法 (`curl -v`)
+
+`curl -v --negotiate` では、最終 `200 OK` 側にも `WWW-Authenticate: Negotiate <token>` が返ると、AP-REP が返却されている（= mutual 認証が成立している）ことを確認できます。
+
+```bash
+curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
+```
+
+**参考出力（要点）**
+
+```text
+< HTTP/1.1 401 Unauthorized
+< WWW-Authenticate: Negotiate
+...
+> Authorization: Negotiate YIIF...   # クライアントの AP-REQ
+< HTTP/1.1 200 OK
+< WWW-Authenticate: Negotiate YIGC... # サーバーの AP-REP（mutual 認証）
+```
+
+`200 OK` なのに後者の `WWW-Authenticate: Negotiate <token>` が無い場合は、相互認証トークンが返っていない可能性があります（モジュール設定・実装差分を確認）。
+
+---
+
 ## 片付け
 
 ```bash
-podman-compose down
+podman compose down
 rm krb5.keytab
 # /etc/hosts の編集内容は必要に応じて手動で削除してください
 ```
@@ -281,6 +353,11 @@ rm krb5.keytab
 
 - **原因**: ホストマシンの `kinit` でチケットを取得していない、または `KRB5_CONFIG` が正しく設定されていない。
 - **対処**: `klist` でチケットの有無を確認し、`export KRB5_CONFIG=$(pwd)/krb5.conf` を実行した同一ターミナルで `curl` を実行してください。
+
+### `no container with name or ID "kadmin.local" found` が出る
+
+- **原因**: `podman exec -it $(podman ps -q -f name=kdc) ...` の `$(...)` が空になり、`kadmin.local` がコンテナ名として解釈される。
+- **対処**: `podman compose exec kdc ...` を使う。`podman cp` が必要な場合のみ `podman ps -q --filter label=io.podman.compose.service=kdc` でコンテナ ID を取得する。
 
 ---
 

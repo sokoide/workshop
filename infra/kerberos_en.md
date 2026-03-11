@@ -144,7 +144,7 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
 1. **Dockerfile.kdc**
 
     ```dockerfile
-    FROM ubuntu:22.04
+    FROM ubuntu:24.04
     ENV DEBIAN_FRONTEND=noninteractive
     RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
     COPY krb5.conf /etc/krb5.conf
@@ -206,17 +206,19 @@ Since NGINX cannot start without a Keytab file (server-side password file), star
 
 ```bash
 # Start KDC
-podman-compose up -d kdc
+podman compose up -d kdc
 
 # Create user principal (Password: userpass)
-podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
+podman compose exec kdc kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
 
 # Create SPN for NGINX
-podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "addprinc -randkey HTTP/nginx.test.local@TEST.LOCAL"
+podman compose exec kdc kadmin.local -q "addprinc -randkey HTTP/nginx.test.local@TEST.LOCAL"
 
 # Export Keytab and extract to host
-podman exec -it $(podman ps -q -f name=kdc) kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
-podman cp $(podman ps -q -f name=kdc):/tmp/krb5.keytab ./krb5.keytab
+podman compose exec kdc kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
+KDC_CID=$(podman ps -q --filter label=io.podman.compose.service=kdc | head -n1)
+test -n "$KDC_CID" || { echo "kdc container not found"; exit 1; }
+podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
 ```
 
@@ -228,7 +230,7 @@ chmod 644 ./krb5.keytab
 
 ```bash
 # Start NGINX
-podman-compose up -d nginx
+podman compose up -d nginx
 
 # 1. Obtain Ticket (TGT)
 export KRB5_CONFIG=$(pwd)/krb5.conf
@@ -252,10 +254,80 @@ curl --negotiate -u : http://nginx.test.local:8080/
 
 ---
 
+### STEP 5: Understand Kerberos Mutual Authentication
+
+Behind `curl --negotiate`, the server also proves it has the correct service key. That is what completes mutual authentication.
+
+```mermaid
+sequenceDiagram
+    participant C as Client (user1)
+    participant K as KDC (AS/TGS)
+    participant S as Service (nginx)
+
+    Note over C: K_user = user's long-term key (from password)
+    Note over K: K_tgs = krbtgt key, K_svc = HTTP/nginx.test.local key
+
+    C->>K: AS-REQ (+ preauth: encrypt TS with K_user)
+    K-->>C: AS-REP (TGT{...}_K_tgs + K_c,tgs encrypted with K_user)
+
+    C->>K: TGS-REQ (TGT + Authenticator{...}_K_c,tgs + SPN)
+    K-->>C: TGS-REP (Ticket_svc{...}_K_svc + K_c,s encrypted with K_c,tgs)
+
+    C->>S: AP-REQ (Ticket_svc + Authenticator{...}_K_c,s)
+    S->>S: Decrypt Ticket_svc with K_svc from keytab
+    S-->>C: AP-REP (encrypt TS+1 with K_c,s)
+
+    Note over C,S: Mutual auth succeeds if C can decrypt AP-REP with K_c,s
+```
+
+#### Which key encrypts/decrypts what
+
+1. **AS-REQ / AS-REP (Get TGT)**
+   - Client encrypts preauth (timestamp) with `K_user`.
+   - KDC decrypts preauth with `K_user` to verify the user.
+   - KDC encrypts `K_c,tgs` (client-TGS session key) with `K_user`.
+   - KDC encrypts the TGT body with `K_tgs` (client cannot read TGT contents directly).
+
+2. **TGS-REQ / TGS-REP (Get service ticket)**
+   - Client encrypts Authenticator with `K_c,tgs`.
+   - KDC decrypts TGT with `K_tgs`, obtains `K_c,tgs`, and decrypts Authenticator.
+   - KDC encrypts `K_c,s` (client-service session key) with `K_c,tgs`.
+   - KDC encrypts `Ticket_svc` with `K_svc` (only the service can decrypt it).
+
+3. **AP-REQ / AP-REP (Service access + mutual auth)**
+   - Client sends `Ticket_svc` and Authenticator (encrypted with `K_c,s`).
+   - Service decrypts `Ticket_svc` using `K_svc` in keytab and obtains `K_c,s`.
+   - Service decrypts Authenticator with `K_c,s` to verify the client.
+   - Service returns AP-REP (typically `TS+1`) encrypted with `K_c,s`.
+   - Client decrypts AP-REP with `K_c,s` to verify the server.
+
+#### Quick check with `curl -v`
+
+With `curl -v --negotiate`, if `WWW-Authenticate: Negotiate <token>` appears in the final `200 OK` response, AP-REP is returned, which indicates mutual auth completed.
+
+```bash
+curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
+```
+
+**Reference output (key lines)**
+
+```text
+< HTTP/1.1 401 Unauthorized
+< WWW-Authenticate: Negotiate
+...
+> Authorization: Negotiate YIIF...   # Client AP-REQ
+< HTTP/1.1 200 OK
+< WWW-Authenticate: Negotiate YIGC... # Server AP-REP (mutual auth)
+```
+
+If `200 OK` is returned but the second `WWW-Authenticate: Negotiate <token>` is missing, mutual-auth token return may not be happening (check module behavior/config).
+
+---
+
 ## Cleanup
 
 ```bash
-podman-compose down
+podman compose down
 rm krb5.keytab
 # Delete entries in /etc/hosts manually if needed
 ```
@@ -281,6 +353,11 @@ rm krb5.keytab
 
 - **Cause**: TGT not obtained with `kinit` on the host machine, or `KRB5_CONFIG` is not set correctly.
 - **Solution**: Check for tickets with `klist`, and ensure `curl` is run in the same terminal session where `export KRB5_CONFIG=$(pwd)/krb5.conf` was executed.
+
+### `no container with name or ID "kadmin.local" found`
+
+- **Cause**: In `podman exec -it $(podman ps -q -f name=kdc) ...`, the `$(...)` part is empty, so `kadmin.local` is interpreted as a container name.
+- **Solution**: Use `podman compose exec kdc ...`. Only for `podman cp`, get the container ID with `podman ps -q --filter label=io.podman.compose.service=kdc`.
 
 ---
 
