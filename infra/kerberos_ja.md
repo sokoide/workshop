@@ -176,6 +176,7 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
         build:
           context: .
           dockerfile: Dockerfile.kdc
+        image: localhost/krb_kdc:latest
         ports:
           - "10088:88"
           - "10088:88/udp"
@@ -185,6 +186,7 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
         build:
           context: .
           dockerfile: Dockerfile.nginx
+        image: localhost/krb_nginx:latest
         ports:
           - "8080:80"
         volumes:
@@ -206,7 +208,7 @@ Keytab ファイル（サーバー用パスワードファイル）がないと 
 
 ```bash
 # KDC 起動
-podman compose up -d kdc
+podman compose up -d --build kdc
 
 # ユーザープリンシパルの作成 (パスワード: userpass)
 podman compose exec kdc kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
@@ -252,7 +254,7 @@ klist
 
 ```bash
 # NGINX 起動
-podman compose up -d nginx
+podman compose up -d --build nginx
 
 # 1. チケット(TGT)の取得
 export KRB5_CONFIG=$(pwd)/krb5.conf
@@ -386,6 +388,11 @@ rm krb5.keytab
 
 - **原因**: `podman exec -it $(podman ps -q -f name=kdc) ...` の `$(...)` が空になり、`kadmin.local` がコンテナ名として解釈される。
 - **対処**: `podman compose exec kdc ...` を使う。`podman cp` が必要な場合は `podman ps -a -q --filter name=_kdc_` で ID を取得し、`echo "$KDC_CID"` で確認する。名前は `krb_kdc_1` / `krb5_kdc_1` のように環境で変わるため、必要なら `podman ps -a --format '{{.ID}} {{.Names}}'` で実名を確認する。
+
+### `krb_nginx did not resolve to an alias and no unqualified-search registries ...` が出る
+
+- **原因**: `krb_nginx` のような未修飾イメージ名が解決できず、Podman が pull 先を決められない。
+- **対処**: `docker-compose.yml` で `image: localhost/krb_nginx:latest`（KDC も `localhost/krb_kdc:latest`）を使う。初回は `podman compose up -d --build` でローカルビルドする。
 
 ---
 
