@@ -130,6 +130,7 @@ sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
                 auth_gss_realm TEST.LOCAL;
                 auth_gss_keytab /etc/nginx/krb5.keytab;
                 auth_gss_service_name HTTP/nginx.test.local;
+                auth_gss_allow_basic_fallback off;
                 add_header X-Remote-User $remote_user always;
                 try_files /index.txt =404;
             }
@@ -420,6 +421,11 @@ rm krb5.keytab
 
 - **原因**: `curl` の書式ミス（`-u:`）や URL のホスト名不一致（`localhost`）で、SPNEGO フローが開始されない。
 - **対処**: `curl --negotiate -u : -v http://nginx.test.local:8080/` をそのまま使う。`-u:` ではなく `-u :`（スペースあり）にする。`localhost` ではなく `nginx.test.local` を使う。
+
+### `WWW-Authenticate: BASIC realm="TEST.LOCAL"` が返る
+
+- **原因**: NGINX の SPNEGO モジュールで Basic fallback が有効になっている。
+- **対処**: `nginx.conf` の該当 `location` に `auth_gss_allow_basic_fallback off;` を追加し、`podman compose up -d --force-recreate nginx` で反映する。
 
 ### `HTTP/localhost@TEST.LOCAL not found in Kerberos database` が出る
 

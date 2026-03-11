@@ -130,6 +130,7 @@ Create a working directory and place the necessary files.
                 auth_gss_realm TEST.LOCAL;
                 auth_gss_keytab /etc/nginx/krb5.keytab;
                 auth_gss_service_name HTTP/nginx.test.local;
+                auth_gss_allow_basic_fallback off;
                 add_header X-Remote-User $remote_user always;
                 try_files /index.txt =404;
             }
@@ -415,6 +416,11 @@ rm krb5.keytab
 
 - **Cause**: `curl` syntax error (`-u:`) or host mismatch (`localhost`) prevents the SPNEGO flow from starting.
 - **Solution**: Use `curl --negotiate -u : -v http://nginx.test.local:8080/` exactly. Use `-u :` (with a space), not `-u:`. Use `nginx.test.local`, not `localhost`.
+
+### `WWW-Authenticate: BASIC realm="TEST.LOCAL"` is returned
+
+- **Cause**: Basic fallback is enabled in the NGINX SPNEGO module settings.
+- **Solution**: Add `auth_gss_allow_basic_fallback off;` to the target `location` in `nginx.conf`, then apply with `podman compose up -d --force-recreate nginx`.
 
 ### `HTTP/localhost@TEST.LOCAL not found in Kerberos database`
 
