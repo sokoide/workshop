@@ -217,10 +217,8 @@ podman compose exec kdc kadmin.local -q "addprinc -randkey HTTP/nginx.test.local
 # Export Keytab and extract to host
 podman compose exec kdc kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
 # Actual container names vary by environment (e.g. krb_kdc_1 / krb5_kdc_1)
-# If not found in running containers, also check with -a
-KDC_CID=$(podman ps -q --filter name=_kdc_ | head -n1)
-test -n "$KDC_CID" || KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
-test -n "$KDC_CID" || { echo "kdc container not found. Check with: podman ps -a --format '{{.ID}} {{.Names}}'"; exit 1; }
+KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
+echo "$KDC_CID" # Verify container ID
 podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
 ```
@@ -228,6 +226,27 @@ chmod 644 ./krb5.keytab
 ### ✅ Checkpoint
 
 - [ ] Confirmed that `krb5.keytab` was created in the current directory.
+
+### STEP 3.5: Verify KDC behavior (kinit / klist / kdestroy)
+
+After KDC startup and principal creation, quickly verify Kerberos client behavior first.
+
+```bash
+export KRB5_CONFIG=$(pwd)/krb5.conf
+
+# Get TGT
+kinit user1@TEST.LOCAL
+# Password: userpass
+
+# Check ticket
+klist
+
+# Destroy ticket
+kdestroy
+
+# Confirm destroy (typically shows "No credentials cache found")
+klist
+```
 
 ### STEP 4: Starting NGINX and Verification
 
@@ -366,7 +385,7 @@ rm krb5.keytab
 ### `no container with name or ID "kadmin.local" found`
 
 - **Cause**: In `podman exec -it $(podman ps -q -f name=kdc) ...`, the `$(...)` part is empty, so `kadmin.local` is interpreted as a container name.
-- **Solution**: Use `podman compose exec kdc ...`. For `podman cp`, use `podman ps -q --filter name=_kdc_`, and if empty, use `podman ps -a -q --filter name=_kdc_`. Names vary by environment (e.g. `krb_kdc_1`, `krb5_kdc_1`), so confirm with `podman ps -a --format '{{.ID}} {{.Names}}'` if needed.
+- **Solution**: Use `podman compose exec kdc ...`. For `podman cp`, get the ID via `podman ps -a -q --filter name=_kdc_` and verify with `echo "$KDC_CID"`. Names vary by environment (e.g. `krb_kdc_1`, `krb5_kdc_1`), so confirm with `podman ps -a --format '{{.ID}} {{.Names}}'` if needed.
 
 ---
 

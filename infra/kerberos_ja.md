@@ -217,10 +217,8 @@ podman compose exec kdc kadmin.local -q "addprinc -randkey HTTP/nginx.test.local
 # Keytab のエクスポートとホストへの取り出し
 podman compose exec kdc kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
 # KDC の実コンテナ名は環境により krb_kdc_1 / krb5_kdc_1 などに変わる
-# 起動中に見つからない場合は -a を使って確認する
-KDC_CID=$(podman ps -q --filter name=_kdc_ | head -n1)
-test -n "$KDC_CID" || KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
-test -n "$KDC_CID" || { echo "kdc コンテナが見つかりません。podman ps -a --format '{{.ID}} {{.Names}}' で確認してください"; exit 1; }
+KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
+echo "$KDC_CID" # IDを確認
 podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
 ```
@@ -228,6 +226,27 @@ chmod 644 ./krb5.keytab
 ### ✅ チェックポイント
 
 - [ ] カレントディレクトリに `krb5.keytab` が作成されたことを確認した
+
+### STEP 3.5: KDC の動作確認（kinit / klist / kdestroy）
+
+KDC 起動と principal 作成ができたら、いったん Kerberos クライアント操作だけを確認します。
+
+```bash
+export KRB5_CONFIG=$(pwd)/krb5.conf
+
+# TGT 取得
+kinit user1@TEST.LOCAL
+# パスワード: userpass
+
+# チケット確認
+klist
+
+# チケット破棄
+kdestroy
+
+# 破棄確認（通常は "No credentials cache found" になる）
+klist
+```
 
 ### STEP 4: NGINX の起動と動作確認
 
@@ -366,7 +385,7 @@ rm krb5.keytab
 ### `no container with name or ID "kadmin.local" found` が出る
 
 - **原因**: `podman exec -it $(podman ps -q -f name=kdc) ...` の `$(...)` が空になり、`kadmin.local` がコンテナ名として解釈される。
-- **対処**: `podman compose exec kdc ...` を使う。`podman cp` が必要な場合は `podman ps -q --filter name=_kdc_` で取得し、空なら `podman ps -a -q --filter name=_kdc_` を使う。名前は `krb_kdc_1` / `krb5_kdc_1` のように環境で変わるため、必要なら `podman ps -a --format '{{.ID}} {{.Names}}'` で実名を確認する。
+- **対処**: `podman compose exec kdc ...` を使う。`podman cp` が必要な場合は `podman ps -a -q --filter name=_kdc_` で ID を取得し、`echo "$KDC_CID"` で確認する。名前は `krb_kdc_1` / `krb5_kdc_1` のように環境で変わるため、必要なら `podman ps -a --format '{{.ID}} {{.Names}}'` で実名を確認する。
 
 ---
 
