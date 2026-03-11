@@ -99,7 +99,7 @@ sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
 
     [realms]
         TEST.LOCAL = {
-            kdc = 127.0.0.1
+            kdc = 127.0.0.1:10088
             admin_server = 127.0.0.1
         }
 
@@ -177,8 +177,8 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
           context: .
           dockerfile: Dockerfile.kdc
         ports:
-          - "88:88"
-          - "88:88/udp"
+          - "10088:88"
+          - "10088:88/udp"
         hostname: kdc.test.local
 
       nginx:
@@ -353,6 +353,12 @@ rm krb5.keytab
 
 - **原因**: ホストマシンの `kinit` でチケットを取得していない、または `KRB5_CONFIG` が正しく設定されていない。
 - **対処**: `klist` でチケットの有無を確認し、`export KRB5_CONFIG=$(pwd)/krb5.conf` を実行した同一ターミナルで `curl` を実行してください。
+
+### `cannot expose privileged port 88` が出る
+
+- **原因**: rootless Podman では 1024 未満の privileged port（例: 88）を公開できない。
+- **対処A（本教材の既定）**: ホスト側を高位ポートにする。`docker-compose.yml` は `10088:88`（TCP/UDP）、`krb5.conf` は `kdc = 127.0.0.1:10088` を使う。
+- **対処B**: rootful 実行または sysctl を設定する。例: `sudo podman compose up -d kdc`、`sudo sysctl -w net.ipv4.ip_unprivileged_port_start=88`
 
 ### `no container with name or ID "kadmin.local" found` が出る
 

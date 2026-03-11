@@ -99,7 +99,7 @@ Create a working directory and place the necessary files.
 
     [realms]
         TEST.LOCAL = {
-            kdc = 127.0.0.1
+            kdc = 127.0.0.1:10088
             admin_server = 127.0.0.1
         }
 
@@ -177,8 +177,8 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
           context: .
           dockerfile: Dockerfile.kdc
         ports:
-          - "88:88"
-          - "88:88/udp"
+          - "10088:88"
+          - "10088:88/udp"
         hostname: kdc.test.local
 
       nginx:
@@ -353,6 +353,12 @@ rm krb5.keytab
 
 - **Cause**: TGT not obtained with `kinit` on the host machine, or `KRB5_CONFIG` is not set correctly.
 - **Solution**: Check for tickets with `klist`, and ensure `curl` is run in the same terminal session where `export KRB5_CONFIG=$(pwd)/krb5.conf` was executed.
+
+### `cannot expose privileged port 88`
+
+- **Cause**: Rootless Podman cannot publish privileged ports below 1024 (such as 88).
+- **Solution A (default in this tutorial)**: Use a high host port. This tutorial uses `10088:88` (TCP/UDP) and `kdc = 127.0.0.1:10088` from the beginning.
+- **Solution B**: Run rootful Podman or change sysctl. Examples: `sudo podman compose up -d kdc`, `sudo sysctl -w net.ipv4.ip_unprivileged_port_start=88`
 
 ### `no container with name or ID "kadmin.local" found`
 
