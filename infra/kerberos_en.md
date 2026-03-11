@@ -417,22 +417,26 @@ rm krb5.keytab
 
 ### Build a `GSS-Negotiate`-enabled `curl` on Ubuntu 24.04
 
-- **Prerequisite**: Official `curl` supports `--with-gssapi` during source builds. On Ubuntu 24.04 (`noble`), `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, and `zlib1g-dev` are available.
+- **Prerequisite**: On Ubuntu 24.04 (`noble`), `cmake`, `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, and `zlib1g-dev` are available. To avoid environments where `make install` fails, this tutorial uses CMake.
 - **Steps**:
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev
+sudo apt install -y cmake build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev
 
 cd /tmp
 curl -LO https://curl.se/download/curl-8.18.0.tar.xz
 tar -xf curl-8.18.0.tar.xz
 cd curl-8.18.0
 
-./configure --prefix=/usr/local --with-openssl --with-gssapi
-make -j"$(nproc)"
-sudo make install
-sudo ldconfig
+cmake -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -DCURL_USE_OPENSSL=ON \
+  -DCURL_USE_GSSAPI=ON
+cmake --build build -j"$(nproc)"
+sudo cmake --install build
+/sbin/ldconfig
 
 /usr/local/bin/curl -V
 ```
