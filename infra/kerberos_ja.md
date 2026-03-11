@@ -97,6 +97,8 @@ sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
         default_realm = TEST.LOCAL
         dns_lookup_realm = false
         dns_lookup_kdc = false
+        dns_canonicalize_hostname = false
+        rdns = false
 
     [realms]
         TEST.LOCAL = {
@@ -290,7 +292,7 @@ klist
 
 # 3. curl が SPNEGO 対応か確認
 curl -V
-# Features に GSS-Negotiate が含まれることを確認
+# Features に SPNEGO と GSS-API が含まれることを確認
 
 # 4. SPNEGO 認証によるアクセス
 curl -i --negotiate -u : http://nginx.test.local:8080/
@@ -304,13 +306,13 @@ klist
 
 - `X-Remote-User: user1@TEST.LOCAL` がレスポンスヘッダに含まれる
 - `HTTP/nginx.test.local@TEST.LOCAL` が `klist` に追加される
-- `curl -V` の Features に `GSS-Negotiate` が含まれる
+- `curl -V` の Features に `SPNEGO` と `GSS-API` が含まれる
 
 ### ✅ チェックポイント
 
 - [ ] `klist` で TGT (`krbtgt/...`) に加えて、サービスチケット (`HTTP/nginx.test.local@...`) が表示されていることを確認した
 - [ ] `curl -i` のレスポンスヘッダに `X-Remote-User` が含まれていることを確認した
-- [ ] `curl -V` の Features に `GSS-Negotiate` が含まれていることを確認した
+- [ ] `curl -V` の Features に `SPNEGO` と `GSS-API` が含まれていることを確認した
 
 ---
 
@@ -412,43 +414,17 @@ rm krb5.keytab
 ### curl で 401 Unauthorized になる
 
 - **原因**: ホストマシンの `kinit` でチケットを取得していない、または `KRB5_CONFIG` が正しく設定されていない。
-- **対処**: `klist` でチケットの有無を確認し、`export KRB5_CONFIG=$(pwd)/krb5.conf` を実行した同一ターミナルで `curl` を実行してください。あわせて `curl -V` を実行し、Features に `GSS-Negotiate` が含まれていることを確認してください。含まれていなければ、その `curl` では `--negotiate` を使えません。
+- **対処**: `klist` でチケットの有無を確認し、`export KRB5_CONFIG=$(pwd)/krb5.conf` を実行した同一ターミナルで `curl` を実行してください。あわせて `curl -V` を実行し、Features に `SPNEGO` と `GSS-API` が含まれていることを確認してください。含まれていなければ、その `curl` では `--negotiate` を使えません。
 
-### Homebrew の `curl` に `GSS-Negotiate` が無い
+### `curl` が Negotiate を継続せず 401 で終わる
 
-- **原因**: Homebrew の標準 `curl` formula では、環境によって `GSS-Negotiate` が有効になっていないことがある。
-- **対処**: `curl -V` の Features に `GSS-Negotiate` が無い場合は、`brew install curl` だけでは不足する可能性がある。`krb5` をリンクした `curl` を source build する。
-- **補足**: その場合でも `kinit` と `kvno HTTP/nginx.test.local@TEST.LOCAL` が成功していれば、Kerberos 側の動作確認は完了している。
+- **原因**: `curl` の書式ミス（`-u:`）や URL のホスト名不一致（`localhost`）で、SPNEGO フローが開始されない。
+- **対処**: `curl --negotiate -u : -v http://nginx.test.local:8080/` をそのまま使う。`-u:` ではなく `-u :`（スペースあり）にする。`localhost` ではなく `nginx.test.local` を使う。
 
-### Ubuntu 24.04 で `GSS-Negotiate` 対応 `curl` を build する
+### `HTTP/localhost@TEST.LOCAL not found in Kerberos database` が出る
 
-- **前提**: Ubuntu 24.04 (`noble`) では `cmake`, `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, `zlib1g-dev`, `libpsl-dev`, `libidn2-dev` が利用できる。`make install` に失敗する環境を避けるため、この教材では CMake を使う。
-- **手順**:
-
-```bash
-sudo apt update
-sudo apt install -y cmake build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev libpsl-dev libidn2-dev
-
-cd /tmp
-curl -LO https://curl.se/download/curl-8.18.0.tar.xz
-tar -xf curl-8.18.0.tar.xz
-cd curl-8.18.0
-
-cmake -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=/usr/local \
-  -DCURL_USE_OPENSSL=ON \
-  -DCURL_USE_GSSAPI=ON
-cmake --build build -j"$(nproc)"
-sudo cmake --install build
-/sbin/ldconfig
-
-/usr/local/bin/curl -V
-```
-
-- **確認**: `/usr/local/bin/curl -V` の Features に `GSS-Negotiate` が含まれることを確認する。
-- **補足**: 既存の `/usr/bin/curl` と区別するため、実習では `/usr/local/bin/curl --negotiate ...` を明示して実行すると安全。
-- **補足2**: `libpsl not found` や `libidn2 not found` が出る場合は、それぞれ `libpsl-dev`, `libidn2-dev` を追加で入れる。必要なら `cmake` に `-DCURL_USE_LIBPSL=OFF` や `-DUSE_LIBIDN2=OFF` を追加して無効化できる。
+- **原因**: ホスト名の正規化（canonicalize/reverse DNS）や proxy 経由で、`nginx.test.local` が `localhost` として扱われる。
+- **対処**: `krb5.conf` の `[libdefaults]` に `dns_canonicalize_hostname = false` と `rdns = false` を入れる。さらに `env | grep -i proxy` で proxy 設定を確認し、必要なら `unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY` して再実行する。
 
 ### `cannot expose privileged port 88` が出る
 

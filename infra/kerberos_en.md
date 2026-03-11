@@ -97,6 +97,8 @@ Create a working directory and place the necessary files.
         default_realm = TEST.LOCAL
         dns_lookup_realm = false
         dns_lookup_kdc = false
+        dns_canonicalize_hostname = false
+        rdns = false
 
     [realms]
         TEST.LOCAL = {
@@ -285,7 +287,7 @@ klist
 
 # 3. Check whether curl supports SPNEGO
 curl -V
-# Confirm that GSS-Negotiate is included in Features
+# Confirm that SPNEGO and GSS-API are included in Features
 
 # 4. Access via SPNEGO authentication
 curl -i --negotiate -u : http://nginx.test.local:8080/
@@ -299,13 +301,13 @@ klist
 
 - `X-Remote-User: user1@TEST.LOCAL` appears in the response headers
 - `HTTP/nginx.test.local@TEST.LOCAL` is added in `klist`
-- `curl -V` shows `GSS-Negotiate` in Features
+- `curl -V` shows `SPNEGO` and `GSS-API` in Features
 
 ### ✅ Checkpoint
 
 - [ ] Confirmed that in addition to the TGT (`krbtgt/...`), the Service Ticket (`HTTP/nginx.test.local@...`) is displayed with `klist`.
 - [ ] Confirmed that `X-Remote-User` is present in the `curl -i` response headers.
-- [ ] Confirmed that `curl -V` includes `GSS-Negotiate` in Features.
+- [ ] Confirmed that `curl -V` includes `SPNEGO` and `GSS-API` in Features.
 
 ---
 
@@ -407,43 +409,17 @@ rm krb5.keytab
 ### 401 Unauthorized with curl
 
 - **Cause**: TGT not obtained with `kinit` on the host machine, or `KRB5_CONFIG` is not set correctly.
-- **Solution**: Check for tickets with `klist`, and ensure `curl` is run in the same terminal session where `export KRB5_CONFIG=$(pwd)/krb5.conf` was executed. Also run `curl -V` and confirm that `GSS-Negotiate` is included in Features. If it is missing, that `curl` build cannot use `--negotiate`.
+- **Solution**: Check for tickets with `klist`, and ensure `curl` is run in the same terminal session where `export KRB5_CONFIG=$(pwd)/krb5.conf` was executed. Also run `curl -V` and confirm that `SPNEGO` and `GSS-API` are included in Features. If they are missing, that `curl` build cannot use `--negotiate`.
 
-### Homebrew `curl` does not include `GSS-Negotiate`
+### `curl` stops at 401 without continuing Negotiate
 
-- **Cause**: Depending on the environment, the standard Homebrew `curl` formula may not have `GSS-Negotiate` enabled.
-- **Solution**: If `curl -V` does not show `GSS-Negotiate` in Features, `brew install curl` may not be sufficient. Build a `curl` linked with `krb5` from source.
-- **Note**: Even in that case, if `kinit` and `kvno HTTP/nginx.test.local@TEST.LOCAL` succeed, the Kerberos side of the lab is already validated.
+- **Cause**: `curl` syntax error (`-u:`) or host mismatch (`localhost`) prevents the SPNEGO flow from starting.
+- **Solution**: Use `curl --negotiate -u : -v http://nginx.test.local:8080/` exactly. Use `-u :` (with a space), not `-u:`. Use `nginx.test.local`, not `localhost`.
 
-### Build a `GSS-Negotiate`-enabled `curl` on Ubuntu 24.04
+### `HTTP/localhost@TEST.LOCAL not found in Kerberos database`
 
-- **Prerequisite**: On Ubuntu 24.04 (`noble`), `cmake`, `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, `zlib1g-dev`, `libpsl-dev`, and `libidn2-dev` are available. To avoid environments where `make install` fails, this tutorial uses CMake.
-- **Steps**:
-
-```bash
-sudo apt update
-sudo apt install -y cmake build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev libpsl-dev libidn2-dev
-
-cd /tmp
-curl -LO https://curl.se/download/curl-8.18.0.tar.xz
-tar -xf curl-8.18.0.tar.xz
-cd curl-8.18.0
-
-cmake -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=/usr/local \
-  -DCURL_USE_OPENSSL=ON \
-  -DCURL_USE_GSSAPI=ON
-cmake --build build -j"$(nproc)"
-sudo cmake --install build
-/sbin/ldconfig
-
-/usr/local/bin/curl -V
-```
-
-- **Verify**: Confirm that `GSS-Negotiate` appears in the Features section of `/usr/local/bin/curl -V`.
-- **Note**: To avoid mixing it with the system `/usr/bin/curl`, it is safer to run `/usr/local/bin/curl --negotiate ...` explicitly in this lab.
-- **Note 2**: If you get `libpsl not found` or `libidn2 not found`, install `libpsl-dev` or `libidn2-dev` respectively. If needed, add `-DCURL_USE_LIBPSL=OFF` or `-DUSE_LIBIDN2=OFF` to the `cmake` command to disable those features.
+- **Cause**: Host canonicalization (canonicalize/reverse DNS) or proxy routing can make `nginx.test.local` be treated as `localhost`.
+- **Solution**: In `[libdefaults]` of `krb5.conf`, set `dns_canonicalize_hostname = false` and `rdns = false`. Also check proxy settings with `env | grep -i proxy`, and if needed run `unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY` before retrying.
 
 ### `cannot expose privileged port 88`
 
