@@ -176,6 +176,8 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
         build:
           context: .
           dockerfile: Dockerfile.kdc
+        image: localhost/krb_kdc:latest
+        pull_policy: never
         ports:
           - "10088:88"
           - "10088:88/udp"
@@ -185,6 +187,8 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
         build:
           context: .
           dockerfile: Dockerfile.nginx
+        image: localhost/krb_nginx:latest
+        pull_policy: never
         ports:
           - "8080:80"
         volumes:
@@ -199,6 +203,7 @@ Prepare Dockerfiles to integrate the SPNEGO module into NGINX.
 ### ✅ Checkpoint
 
 - [ ] Confirmed that `krb5.keytab` is mounted to NGINX in `docker-compose.yml`.
+- [ ] Confirmed that `image: localhost/...` and `pull_policy: never` are set in `docker-compose.yml`.
 
 ### STEP 3: Starting KDC and Generating Keytab
 
@@ -389,8 +394,8 @@ rm krb5.keytab
 
 ### `krb_nginx did not resolve to an alias ...` / `docker://localhost/... connection refused`
 
-- **Cause**: `image:` resolution can vary by environment, causing either unqualified-name errors or failed pulls to `https://localhost/v2`.
-- **Solution**: In this tutorial, do not set `image:` in `docker-compose.yml`; use `build:` only. Start with `podman compose up -d --build`.
+- **Cause**: On `podman compose v1.0.6`, auto-generated image-name resolution can be unstable, causing either unqualified-name errors or failed pulls to `https://localhost/v2`.
+- **Solution**: Explicitly set `image: localhost/krb_nginx:latest` and `pull_policy: never` in `docker-compose.yml` (same for KDC). On first run, execute `podman compose build --no-cache` and then `podman compose up -d`.
 
 ---
 

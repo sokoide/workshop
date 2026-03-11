@@ -176,6 +176,8 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
         build:
           context: .
           dockerfile: Dockerfile.kdc
+        image: localhost/krb_kdc:latest
+        pull_policy: never
         ports:
           - "10088:88"
           - "10088:88/udp"
@@ -185,6 +187,8 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
         build:
           context: .
           dockerfile: Dockerfile.nginx
+        image: localhost/krb_nginx:latest
+        pull_policy: never
         ports:
           - "8080:80"
         volumes:
@@ -199,6 +203,7 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
 ### ✅ チェックポイント
 
 - [ ] `docker-compose.yml` で `krb5.keytab` が NGINX にマウントされていることを確認した
+- [ ] `docker-compose.yml` で `image: localhost/...` と `pull_policy: never` を設定したことを確認した
 
 ### STEP 3: KDC の起動と Keytab の生成
 
@@ -389,8 +394,8 @@ rm krb5.keytab
 
 ### `krb_nginx did not resolve to an alias ...` / `docker://localhost/... connection refused` が出る
 
-- **原因**: `image:` の解決方式が環境差分でぶれ、未修飾名エラーまたは `https://localhost/v2` への pull で失敗する。
-- **対処**: 本教材では `docker-compose.yml` に `image:` を書かず、`build:` のみを使う。起動は `podman compose up -d --build` で統一する。
+- **原因**: `podman compose v1.0.6` では自動生成イメージ名の解決が不安定で、未修飾名エラーまたは `https://localhost/v2` への pull で失敗することがある。
+- **対処**: `docker-compose.yml` に `image: localhost/krb_nginx:latest` と `pull_policy: never`（KDC も同様）を明示する。初回は `podman compose build --no-cache` の後に `podman compose up -d` を実行する。
 
 ---
 
