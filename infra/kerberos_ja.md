@@ -216,8 +216,11 @@ podman compose exec kdc kadmin.local -q "addprinc -randkey HTTP/nginx.test.local
 
 # Keytab のエクスポートとホストへの取り出し
 podman compose exec kdc kadmin.local -q "ktadd -k /tmp/krb5.keytab HTTP/nginx.test.local@TEST.LOCAL"
-KDC_CID=$(podman ps -q --filter label=io.podman.compose.service=kdc | head -n1)
-test -n "$KDC_CID" || { echo "kdc コンテナが見つかりません"; exit 1; }
+# KDC の実コンテナ名は環境により krb_kdc_1 / krb5_kdc_1 などに変わる
+# 起動中に見つからない場合は -a を使って確認する
+KDC_CID=$(podman ps -q --filter name=_kdc_ | head -n1)
+test -n "$KDC_CID" || KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
+test -n "$KDC_CID" || { echo "kdc コンテナが見つかりません。podman ps -a --format '{{.ID}} {{.Names}}' で確認してください"; exit 1; }
 podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
 ```
@@ -363,7 +366,7 @@ rm krb5.keytab
 ### `no container with name or ID "kadmin.local" found` が出る
 
 - **原因**: `podman exec -it $(podman ps -q -f name=kdc) ...` の `$(...)` が空になり、`kadmin.local` がコンテナ名として解釈される。
-- **対処**: `podman compose exec kdc ...` を使う。`podman cp` が必要な場合のみ `podman ps -q --filter label=io.podman.compose.service=kdc` でコンテナ ID を取得する。
+- **対処**: `podman compose exec kdc ...` を使う。`podman cp` が必要な場合は `podman ps -q --filter name=_kdc_` で取得し、空なら `podman ps -a -q --filter name=_kdc_` を使う。名前は `krb_kdc_1` / `krb5_kdc_1` のように環境で変わるため、必要なら `podman ps -a --format '{{.ID}} {{.Names}}'` で実名を確認する。
 
 ---
 
