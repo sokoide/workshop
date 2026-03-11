@@ -126,6 +126,13 @@ sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
                 auth_gss_keytab /etc/nginx/krb5.keytab;
                 auth_gss_service_name HTTP/nginx.test.local;
 
+                # 重要: return は認証フェーズ(Access)の前に実行されるため、
+                # そのまま使うと認証がバイパスされ $remote_user が空になります。
+                # try_files を経由させることで認証を確実に実行させます。
+                try_files $uri @success;
+            }
+
+            location @success {
                 return 200 "SPNEGO Authentication Successful. User: $remote_user\n";
             }
         }
@@ -281,6 +288,10 @@ klist
 
 # 3. SPNEGO 認証によるアクセス
 curl --negotiate -u : http://nginx.test.local:8080/
+
+# 4. サービスチケットの取得を確認
+# curl 実行後に実行。HTTP/nginx.test.local@TEST.LOCAL が増えているはずです
+klist
 ```
 
 **成功時の出力:**
@@ -288,7 +299,7 @@ curl --negotiate -u : http://nginx.test.local:8080/
 
 ### ✅ チェックポイント
 
-- [ ] `klist` で有効なチケットが表示されていることを確認した
+- [ ] `klist` で TGT (`krbtgt/...`) に加えて、サービスチケット (`HTTP/nginx.test.local@...`) が表示されていることを確認した
 - [ ] `curl` の結果に自分のユーザー名が含まれていることを確認した
 
 ---

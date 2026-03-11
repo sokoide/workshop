@@ -126,6 +126,13 @@ Create a working directory and place the necessary files.
                 auth_gss_keytab /etc/nginx/krb5.keytab;
                 auth_gss_service_name HTTP/nginx.test.local;
 
+                # Note: 'return' is executed in the REWRITE phase (early),
+                # so using it here would bypass the authentication phase (ACCESS).
+                # Using 'try_files' ensures that the access check is completed.
+                try_files $uri @success;
+            }
+
+            location @success {
                 return 200 "SPNEGO Authentication Successful. User: $remote_user\n";
             }
         }
@@ -274,6 +281,10 @@ klist
 
 # 3. Access via SPNEGO authentication
 curl --negotiate -u : http://nginx.test.local:8080/
+
+# 4. Verify Service Ticket acquisition
+# Run this after curl. You should see HTTP/nginx.test.local@TEST.LOCAL added to the list.
+klist
 ```
 
 **Example Successful Output:**
@@ -281,7 +292,7 @@ curl --negotiate -u : http://nginx.test.local:8080/
 
 ### ✅ Checkpoint
 
-- [ ] Confirmed that a valid ticket is displayed with `klist`.
+- [ ] Confirmed that in addition to the TGT (`krbtgt/...`), the Service Ticket (`HTTP/nginx.test.local@...`) is displayed with `klist`.
 - [ ] Confirmed that the `curl` result contains your username.
 
 ---
