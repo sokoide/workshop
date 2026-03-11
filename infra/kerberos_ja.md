@@ -230,7 +230,7 @@ podman compose up -d kdc
 
 # ユーザープリンシパルの作成 (パスワード: userpass)
 
-podman compose exec kdc kadmin.local -q "addprinc -pw userpass <user1@TEST.LOCAL>"
+podman compose exec kdc kadmin.local -q "addprinc -pw userpass user1@TEST.LOCAL"
 
 # NGINX 用の SPN 作成
 
@@ -288,10 +288,14 @@ kinit user1@TEST.LOCAL
 # 2. チケットの確認 (krbtgt/TEST.LOCAL@TEST.LOCAL があればOK)
 klist
 
-# 3. SPNEGO 認証によるアクセス
+# 3. curl が SPNEGO 対応か確認
+curl -V
+# Features に GSS-Negotiate が含まれることを確認
+
+# 4. SPNEGO 認証によるアクセス
 curl -i --negotiate -u : http://nginx.test.local:8080/
 
-# 4. サービスチケットの取得を確認
+# 5. サービスチケットの取得を確認
 # curl 実行後に実行。HTTP/nginx.test.local@TEST.LOCAL が増えているはずです
 klist
 ```
@@ -300,11 +304,13 @@ klist
 
 - `X-Remote-User: user1@TEST.LOCAL` がレスポンスヘッダに含まれる
 - `HTTP/nginx.test.local@TEST.LOCAL` が `klist` に追加される
+- `curl -V` の Features に `GSS-Negotiate` が含まれる
 
 ### ✅ チェックポイント
 
 - [ ] `klist` で TGT (`krbtgt/...`) に加えて、サービスチケット (`HTTP/nginx.test.local@...`) が表示されていることを確認した
 - [ ] `curl -i` のレスポンスヘッダに `X-Remote-User` が含まれていることを確認した
+- [ ] `curl -V` の Features に `GSS-Negotiate` が含まれていることを確認した
 
 ---
 
@@ -406,7 +412,38 @@ rm krb5.keytab
 ### curl で 401 Unauthorized になる
 
 - **原因**: ホストマシンの `kinit` でチケットを取得していない、または `KRB5_CONFIG` が正しく設定されていない。
-- **対処**: `klist` でチケットの有無を確認し、`export KRB5_CONFIG=$(pwd)/krb5.conf` を実行した同一ターミナルで `curl` を実行してください。
+- **対処**: `klist` でチケットの有無を確認し、`export KRB5_CONFIG=$(pwd)/krb5.conf` を実行した同一ターミナルで `curl` を実行してください。あわせて `curl -V` を実行し、Features に `GSS-Negotiate` が含まれていることを確認してください。含まれていなければ、その `curl` では `--negotiate` を使えません。
+
+### Homebrew の `curl` に `GSS-Negotiate` が無い
+
+- **原因**: Homebrew の標準 `curl` formula では、環境によって `GSS-Negotiate` が有効になっていないことがある。
+- **対処**: `curl -V` の Features に `GSS-Negotiate` が無い場合は、`brew install curl` だけでは不足する可能性がある。`krb5` をリンクした `curl` を source build する。
+- **補足**: その場合でも `kinit` と `kvno HTTP/nginx.test.local@TEST.LOCAL` が成功していれば、Kerberos 側の動作確認は完了している。
+
+### Ubuntu 24.04 で `GSS-Negotiate` 対応 `curl` を build する
+
+- **前提**: 公式 `curl` は source build 時に `--with-gssapi` を指定できる。Ubuntu 24.04 (`noble`) では `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, `zlib1g-dev` が利用できる。
+- **手順**:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev
+
+cd /tmp
+curl -LO https://curl.se/download/curl-8.18.0.tar.xz
+tar -xf curl-8.18.0.tar.xz
+cd curl-8.18.0
+
+./configure --prefix=/usr/local --with-openssl --with-gssapi
+make -j"$(nproc)"
+sudo make install
+sudo ldconfig
+
+/usr/local/bin/curl -V
+```
+
+- **確認**: `/usr/local/bin/curl -V` の Features に `GSS-Negotiate` が含まれることを確認する。
+- **補足**: 既存の `/usr/bin/curl` と区別するため、実習では `/usr/local/bin/curl --negotiate ...` を明示して実行すると安全。
 
 ### `cannot expose privileged port 88` が出る
 

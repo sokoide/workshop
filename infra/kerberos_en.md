@@ -283,10 +283,14 @@ kinit user1@TEST.LOCAL
 # 2. Verify Ticket (It's OK if krbtgt/TEST.LOCAL@TEST.LOCAL exists)
 klist
 
-# 3. Access via SPNEGO authentication
+# 3. Check whether curl supports SPNEGO
+curl -V
+# Confirm that GSS-Negotiate is included in Features
+
+# 4. Access via SPNEGO authentication
 curl -i --negotiate -u : http://nginx.test.local:8080/
 
-# 4. Verify Service Ticket acquisition
+# 5. Verify Service Ticket acquisition
 # Run this after curl. You should see HTTP/nginx.test.local@TEST.LOCAL added to the list.
 klist
 ```
@@ -295,11 +299,13 @@ klist
 
 - `X-Remote-User: user1@TEST.LOCAL` appears in the response headers
 - `HTTP/nginx.test.local@TEST.LOCAL` is added in `klist`
+- `curl -V` shows `GSS-Negotiate` in Features
 
 ### ✅ Checkpoint
 
 - [ ] Confirmed that in addition to the TGT (`krbtgt/...`), the Service Ticket (`HTTP/nginx.test.local@...`) is displayed with `klist`.
 - [ ] Confirmed that `X-Remote-User` is present in the `curl -i` response headers.
+- [ ] Confirmed that `curl -V` includes `GSS-Negotiate` in Features.
 
 ---
 
@@ -401,7 +407,38 @@ rm krb5.keytab
 ### 401 Unauthorized with curl
 
 - **Cause**: TGT not obtained with `kinit` on the host machine, or `KRB5_CONFIG` is not set correctly.
-- **Solution**: Check for tickets with `klist`, and ensure `curl` is run in the same terminal session where `export KRB5_CONFIG=$(pwd)/krb5.conf` was executed.
+- **Solution**: Check for tickets with `klist`, and ensure `curl` is run in the same terminal session where `export KRB5_CONFIG=$(pwd)/krb5.conf` was executed. Also run `curl -V` and confirm that `GSS-Negotiate` is included in Features. If it is missing, that `curl` build cannot use `--negotiate`.
+
+### Homebrew `curl` does not include `GSS-Negotiate`
+
+- **Cause**: Depending on the environment, the standard Homebrew `curl` formula may not have `GSS-Negotiate` enabled.
+- **Solution**: If `curl -V` does not show `GSS-Negotiate` in Features, `brew install curl` may not be sufficient. Build a `curl` linked with `krb5` from source.
+- **Note**: Even in that case, if `kinit` and `kvno HTTP/nginx.test.local@TEST.LOCAL` succeed, the Kerberos side of the lab is already validated.
+
+### Build a `GSS-Negotiate`-enabled `curl` on Ubuntu 24.04
+
+- **Prerequisite**: Official `curl` supports `--with-gssapi` during source builds. On Ubuntu 24.04 (`noble`), `build-essential`, `pkg-config`, `libkrb5-dev`, `libssl-dev`, and `zlib1g-dev` are available.
+- **Steps**:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libkrb5-dev libssl-dev zlib1g-dev
+
+cd /tmp
+curl -LO https://curl.se/download/curl-8.18.0.tar.xz
+tar -xf curl-8.18.0.tar.xz
+cd curl-8.18.0
+
+./configure --prefix=/usr/local --with-openssl --with-gssapi
+make -j"$(nproc)"
+sudo make install
+sudo ldconfig
+
+/usr/local/bin/curl -V
+```
+
+- **Verify**: Confirm that `GSS-Negotiate` appears in the Features section of `/usr/local/bin/curl -V`.
+- **Note**: To avoid mixing it with the system `/usr/bin/curl`, it is safer to run `/usr/local/bin/curl --negotiate ...` explicitly in this lab.
 
 ### `cannot expose privileged port 88`
 
