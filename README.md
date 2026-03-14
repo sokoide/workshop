@@ -69,5 +69,7 @@ This repository contains hands-on materials for various technical topics.
   - Learn S/O/L/I/D with practical Go examples and Clean Architecture mapping.
 - [Caching Patterns in Go](./software/go_cache_patterns_en.md)
   - Practical cache patterns: TTL, LRU, cache-aside, Redis, and write-through.
+- [Introduction to Succinct Data Structures (Go Perspective)](./software/succinct_en.md)
+  - Guide to memory-efficient Trie implementation using LOUDS.
 - [Design Patterns](https://github.com/sokoide/design-patterns/README.md)
   - Implementation examples and application scenarios of GoF design patterns.

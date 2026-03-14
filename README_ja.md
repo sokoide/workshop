@@ -69,5 +69,7 @@
   - S/O/L/I/D を Go の実例と Clean Architecture の対応で理解
 - [Go キャッシュパターン入門](./software/go_cache_patterns_en.md)
   - Go の代表的なキャッシュパターンを整理（TTL/LRU/Cache-Aside/Redis/Write-Through、英語）
+- [Succinct データ構造入門（Go視点）](./software/succinct_ja.md)
+  - LOUDS を用いた省メモリな Trie 実装の解説
 - [Design Patterns](https://github.com/sokoide/design-patterns/README_ja.md)
   - GoF デザインパターンの実装例と適用場面
