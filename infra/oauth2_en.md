@@ -132,6 +132,218 @@ Notes:
 - `Add to ID token = Off` avoids forcing this audience into the login-focused ID token
 - `Add to lightweight access token = Off` keeps this out of lightweight tokens; this workshop uses a regular access token
 - `Add to token introspection = On` makes the audience visible if you use token introspection
+- However, `Add to token introspection = On` does not mean this workshop is using introspection
+- The Go API in this workshop does not call the introspection endpoint; it validates JWTs directly using JWKS
+
+## Token Types and Introspection
+
+To understand OAuth2 and OIDC properly, it helps to separate the purpose of each token and validation mechanism.
+
+### Overview
+
+```mermaid
+graph LR
+    U["User"] -->|Sign in| KC["Keycloak"]
+    KC -->|ID token| C["Client App"]
+    KC -->|Access token| C
+    C -->|Bearer access token| API["Resource Server"]
+    API -->|If needed: introspection| KC
+```
+
+- `ID token`: tells the client who signed in
+- `access token`: tells the resource server whether the API call is allowed
+- `token introspection`: lets the resource server ask the authorization server whether a token is valid
+- `lightweight access token`: a smaller access token format that may rely on introspection for additional details
+
+### ID token
+
+An `ID token` is an **OIDC token**. OAuth2 by itself does not standardize how to represent the logged-in user, but OIDC adds the `ID token` for that purpose.
+
+Main uses:
+
+- Let the client confirm that sign-in succeeded
+- Provide a stable user identifier such as `sub`
+- Optionally carry claims such as `email` or `name`
+
+Important points:
+
+- An `ID token` is **for the client**
+- It is usually not sent to an API as the token for authorization
+- It is best understood as the result of the login process
+
+### Access token
+
+An `access token` is the token used to call an API. The client sends it to the resource server as `Authorization: Bearer <token>`.
+
+Main uses:
+
+- Let the API decide whether the caller is allowed to access the resource
+- Carry claims such as `iss`, `aud`, `exp`, `scope`, and `roles`
+
+Important points:
+
+- An `access token` is **for the resource server**
+- The Go API in this workshop validates this token
+- The Audience mapper needs `Add to access token = On` because the API expects `aud` in this token
+
+### Lightweight access token
+
+A `lightweight access token` is a smaller access token that carries fewer claims than a regular access token. Whether it is used depends on the Keycloak setup and operating model.
+
+Why it exists:
+
+- A token with many claims can become large
+- In some environments, such as API gateways or multi-service topologies, smaller tokens are desirable
+- Additional details can then be retrieved through mechanisms such as introspection
+
+How it relates to this workshop:
+
+- This workshop uses direct JWT validation in the Go API
+- It does not assume lightweight access tokens
+- `Add to lightweight access token = Off` is fine for this setup
+
+### Token introspection
+
+`Token introspection` is a mechanism where the resource server asks the authorization server whether a token is still valid and what attributes it has.
+
+How it differs from direct JWT validation:
+
+```mermaid
+flowchart TD
+    A["Client"] -->|Bearer token| B["Resource Server"]
+    B -->|Option 1: validate JWT locally| C["Check JWKS and claims"]
+    B -->|Option 2: introspection| D["Ask Keycloak"]
+```
+
+Characteristics of direct JWT validation:
+
+- Easy to make fast decisions within the resource server itself
+- No need to call Keycloak on every request
+- But immediate revocation handling usually needs additional design
+
+Characteristics of introspection:
+
+- The authorization server can confirm whether the token is valid
+- Revocation and invalidation are easier to centralize
+- But it adds network calls whenever introspection is used
+
+What `Add to token introspection = On` means:
+
+- It makes audience information available in the introspection response
+- The Go API in this workshop does not use introspection, but this setting keeps the data available if you switch to that model later
+- In other words, this only enables data for introspection responses; it does not mean Keycloak is being queried on every request
+
+### What this workshop uses
+
+In this workshop, responsibilities are split like this:
+
+- The Go client app can receive both an `ID token` and an `access token`
+- The Go API receives an `access token` and validates it directly using JWKS
+- Keycloak can provide an introspection endpoint if needed
+
+The two key ideas are:
+
+- Use the `ID token` to understand the login result
+- Use the `access token` to authorize API access
+
+The common failure point in this workshop is that the API checks the `aud` claim in the `access token`.  
+That is why the Audience mapper needs `Add to access token = On`.
+
+### OIDC Client vs. Resource Server
+
+This is an easy place to get confused.
+
+- OIDC Client: sends the user to the IdP login page and receives the authorization code or ID token
+- Resource Server: validates the received access token and returns the API response
+
+Applied to this workshop:
+
+- The Go client app acts as an OAuth 2.0 client / OIDC client
+  - In OIDC discussions, it may play an RP-like role, but in this workshop, calling it a `Client` is more precise
+- The Go API acts as the resource server
+
+#### Why an OIDC client may use a secret
+
+An OIDC client may exchange tokens directly with the IdP. Depending on the client type, it may identify itself with both a `client_id` and a `client_secret`.
+
+Typical cases:
+
+- Confidential Client
+  - A server-side web app
+  - Can keep a `client_secret` safely
+  - May use the secret when calling the token endpoint
+- Public Client
+  - An SPA, mobile app, or a PKCE-based sample like this one
+  - Cannot safely keep a `client_secret`
+  - Uses PKCE instead of a `client_secret`
+
+So the accurate statement is not "an OIDC client always needs a secret," but rather "confidential clients often use a secret."
+
+#### Why the resource server does not need a secret here
+
+The resource server in this workshop does not log in to Keycloak. It does two things:
+
+1. Fetches public keys from Keycloak's JWKS endpoint
+2. Verifies the JWT signature with those public keys
+
+This is public-key signature verification, so it does not require a user ID, password, or `client_secret`.
+
+The model is:
+
+- Keycloak signs the token with its private key
+- The resource server verifies that signature with the corresponding public key
+
+The important point is that this is **signature verification**, not decryption.
+
+- The JWT payload is often readable as-is
+- But being readable is not the same as being trustworthy
+- If signature verification succeeds, the resource server can conclude that Keycloak issued the token and that the payload was not tampered with in transit
+- That is why claims such as `aud`, `iss`, and `exp` can be trusted and used for authorization decisions
+
+#### What is `kid`?
+
+The `kid` in the JWT header means **Key ID**. It identifies which key was used to sign the token.
+
+Why it matters:
+
+- Keycloak may rotate signing keys
+- A JWKS document may contain multiple public keys
+- The resource server uses the JWT header's `kid` to select the correct public key
+
+Flow:
+
+1. Receive the JWT
+2. Read the `kid` from the JWT header
+3. Find the public key with the same `kid` in the JWKS
+4. Verify the signature with that public key
+5. After verification succeeds, check `iss`, `aud`, `exp`, and other claims
+
+So `kid` is the marker that tells the resource server which public key to use for signature verification.
+
+That is why [api/main.go](/Users/scott/repo/sokoide/workshop/infra/assets/oauth2/api/main.go) can run with just `go run`. It only needs:
+
+- Access to `jwksURL`
+- Tokens whose `iss`, `aud`, and `exp` are valid
+
+#### Are there cases where a resource server does need a secret?
+
+Yes. For example, if the resource server does not validate JWTs locally and instead uses `token introspection` for each request, then Keycloak may require client authentication for that introspection call.
+
+Additional note:
+
+- This workshop sets `Add to token introspection = On`, but it does not actually call the introspection endpoint
+- It uses direct JWT validation through JWKS
+- That is why the API can start without client credentials for Keycloak
+
+In short:
+
+- OIDC Client
+  - Handles the login flow
+  - May use a `client_secret`, depending on the client type
+- Resource Server
+  - Handles access token validation
+  - Usually does not need a secret when validating JWTs directly
+  - May need credentials when using introspection
 
 ### ✅ Checkpoints
 

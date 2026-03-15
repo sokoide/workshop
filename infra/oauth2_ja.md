@@ -132,6 +132,218 @@ Keycloak 管理画面: `http://localhost:8080`
 - `Add to ID token = Off` は、ログイン確認用の ID token に audience を無理に入れないためです
 - `Add to lightweight access token = Off` は、軽量トークンにこの情報を載せない設定です。この実習では通常の access token を使うため `Off` のままで問題ありません
 - `Add to token introspection = On` は、トークン introspection を使う場合にも audience 情報を見えるようにする設定です
+- ただし、`Add to token introspection = On` は「この教材が introspection を使っている」という意味ではありません
+- この教材の Go API は introspection endpoint を呼ばず、JWKS を使って JWT を直接検証しています
+
+## トークンの種類と Introspection
+
+SWE が OAuth2 / OIDC を理解するうえでは、「どのトークンが何のために存在するのか」を切り分けて考えるのが重要です。
+
+### 全体像
+
+```mermaid
+graph LR
+    U["User"] -->|ログイン| KC["Keycloak"]
+    KC -->|ID token| C["Client App"]
+    KC -->|Access token| C
+    C -->|Bearer access token| API["Resource Server"]
+    API -->|必要なら introspection| KC
+```
+
+- `ID token`: 「誰がログインしたか」を Client に伝える
+- `access token`: 「この token で API を呼んでよいか」を Resource Server に伝える
+- `token introspection`: Resource Server が Authorization Server に「この token は有効か」を問い合わせる仕組み
+- `lightweight access token`: access token を軽量化して、詳細情報を introspection 側で補う設計で使われることがある
+
+### ID token
+
+`ID token` は **OIDC のトークン** です。OAuth2 だけでは「誰がログインしたか」は標準化されていませんが、OIDC では `ID token` によってユーザー識別情報を Client に渡します。
+
+主な用途:
+
+- Client がログイン成功を確認する
+- `sub` などのユーザー識別子を知る
+- 必要に応じて `email` `name` などのクレームを参照する
+
+重要な点:
+
+- `ID token` は **Client 向け** です
+- 通常、API 呼び出しにそのまま使うものではありません
+- 「ログイン結果」を表すトークンと考えると理解しやすいです
+
+### Access token
+
+`access token` は **API 呼び出し用のトークン** です。Client はこれを `Authorization: Bearer <token>` として Resource Server に送ります。
+
+主な用途:
+
+- API が呼び出し権限を確認する
+- `iss` `aud` `exp` `scope` `roles` などを見て受け入れるか判断する
+
+重要な点:
+
+- `access token` は **Resource Server 向け** です
+- 今回の Go API はこの token を検証しています
+- Audience mapper の `Add to access token = On` が必要なのは、この token に `aud` を入れたいからです
+
+### Lightweight access token
+
+`lightweight access token` は、通常の access token より **載せる情報を減らした軽量トークン** です。Keycloak の構成や運用方針によって使われます。
+
+背景:
+
+- access token に多くの claim を載せると token が大きくなる
+- API ゲートウェイや複数サービス間で token サイズを小さくしたいことがある
+- その代わり、必要な詳細は introspection などで補う設計をとる
+
+この実習での位置づけ:
+
+- この実習は JWT を Go API 側で直接検証する流れです
+- そのため、lightweight access token を前提にしていません
+- `Add to lightweight access token = Off` で問題ありません
+
+### Token introspection
+
+`token introspection` は、Resource Server が Authorization Server に対して「この token は今も有効か」「どんな属性を持つか」を問い合わせる仕組みです。
+
+JWT を直接検証する方式との違い:
+
+```mermaid
+flowchart TD
+    A["Client"] -->|Bearer token| B["Resource Server"]
+    B -->|方式1: JWTを自前検証| C["JWKS / claims を確認"]
+    B -->|方式2: introspection| D["Keycloak に問い合わせ"]
+```
+
+JWT 直接検証の特徴:
+
+- Resource Server 単体で高速に判定しやすい
+- Keycloak への問い合わせが毎回不要
+- ただし、失効状態の即時反映などは別途設計が必要
+
+Introspection の特徴:
+
+- Authorization Server に問い合わせて有効性を確認できる
+- 失効や無効化を中央で反映しやすい
+- その代わり、毎回または必要時にネットワーク問い合わせが増える
+
+`Add to token introspection = On` の意味:
+
+- introspection レスポンスにも audience 情報を載せる設定です
+- この実習の Go API は introspection を使っていませんが、将来 introspection 方式に切り替えても情報が揃いやすくなります
+- つまり「introspection 用の情報を載せる設定」を `On` にしているだけで、「毎回 Keycloak に問い合わせている」わけではありません
+
+### この実習では何を使っているか
+
+この実習の構成では、役割は次のように分かれます。
+
+- Go Client app: `ID token` と `access token` を受け取れる
+- Go API: `access token` を受け取り、JWKS を使って直接検証する
+- Keycloak: 必要なら introspection エンドポイントも提供できる
+
+実際に重要なのは次の 2 点です。
+
+- ログイン確認には `ID token`
+- API 認可には `access token`
+
+そして今回のエラー原因になりやすいのは、**API が見るのは `access token` 側の `aud` だ**という点です。  
+そのため Audience mapper では `Add to access token = On` を設定します。
+
+### OIDC Client と Resource Server の違い
+
+ここは混同しやすいポイントです。
+
+- OIDC Client: ユーザーを IdP のログイン画面へ送り、認可コードや ID token を受け取る側
+- Resource Server: 受け取った access token を検証して、API を返す側
+
+今回の構成に当てはめると:
+
+- Go Client app は OAuth 2.0 Client / OIDC Client として動作する
+  - OIDC の説明文脈では RP 的な役割を持ちますが、この教材では「Client」と呼ぶ方が正確です
+- Go API が Resource Server に相当する
+
+#### なぜ OIDC Client は secret を持つことがあるのか
+
+OIDC Client は IdP と直接 token 交換を行うことがあります。そのとき Client の種類によっては `client_id` に加えて `client_secret` を使って自分自身を識別します。
+
+典型例:
+
+- Confidential Client
+  - サーバーサイド Web アプリ
+  - `client_secret` を安全に保持できる
+  - token エンドポイント呼び出し時に secret を使うことがある
+- Public Client
+  - SPA やモバイルアプリ、今回のような PKCE 前提のサンプル
+  - `client_secret` を安全に保持できない
+  - `client_secret` の代わりに PKCE を使う
+
+つまり、**OIDC Client だから必ず secret が必要**なのではなく、**Confidential Client では secret を使うことが多い**、が正確です。
+
+#### なぜ Resource Server は secret が不要なのか
+
+今回の Resource Server は Keycloak に「ログイン」していません。やっていることは次の 2 つです。
+
+1. Keycloak が公開している JWKS から公開鍵を取得する
+2. その公開鍵で JWT の署名を検証する
+
+これは公開鍵暗号の検証なので、user ID / password も `client_secret` も不要です。
+
+考え方:
+
+- Keycloak: 秘密鍵で token に署名する
+- Resource Server: 公開鍵で署名を検証する
+
+ここで重要なのは、**復号（decrypt）ではなく署名検証（verify）をしている**という点です。
+
+- JWT の payload は多くの場合そのまま読めます
+- しかし、読めることと「信頼できる」ことは別です
+- 公開鍵で署名検証が通ることで、「この token は Keycloak が署名したもので、途中で改ざんされていない」と判断できます
+- その前提があるので、`aud` `iss` `exp` などの claim を信頼して判定できます
+
+#### `kid` とは何か
+
+JWT の header にある `kid` は **Key ID** のことです。どの鍵で署名された token なのかを識別するための ID です。
+
+役割:
+
+- Keycloak は鍵をローテーションすることがある
+- JWKS には複数の公開鍵が載ることがある
+- Resource Server は JWT header の `kid` を見て、対応する公開鍵を選ぶ
+
+流れ:
+
+1. JWT を受け取る
+2. JWT header の `kid` を確認する
+3. JWKS の中から同じ `kid` の公開鍵を探す
+4. その公開鍵で署名検証する
+5. 検証後に `iss` `aud` `exp` などを確認する
+
+つまり `kid` は、**どの公開鍵で署名検証すべきかを選ぶための目印**です
+
+そのため、[api/main.go](/Users/scott/repo/sokoide/workshop/infra/assets/oauth2/api/main.go) は `go run` だけで動きます。必要なのは:
+
+- `jwksURL` にアクセスできること
+- 受け取った token の `iss` `aud` `exp` が正しいこと
+
+#### では secret が必要になる Resource Server もあるか
+
+あります。たとえば Resource Server が JWT を自前検証せず、`token introspection` で Keycloak に毎回問い合わせる方式では、Keycloak 側に対して client 認証が必要になることがあります。
+
+補足:
+
+- この教材では `Add to token introspection = On` にしていますが、実際に introspection endpoint は使っていません
+- 使っているのは JWKS による JWT 直接検証です
+- そのため、Keycloak への client 認証情報なしで API を起動できます
+
+整理すると:
+
+- OIDC Client
+  - ログインフロー担当
+  - Client 種別によっては `client_secret` を使う
+- Resource Server
+  - access token 検証担当
+  - JWT 直接検証なら通常 secret 不要
+  - introspection 方式なら secret 等が必要になることがある
 
 ### ✅ チェックポイント
 
