@@ -1,6 +1,6 @@
 # OAuth2 実習：Keycloak + Go + Podman で学ぶ認可フロー
 
-この実習では、**Keycloak（Authorization Server）** と **Go 製 REST API（Resource Server）** を使い、SWE が OAuth2 の実運用フローを手を動かして学びます。クライアントは **Postman または React アプリ** を想定し、アクセストークン取得から API 呼び出しまでを一通り検証します。
+この実習では、**Keycloak（Authorization Server）** と **Go 製 Client アプリ / REST API（Resource Server）** を使い、SWE が OAuth2 の実運用フローを手を動かして学びます。Go Client アプリでアクセストークン取得から API 呼び出しまでを一通り検証します。
 
 > **💡 用語集**: この実習で登場する[OAuth2](glossary.md#oauth2)や[Access Token](glossary.md#access-token)、[Resource Server](glossary.md#resource-server)などの専門用語は [用語集](glossary.md) を参照してください。
 
@@ -12,7 +12,7 @@
 - Keycloak で Realm / Client / User を構成できる
 - `Authorization Code + PKCE` でアクセストークンを取得できる
 - Go API 側で JWT を検証し、保護されたリソースを返せる
-- Postman または React から Bearer トークン付きで API を叩ける
+- Go Client アプリから Bearer トークン付きで API を叩ける
 
 ---
 
@@ -21,7 +21,7 @@
 | 登場人物             | 実装・ツール例        | 役割                                   |
 | -------------------- | --------------------- | -------------------------------------- |
 | Resource Owner       | 私自身                | ログインを許可するユーザー             |
-| Client               | Postman / Reactアプリ | トークンを取得し、APIを叩くもの        |
+| Client               | Go Client アプリ      | トークンを取得し、APIを叩くもの        |
 | Authorization Server | Keycloak              | ユーザーを確認し、トークンを発行する   |
 | Resource Server      | 私のREST API          | トークンを検証し、データ（資源）を渡す |
 
@@ -50,7 +50,7 @@
 ```mermaid
 graph LR
     RO["Resource Owner<br>(あなた)"] -->|ログイン/同意| AS["Authorization Server<br>Keycloak"]
-    CL["Client<br>Postman / React"] -->|1. 認可リクエスト| AS
+    CL["Client<br>Go Client App"] -->|1. 認可リクエスト| AS
     AS -->|2. Authorization Code| CL
     CL -->|3. Token Request| AS
     AS -->|"4. Access Token (JWT)"| CL
@@ -65,6 +65,9 @@ graph LR
 infra/assets/oauth2/
 ├── docker-compose.yml       # Keycloak 起動
 ├── realm-export.json        # 初期Realm定義（任意）
+├── client/
+│   ├── main.go              # Go OIDC Client App
+│   └── go.mod
 ├── api/
 │   ├── main.go              # Go Resource Server
 │   └── go.mod
@@ -105,8 +108,10 @@ Keycloak 管理画面: `http://localhost:8080`
 4. Client を作成（例: `workshop-client`）
     - Client authentication: `Off`（Public client）
     - Standard flow: `On`
-    - Valid redirect URIs: `http://localhost:3000/*`, `https://oauth.pstmn.io/v1/callback`
-5. 必要に応じて Scope `openid profile email` を付与
+    - Valid redirect URIs: `http://localhost:3000/callback`
+5. 必要に応じて Client Scope `profile` `email` を付与
+    - `openid` は Keycloak の Client Scope 一覧に出ないことがあります
+    - `openid` は OIDC を使うための予約済みスコープで、通常は認可リクエスト側で `scope=openid` を指定します
 
 ### ✅ チェックポイント
 
@@ -119,25 +124,43 @@ Keycloak 管理画面: `http://localhost:8080`
 
 ## 実習ステップ
 
-### STEP 1: Client でアクセストークンを取得する
+### STEP 1: Go Client App でアクセストークンを取得する
 
-#### Postman の場合
+`infra/assets/oauth2/client/main.go` は、`Authorization Code + PKCE` で Keycloak にログインし、コールバックでアクセストークンを受け取り、そのまま保護 API も呼べる最小構成の Go Client アプリです。
 
-1. Authorization タブで `OAuth 2.0` を選択
-2. Grant Type: `Authorization Code (with PKCE)`
-3. Auth URL:
-   `http://localhost:8080/realms/workshop/protocol/openid-connect/auth`
-4. Access Token URL:
-   `http://localhost:8080/realms/workshop/protocol/openid-connect/token`
-5. Client ID: `workshop-client`
-6. Scope: `openid profile email`
-7. Callback URL: `https://oauth.pstmn.io/v1/callback`
+```go
+// client/main.go
+package main
+```
 
-`Get New Access Token` を実行し、ログインしてトークンを取得します。
+起動例:
 
-#### React の場合（例）
+```bash
+cd infra/assets/oauth2/client
+go run main.go
+```
 
-OIDC クライアントライブラリ（例: `oidc-client-ts`）で `Authorization Code + PKCE` を設定し、同じ Auth URL/Token URL/Client ID を使用します。
+起動したらブラウザで `http://localhost:3000` を開き、`Login with Keycloak` を押します。
+
+内部で使う設定値:
+
+- Auth URL: `http://localhost:8080/realms/workshop/protocol/openid-connect/auth`
+- Token URL: `http://localhost:8080/realms/workshop/protocol/openid-connect/token`
+- Client ID: `workshop-client`
+- Scope: `openid profile email`
+- Redirect URI: `http://localhost:3000/callback`
+
+補足:
+
+- `profile` / `email` が Client の Scope タブに見えても、`openid` が見えないのは通常動作です
+- 重要なのは、認可リクエスト時に `openid` を含めることです
+
+期待動作:
+
+- Keycloak のログイン画面へリダイレクトされる
+- ログイン後、Go Client App の `/callback` に戻る
+- JSON で `access_token` が表示される
+- あわせて `/api/profile` の呼び出し結果も返る
 
 ### STEP 2: Go Resource Server を作る
 
@@ -258,7 +281,7 @@ curl -i http://localhost:8081/api/profile \
 
 ### ✅ チェックポイント
 
-- [ ] Postman または React でアクセストークンを取得できた
+- [ ] Go Client App でアクセストークンを取得できた
 - [ ] Go API が 8081 で起動した
 - [ ] `/api/profile` が Bearer トークンなしで 401 を返した
 - [ ] 正常トークンで `/api/profile` が 200 を返した
