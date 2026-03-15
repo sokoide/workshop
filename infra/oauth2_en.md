@@ -1,6 +1,6 @@
-# OAuth2 Workshop: Learning Authorization Flow with Keycloak, Go, and Podman
+# OAuth2 Workshop: Learning the Authorization Flow with Keycloak, Go, and Podman
 
-In this workshop, you will learn the practical flow of OAuth2 using **Keycloak (Authorization Server)** and a **REST API written in Go (Resource Server)**. We assume the client is **Postman** or a **React app**, and you will verify the process from obtaining an access token to calling the API.
+In this workshop, you will walk through an end-to-end OAuth2 flow using **Keycloak (Authorization Server)** and a **Go client app / Go REST API (Resource Server)**. The Go client app will obtain an access token and use it to call the API.
 
 > **💡 Glossary**: For technical terms such as [OAuth2](glossary.md#oauth2), [Access Token](glossary.md#access-token), and [Resource Server](glossary.md#resource-server) that appear in this workshop, please refer to the [Glossary](glossary.md).
 
@@ -12,7 +12,7 @@ After completing this workshop, you will be able to:
 - Configure Realms, Clients, and Users in Keycloak
 - Obtain an access token using `Authorization Code + PKCE`
 - Verify JWTs on the Go API side and return protected resources
-- Call the API with a Bearer token from Postman or a React app
+- Call the API with a Bearer token from the Go client app
 
 ---
 
@@ -20,10 +20,10 @@ After completing this workshop, you will be able to:
 
 | Actor                | Example Implementation/Tool | Role                                             |
 | -------------------- | --------------------------- | ------------------------------------------------ |
-| Resource Owner       | Myself                      | The user who authorizes the login                |
-| Client               | Postman / React App         | Something that obtains a token and calls the API |
+| Resource Owner       | Yourself                    | The user who signs in and grants access          |
+| Client               | Go Client App               | Something that obtains a token and calls the API |
 | Authorization Server | Keycloak                    | Verifies the user and issues tokens              |
-| Resource Server      | My REST API                 | Verifies the token and provides data (resources) |
+| Resource Server      | Your REST API               | Verifies the token and returns protected data    |
 
 ---
 
@@ -39,7 +39,7 @@ After completing this workshop, you will be able to:
 
 ### ✅ Solution: OAuth2 + OIDC + Keycloak
 
-- Consolidate authentication and token issuance in Keycloak
+- Centralize authentication and token issuance in Keycloak
 - Clients obtain tokens using standard flows
 - The Go API verifies the JWT signature, Issuer, and Audience
 
@@ -50,7 +50,7 @@ After completing this workshop, you will be able to:
 ```mermaid
 graph LR
     RO["Resource Owner<br>(You)"] -->|Login/Consent| AS["Authorization Server<br>Keycloak"]
-    CL["Client<br>Postman / React"] -->|1. Authorization Request| AS
+    CL["Client<br>Go Client App"] -->|1. Authorization Request| AS
     AS -->|2. Authorization Code| CL
     CL -->|3. Token Request| AS
     AS -->|"4. Access Token (JWT)"| CL
@@ -59,12 +59,15 @@ graph LR
     RS -->|7. Protected Resource| CL
 ```
 
-### Expected Directory Structure
+### Directory Layout
 
 ```text
 infra/assets/oauth2/
 ├── docker-compose.yml       # Keycloak startup
 ├── realm-export.json        # Initial Realm definition (optional)
+├── client/
+│   ├── main.go              # Go OIDC Client App
+│   └── go.mod
 ├── api/
 │   ├── main.go              # Go Resource Server
 │   └── go.mod
@@ -75,7 +78,7 @@ infra/assets/oauth2/
 
 ## Preparation
 
-### 1. Starting Keycloak (Podman)
+### 1. Start Keycloak (Podman)
 
 ```bash
 mkdir -p infra/assets/oauth2 && cd infra/assets/oauth2
@@ -95,18 +98,40 @@ YAML
 podman compose up -d
 ```
 
-Keycloak Admin Console: `http://localhost:8080`
+Keycloak admin console: `http://localhost:8080`
 
 ### 2. Keycloak Initial Setup
 
 1. Log in with `admin / admin`
 2. Create a Realm named `workshop`
-3. Create one User (e.g., `swe-user`) and set a password
+3. Create a user (for example, `swe-user`) and set a password
 4. Create a Client (e.g., `workshop-client`)
     - Client authentication: `Off` (Public client)
     - Standard flow: `On`
-    - Valid redirect URIs: `http://localhost:3000/*`, `https://oauth.pstmn.io/v1/callback`
-5. Add Scopes `openid profile email` as needed
+    - Valid redirect URIs: `http://localhost:3000/callback`
+5. Add the `profile` and `email` client scopes if needed
+    - `openid` may not appear in Keycloak's Client Scope list
+    - `openid` is a reserved scope for OIDC and is usually supplied in the authorization request as `scope=openid`
+6. Add an Audience mapper so the access token includes `aud=workshop-client`
+    - `Client scopes` > `roles` > `Mappers` > `Add mapper` > `By configuration` > `Audience`
+    - `Name`: `aud-workshop-client`
+    - `Included Client Audience`: `workshop-client`
+    - `Add to access token`: `On`
+    - `Add to ID token`: `Off`
+    - `Add to lightweight access token`: `Off`
+    - `Add to token introspection`: `On`
+    - Without this, the Go API later fails with `token has invalid audience`
+
+Notes:
+
+- OAuth 2.0 is a way for an app to call an API safely on behalf of a user
+- OIDC is an extension to OAuth 2.0 that adds user login identity
+- An `ID token` describes who signed in
+- An `access token` represents permission to call an API
+- In this workshop, the Go API validates the `access token`, so `Add to access token` must be `On`
+- `Add to ID token = Off` avoids forcing this audience into the login-focused ID token
+- `Add to lightweight access token = Off` keeps this out of lightweight tokens; this workshop uses a regular access token
+- `Add to token introspection = On` makes the audience visible if you use token introspection
 
 ### ✅ Checkpoints
 
@@ -119,25 +144,94 @@ Keycloak Admin Console: `http://localhost:8080`
 
 ## Workshop Steps
 
-### STEP 1: Obtain an Access Token with the Client
+### STEP 1: Obtain an Access Token with the Go Client App
 
-#### Using Postman
+`infra/assets/oauth2/client/main.go` is a minimal Go client app that signs in to Keycloak with `Authorization Code + PKCE`, receives an access token on the callback, and then immediately calls the protected API.
 
-1. Select `OAuth 2.0` in the Authorization tab
-2. Grant Type: `Authorization Code (with PKCE)`
-3. Auth URL:
-   `http://localhost:8080/realms/workshop/protocol/openid-connect/auth`
-4. Access Token URL:
-   `http://localhost:8080/realms/workshop/protocol/openid-connect/token`
-5. Client ID: `workshop-client`
-6. Scope: `openid profile email`
-7. Callback URL: `https://oauth.pstmn.io/v1/callback`
+Flow:
 
-Execute `Get New Access Token`, log in, and obtain the token.
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as "Go Client App (:3000)"
+    participant K as "Keycloak (:8080)"
+    participant A as "Go API (:8081)"
 
-#### Using React (Example)
+    U->>C: GET /
+    C-->>U: Show "Login with Keycloak"
+    U->>C: GET /login
+    C->>C: Generate and store state / code_verifier
+    C->>K: Authorization request<br/>response_type=code<br/>scope=openid profile email<br/>code_challenge=S256(...)
+    K-->>U: Show login page
+    U->>K: Enter username/password
+    K-->>C: redirect /callback?code=...&state=...
+    C->>C: Validate state
+    C->>K: Token exchange<br/>grant_type=authorization_code<br/>code + code_verifier
+    K-->>C: access_token / id_token
+    C->>A: Authorization: Bearer access_token
+    A-->>C: /api/profile result
+    C-->>U: Render token and API response as JSON
+```
 
-Use an OIDC client library (e.g., `oidc-client-ts`) with `Authorization Code + PKCE` and the same Auth URL, Token URL, and Client ID.
+What the client app does:
+
+1. It serves a simple page at `/` with a link to `/login`
+2. At `/login`, it generates `state` and `code_verifier` and stores them in the browser session
+3. It builds `code_challenge` from `code_verifier` and redirects to Keycloak's authorization endpoint
+4. After the user signs in, it receives `code` and `state` at `/callback`
+5. It validates `state` to protect against CSRF
+6. It exchanges `code` and `code_verifier` at the token endpoint to obtain an `access_token`
+7. It sends that `access_token` to the Go API as `Authorization: Bearer ...`
+8. It returns the API response as JSON
+
+Why PKCE is used:
+
+- Even if someone steals the `code`, they still cannot exchange it without the matching `code_verifier`
+- Public clients cannot safely keep a client secret, so `Authorization Code + PKCE` is used
+
+Endpoints in this sample:
+
+- `/`: start page
+- `/login`: start Keycloak login
+- `/callback`: redirect target from Keycloak
+- `/call-api`: call the API again with the cached access token
+- `/logout`: discard the session token
+
+```go
+// client/main.go
+package main
+```
+
+Run it with:
+
+```bash
+cd infra/assets/oauth2/client
+go run main.go
+```
+
+Then open `http://localhost:3000` in your browser and click `Login with Keycloak`.
+
+Internal configuration values:
+
+- Auth URL: `http://localhost:8080/realms/workshop/protocol/openid-connect/auth`
+- Token URL: `http://localhost:8080/realms/workshop/protocol/openid-connect/token`
+- Client ID: `workshop-client`
+- Scope: `openid profile email`
+- Redirect URI: `http://localhost:3000/callback`
+
+Notes:
+
+- It is normal for `profile` and `email` to appear in the Client Scope tab while `openid` does not
+- What matters is that the authorization request includes `openid`
+- `/callback` immediately calls `/api/profile`, so if the Audience mapper is missing, only the API call fails
+
+Expected behavior:
+
+- The browser is redirected to the Keycloak login page
+- After login, the browser returns to the Go client app's `/callback`
+- The response shows `access_token` as JSON
+- It also shows the `/api/profile` response
+- If you see `token has invalid audience`, the Audience mapper is missing in Keycloak
 
 ### STEP 2: Build the Go Resource Server
 
@@ -228,7 +322,7 @@ func main() {
 }
 ```
 
-Minimal setup to run:
+Minimal run command:
 
 ```bash
 cd api
@@ -236,7 +330,7 @@ go mod tidy
 go run main.go
 ```
 
-API Examples:
+API endpoints:
 
 - `GET /health` (No authentication required)
 - `GET /api/profile` (Authentication required)
@@ -258,23 +352,23 @@ Expected results:
 
 ### ✅ Checkpoints
 
-- [ ] Obtained an access token using Postman or React
+- [ ] Obtained an access token using the Go client app
 - [ ] Go API started on port 8081
 - [ ] `/api/profile` returned 401 without a Bearer token
 - [ ] `/api/profile` returned 200 with a valid token
 
 ---
 
-## Implementation Highlights (Resource Server)
+## Resource Server Validation Checklist
 
 At a minimum, verify the following when validating a JWT:
 
-- The signature algorithm is as expected (e.g., RS256)
+- The signature algorithm is what you expect (for example, RS256)
 - `iss` is `http://localhost:8080/realms/workshop`
 - `aud` includes `workshop-client` (or an API-specific audience)
-- `exp` is within the expiration limit
+- `exp` has not expired
 
-**Warning**: Never trust the JWT payload without verifying the signature.
+**Warning**: Never trust a JWT payload unless you have verified the signature.
 
 ---
 
@@ -314,14 +408,15 @@ podman rm -f workshop-keycloak
 
 ### token audience invalid
 
-**Symptoms**: `audience` error on the API side
+**Symptoms**: An `audience` error on the API side
 
 **Solution**:
 
-- Add an Audience Mapper in the Keycloak Client Scope (e.g., `workshop-client-scope`) or within Client Mappers.
+- Add an Audience Mapper in a Keycloak Client Scope (for example, `workshop-client-scope`) or directly in the client mappers.
   - Go to `Client Scopes` > `roles` (or create new) > `Mappers` > `Add mapper` > `By configuration` > Select `Audience`.
-  - Enter `workshop-client` in `Included Client Audience`.
-- Verify the consistency between the API's expected audience and the Client ID.
+  - Use `aud-workshop-client` for `Name`.
+  - Enter `workshop-client` for `Included Client Audience`.
+- Verify that the API's expected audience matches the Client ID.
 
 ### JWKS fetch failure
 

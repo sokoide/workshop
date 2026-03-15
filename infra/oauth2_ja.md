@@ -112,6 +112,26 @@ Keycloak 管理画面: `http://localhost:8080`
 5. 必要に応じて Client Scope `profile` `email` を付与
     - `openid` は Keycloak の Client Scope 一覧に出ないことがあります
     - `openid` は OIDC を使うための予約済みスコープで、通常は認可リクエスト側で `scope=openid` を指定します
+6. Audience mapper を追加して、アクセストークンの `aud` に `workshop-client` を含める
+    - `Client scopes` > `roles` > `Mappers` > `Add mapper` > `By configuration` > `Audience`
+    - `Name`: `aud-workshop-client`
+    - `Included Client Audience`: `workshop-client`
+    - `Add to access token`: `On`
+    - `Add to ID token`: `Off`
+    - `Add to lightweight access token`: `Off`
+    - `Add to token introspection`: `On`
+    - これを入れないと、後続の Go API で `token has invalid audience` になります
+
+補足:
+
+- OAuth 2.0 は「アプリがユーザーの代わりに API を安全に呼ぶための仕組み」です
+- OIDC は OAuth 2.0 の上に「ログインしたユーザーが誰か」を扱うための拡張です
+- `ID token` は「誰がログインしたか」を表すトークンです
+- `access token` は「API を呼ぶ権限」を表すトークンです
+- この実習では Go API が `access token` を検証するため、`Add to access token` を `On` にします
+- `Add to ID token = Off` は、ログイン確認用の ID token に audience を無理に入れないためです
+- `Add to lightweight access token = Off` は、軽量トークンにこの情報を載せない設定です。この実習では通常の access token を使うため `Off` のままで問題ありません
+- `Add to token introspection = On` は、トークン introspection を使う場合にも audience 情報を見えるようにする設定です
 
 ### ✅ チェックポイント
 
@@ -127,6 +147,55 @@ Keycloak 管理画面: `http://localhost:8080`
 ### STEP 1: Go Client App でアクセストークンを取得する
 
 `infra/assets/oauth2/client/main.go` は、`Authorization Code + PKCE` で Keycloak にログインし、コールバックでアクセストークンを受け取り、そのまま保護 API も呼べる最小構成の Go Client アプリです。
+
+処理の流れ:
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant C as "Go Client App (:3000)"
+    participant K as "Keycloak (:8080)"
+    participant A as "Go API (:8081)"
+
+    U->>C: GET /
+    C-->>U: Login with Keycloak を表示
+    U->>C: GET /login
+    C->>C: state / code_verifier を生成して保存
+    C->>K: 認可リクエスト<br/>response_type=code<br/>scope=openid profile email<br/>code_challenge=S256(...)
+    K-->>U: ログイン画面を表示
+    U->>K: ユーザー名/パスワード入力
+    K-->>C: redirect /callback?code=...&state=...
+    C->>C: state を検証
+    C->>K: トークン交換<br/>grant_type=authorization_code<br/>code + code_verifier
+    K-->>C: access_token / id_token
+    C->>A: Authorization: Bearer access_token
+    A-->>C: /api/profile の結果
+    C-->>U: token と API 応答を JSON 表示
+```
+
+この Client app がやっていること:
+
+1. `/` で簡単な画面を出し、`/login` へのリンクを表示する
+2. `/login` で `state` と `code_verifier` を生成し、ブラウザ用セッションに保存する
+3. `code_verifier` から `code_challenge` を作って、Keycloak の認可エンドポイントへリダイレクトする
+4. Keycloak ログイン後、`/callback` で `code` と `state` を受け取る
+5. `state` が一致することを確認して CSRF を防ぐ
+6. `code` と `code_verifier` を使って token エンドポイントで `access_token` を取得する
+7. 取得した `access_token` を `Authorization: Bearer ...` として Go API に渡す
+8. Go API の応答を、そのまま JSON で表示する
+
+PKCE の意味:
+
+- `code` だけ盗まれても、対応する `code_verifier` を持っていないと token 交換できないようにする仕組みです
+- Public client では client secret を安全に持てないため、`Authorization Code + PKCE` を使います
+
+このサンプルのエンドポイント:
+
+- `/`: 開始画面
+- `/login`: Keycloak へログイン開始
+- `/callback`: Keycloak から戻る受け口
+- `/call-api`: 保存済み access token で API を再実行
+- `/logout`: セッション内の token を破棄
 
 ```go
 // client/main.go
@@ -154,6 +223,7 @@ go run main.go
 
 - `profile` / `email` が Client の Scope タブに見えても、`openid` が見えないのは通常動作です
 - 重要なのは、認可リクエスト時に `openid` を含めることです
+- `/callback` では取得したトークンでそのまま `/api/profile` も呼ぶため、Audience mapper が未設定だと API 側だけ失敗します
 
 期待動作:
 
@@ -161,6 +231,7 @@ go run main.go
 - ログイン後、Go Client App の `/callback` に戻る
 - JSON で `access_token` が表示される
 - あわせて `/api/profile` の呼び出し結果も返る
+- もし `token has invalid audience` が出る場合は、Keycloak の Audience mapper 設定漏れです
 
 ### STEP 2: Go Resource Server を作る
 
@@ -343,6 +414,7 @@ podman rm -f workshop-keycloak
 
 - Keycloak 側で Client Scope (`workshop-client-scope`等) または Client 内の Mappers で Audience を追加します。
   - `Client Scopes` > `roles` (または新規作成) > `Mappers` > `Add mapper` > `By configuration` > `Audience` を選択。
+  - `Name` は `aud-workshop-client` を推奨。
   - `Included Client Audience` に `workshop-client` を入力。
 - API の期待 audience と Client ID の整合を確認する
 
