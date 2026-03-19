@@ -37,6 +37,8 @@ This repository contains hands-on materials for various technical topics.
   - Experience passwordless authentication flow with KDC construction and NGINX SPNEGO module.
 - [OAuth2 Workshop: Learning Authorization Flow with Keycloak + Go + Podman](./infra/oauth2_en.md)
   - Issue tokens with Keycloak and implement protected APIs by validating JWTs in a Go Resource Server.
+- [OAuth2 Workshop: Learning Authorization Flows with Microsoft Entra ID and Go](./infra/oauth2_entra_en.md)
+  - Learn both managed identity based M2M access and user-delegated API access with Microsoft Entra ID.
 - [Reverse Proxy Workshop: Understanding K8s Ingress through Traefik](./infra/traefik_en.md)
   - SSL termination, routing, and health checks with Traefik + multiple backend containers.
 - [Service Mesh Fundamentals: Understanding L7 Traffic Control with Envoy Sidecars](./infra/envoy_en.md)

@@ -37,6 +37,8 @@
   - KDC 構築 + NGINX SPNEGO モジュールで、パスワードレスな認証フローを体験
 - [OAuth2 実習：Keycloak + Go + Podman で学ぶ認可フロー](./infra/oauth2_ja.md)
   - Keycloak でトークン発行し、Go Resource Server で JWT を検証して保護 API を実装
+- [OAuth2 実習：Microsoft Entra ID + Go で学ぶ認可フロー](./infra/oauth2_entra_ja.md)
+  - Managed Identity を使う M2M と、ユーザー委任での API アクセスを Microsoft Entra ID で学習
 - [リバースプロキシ実習：Traefik で学ぶ K8s Ingress の裏側](./infra/traefik_ja.md)
   - Traefik + 複数バックエンドコンテナで SSL 終端・ルーティング・ヘルスチェック
 - [サービスメッシュ基礎実習：Envoy サイドカーで理解する L7 トラフィック制御](./infra/envoy_ja.md)
