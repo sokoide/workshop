@@ -199,11 +199,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
@@ -243,9 +245,35 @@ func main() {
 		// 3. Display success message in browser
 		fmt.Fprintf(w, "✅ Managed Identity Success!\n")
 		fmt.Fprintf(w, "Token (first 10 chars): %s...\n", token.Token[:10])
-		fmt.Fprintf(w, "Expires On: %v\n", token.ExpiresOn)
+		fmt.Fprintf(w, "Expires On: %v\n\n", token.ExpiresOn)
 		
 		log.Printf("Successfully retrieved token for scope: %s", scope)
+
+		// 4. Call the API Endpoint
+		apiEndpoint := os.Getenv("API_ENDPOINT")
+		if apiEndpoint == "" {
+			fmt.Fprintln(w, "⚠️ API_ENDPOINT is not set. Skipping API call.")
+			return
+		}
+
+		client := &http.Client{}
+		req, err := http.NewRequest("GET", apiEndpoint, nil)
+		if err != nil {
+			fmt.Fprintf(w, "❌ Failed to create API request: %v\n", err)
+			return
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token.Token)
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Fprintf(w, "❌ API Call Failed: %v\n", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
+		fmt.Fprintf(w, "Response Body:\n%s\n", string(body))
 	})
 
 	log.Printf("Starting server on port %s...", port)
@@ -257,8 +285,10 @@ func main() {
 
 #### 4-3. 実行時の注意点
 
-- **App Service 上での動作**: コンテナ起動後、`http://<your-app-name>.azurewebsites.net/` にアクセスすると、Managed Identity を使用してトークンを取得し、結果が画面に表示されます。
-- **環境変数**: `API_SCOPE` にアクセスしたい API のスコープを設定してください。
+- **App Service 上での動作**: コンテナ起動後、`http://<your-app-name>.azurewebsites.net/` にアクセスすると、Managed Identity を使用してトークンを取得し、さらにそのトークンを使って API を呼び出した結果が表示されます。
+- **環境変数**:
+  - `API_SCOPE`: アクセスしたい API のスコープ（例: `api://<api-client-id>/.default`）
+  - `API_ENDPOINT`: 呼び出す API の URL（例: `https://<api-app-name>.azurewebsites.net/api/profile`）
 - **API 側の検証**: API サーバー（Resource Server）側では、前述の通り `aud` が自身の Client ID と一致するかを必ず検証してください。
 
 ---
@@ -494,8 +524,13 @@ func main() {
 ### 実装上の注意
 
 - **`aud` 検証**: 実際のトークンの `aud` claim に合わせる。v2 トークンでは API の **client ID (GUID)** になる
-- **`scp` 検証**: `scp` claim は複数スコープの場合 **スペース区切り**（例: `"access_as_user profile"`）。`strings.Contains` ではなく `strings.Fields` で分割して比較すること
-- **M2M との違い**: ユーザー委任トークンは `scp`、M2M トークンは `roles` が入る
+- **`scp` と `requiredScope` の意味**:
+  - `access_as_user` は、**「ユーザー委任フロー (Pattern B)」** でのみ使用される **スコープ (Scope)** です。
+  - これは「このアプリがサインインしているユーザーに代わって API を操作すること」を許可する権限の名前です。Entra ID の「API の公開」メニューで作成します。
+- **M2M フローでの権限**:
+  - **M2M フロー (Pattern A) では `scp`（スコープ）は使用されません。** 代わりに **`roles`（App Role）** が使用されます。
+  - Managed Identity を使った通信では、トークンに `scp` クレームは含まれず、割り当てた App Role が `roles` クレームに入ります。
+- **検証ロジック**: 上記の Go コードでは、`hasValidScope`（ユーザー用）または `hasValidRole`（M2M 用）の **どちらか一方が true** であればアクセスを許可する構成になっています。
 - **環境変数**: App Service の設定から `TENANT_ID` と `API_CLIENT_ID` を必ず設定してください。
 - **デプロイ**: 4-1 と同様の Dockerfile を使用して amd64 イメージとしてビルド・デプロイします。
 
@@ -575,6 +610,33 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
 | **SPA でトークン交換時に CORS エラー** | Redirect URI のプラットフォーム設定ミス | `Authentication` で `Single-page application` であることを確認（`Web` は不可） |
 | **`roles` が入らない** | ユーザー委任フローを使っている / 割り当て未実施 | M2M なら Client Credentials を使用。App Role の割り当て（`az rest` 手順）を再確認 |
 | **`iss` mismatch** | テナント違い / v1・v2 混在 | `requestedAccessTokenVersion` と Resource Server の issuer 設定を見直し |
+| **`ManagedIdentityCredential: managed identity timed out`** | API への App Role が未割り当て | **Role 未割り当て時の想定動作です。** 権限がないため Entra ID がトークン発行を拒否し、結果として SDK がタイムアウトします。Managed Identity に App Role を割り当ててください。 |
+
+**成功時の表示:**
+正しく権限が割り当てられると、ブラウザには以下のように表示されます。
+
+```text
+✅ Managed Identity Success!
+Token (first 10 chars): eyJ0eXAiOi...
+Expires On: 2026-03-23 ...
+
+✅ API Call Success! (Status: 200 OK)
+Response Body:
+{"claims":{..., "roles":["Svc.Invoke"], ...}, "status":"ok", ...}
+```
+
+**権限 (App Role) が未割り当ての場合の表示:**
+Entra ID 側で権限がないと判断されると、ブラウザには以下のようにエラーが表示されます。
+
+```text
+❌ Token Error: DefaultAzureCredential: failed to acquire a token.
+Attempted credentials:
+	EnvironmentCredential: missing environment variable AZURE_TENANT_ID
+	WorkloadIdentityCredential: no client ID specified. Check pod configuration or set ClientID in the options
+	ManagedIdentityCredential: managed identity timed out. See https://aka.ms/azsdk/go/identity/troubleshoot#dac for more information
+	AzureCLICredential: Azure CLI not found on path
+	AzureDeveloperCLICredential: Azure Developer CLI not found on path
+```
 
 ---
 

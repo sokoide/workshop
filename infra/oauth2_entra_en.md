@@ -195,6 +195,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -239,9 +240,35 @@ func main() {
 		// 3. Display success message in browser
 		fmt.Fprintf(w, "✅ Managed Identity Success!\n")
 		fmt.Fprintf(w, "Token (first 10 chars): %s...\n", token.Token[:10])
-		fmt.Fprintf(w, "Expires On: %v\n", token.ExpiresOn)
+		fmt.Fprintf(w, "Expires On: %v\n\n", token.ExpiresOn)
 		
 		log.Printf("Successfully retrieved token for scope: %s", scope)
+
+		// 4. Call the API Endpoint
+		apiEndpoint := os.Getenv("API_ENDPOINT")
+		if apiEndpoint == "" {
+			fmt.Fprintln(w, "⚠️ API_ENDPOINT is not set. Skipping API call.")
+			return
+		}
+
+		client := &http.Client{}
+		req, err := http.NewRequest("GET", apiEndpoint, nil)
+		if err != nil {
+			fmt.Fprintf(w, "❌ Failed to create API request: %v\n", err)
+			return
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token.Token)
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Fprintf(w, "❌ API Call Failed: %v\n", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
+		fmt.Fprintf(w, "Response Body:\n%s\n", string(body))
 	})
 
 	log.Printf("Starting server on port %s...", port)
@@ -253,8 +280,10 @@ func main() {
 
 #### 3. Important Implementation Notes
 
-- **App Service Behavior**: Once the container is running, navigate to `http://<your-app-name>.azurewebsites.net/` to trigger the Managed Identity token retrieval and view the result in your browser.
-- **Environment Variables**: Ensure `API_SCOPE` is set to the scope of the API you wish to access.
+- **App Service Behavior**: Once the container is running, navigate to `http://<your-app-name>.azurewebsites.net/` to trigger the Managed Identity token retrieval and subsequent API call. The results will be displayed in your browser.
+- **Environment Variables**:
+  - `API_SCOPE`: The scope of the API you wish to access (e.g., `api://<api-client-id>/.default`).
+  - `API_ENDPOINT`: The URL of the API you want to call (e.g., `https://<api-app-name>.azurewebsites.net/api/profile`).
 - **API-side validation**: As mentioned earlier, the API server (Resource Server) must validate that the `aud` claim matches its own Client ID.
 
 ---
@@ -491,8 +520,13 @@ func main() {
 ### Implementation Notes
 
 - **`aud` validation**: Match against the **actual `aud` claim** in the token. With v2 tokens, this is the API app's **client ID (GUID)**.
-- **`scp` validation**: The `scp` claim is a **space-delimited** string (e.g., `"access_as_user profile"`). Use `strings.Fields` to split and compare, not `strings.Contains`.
-- **M2M differences**: User-delegated tokens carry `scp`, while M2M tokens carry `roles`.
+- **Meaning of `scp` and `access_as_user`**:
+  - `access_as_user` is a **Scope** used exclusively in the **"User-delegated flow (Pattern B)"**.
+  - It represents a "Delegated Permission" where the client app acts on behalf of the signed-in user. You define this in the "Expose an API" menu in Entra ID.
+- **Permissions in M2M Flow**:
+  - **The `scp` (Scope) claim is NOT used in the M2M flow (Pattern A).** Instead, **`roles` (App Role)** are used.
+  - In communication via Managed Identity, the token contains the assigned App Role in the `roles` claim, while the `scp` claim is typically absent.
+- **Validation Logic**: The Go code above is structured to allow access if **either** `hasValidScope` (for users) or `hasValidRole` (for M2M) is true.
 - **Environment Variables**: Make sure to set `TENANT_ID` and `API_CLIENT_ID` in your App Service configuration.
 - **Deployment**: Use a Dockerfile similar to the one in section 4-1 to build and deploy as an amd64 image.
 
@@ -554,7 +588,35 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
 | **CORS error in SPA token exchange** | Platform configuration error | Ensure the Redirect URI is under the `Single-page application` type, not `Web`. |
 | **`roles` claim is missing** | User flow used instead of M2M / Assignment skipped | If M2M, ensure you used Client Credentials. Verify the `az rest` assignment step. |
 | **`iss` mismatch** | Wrong tenant or mixed v1/v2 versions | Recheck `requestedAccessTokenVersion` and the Resource Server's issuer validation settings. |
+| **`ManagedIdentityCredential: managed identity timed out`** | No App Role assigned to the API | **This is expected if no App Role is assigned.** Entra ID rejects the token request due to insufficient permissions, leading the SDK to timeout. Assign the App Role to the Managed Identity. |
 
+**Expected behavior when successful:**
+Once the role is assigned, you will see:
+
+```text
+✅ Managed Identity Success!
+Token (first 10 chars): eyJ0eXAiOi...
+Expires On: 2026-03-23 ...
+
+✅ API Call Success! (Status: 200 OK)
+Response Body:
+{"claims":{..., "roles":["Svc.Invoke"], ...}, "status":"ok", ...}
+```
+
+**Expected behavior if App Role is NOT assigned:**
+If Entra ID denies the request due to insufficient permissions, you will see the following error in your browser:
+
+```text
+❌ Token Error: DefaultAzureCredential: failed to acquire a token.
+Attempted credentials:
+	EnvironmentCredential: missing environment variable AZURE_TENANT_ID
+	WorkloadIdentityCredential: no client ID specified. Check pod configuration or set ClientID in the options
+	ManagedIdentityCredential: managed identity timed out. See https://aka.ms/azsdk/go/identity/troubleshoot#dac for more information
+	AzureCLICredential: Azure CLI not found on path
+	AzureDeveloperCLICredential: Azure Developer CLI not found on path
+```
+
+---
 ---
 
 ## Configuration Checklist

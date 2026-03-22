@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -47,9 +48,35 @@ func main() {
 		// 3. Display success message in browser
 		fmt.Fprintf(w, "✅ Managed Identity Success!\n")
 		fmt.Fprintf(w, "Token (first 10 chars): %s...\n", token.Token[:10])
-		fmt.Fprintf(w, "Expires On: %v\n", token.ExpiresOn)
+		fmt.Fprintf(w, "Expires On: %v\n\n", token.ExpiresOn)
 		
 		log.Printf("Successfully retrieved token for scope: %s", scope)
+
+		// 4. Call the API Endpoint
+		apiEndpoint := os.Getenv("API_ENDPOINT")
+		if apiEndpoint == "" {
+			fmt.Fprintln(w, "⚠️ API_ENDPOINT is not set. Skipping API call.")
+			return
+		}
+
+		client := &http.Client{}
+		req, err := http.NewRequest("GET", apiEndpoint, nil)
+		if err != nil {
+			fmt.Fprintf(w, "❌ Failed to create API request: %v\n", err)
+			return
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token.Token)
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Fprintf(w, "❌ API Call Failed: %v\n", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
+		fmt.Fprintf(w, "Response Body:\n%s\n", string(body))
 	})
 
 	log.Printf("Starting server on port %s...", port)
