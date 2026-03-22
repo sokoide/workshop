@@ -1,15 +1,15 @@
 # OAuth2 Workshop: Learning Authorization Flows with Microsoft Entra ID and Go
 
-In this workshop, you will use **Microsoft Entra ID** as the authorization server and a **Go REST API** as the resource server. The goal is to understand how OAuth 2.0 and OpenID Connect work in realistic Azure environments.
+In this workshop, you will use **Microsoft Entra ID** as the authorization server and a **Go REST API** as the resource server to understand OAuth 2.0 / OpenID Connect in real-world scenarios.
 
-This guide covers two common patterns:
+This guide covers two main patterns:
 
-- **A. Machine-to-Machine (M2M)**: an Azure workload calls your API by using a **managed identity**
-- **B. User-delegated access**: a client such as React or Postman signs in a **user** and calls your API on that user's behalf
+- **A. M2M (Machine-to-Machine)**: An Azure workload calls the API using its **Managed Identity**.
+- **B. User-Delegated Flow**: A client such as React or Postman signs in a **user** and calls the API on that user's behalf.
 
 > **Note**:
-> Most app registration and API exposure settings are managed in the **Microsoft Entra admin center** (`entra.microsoft.com`).
-> Managed identity settings belong to Azure resources, so you usually configure them in the **Azure portal** (`portal.azure.com`).
+> App registrations and API exposure settings are primarily managed in the **Microsoft Entra admin center** (`entra.microsoft.com`).
+> Enabling **Managed Identity** is done on the Azure resource side, usually via the **Azure Portal** (`portal.azure.com`).
 
 ---
 
@@ -18,13 +18,13 @@ This guide covers two common patterns:
 ```text
 Is a user involved?
     │
-    ├─ YES → B. User-delegated access
-    │         (Operation as a user via SPA, Mobile app, or Postman)
+    ├─ YES → B. User-Delegated Flow
+    │         (SPA, mobile apps, or Postman acting as a user)
     │
     └─ NO  → Is it running on Azure?
               │
               ├─ YES → A. M2M (Managed Identity recommended)
-              │         (App Service, Functions, VM batch jobs, etc.)
+              │         (App Service, Functions, batch jobs on VM, etc.)
               │
               └─ NO  → M2M (Client Credentials + Secret/Certificate)
                         (On-premises, connections from other clouds)
@@ -34,27 +34,35 @@ Is a user involved?
 
 ## Values to Keep in Advance
 
-You will need the following values during configuration. It is helpful to note them down.
+You will need the following values during configuration. It is helpful to note them down beforehand.
 
 | Value | Where to find | Where it's used |
 | --- | --------- | --------- |
-| **Tenant ID** | Entra Admin Center → Overview | Go code (`tenantID`) |
-| **API App Client ID** | App registrations → workshop-api | Go code (`apiClientID`), Token requests |
-| **Client App Client ID** | App registrations → workshop-client | Postman / SPA configuration |
-| **Managed Identity Object ID** | Azure Portal → Resource → Identity | App Role assignment |
+| **Tenant ID** | Entra admin center → Overview | Go code environment variable `TENANT_ID` |
+| **API App Client ID** | App registrations → workshop-api → Overview | Go code environment variable `API_CLIENT_ID`, Token requests |
+| **Client App Client ID** | App registrations → workshop-client → Overview | Postman / SPA configuration |
+| **Managed Identity Object ID** | Azure Portal → Resource → Identity → Object ID | App Role assignment (`az rest` command) |
+
+> **Note**: Client ID is also referred to as "Application (client) ID". It is a string in GUID format.
 
 ---
 
-## First, Separate the Two Patterns
+## First, Understand the Classification
 
-| Item | A. M2M | B. User-delegated access |
-| ---- | ------ | ------------------------ |
-| Actor | Application / workload | User |
-| Typical examples | App Service, Functions, VM, scheduled job | SPA, mobile app, desktop app, Postman |
-| OAuth 2.0 flow | Client Credentials flow | Authorization Code flow + PKCE |
-| Permission model on the API side | **App Role** | **Scope** |
-| Typical claim | `roles` | `scp` |
-| Managed identity | Common and recommended | Normally not used |
+| Item | A. M2M | B. User-Delegated Flow |
+| ---- | ------ | --------------------- |
+| Subject | Application / Workload | User |
+| Typical Examples | App Service, Functions, VM, Batch jobs | SPA, Mobile, Desktop, Postman |
+| Auth Flow | Client Credentials Flow | Authorization Code Flow + PKCE |
+| API Side Permissions | **App Role** | **Scope** |
+| Token Claim | `roles: ["Svc.Invoke"]` | `scp: "access_as_user"` |
+| Managed Identity | Actively used (within Azure) | Normally not used |
+| Token Expiration | Typically longer (~60 min) | Typically shorter (~5-60 min) |
+
+> **Key Difference**:
+>
+> - **M2M**: The API validates the `roles` claim in the token.
+> - **User-Delegated**: The API validates the `scp` (scope) claim in the token.
 
 ---
 
@@ -70,7 +78,7 @@ Entra ID issues two types of access token formats. This workshop uses **v2 token
 
 **Why we recommend v2**: It simplifies the validation logic and reduces implementation errors.
 
-> **Configuration**: App registrations → Target App → Manifest → `"requestedAccessTokenVersion": 2`
+> **Setting**: App registrations → Target App → Manifest → `"requestedAccessTokenVersion": 2`
 
 ---
 
@@ -93,7 +101,7 @@ echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
 
 ### Claims to Verify
 
-| Claim | Expected Value | Purpose |
+| Claim | Expected Value | Description |
 | ------- | -------- | ---------- |
 | `aud` | API Client ID | Is it intended for your API? |
 | `iss` | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Is it from the correct tenant? |
@@ -108,31 +116,31 @@ echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
 | Actor | Example | Role |
 | ---- | ---- | ---- |
 | Resource Owner | User | Signs in and grants consent |
-| Client | React, Postman, Azure workload | Obtains an access token and calls the API |
+| Client | React / Postman / Azure Workload | Obtains an access token and calls the API |
 | Authorization Server | Microsoft Entra ID | Authenticates and issues access tokens |
-| Resource Server | Go REST API | Validates tokens and returns protected data |
+| Resource Server | Go REST API | Validates tokens and returns resources |
 
 ---
 
-## A. Machine-to-Machine (M2M)
+## A. M2M Configuration
 
-This is service-to-service communication with no interactive user. In Azure, the standard pattern is **Managed Identity + App Role**.
+This pattern is for service-to-service communication without user intervention. When calling an API from an Azure workload, **Managed Identity + App Role** is the standard approach.
 
 ### Architecture
 
 ```mermaid
 sequenceDiagram
     participant Workload as Azure Workload<br/>(App Service, etc.)
-    participant MI as Managed Identity Endpoint<br/>(IMDS / local endpoint)
+    participant MI as Managed Identity Endpoint<br/>(IMDS / Local Endpoint)
     participant Entra as Microsoft Entra ID
     participant API as Go Resource Server
 
-    Note over Workload, Entra: 1. The workload gets a token by using its managed identity
+    Note over Workload, Entra: 1. Workload gets a token using Managed Identity
     Workload->>MI: Request token via SDK or endpoint
     MI->>Entra: Backend token acquisition
     Entra-->>Workload: Access token (roles: ["Svc.Invoke"])
 
-    Note over Workload, API: 2. The workload calls the API
+    Note over Workload, API: 2. API Call
     Workload->>API: Authorization: Bearer <JWT>
     API->>API: Validate iss / aud / roles / signature
     API-->>Workload: 200 OK
@@ -140,27 +148,29 @@ sequenceDiagram
 
 ### Setup Steps
 
-#### 1. Register the API app
+#### 1. Register the API App
 
-- Open the **Microsoft Entra admin center** → `App registrations` → `New registration`
+- **Microsoft Entra admin center** → `App registrations` → `New registration`
 - Name: `workshop-api`
-- After creation, record the **Application (client) ID**
-- Go to `Expose an API` and select `Set` to configure the **Application ID URI**
+- After creation, note the `Application (client) ID` (used later).
+- `Expose an API` → `Set` to configure the **Application ID URI**.
   - Example: `api://<API_APP_CLIENT_ID>`
-  - > **Important**: This URI is used as the "resource identifier" when requesting a token. Note that if you enable v2 tokens as described below, the actual `aud` (audience) claim in the token will be the **Client ID (GUID)**, not this URI.
+  - > **Important**: This URI is used as the "resource identifier" during token requests. However, once the v2 token setting is enabled as described below, the actual `aud` (audience) claim in the token will contain the **Client ID (GUID)**, not the URI.
 
-#### 2. Expose an app role for application access
+#### 2. Expose an App Role in the API
 
 - `App registrations` → `workshop-api` → `App roles` → `Create app role`
 - Display name: `Svc.Invoke`
 - Allowed member types: `Applications`
 - Value: `Svc.Invoke`
-- Add a description if needed, then save
+- Add a description if needed, then save.
 
-#### 3. Configure the API to accept v2 access tokens
+#### 3. Configure API to accept v2 Access Tokens
 
-- Open `Manifest`
-- Set `requestedAccessTokenVersion` to `2` inside the `api` section
+By default, v1 tokens are issued. To use v2 tokens, follow these steps:
+
+- Open `Manifest`.
+- Set `requestedAccessTokenVersion` to `2` inside the `api` section.
 
 ```json
 "api": {
@@ -168,15 +178,17 @@ sequenceDiagram
 }
 ```
 
+> **Why v2**: In v2 tokens, `aud` becomes the API's client ID (GUID), simplifying the validation logic.
+>
 > **Note**: Previously this was named `accessTokenAcceptedVersion`, but now `requestedAccessTokenVersion` is used.
 
 ---
 
 #### 4. Create an App Service and Call the API
 
-This is a Go implementation example for an App Service (Client) acting as a web server that retrieves a token using Managed Identity and displays the result in the browser.
+This example shows a Go implementation for an App Service (Client) that retrieves a token using Managed Identity and calls another API (Resource).
 
-#### 1. Add dependency packages
+#### 4-1. Add Dependency Packages
 
 Use `azidentity` from the Azure SDK for Go.
 
@@ -185,9 +197,9 @@ go get github.com/Azure/azure-sdk-for-go/sdk/azidentity
 go get github.com/Azure/azure-sdk-for-go/sdk/azcore
 ```
 
-#### 2. Go code example
+#### 4-2. Go Code Example
 
-`azidentity.NewDefaultAzureCredential` allows the code to work in both local environments (logged in via Azure CLI) and Azure environments (Managed Identity) without changes.
+Using `azidentity.NewDefaultAzureCredential` allows the code to work seamlessly in both local environments (logged in via Azure CLI) and Azure environments (Managed Identity). This example implements a web server to display the results in a browser.
 
 ```go
 package main
@@ -201,6 +213,7 @@ import (
 	"os"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
@@ -267,7 +280,11 @@ func main() {
 		defer resp.Body.Close()
 
 		body, _ := io.ReadAll(resp.Body)
-		fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
+		} else {
+			fmt.Fprintf(w, "⚠️ API Call Failed (Status: %s)\n", resp.Status)
+		}
 		fmt.Fprintf(w, "Response Body:\n%s\n", string(body))
 	})
 
@@ -278,49 +295,52 @@ func main() {
 }
 ```
 
-#### 3. Important Implementation Notes
+#### 4-3. Execution Notes
 
-- **App Service Behavior**: Once the container is running, navigate to `http://<your-app-name>.azurewebsites.net/` to trigger the Managed Identity token retrieval and subsequent API call. The results will be displayed in your browser.
-- **Environment Variables**:
-  - `API_SCOPE`: The scope of the API you wish to access (e.g., `api://<api-client-id>/.default`).
-  - `API_ENDPOINT`: The URL of the API you want to call (e.g., `https://<api-app-name>.azurewebsites.net/api/profile`).
-- **API-side validation**: As mentioned earlier, the API server (Resource Server) must validate that the `aud` claim matches its own Client ID.
+- **Behavior on App Service**: After the container starts, accessing `http://<your-app-name>.azurewebsites.net/` will trigger token retrieval using Managed Identity and display the result of the API call.
+
+#### Client App Environment Variables
+
+| Variable | Required | Description | Default |
+| --------- | :----: | ------ | ------------- |
+| `PORT` | - | Listening port number | `8080` |
+| `API_SCOPE` | - | The scope of the API you want to access | `https://graph.microsoft.com/.default` (for testing) |
+| `API_ENDPOINT` | - | The URL of the API to call | - (skips API call if not set) |
+
+> **Note**: Typically, `API_SCOPE` is set to `api://<api-client-id>/.default`. The `.default` suffix means "all permissions assigned to that API".
+
+- **API-side Validation**: As mentioned before, the API server (Resource Server) must validate that the `aud` matches its own Client ID.
 
 ---
 
-#### 5. Enable managed identity on the Azure resource
+#### 5. Enable Managed Identity on Azure Resources
 
-- Open the **Azure portal**
-- Go to the target resource, such as App Service
-- Open `Identity`
-- Enable either `System assigned` or `User assigned`
-- Record the managed identity's **principal object ID**
+- **Azure Portal** → Target Resource (App Service, etc.) → `Identity`.
+- Enable `System assigned` or `User assigned`.
+- After enabling, note the **principal object ID** of the Managed Identity.
 
-#### 6. Assign the app role to the managed identity
+#### 6. Assign the App Role to the Managed Identity
 
-Assigning a custom API app role to a managed identity is usually easier through **Microsoft Graph / Azure CLI** than through the portal UI.
+Assigning an App Role to a Managed Identity is more reliable via **Microsoft Graph / Azure CLI** than the UI.
 
 ```bash
 # ============================================
-# Preparation: Obtain the IDs
+# Preparation: Obtain IDs
 # ============================================
 
-# The Application (client) ID of your API app
+# API app's Client ID (from App registrations Overview)
+# Example: 11111111-2222-3333-4444-555555555555
 API_APP_CLIENT_ID=<API_APP_CLIENT_ID>
 
-# The Object ID of your Managed Identity
-# Find this in Azure Portal → Resource → Identity → Object ID
-# Note: This is the Service Principal Object ID
+# Managed Identity's Object ID
+# Find in Azure Portal → Resource → Identity → Object ID
+# This functions as the Service Principal's Object ID
 MI_SP_OBJECT_ID=<MANAGED_IDENTITY_OBJECT_ID>
 
-# ============================================
-# Assign the App Role
-# ============================================
-
-# Get the service principal object ID of the API app
+# Get API app's service principal object ID
 API_SP_OBJECT_ID=$(az ad sp show --id ${API_APP_CLIENT_ID} --query id -o tsv)
 
-# Get the ID of the app role published by the API app
+# Get the App Role ID exposed by the API
 APP_ROLE_ID=$(az ad sp show --id ${API_APP_CLIENT_ID} \
   --query "appRoles[?value=='Svc.Invoke'].id | [0]" -o tsv)
 
@@ -333,11 +353,13 @@ az rest --method POST \
   }"
 ```
 
+> **Important**: When a Managed Identity acquires a token, it usually doesn't hit Entra's `/token` directly. It uses the Azure Identity SDK or the local endpoint for Managed Identity.
+
 ---
 
-## B. User-Delegated Access
+## B. User-Delegated Flow Configuration
 
-This is the pattern for SPAs, mobile apps, desktop apps, or Postman when a signed-in user calls your API. The recommended flow is **Authorization Code + PKCE**.
+This pattern is for SPAs or Postman calling an API after signing in a user. The current recommendation is **Authorization Code Flow + PKCE**.
 
 ### Architecture
 
@@ -348,15 +370,15 @@ sequenceDiagram
     participant Entra as Microsoft Entra ID
     participant API as Go Resource Server
 
-    Note over User, Entra: 1. Sign-in and consent
+    Note over User, Entra: 1. Sign-in and Consent
     User->>Entra: Sign in
-    Entra-->>Client: Authorization code
+    Entra-->>Client: Authorization Code
 
-    Note over Client, Entra: 2. Exchange the code with PKCE
+    Note over Client, Entra: 2. Token exchange with PKCE
     Client->>Entra: code + code_verifier
-    Entra-->>Client: Access token (scp: "access_as_user")
+    Entra-->>Client: Access Token (scp: "access_as_user")
 
-    Note over Client, API: 3. Call the API
+    Note over Client, API: 3. API Call
     Client->>API: Authorization: Bearer <JWT>
     API->>API: Validate iss / aud / scp / signature
     API-->>Client: 200 OK
@@ -364,48 +386,48 @@ sequenceDiagram
 
 ### Setup Steps
 
-#### 1. Expose a scope on the API app
+#### 1. Expose a Scope in the API App
 
-- Open the **Microsoft Entra admin center** → `App registrations` → `workshop-api`
-- Go to `Expose an API` → `Add a scope`
-- Scope name: `access_as_user`
-- Who can consent: `Admins and users`
-- Fill in the admin consent and user consent display text, then save
+- **Microsoft Entra admin center** → `App registrations` → `workshop-api`.
+- `Expose an API` → `Add a scope`.
+- Scope name: `access_as_user`.
+- Who can consent: `Admins and users`.
+- Fill in Admin consent and User consent display names, then save.
 
-#### 2. Register the client app
+#### 2. Register the Client App
 
-- `App registrations` → `New registration` → Name: `workshop-client`
-- Open `Authentication` → `Add a platform`
-  - For React or another browser SPA: **`Single-page application`**
-  - For Postman or native clients: `Mobile and desktop applications`
-- Register the redirect URI (e.g., `http://localhost:3000` or `https://oauth.pstmn.io/v1/callback`)
+- `App registrations` → `New registration` → Name: `workshop-client`.
+- `Authentication` → `Add a platform`.
+  - For browser-based SPAs like React: **`Single-page application`**.
+  - For Postman or native apps: `Mobile and desktop applications`.
+- Register the Redirect URI (e.g., `http://localhost:3000` or `https://oauth.pstmn.io/v1/callback`).
 
-> **Important**: For SPAs, the redirect URI must be registered as a **Single-page application** platform. Otherwise, the authorization code exchange can fail with a CORS error.
+> **Important**: For SPAs, make sure to select `Single-page application` in the platform configuration. Selecting `Web` will cause CORS errors during token exchange.
 
-#### 3. Add API permissions to the client app
+#### 3. Add API Permission to the Client App
 
-- Open `workshop-client` → `API permissions` → `Add a permission`
-- Select `My APIs` → `workshop-api`
-- Choose `Delegated permissions`
-- Add `access_as_user`
+- `workshop-client` → `API permissions` → `Add a permission`.
+- `My APIs` → `workshop-api`.
+- Add `Delegated permissions` → `access_as_user`.
 
-#### 4. Handle consent
+#### 4. Perform Consent
 
-| Type | Required for | Performer |
+| Consent Type | Required When | Performer |
 | ---------- | ------------ | ------ |
-| **User consent** | User consent allowed tenant + Low impact permissions | The user signing in |
-| **Admin consent** | User consent disabled / High impact / Application permissions | Tenant Admin |
+| **User Consent** | Tenant allows user consent + Low impact permissions | The user signing in |
+| **Admin Consent** | User consent disabled / High impact / Application permissions | Tenant Admin |
 
 Operation:
 
-- **User consent**: A consent screen is shown during the first sign-in.
-- **Admin consent**: Go to `API permissions` → `Grant admin consent for [Tenant Name]`.
+- User Consent: A consent screen is shown during the first sign-in.
+- Admin Consent: Click `API permissions` → `Grant admin consent for [Tenant Name]`.
+  - Required if tenant policy prohibits user consent or for Application permissions (M2M).
 
 ---
 
-## Go Resource Server Example
+## Go Resource Server Implementation Example
 
-The following example uses `github.com/MicahParks/keyfunc/v3` and `github.com/golang-jwt/jwt/v5`. It reads configuration from environment variables and listens on port `8080` (App Service default).
+Below is a minimal example using `github.com/MicahParks/keyfunc/v3` and `github.com/golang-jwt/jwt/v5`. It reads settings from environment variables and runs on port `8080` (App Service default).
 
 ```go
 package main
@@ -423,7 +445,7 @@ import (
 )
 
 func main() {
-	// Configuration from environment variables
+	// Read settings from environment variables
 	tenantID := os.Getenv("TENANT_ID")
 	apiClientID := os.Getenv("API_CLIENT_ID")
 	requiredScope := os.Getenv("REQUIRED_SCOPE")
@@ -456,7 +478,7 @@ func main() {
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-		// Validate JWT signature, issuer, and audience
+		// Validate JWT signature, Issuer, and Audience
 		token, err := jwt.Parse(tokenStr, kf.Keyfunc,
 			jwt.WithIssuer(expectedIssuer),
 			jwt.WithAudience(apiClientID),
@@ -473,7 +495,7 @@ func main() {
 			return
 		}
 
-		// Check for App Roles (for M2M flow)
+		// Validate App Role (for M2M flow)
 		hasValidRole := false
 		if rawRoles, ok := claims["roles"].([]any); ok {
 			for _, r := range rawRoles {
@@ -484,7 +506,7 @@ func main() {
 			}
 		}
 
-		// Check for Scopes (for User-delegated flow)
+		// Validate Scope (for user-delegated flow)
 		scp, _ := claims["scp"].(string)
 		hasValidScope := false
 		for _, s := range strings.Fields(scp) {
@@ -506,7 +528,7 @@ func main() {
 		})
 	})
 
-	// Use PORT environment variable (default to 8080 for App Service)
+	// Use PORT environment variable (default is 8080)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -519,16 +541,25 @@ func main() {
 
 ### Implementation Notes
 
-- **`aud` validation**: Match against the **actual `aud` claim** in the token. With v2 tokens, this is the API app's **client ID (GUID)**.
+- **`aud` Validation**: Match against the actual `aud` claim in the token. For v2 tokens, this is the API's **Client ID (GUID)**.
 - **Meaning of `scp` and `access_as_user`**:
-  - `access_as_user` is a **Scope** used exclusively in the **"User-delegated flow (Pattern B)"**.
-  - It represents a "Delegated Permission" where the client app acts on behalf of the signed-in user. You define this in the "Expose an API" menu in Entra ID.
+  - `access_as_user` is a **Scope** used only in the **"User-Delegated Flow (Pattern B)"**.
+  - It represents the permission for the app to act on behalf of the signed-in user. You create this in the "Expose an API" menu in Entra ID.
 - **Permissions in M2M Flow**:
-  - **The `scp` (Scope) claim is NOT used in the M2M flow (Pattern A).** Instead, **`roles` (App Role)** are used.
-  - In communication via Managed Identity, the token contains the assigned App Role in the `roles` claim, while the `scp` claim is typically absent.
-- **Validation Logic**: The Go code above is structured to allow access if **either** `hasValidScope` (for users) or `hasValidRole` (for M2M) is true.
-- **Environment Variables**: Make sure to set `TENANT_ID` and `API_CLIENT_ID` in your App Service configuration.
-- **Deployment**: Use a Dockerfile similar to the one in section 4-1 to build and deploy as an amd64 image.
+  - **The `scp` (Scope) claim is NOT used in the M2M Flow (Pattern A).** Instead, **`roles` (App Role)** is used.
+  - In Managed Identity communication, the `scp` claim is typically missing, and the assigned App Role appears in the `roles` claim.
+- **Validation Logic**: The Go code above allows access if **either** `hasValidScope` (for users) or `hasValidRole` (for M2M) is true.
+- **Environment Variables**: Set the following in your App Service configuration:
+
+#### Environment Variables List
+
+| Variable | Required | Description | Default |
+| --------- | :----: | ------ | ------------- |
+| `TENANT_ID` | ✅ | Entra Tenant ID | - |
+| `API_CLIENT_ID` | ✅ | API App Client ID | - |
+| `REQUIRED_SCOPE` | - | Scope required for user flow | `access_as_user` |
+| `REQUIRED_APP_ROLE` | - | App Role required for M2M flow | `Svc.Invoke` |
+| `PORT` | - | Listening port number | `8080` |
 
 ---
 
@@ -537,10 +568,9 @@ func main() {
 ### 1. Start the API Server
 
 ```bash
-# Passing constants via environment variables (if implemented)
-TENANT_ID=<tenant-id> API_CLIENT_ID=<api-client-id> go run main.go
-
-# Or update the constants in main.go and run
+# Passing constants via environment variables
+TENANT_ID=<tenant-id> \
+API_CLIENT_ID=<api-client-id> \
 go run main.go
 ```
 
@@ -548,34 +578,47 @@ go run main.go
 
 #### For User-Delegated Flow (Using Postman)
 
-1. Go to the **Authorization** tab in Postman.
-2. Type: `OAuth 2.0`
-3. Grant type: `Authorization Code (With PKCE)`
-4. Callback URL: `https://oauth.pstmn.io/v1/callback`
-5. Auth URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize`
-6. Access Token URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token`
-7. Client ID: `<client-app-id>`
-8. Scope: `api://<api-client-id>/access_as_user`
-9. Code Challenge Method: `S256`
-10. Click **Get New Access Token** and follow the sign-in flow.
+1. Postman → Authorization tab.
+2. Type: `OAuth 2.0`.
+3. Grant type: `Authorization Code (With PKCE)`.
+4. Callback URL: `https://oauth.pstmn.io/v1/callback`.
+5. Auth URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize`.
+6. Access Token URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token`.
+7. Client ID: `<client-app-id>`.
+8. Scope: `api://<api-client-id>/access_as_user`.
+9. Code Challenge Method: `S256`.
+10. "Get New Access Token" → After sign-in, it's automatically attached to requests.
 
 ```bash
 # Call the API with the acquired token
-curl -H "Authorization: Bearer <TOKEN>" http://localhost:8081/api/profile
+curl -H "Authorization: Bearer <token>" http://localhost:8081/api/profile
 ```
 
-#### For M2M Flow (Using Azure CLI)
+#### For M2M (Using Azure CLI)
 
 ```bash
 # To emulate Managed Identity locally for development, use a Service Principal
-az login --service-principal -u <client-id> -p <client-secret> --tenant <tenant-id>
+az login --service-principal \
+  -u <client-id> \
+  -p <client-secret> \
+  --tenant <tenant-id>
 
-# Get an access token
-TOKEN=$(az account get-access-token --resource api://<api-client-id> --query accessToken -o tsv)
+# Get access token
+TOKEN=$(az account get-access-token \
+  --resource api://<api-client-id> \
+  --query accessToken -o tsv)
 
-# Call the API
+# API call
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
 ```
+
+### 3. Common Errors and Verification
+
+| Error | Verification Command | Action |
+| -------- | ------------- | ------ |
+| `401 Unauthorized` | Check token on jwt.ms | Does `aud` match the API's Client ID? |
+| `403 Forbidden` | Check `scp` / `roles` | Is the Scope or App Role granted? |
+| `invalid_client` | Check Client ID / Secret | Are you using the correct App Registration? |
 
 ---
 
@@ -583,15 +626,52 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
 
 | Symptom | Cause | Solution |
 | ---- | ---- | ---- |
-| **401 Unauthorized / `aud` mismatch** | The token was not issued for your API | Decode the token at [jwt.ms](https://jwt.ms) and confirm that `aud` matches the API's client ID. |
-| **403 Forbidden** | Signature passed but permissions missing | Check that the required `scp` or `roles` are in the token. Ensure consent was granted or the App Role was assigned. |
-| **CORS error in SPA token exchange** | Platform configuration error | Ensure the Redirect URI is under the `Single-page application` type, not `Web`. |
-| **`roles` claim is missing** | User flow used instead of M2M / Assignment skipped | If M2M, ensure you used Client Credentials. Verify the `az rest` assignment step. |
-| **`iss` mismatch** | Wrong tenant or mixed v1/v2 versions | Recheck `requestedAccessTokenVersion` and the Resource Server's issuer validation settings. |
-| **`ManagedIdentityCredential: managed identity timed out`** | No App Role assigned to the API | **This is expected if no App Role is assigned.** Entra ID rejects the token request due to insufficient permissions, leading the SDK to timeout. Assign the App Role to the Managed Identity. |
+| **401 Unauthorized / `aud` mismatch** | Token not intended for this API | Decode the token at [jwt.ms](https://jwt.ms) and verify `aud` matches the API's Client ID. |
+| **403 Forbidden** | Signature valid but missing permissions | Verify `scp` / `roles`, consent status, and App Role assignment. |
+| **CORS error in SPA token exchange** | Redirect URI platform misconfiguration | Ensure platform is set to `Single-page application`, not `Web`. |
+| **`roles` missing** | Using user flow / Assignment skipped | For M2M, use Client Credentials. Double-check App Role assignment (`az rest` steps). |
+| **`iss` mismatch** | Wrong tenant / Mix of v1 and v2 | Verify `requestedAccessTokenVersion` and Resource Server issuer settings. |
+| **`ManagedIdentityCredential: managed identity timed out`** | No App Role assigned to API | **Expected behavior if no role is assigned.** Entra ID denies the token request, causing the SDK to timeout. Assign the App Role to the Managed Identity. |
 
-**Expected behavior when successful:**
-Once the role is assigned, you will see:
+### How to Debug Tokens
+
+If you encounter token validation errors, follow these steps:
+
+#### 1. Check Token Structure
+
+```bash
+# Recommended: Check on jwt.ms
+# 1. Copy token
+# 2. Go to https://jwt.ms
+# 3. Paste and verify
+
+# Or use jq
+echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
+```
+
+#### 2. Claims to Verify (v2 Tokens)
+
+```json
+{
+  "aud": "11111111-2222-3333-4444-555555555555",  // Matches API Client ID
+  "iss": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+  "scp": "access_as_user",      // For user-delegated flow
+  "roles": ["Svc.Invoke"],      // For M2M flow
+  "appid": "client-app-id"      // The requesting application ID
+}
+```
+
+#### 3. Common Mistakes
+
+| Mistake | Correct Configuration |
+| -------- | ----------- |
+| `aud` is `api://xxx` (URI format) | Should be Client ID (GUID) for v2 tokens |
+| `iss` is `sts.windows.net` | Should be `login.microsoftonline.com/.../v2.0` for v2 |
+| Checking `scp` in M2M flow | Check `roles` in M2M |
+| Checking `roles` in user flow | Check `scp` in user-delegated flow |
+
+**Display on Success:**
+Once permissions are correctly assigned and the API call succeeds, the browser will display:
 
 ```text
 ✅ Managed Identity Success!
@@ -603,8 +683,21 @@ Response Body:
 {"claims":{..., "roles":["Svc.Invoke"], ...}, "status":"ok", ...}
 ```
 
-**Expected behavior if App Role is NOT assigned:**
-If Entra ID denies the request due to insufficient permissions, you will see the following error in your browser:
+**Display when App Role is NOT assigned:**
+The token can be obtained from Entra ID, but if the API rejects it, you will see the following (note that token acquisition itself may timeout if the Managed Identity has no App Role assigned to any API):
+
+```text
+✅ Managed Identity Success!
+Token (first 10 chars): eyJ0eXAiOi...
+Expires On: 2026-03-23 ...
+
+⚠️ API Call Failed (Status: 403 Forbidden)
+Response Body:
+Forbidden: insufficient permissions
+```
+
+**Display when Managed Identity is not enabled or Entra ID denies token issuance:**
+If there is an issue with the Managed Identity configuration itself, an error like this will appear:
 
 ```text
 ❌ Token Error: DefaultAzureCredential: failed to acquire a token.
@@ -617,6 +710,15 @@ Attempted credentials:
 ```
 
 ---
+
+## Summary
+
+- **M2M**: Use `Managed Identity + App Role`.
+- **User-Delegated**: Use `Authorization Code + PKCE + Scope`.
+- App registration UI is mainly in the **Microsoft Entra admin center**.
+- Enabling Managed Identity is in the **Azure Portal**.
+- API side must validate `iss`, `aud`, `scp` / `roles`, and signature separately.
+
 ---
 
 ## Configuration Checklist
@@ -630,12 +732,12 @@ Attempted credentials:
 - [ ] Assign App Role to Managed Identity (`az rest`).
 - [ ] Validate `roles` in the API server.
 
-### User-Delegated Access
+### User-Delegated Flow
 
 - [ ] Expose Scope (`access_as_user`) in the API App.
-- [ ] Register Client App (select **Single-page application** for SPAs).
-- [ ] Register the Redirect URI.
-- [ ] Add API Permissions to the Client App.
+- [ ] Register Client App (choose `Single-page application` for SPAs).
+- [ ] Register Redirect URI.
+- [ ] Add API Permission to the Client App.
 - [ ] Grant Admin Consent (if required).
 - [ ] Validate `scp` in the API server.
 

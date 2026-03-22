@@ -3,105 +3,159 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
 
+type Config struct {
+	TenantID        string
+	APIClientID     string
+	RequiredScope   string
+	RequiredAppRole string
+	Port            string
+}
+
+func loadConfig() (*Config, error) {
+	c := &Config{
+		TenantID:        os.Getenv("TENANT_ID"),
+		APIClientID:     os.Getenv("API_CLIENT_ID"),
+		RequiredScope:   os.Getenv("REQUIRED_SCOPE"),
+		RequiredAppRole: os.Getenv("REQUIRED_APP_ROLE"),
+		Port:            os.Getenv("PORT"),
+	}
+
+	if c.TenantID == "" || c.APIClientID == "" {
+		return nil, fmt.Errorf("TENANT_ID and API_CLIENT_ID must be set")
+	}
+	if c.RequiredScope == "" {
+		c.RequiredScope = "access_as_user"
+	}
+	if c.RequiredAppRole == "" {
+		c.RequiredAppRole = "Svc.Invoke"
+	}
+	if c.Port == "" {
+		c.Port = "8080"
+	}
+	return c, nil
+}
+
 func main() {
-	// Configuration from environment variables
-	tenantID := os.Getenv("TENANT_ID")
-	apiClientID := os.Getenv("API_CLIENT_ID")
-	requiredScope := os.Getenv("REQUIRED_SCOPE")
-	if requiredScope == "" {
-		requiredScope = "access_as_user"
-	}
-	requiredAppRole := os.Getenv("REQUIRED_APP_ROLE")
-	if requiredAppRole == "" {
-		requiredAppRole = "Svc.Invoke"
+	// Use structured logging
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	cfg, err := loadConfig()
+	if err != nil {
+		slog.Error("failed to load configuration", "error", err)
+		os.Exit(1)
 	}
 
-	if tenantID == "" || apiClientID == "" {
-		log.Fatal("Error: TENANT_ID and API_CLIENT_ID must be set")
-	}
-
-	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", tenantID)
-	expectedIssuer := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID)
+	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", cfg.TenantID)
+	expectedIssuer := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", cfg.TenantID)
 
 	// Fetch JWKS for token validation
 	kf, err := keyfunc.NewDefault([]string{jwksURL})
 	if err != nil {
-		log.Fatalf("failed to create keyfunc: %v", err)
+		slog.Error("failed to create keyfunc", "error", err)
+		os.Exit(1)
 	}
 
-	http.HandleFunc("/api/profile", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/profile", profileHandler(cfg, kf.Keyfunc, expectedIssuer))
+
+	server := &http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	slog.Info("Starting API server", "port", cfg.Port, "client_id", cfg.APIClientID)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+func profileHandler(cfg *Config, kf jwt.Keyfunc, expectedIssuer string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			slog.Warn("missing or invalid authorization header", "path", r.URL.Path)
+			http.Error(w, "Unauthorized: missing Bearer token", http.StatusUnauthorized)
 			return
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
 		// Validate JWT signature, issuer, and audience
-		token, err := jwt.Parse(tokenStr, kf.Keyfunc,
+		token, err := jwt.Parse(tokenStr, kf,
 			jwt.WithIssuer(expectedIssuer),
-			jwt.WithAudience(apiClientID),
+			jwt.WithAudience(cfg.APIClientID),
 			jwt.WithValidMethods([]string{"RS256"}),
 		)
-		if err != nil || !token.Valid {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+		if err != nil {
+			slog.Warn("token validation failed", "error", err)
+			http.Error(w, fmt.Sprintf("Unauthorized: %v", err), http.StatusUnauthorized)
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			http.Error(w, "Invalid claims", http.StatusUnauthorized)
+		if !ok || !token.Valid {
+			slog.Warn("invalid token claims", "valid", token.Valid)
+			http.Error(w, "Unauthorized: invalid claims", http.StatusUnauthorized)
 			return
 		}
 
-		// Check for App Roles (for M2M flow)
-		hasValidRole := false
-		if rawRoles, ok := claims["roles"].([]any); ok {
-			for _, r := range rawRoles {
-				if role, ok := r.(string); ok && role == requiredAppRole {
-					hasValidRole = true
-					break
-				}
-			}
-		}
-
-		// Check for Scopes (for User-delegated flow)
-		scp, _ := claims["scp"].(string)
-		hasValidScope := false
-		for _, s := range strings.Fields(scp) {
-			if s == requiredScope {
-				hasValidScope = true
-				break
-			}
-		}
+		// Check for App Roles (M2M flow)
+		hasValidRole := checkRole(claims, cfg.RequiredAppRole)
+		// Check for Scopes (User-delegated flow)
+		hasValidScope := checkScope(claims, cfg.RequiredScope)
 
 		if !hasValidScope && !hasValidRole {
+			slog.Warn("insufficient permissions", "user", claims["name"], "roles", claims["roles"], "scp", claims["scp"])
 			http.Error(w, "Forbidden: insufficient permissions", http.StatusForbidden)
 			return
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "ok",
 			"user":   claims["name"],
 			"claims": claims,
 		})
-	})
-
-	// Use PORT environment variable (default to 8080 for App Service)
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
 	}
+}
 
-	log.Printf("Starting API server on port %s...", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+func checkRole(claims jwt.MapClaims, requiredRole string) bool {
+	rawRoles, ok := claims["roles"].([]any)
+	if !ok {
+		return false
+	}
+	for _, r := range rawRoles {
+		if role, ok := r.(string); ok && role == requiredRole {
+			return true
+		}
+	}
+	return false
+}
+
+func checkScope(claims jwt.MapClaims, requiredScope string) bool {
+	scp, ok := claims["scp"].(string)
+	if !ok {
+		return false
+	}
+	for _, s := range strings.Fields(scp) {
+		if s == requiredScope {
+			return true
+		}
+	}
+	return false
 }

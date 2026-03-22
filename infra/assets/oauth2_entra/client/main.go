@@ -4,83 +4,122 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
+type App struct {
+	httpClient *http.Client
+	cred       *azidentity.DefaultAzureCredential
+}
+
 func main() {
-	// Get port from environment variable (App Service default is 8080)
+	// Use structured logging
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// 1. Authenticate using Managed Identity
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			http.Error(w, "Failed to create credential: "+err.Error(), 500)
-			return
-		}
+	// Create credential once at startup (reuse across requests)
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		slog.Error("failed to create credential", "error", err)
+		os.Exit(1)
+	}
 
-		// 2. Attempt to acquire a token
-		scope := os.Getenv("API_SCOPE")
-		if scope == "" {
-			fmt.Fprintln(w, "Warning: API_SCOPE is not set. Using default...")
-			scope = "https://graph.microsoft.com/.default" // For testing
-		}
+	app := &App{
+		httpClient: &http.Client{
+			Timeout: 15 * time.Second,
+		},
+		cred: cred,
+	}
 
-		token, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{
-			Scopes: []string{scope},
-		})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", app.handler)
 
-		if err != nil {
-			// Display error in browser on failure
-			fmt.Fprintf(w, "❌ Token Error: %v\n", err)
-			log.Printf("Token Error: %v", err)
-			return
-		}
+	slog.Info("Starting client server", "port", port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
+	}
+}
 
-		// 3. Display success message in browser
-		fmt.Fprintf(w, "✅ Managed Identity Success!\n")
-		fmt.Fprintf(w, "Token (first 10 chars): %s...\n", token.Token[:10])
-		fmt.Fprintf(w, "Expires On: %v\n\n", token.ExpiresOn)
-		
-		log.Printf("Successfully retrieved token for scope: %s", scope)
+func (app *App) handler(w http.ResponseWriter, r *http.Request) {
+	var ctx context.Context = r.Context()
 
-		// 4. Call the API Endpoint
-		apiEndpoint := os.Getenv("API_ENDPOINT")
-		if apiEndpoint == "" {
-			fmt.Fprintln(w, "⚠️ API_ENDPOINT is not set. Skipping API call.")
-			return
-		}
+	// 2. Attempt to acquire a token
+	scope := os.Getenv("API_SCOPE")
+	if scope == "" {
+		slog.Warn("API_SCOPE is not set, using default Graph scope")
+		scope = "https://graph.microsoft.com/.default"
+	}
 
-		client := &http.Client{}
-		req, err := http.NewRequest("GET", apiEndpoint, nil)
-		if err != nil {
-			fmt.Fprintf(w, "❌ Failed to create API request: %v\n", err)
-			return
-		}
-
-		req.Header.Set("Authorization", "Bearer "+token.Token)
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Fprintf(w, "❌ API Call Failed: %v\n", err)
-			return
-		}
-		defer resp.Body.Close()
-
-		body, _ := io.ReadAll(resp.Body)
-		fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
-		fmt.Fprintf(w, "Response Body:\n%s\n", string(body))
+	token, err := app.cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{scope},
 	})
 
-	log.Printf("Starting server on port %s...", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatal(err)
+	if err != nil {
+		slog.Error("token acquisition failed", "error", err, "scope", scope)
+		http.Error(w, fmt.Sprintf("❌ Token Error: %v", err), http.StatusInternalServerError)
+		return
 	}
+
+	// 3. Display success message (with safety check)
+	tokenStr := token.Token
+	if len(tokenStr) < 10 {
+		slog.Error("invalid token length", "length", len(tokenStr))
+		http.Error(w, fmt.Sprintf("❌ Invalid token: too short (%d chars)", len(tokenStr)),
+			http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprintf(w, "✅ Managed Identity Success!\n")
+	fmt.Fprintf(w, "Token (first 10 chars): %s...\n", tokenStr[:10])
+	fmt.Fprintf(w, "Expires On: %v\n\n", token.ExpiresOn)
+	slog.Info("token retrieved successfully", "scope", scope, "expires", token.ExpiresOn)
+
+	// 4. Call the API Endpoint
+	apiEndpoint := os.Getenv("API_ENDPOINT")
+	if apiEndpoint == "" {
+		fmt.Fprintln(w, "⚠️ API_ENDPOINT is not set. Skipping API call.")
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiEndpoint, nil)
+	if err != nil {
+		slog.Error("failed to create API request", "error", err, "endpoint", apiEndpoint)
+		fmt.Fprintf(w, "❌ Failed to create API request: %v\n", err)
+		return
+	}
+
+	req.Header.Set("Authorization", "Bearer "+tokenStr)
+	resp, err := app.httpClient.Do(req)
+	if err != nil {
+		slog.Error("API call failed", "error", err, "endpoint", apiEndpoint)
+		fmt.Fprintf(w, "❌ API Call Failed: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		slog.Error("failed to read response body", "error", err)
+		fmt.Fprintf(w, "⚠️ API call completed but failed to read response: %v\n", err)
+		return
+	}
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
+	} else {
+		fmt.Fprintf(w, "⚠️ API Call Failed (Status: %s)\n", resp.Status)
+	}
+	fmt.Fprintf(w, "Response Body:\n%s\n", string(body))
+	slog.Info("API call completed", "status", resp.Status, "endpoint", apiEndpoint)
 }

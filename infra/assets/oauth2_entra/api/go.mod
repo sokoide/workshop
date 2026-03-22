@@ -1,13 +1,13 @@
 module workshop-api
 
-go 1.21
+go 1.26.1
 
 require (
-	github.com/MicahParks/keyfunc/v3 v3.3.3
-	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/MicahParks/keyfunc/v3 v3.8.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 )
 
 require (
-	github.com/MicahParks/jwkset v0.5.18 // indirect
-	golang.org/x/time v0.5.0 // indirect
+	github.com/MicahParks/jwkset v0.11.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 )

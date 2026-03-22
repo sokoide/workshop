@@ -38,10 +38,12 @@
 
 | 値 | 取得場所 | 使用箇所 |
 | --- | --------- | --------- |
-| **テナント ID** | Entra 管理センター → 概要 | Go コード (`tenantID`) |
-| **API App Client ID** | App registrations → workshop-api | Go コード (`apiClientID`)、トークン要求 |
-| **Client App Client ID** | App registrations → workshop-client | Postman / SPA 設定 |
-| **Managed Identity Object ID** | Azure Portal → リソース → Identity | App Role 割り当て |
+| **テナント ID** | Entra 管理センター → 概要 | Go コードの環境変数 `TENANT_ID` |
+| **API App Client ID** | App registrations → workshop-api → 概要 | Go コードの環境変数 `API_CLIENT_ID`、トークン要求 |
+| **Client App Client ID** | App registrations → workshop-client → 概要 | Postman / SPA 設定 |
+| **Managed Identity Object ID** | Azure Portal → リソース → Identity → Object ID | App Role 割り当て（`az rest` コマンド） |
+
+> **補足**: Client ID は「アプリケーション(クライアント)ID」とも表記されます。GUID 形式の文字列です。
 
 ---
 
@@ -53,8 +55,14 @@
 | 典型例 | App Service, Functions, VM, バッチ | SPA, モバイル, デスクトップ, Postman |
 | 認証フロー | Client Credentials Flow | Authorization Code Flow + PKCE |
 | API 側で使う権限 | **App Role** | **Scope** |
-| 代表 Claim | `roles` | `scp` |
-| Managed Identity | 積極的に使う | 通常使わない |
+| トークンの Claim | `roles: ["Svc.Invoke"]` | `scp: "access_as_user"` |
+| Managed Identity | 積極的に使う（Azure 内） | 通常使わない |
+| アクセストークンの有効期限 | 通常長め（〜60分） | 通常短め（〜5-60分） |
+
+> **重要な違い**:
+>
+> - **M2M**: API 側はトークンの `roles` claim を検証
+> - **ユーザー委任**: API 側はトークンの `scp` (scope) claim を検証
 
 ---
 
@@ -272,7 +280,11 @@ func main() {
 		defer resp.Body.Close()
 
 		body, _ := io.ReadAll(resp.Body)
-		fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			fmt.Fprintf(w, "✅ API Call Success! (Status: %s)\n", resp.Status)
+		} else {
+			fmt.Fprintf(w, "⚠️ API Call Failed (Status: %s)\n", resp.Status)
+		}
 		fmt.Fprintf(w, "Response Body:\n%s\n", string(body))
 	})
 
@@ -286,9 +298,17 @@ func main() {
 #### 4-3. 実行時の注意点
 
 - **App Service 上での動作**: コンテナ起動後、`http://<your-app-name>.azurewebsites.net/` にアクセスすると、Managed Identity を使用してトークンを取得し、さらにそのトークンを使って API を呼び出した結果が表示されます。
-- **環境変数**:
-  - `API_SCOPE`: アクセスしたい API のスコープ（例: `api://<api-client-id>/.default`）
-  - `API_ENDPOINT`: 呼び出す API の URL（例: `https://<api-app-name>.azurewebsites.net/api/profile`）
+
+#### Client App の環境変数
+
+| 環境変数 | 必須 | 説明 | デフォルト値 |
+| --------- | :----: | ------ | ------------- |
+| `PORT` | - | リッスンポート番号 | `8080` |
+| `API_SCOPE` | - | アクセスしたい API のスコープ | `https://graph.microsoft.com/.default` (テスト用) |
+| `API_ENDPOINT` | - | 呼び出す API の URL | - (未設定時は API 呼び出しスキップ) |
+
+> **注意**: `API_SCOPE` には通常 `api://<api-client-id>/.default` を設定します。`.default` は「その API に割り当てられた全権限」を意味します。
+
 - **API 側の検証**: API サーバー（Resource Server）側では、前述の通り `aud` が自身の Client ID と一致するかを必ず検証してください。
 
 ---
@@ -531,8 +551,17 @@ func main() {
   - **M2M フロー (Pattern A) では `scp`（スコープ）は使用されません。** 代わりに **`roles`（App Role）** が使用されます。
   - Managed Identity を使った通信では、トークンに `scp` クレームは含まれず、割り当てた App Role が `roles` クレームに入ります。
 - **検証ロジック**: 上記の Go コードでは、`hasValidScope`（ユーザー用）または `hasValidRole`（M2M 用）の **どちらか一方が true** であればアクセスを許可する構成になっています。
-- **環境変数**: App Service の設定から `TENANT_ID` と `API_CLIENT_ID` を必ず設定してください。
-- **デプロイ**: 4-1 と同様の Dockerfile を使用して amd64 イメージとしてビルド・デプロイします。
+- **環境変数**: App Service の設定から以下の環境変数を設定してください。
+
+#### 環境変数一覧
+
+| 環境変数 | 必須 | 説明 | デフォルト値 |
+| --------- | :----: | ------ | ------------- |
+| `TENANT_ID` | ✅ | Entra テナント ID | - |
+| `API_CLIENT_ID` | ✅ | API アプリの Client ID | - |
+| `REQUIRED_SCOPE` | - | ユーザー委任フローで要求するスコープ | `access_as_user` |
+| `REQUIRED_APP_ROLE` | - | M2M フローで要求する App Role | `Svc.Invoke` |
+| `PORT` | - | リッスンポート番号 | `8080` |
 
 ---
 
@@ -612,8 +641,45 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
 | **`iss` mismatch** | テナント違い / v1・v2 混在 | `requestedAccessTokenVersion` と Resource Server の issuer 設定を見直し |
 | **`ManagedIdentityCredential: managed identity timed out`** | API への App Role が未割り当て | **Role 未割り当て時の想定動作です。** 権限がないため Entra ID がトークン発行を拒否し、結果として SDK がタイムアウトします。Managed Identity に App Role を割り当ててください。 |
 
+### トークンのデバッグ方法
+
+トークン検証エラーが発生した場合、以下の順序で確認してください。
+
+#### 1. トークン構造の確認
+
+```bash
+# jwt.ms で確認（推奨）
+# 1. トークンをコピー
+# 2. https://jwt.ms にアクセス
+# 3. ペーストして確認
+
+# または jq で確認
+echo "<トークン>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
+```
+
+#### 2. 確認すべき Claim（v2 トークン）
+
+```json
+{
+  "aud": "11111111-2222-3333-4444-555555555555",  // API の Client ID と一致
+  "iss": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+  "scp": "access_as_user",      // ユーザー委任フローの場合
+  "roles": ["Svc.Invoke"],      // M2M フローの場合
+  "appid": "client-app-id"      // どのアプリが要求したか
+}
+```
+
+#### 3. よくある間違い
+
+| 間違い | 正しい設定 |
+| -------- | ----------- |
+| `aud` が `api://xxx`（URI 形式） | v2 トークンでは Client ID (GUID) |
+| `iss` が `sts.windows.net` | v2 トークンでは `login.microsoftonline.com/.../v2.0` |
+| M2M で `scp` をチェック | M2M では `roles` をチェック |
+| ユーザー委任で `roles` をチェック | ユーザー委任では `scp` をチェック |
+
 **成功時の表示:**
-正しく権限が割り当てられると、ブラウザには以下のように表示されます。
+正しく権限が割り当てられ、API 呼び出しに成功すると、ブラウザには以下のように表示されます。
 
 ```text
 ✅ Managed Identity Success!
@@ -626,7 +692,20 @@ Response Body:
 ```
 
 **権限 (App Role) が未割り当ての場合の表示:**
-Entra ID 側で権限がないと判断されると、ブラウザには以下のようにエラーが表示されます。
+Entra ID 側でトークンは取得できますが、API 側で拒否されると以下のように表示されます（Managed Identity 自体に API への App Role が割り当てられていない場合などは、トークン取得自体がタイムアウトすることもあります）。
+
+```text
+✅ Managed Identity Success!
+Token (first 10 chars): eyJ0eXAiOi...
+Expires On: 2026-03-23 ...
+
+⚠️ API Call Failed (Status: 403 Forbidden)
+Response Body:
+Forbidden: insufficient permissions
+```
+
+**Managed Identity が有効化されていない、または Entra ID がトークン発行を拒否した場合のエラー表示:**
+Managed Identity の設定自体に不備がある場合などは、以下のようなエラーが表示されます。
 
 ```text
 ❌ Token Error: DefaultAzureCredential: failed to acquire a token.

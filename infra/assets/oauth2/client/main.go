@@ -36,6 +36,7 @@ type tokenResponse struct {
 
 type apiCallResult struct {
 	StatusCode int
+	Status     string
 	Body       string
 }
 
@@ -203,6 +204,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 		log.Printf("api call failed: %v", err)
 		apiResult = apiCallResult{
 			StatusCode: http.StatusBadGateway,
+			Status:     "❌ API Call Failed (Network Error)",
 			Body:       err.Error(),
 		}
 	}
@@ -326,8 +328,14 @@ func (a *app) callProtectedAPI(ctx context.Context, accessToken string) (apiCall
 		return apiCallResult{}, err
 	}
 
+	status := fmt.Sprintf("✅ API Call Success! (%s)", resp.Status)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		status = fmt.Sprintf("⚠️ API Call Failed (%s)", resp.Status)
+	}
+
 	return apiCallResult{
 		StatusCode: resp.StatusCode,
+		Status:     status,
 		Body:       string(body),
 	}, nil
 }
