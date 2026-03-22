@@ -7,9 +7,41 @@ This guide covers two common patterns:
 - **A. Machine-to-Machine (M2M)**: an Azure workload calls your API by using a **managed identity**
 - **B. User-delegated access**: a client such as React or Postman signs in a **user** and calls your API on that user's behalf
 
-> Note:
-> Most app registration and API exposure settings are now managed in the **Microsoft Entra admin center** (`entra.microsoft.com`).
+> **Note**:
+> Most app registration and API exposure settings are managed in the **Microsoft Entra admin center** (`entra.microsoft.com`).
 > Managed identity settings belong to Azure resources, so you usually configure them in the **Azure portal** (`portal.azure.com`).
+
+---
+
+## Which one should you choose?
+
+```text
+Is a user involved?
+    │
+    ├─ YES → B. User-delegated access
+    │         (Operation as a user via SPA, Mobile app, or Postman)
+    │
+    └─ NO  → Is it running on Azure?
+              │
+              ├─ YES → A. M2M (Managed Identity recommended)
+              │         (App Service, Functions, VM batch jobs, etc.)
+              │
+              └─ NO  → M2M (Client Credentials + Secret/Certificate)
+                        (On-premises, connections from other clouds)
+```
+
+---
+
+## Values to Keep in Advance
+
+You will need the following values during configuration. It is helpful to note them down.
+
+| Value | Where to find | Where it's used |
+| --- | --------- | --------- |
+| **Tenant ID** | Entra Admin Center → Overview | Go code (`tenantID`) |
+| **API App Client ID** | App registrations → workshop-api | Go code (`apiClientID`), Token requests |
+| **Client App Client ID** | App registrations → workshop-client | Postman / SPA configuration |
+| **Managed Identity Object ID** | Azure Portal → Resource → Identity | App Role assignment |
 
 ---
 
@@ -23,6 +55,51 @@ This guide covers two common patterns:
 | Permission model on the API side | **App Role** | **Scope** |
 | Typical claim | `roles` | `scp` |
 | Managed identity | Common and recommended | Normally not used |
+
+---
+
+## Important: Difference between v1 and v2 tokens
+
+Entra ID issues two types of access token formats. This workshop uses **v2 tokens**.
+
+| Item | v1 Token | v2 Token |
+| ------ | ------------ | ------------ |
+| `aud` (audience) | `api://<client-id>` (URI format) | `<client-id>` (GUID format) |
+| `iss` (issuer) | `https://sts.windows.net/<tenant-id>/` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| Validation complexity | Requires URI matching | Simple GUID matching |
+
+**Why we recommend v2**: It simplifies the validation logic and reduces implementation errors.
+
+> **Configuration**: App registrations → Target App → Manifest → `"requestedAccessTokenVersion": 2`
+
+---
+
+## Debug: Checking Token Contents
+
+To verify your configuration, decode the acquired token and inspect its contents.
+
+### Method 1: jwt.ms (Recommended)
+
+1. Copy the token to your clipboard.
+2. Visit [https://jwt.ms](https://jwt.ms).
+3. Paste the token to see the decoded Claims.
+
+### Method 2: jwt.io (Local check)
+
+```bash
+# Decode token (without signature validation)
+echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
+```
+
+### Claims to Verify
+
+| Claim | Expected Value | Purpose |
+| ------- | -------- | ---------- |
+| `aud` | API Client ID | Is it intended for your API? |
+| `iss` | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Is it from the correct tenant? |
+| `scp` | `access_as_user` | For user-delegated flows |
+| `roles` | `["Svc.Invoke"]` | For M2M flows |
+| `appid` | Client App ID | Which app requested the token? |
 
 ---
 
@@ -91,7 +168,7 @@ sequenceDiagram
 }
 ```
 
-> **Why v2?**: In v2 tokens, the `aud` claim becomes the API's client ID (GUID), making validation logic simpler and more consistent.
+> **Note**: Previously this was named `accessTokenAcceptedVersion`, but now `requestedAccessTokenVersion` is used.
 
 #### 4. Enable managed identity on the Azure resource
 
@@ -138,10 +215,6 @@ az rest --method POST \
   }"
 ```
 
-> Important:
-> When a workload uses managed identity, it normally does **not** call the Microsoft Entra `/token` endpoint directly.
-> It uses the Azure Identity SDK or the managed identity local endpoint provided by the platform.
-
 ---
 
 ## B. User-Delegated Access
@@ -185,11 +258,11 @@ sequenceDiagram
 
 - `App registrations` → `New registration` → Name: `workshop-client`
 - Open `Authentication` → `Add a platform`
-  - For React or another browser SPA: `Single-page application`
+  - For React or another browser SPA: **`Single-page application`**
   - For Postman or native clients: `Mobile and desktop applications`
-- Register the redirect URI
+- Register the redirect URI (e.g., `http://localhost:3000` or `https://oauth.pstmn.io/v1/callback`)
 
-> For SPAs, the redirect URI must be registered as a **Single-page application** platform. Otherwise, the authorization code exchange can fail with a CORS error.
+> **Important**: For SPAs, the redirect URI must be registered as a **Single-page application** platform. Otherwise, the authorization code exchange can fail with a CORS error.
 
 #### 3. Add API permissions to the client app
 
@@ -200,11 +273,15 @@ sequenceDiagram
 
 #### 4. Handle consent
 
+| Type | Required for | Performer |
+| ---------- | ------------ | ------ |
+| **User consent** | User consent allowed tenant + Low impact permissions | The user signing in |
+| **Admin consent** | User consent disabled / High impact / Application permissions | Tenant Admin |
+
 Operation:
 
 - **User consent**: A consent screen is shown during the first sign-in.
 - **Admin consent**: Go to `API permissions` → `Grant admin consent for [Tenant Name]`.
-  - Required if user consent is disabled by tenant policy, or for Application permissions (M2M).
 
 ---
 
@@ -302,35 +379,90 @@ func main() {
 
 ### Implementation Notes
 
-- Validate `aud` against the **actual `aud` claim** in the token you receive
-- With `requestedAccessTokenVersion = 2`, it is usually simplest to validate `aud` against the API app's **client ID (GUID)**
-- `scp` is a space-delimited string, so compare scopes as individual values, not with `strings.Contains`
-- M2M tokens carry `roles`, while delegated user tokens carry `scp`
+- **`aud` validation**: Match against the **actual `aud` claim** in the token. With v2 tokens, this is the API app's **client ID (GUID)**.
+- **`scp` validation**: The `scp` claim is a **space-delimited** string (e.g., `"access_as_user profile"`). Use `strings.Fields` to split and compare, not `strings.Contains`.
+- **M2M differences**: User-delegated tokens carry `scp`, while M2M tokens carry `roles`.
+
+---
+
+## Local Verification Steps
+
+### 1. Start the API Server
+
+```bash
+# Passing constants via environment variables (if implemented)
+TENANT_ID=<tenant-id> API_CLIENT_ID=<api-client-id> go run main.go
+
+# Or update the constants in main.go and run
+go run main.go
+```
+
+### 2. Acquire a Token and Test
+
+#### For User-Delegated Flow (Using Postman)
+
+1. Go to the **Authorization** tab in Postman.
+2. Type: `OAuth 2.0`
+3. Grant type: `Authorization Code (With PKCE)`
+4. Callback URL: `https://oauth.pstmn.io/v1/callback`
+5. Auth URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize`
+6. Access Token URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token`
+7. Client ID: `<client-app-id>`
+8. Scope: `api://<api-client-id>/access_as_user`
+9. Code Challenge Method: `S256`
+10. Click **Get New Access Token** and follow the sign-in flow.
+
+```bash
+# Call the API with the acquired token
+curl -H "Authorization: Bearer <TOKEN>" http://localhost:8081/api/profile
+```
+
+#### For M2M Flow (Using Azure CLI)
+
+```bash
+# To emulate Managed Identity locally for development, use a Service Principal
+az login --service-principal -u <client-id> -p <client-secret> --tenant <tenant-id>
+
+# Get an access token
+TOKEN=$(az account get-access-token --resource api://<api-client-id> --query accessToken -o tsv)
+
+# Call the API
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
+```
 
 ---
 
 ## Troubleshooting
 
-- **401 Unauthorized / `aud` mismatch**
-  - The token was not issued for your API. Decode the token (e.g., at [jwt.ms](https://jwt.ms)) and confirm that `aud` matches the API's client ID.
-- **403 Forbidden**
-  - Signature validation passed, but the token is missing the required `scp` or `roles`. Recheck consent, scope assignment, or the `az rest` assignment step.
-- **CORS error during SPA token exchange**
-  - The redirect URI may not be configured under the `Single-page application` platform type. (Ensure it is not registered as `Web`).
-- **`roles` claim is missing**
-  - You may be using a delegated user flow instead of application permissions, or the app role assignment to the managed identity has not been completed.
-- **`iss` mismatch**
-  - You may be receiving tokens from another tenant, or you may have mixed v1 and v2 assumptions. Recheck `requestedAccessTokenVersion` and the Resource Server's issuer validation settings.
+| Symptom | Cause | Solution |
+| ---- | ---- | ---- |
+| **401 Unauthorized / `aud` mismatch** | The token was not issued for your API | Decode the token at [jwt.ms](https://jwt.ms) and confirm that `aud` matches the API's client ID. |
+| **403 Forbidden** | Signature passed but permissions missing | Check that the required `scp` or `roles` are in the token. Ensure consent was granted or the App Role was assigned. |
+| **CORS error in SPA token exchange** | Platform configuration error | Ensure the Redirect URI is under the `Single-page application` type, not `Web`. |
+| **`roles` claim is missing** | User flow used instead of M2M / Assignment skipped | If M2M, ensure you used Client Credentials. Verify the `az rest` assignment step. |
+| **`iss` mismatch** | Wrong tenant or mixed v1/v2 versions | Recheck `requestedAccessTokenVersion` and the Resource Server's issuer validation settings. |
 
 ---
 
-## Summary
+## Configuration Checklist
 
-- For **M2M**, use `Managed Identity + App Role`
-- For **user-delegated access**, use `Authorization Code + PKCE + Scope`
-- App registration and API exposure are mainly handled in the **Microsoft Entra admin center**
-- Managed identity is enabled on the Azure resource in the **Azure portal**
-- On the API side, validate `iss`, `aud`, `scp`, `roles`, and the JWT signature explicitly
+### M2M (Managed Identity)
+
+- [ ] Register API App and set Application ID URI.
+- [ ] Create App Role (`Svc.Invoke`).
+- [ ] Set `requestedAccessTokenVersion: 2` in Manifest.
+- [ ] Enable Managed Identity on the Azure resource.
+- [ ] Assign App Role to Managed Identity (`az rest`).
+- [ ] Validate `roles` in the API server.
+
+### User-Delegated Access
+
+- [ ] Expose Scope (`access_as_user`) in the API App.
+- [ ] Register Client App (select **Single-page application** for SPAs).
+- [ ] Register the Redirect URI.
+- [ ] Add API Permissions to the Client App.
+- [ ] Grant Admin Consent (if required).
+- [ ] Validate `scp` in the API server.
 
 ---
 

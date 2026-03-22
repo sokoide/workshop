@@ -13,6 +13,38 @@
 
 ---
 
+## どちらを選ぶべきか？
+
+```text
+ユーザーが介在するか？
+    │
+    ├─ YES → B. ユーザー委任フロー
+    │         （SPA、モバイルアプリ、Postman でユーザーとして操作）
+    │
+    └─ NO  → Azure 上で動くか？
+              │
+              ├─ YES → A. M2M (Managed Identity 推奨)
+              │         （App Service、Functions、VM 上のバッチ等）
+              │
+              └─ NO  → M2M (Client Credentials + Secret/Certificate)
+                        （オンプレミス、他クラウドからの接続）
+```
+
+---
+
+## 事前に控えるべき値
+
+設定作業中に以下の値が必要になります。先にメモしておくとスムーズです。
+
+| 値 | 取得場所 | 使用箇所 |
+| --- | --------- | --------- |
+| **テナント ID** | Entra 管理センター → 概要 | Go コード (`tenantID`) |
+| **API App Client ID** | App registrations → workshop-api | Go コード (`apiClientID`)、トークン要求 |
+| **Client App Client ID** | App registrations → workshop-client | Postman / SPA 設定 |
+| **Managed Identity Object ID** | Azure Portal → リソース → Identity | App Role 割り当て |
+
+---
+
 ## まず分類を整理する
 
 | 項目 | A. M2M | B. ユーザー委任フロー |
@@ -23,6 +55,51 @@
 | API 側で使う権限 | **App Role** | **Scope** |
 | 代表 Claim | `roles` | `scp` |
 | Managed Identity | 積極的に使う | 通常使わない |
+
+---
+
+## 重要: v1 トークンと v2 トークンの違い
+
+Entra ID は 2 種類のアクセストークン形式を発行します。この実習では **v2 トークン** を使用します。
+
+| 項目 | v1 トークン | v2 トークン |
+| ------ | ------------ | ------------ |
+| `aud` (audience) | `api://<client-id>` (URI 形式) | `<client-id>` (GUID 形式) |
+| `iss` (issuer) | `https://sts.windows.net/<tenant-id>/` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| 検証の複雑さ | URI マッチングが必要 | GUID マッチングで済む |
+
+**本実習では v2 を推奨する理由**: 検証ロジックがシンプルになり、実装ミスを減らせるため。
+
+> **設定方法**: App registrations → 対象アプリ → Manifest → `"requestedAccessTokenVersion": 2`
+
+---
+
+## デバッグ: トークンの中身を確認する
+
+設定が正しいか確認するには、取得したトークンをデコードして中身を確認します。
+
+### 方法 1: jwt.ms (推奨)
+
+1. トークンをクリップボードにコピー
+2. <https://jwt.ms> にアクセス
+3. トークンをペースト → Claims が表示される
+
+### 方法 2: jwt.io (ローカル確認)
+
+```bash
+# トークンをデコード（署名検証なし）
+echo "<トークン>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
+```
+
+### 確認すべき Claim
+
+| Claim | 期待値 | 確認内容 |
+| ------- | -------- | ---------- |
+| `aud` | API の Client ID | 自分の API 宛てか |
+| `iss` | `https://login.microsoftonline.com/<tenant-id>/v2.0` | 正しいテナントか |
+| `scp` | `access_as_user` | ユーザー委任の場合 |
+| `roles` | `["Svc.Invoke"]` | M2M の場合 |
+| `appid` | Client App の ID | どのアプリが要求したか |
 
 ---
 
@@ -311,6 +388,71 @@ func main() {
 
 ---
 
+## ローカル検証手順
+
+### 1. API サーバーを起動
+
+```bash
+# 定数を環境変数で渡す場合
+TENANT_ID=<tenant-id> \
+API_CLIENT_ID=<api-client-id> \
+go run main.go
+
+# または main.go 内の定数を書き換えて
+go run main.go
+```
+
+### 2. トークンを取得してテスト
+
+#### ユーザー委任フローの場合（Postman 使用）
+
+1. Postman → Authorization タブ
+2. Type: `OAuth 2.0`
+3. Grant type: `Authorization Code (With PKCE)`
+4. Callback URL: `https://oauth.pstmn.io/v1/callback`
+5. Auth URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize`
+6. Access Token URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token`
+7. Client ID: `<client-app-id>`
+8. Scope: `api://<api-client-id>/access_as_user`（または `https://graph.microsoft.com/.default` 等）
+9. Code Challenge Method: `S256`
+10. 「Get New Access Token」→ トークン取得後、リクエストに自動付与
+
+```bash
+# 取得したトークンで API 呼び出し
+curl -H "Authorization: Bearer <token>" http://localhost:8081/api/profile
+```
+
+#### M2M の場合（Azure CLI 使用）
+
+```bash
+# Managed Identity をエミュレート（ローカル開発用）
+# 実際は Azure 上で動作させるか、Service Principal を使用
+
+# Service Principal + Client Credentials でトークン取得
+az login --service-principal \
+  -u <client-id> \
+  -p <client-secret> \
+  --tenant <tenant-id>
+
+# アクセストークン取得
+TOKEN=$(az account get-access-token \
+  --resource api://<api-client-id> \
+  --query accessToken -o tsv)
+
+# API 呼び出し
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
+```
+
+### 3. よくあるエラーと確認方法
+
+| エラー | 確認コマンド | 対策 |
+| -------- | ------------- | ------ |
+| `401 Unauthorized` | トークンを jwt.ms で確認 | `aud` が API の Client ID と一致するか |
+| `403 Forbidden` | `scp` / `roles` を確認 | Scope または App Role が付与されているか |
+| `invalid_client` | Client ID / Secret を確認 | 正しい App Registration を使用しているか |
+
+---
+
 ## トラブルシューティング
 
 | 現象 | 原因 | 対策 |
@@ -330,6 +472,28 @@ func main() {
 - App 登録の UI は主に **Microsoft Entra 管理センター**
 - Managed Identity の有効化は **Azure Portal**
 - API 側は `iss` / `aud` / `scp` / `roles` / 署名を分けて検証する
+
+---
+
+## 設定チェックリスト
+
+### M2M (Managed Identity)
+
+- [ ] API App を登録し、Application ID URI を設定
+- [ ] App Role (`Svc.Invoke`) を作成
+- [ ] `requestedAccessTokenVersion: 2` を設定
+- [ ] Azure リソースで Managed Identity を有効化
+- [ ] Managed Identity に App Role を割り当て（az rest）
+- [ ] API サーバーで `roles` を検証
+
+### ユーザー委任フロー
+
+- [ ] API App で Scope (`access_as_user`) を公開
+- [ ] Client App を登録（SPA は `Single-page application` を選択）
+- [ ] Redirect URI を登録
+- [ ] Client App に API Permission を追加
+- [ ] 管理者同意を実施（必要な場合）
+- [ ] API サーバーで `scp` を検証
 
 ---
 
