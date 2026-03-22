@@ -170,7 +170,96 @@ sequenceDiagram
 
 > **Note**: Previously this was named `accessTokenAcceptedVersion`, but now `requestedAccessTokenVersion` is used.
 
-#### 4. Enable managed identity on the Azure resource
+---
+
+#### 4. Create an App Service and Call the API
+
+This is a Go implementation example for an App Service (Client) acting as a web server that retrieves a token using Managed Identity and displays the result in the browser.
+
+#### 1. Add dependency packages
+
+Use `azidentity` from the Azure SDK for Go.
+
+```bash
+go get github.com/Azure/azure-sdk-for-go/sdk/azidentity
+go get github.com/Azure/azure-sdk-for-go/sdk/azcore
+```
+
+#### 2. Go code example
+
+`azidentity.NewDefaultAzureCredential` allows the code to work in both local environments (logged in via Azure CLI) and Azure environments (Managed Identity) without changes.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+)
+
+func main() {
+	// Get port from environment variable (App Service default is 8080)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// 1. Authenticate using Managed Identity
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			http.Error(w, "Failed to create credential: "+err.Error(), 500)
+			return
+		}
+
+		// 2. Attempt to acquire a token
+		scope := os.Getenv("API_SCOPE")
+		if scope == "" {
+			fmt.Fprintln(w, "Warning: API_SCOPE is not set. Using default...")
+			scope = "https://graph.microsoft.com/.default" // For testing
+		}
+
+		token, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{
+			Scopes: []string{scope},
+		})
+
+		if err != nil {
+			// Display error in browser on failure
+			fmt.Fprintf(w, "❌ Token Error: %v\n", err)
+			log.Printf("Token Error: %v", err)
+			return
+		}
+
+		// 3. Display success message in browser
+		fmt.Fprintf(w, "✅ Managed Identity Success!\n")
+		fmt.Fprintf(w, "Token (first 10 chars): %s...\n", token.Token[:10])
+		fmt.Fprintf(w, "Expires On: %v\n", token.ExpiresOn)
+		
+		log.Printf("Successfully retrieved token for scope: %s", scope)
+	})
+
+	log.Printf("Starting server on port %s...", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+#### 3. Important Implementation Notes
+
+- **App Service Behavior**: Once the container is running, navigate to `http://<your-app-name>.azurewebsites.net/` to trigger the Managed Identity token retrieval and view the result in your browser.
+- **Environment Variables**: Ensure `API_SCOPE` is set to the scope of the API you wish to access.
+- **API-side validation**: As mentioned earlier, the API server (Resource Server) must validate that the `aud` claim matches its own Client ID.
+
+---
+
+#### 5. Enable managed identity on the Azure resource
 
 - Open the **Azure portal**
 - Go to the target resource, such as App Service
@@ -178,7 +267,7 @@ sequenceDiagram
 - Enable either `System assigned` or `User assigned`
 - Record the managed identity's **principal object ID**
 
-#### 5. Assign the app role to the managed identity
+#### 6. Assign the app role to the managed identity
 
 Assigning a custom API app role to a managed identity is usually easier through **Microsoft Graph / Azure CLI** than through the portal UI.
 
@@ -287,31 +376,44 @@ Operation:
 
 ## Go Resource Server Example
 
-The following example uses `github.com/MicahParks/keyfunc/v3` and `github.com/golang-jwt/jwt/v5`.
+The following example uses `github.com/MicahParks/keyfunc/v3` and `github.com/golang-jwt/jwt/v5`. It reads configuration from environment variables and listens on port `8080` (App Service default).
 
 ```go
 package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const (
-	tenantID         = "<YOUR_TENANT_ID>"         // Entra Admin Center → Overview → Tenant ID
-	apiClientID      = "<API_APP_CLIENT_ID>"      // App registrations → workshop-api → Application (client) ID
-	requiredScope    = "access_as_user"           // Scope to validate for delegated user flow
-	requiredAppRole  = "Svc.Invoke"               // App Role to validate for M2M flow
-	jwksURL          = "https://login.microsoftonline.com/" + tenantID + "/discovery/v2.0/keys"
-	expectedIssuer   = "https://login.microsoftonline.com/" + tenantID + "/v2.0"
-)
-
 func main() {
+	// Configuration from environment variables
+	tenantID := os.Getenv("TENANT_ID")
+	apiClientID := os.Getenv("API_CLIENT_ID")
+	requiredScope := os.Getenv("REQUIRED_SCOPE")
+	if requiredScope == "" {
+		requiredScope = "access_as_user"
+	}
+	requiredAppRole := os.Getenv("REQUIRED_APP_ROLE")
+	if requiredAppRole == "" {
+		requiredAppRole = "Svc.Invoke"
+	}
+
+	if tenantID == "" || apiClientID == "" {
+		log.Fatal("Error: TENANT_ID and API_CLIENT_ID must be set")
+	}
+
+	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", tenantID)
+	expectedIssuer := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID)
+
+	// Fetch JWKS for token validation
 	kf, err := keyfunc.NewDefault([]string{jwksURL})
 	if err != nil {
 		log.Fatalf("failed to create keyfunc: %v", err)
@@ -325,6 +427,7 @@ func main() {
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		// Validate JWT signature, issuer, and audience
 		token, err := jwt.Parse(tokenStr, kf.Keyfunc,
 			jwt.WithIssuer(expectedIssuer),
 			jwt.WithAudience(apiClientID),
@@ -341,8 +444,7 @@ func main() {
 			return
 		}
 
-		scp, _ := claims["scp"].(string)
-
+		// Check for App Roles (for M2M flow)
 		hasValidRole := false
 		if rawRoles, ok := claims["roles"].([]any); ok {
 			for _, r := range rawRoles {
@@ -353,6 +455,8 @@ func main() {
 			}
 		}
 
+		// Check for Scopes (for User-delegated flow)
+		scp, _ := claims["scp"].(string)
 		hasValidScope := false
 		for _, s := range strings.Fields(scp) {
 			if s == requiredScope {
@@ -369,11 +473,18 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "ok",
 			"user":   claims["name"],
+			"claims": claims,
 		})
 	})
 
-	log.Println("server started on :8081")
-	log.Fatal(http.ListenAndServe(":8081", nil))
+	// Use PORT environment variable (default to 8080 for App Service)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Starting API server on port %s...", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 ```
 
@@ -382,6 +493,8 @@ func main() {
 - **`aud` validation**: Match against the **actual `aud` claim** in the token. With v2 tokens, this is the API app's **client ID (GUID)**.
 - **`scp` validation**: The `scp` claim is a **space-delimited** string (e.g., `"access_as_user profile"`). Use `strings.Fields` to split and compare, not `strings.Contains`.
 - **M2M differences**: User-delegated tokens carry `scp`, while M2M tokens carry `roles`.
+- **Environment Variables**: Make sure to set `TENANT_ID` and `API_CLIENT_ID` in your App Service configuration.
+- **Deployment**: Use a Dockerfile similar to the one in section 4-1 to build and deploy as an amd64 image.
 
 ---
 

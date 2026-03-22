@@ -174,13 +174,102 @@ sequenceDiagram
 >
 > **補足**: 以前は `accessTokenAcceptedVersion` という名称でしたが、現在は `requestedAccessTokenVersion` を使用します。
 
-#### 4. Azure リソースで Managed Identity を有効化する
+---
+
+#### 4. App Service を作成し API を呼び出す
+
+App Service (Client) から、Managed Identity を使って別の API (Resource) を呼び出す Go の実装例です。
+
+#### 4-1. 依存パッケージの導入
+
+Azure SDK for Go の `azidentity` を使用します。
+
+```bash
+go get github.com/Azure/azure-sdk-for-go/sdk/azidentity
+go get github.com/Azure/azure-sdk-for-go/sdk/azcore
+```
+
+#### 4-2. Go のコード例
+
+`azidentity.NewDefaultAzureCredential` を使うと、ローカル環境（Azure CLI ログイン済み）でも Azure 環境（Managed Identity）でもコードを変更せずに動作させることができます。この例では、結果をブラウザで確認できるよう Web サーバーとして実装します。
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+)
+
+func main() {
+	// Get port from environment variable (App Service default is 8080)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// 1. Authenticate using Managed Identity
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			http.Error(w, "Failed to create credential: "+err.Error(), 500)
+			return
+		}
+
+		// 2. Attempt to acquire a token
+		scope := os.Getenv("API_SCOPE")
+		if scope == "" {
+			fmt.Fprintln(w, "Warning: API_SCOPE is not set. Using default...")
+			scope = "https://graph.microsoft.com/.default" // For testing
+		}
+
+		token, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{
+			Scopes: []string{scope},
+		})
+
+		if err != nil {
+			// Display error in browser on failure
+			fmt.Fprintf(w, "❌ Token Error: %v\n", err)
+			log.Printf("Token Error: %v", err)
+			return
+		}
+
+		// 3. Display success message in browser
+		fmt.Fprintf(w, "✅ Managed Identity Success!\n")
+		fmt.Fprintf(w, "Token (first 10 chars): %s...\n", token.Token[:10])
+		fmt.Fprintf(w, "Expires On: %v\n", token.ExpiresOn)
+		
+		log.Printf("Successfully retrieved token for scope: %s", scope)
+	})
+
+	log.Printf("Starting server on port %s...", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+#### 4-3. 実行時の注意点
+
+- **App Service 上での動作**: コンテナ起動後、`http://<your-app-name>.azurewebsites.net/` にアクセスすると、Managed Identity を使用してトークンを取得し、結果が画面に表示されます。
+- **環境変数**: `API_SCOPE` にアクセスしたい API のスコープを設定してください。
+- **API 側の検証**: API サーバー（Resource Server）側では、前述の通り `aud` が自身の Client ID と一致するかを必ず検証してください。
+
+---
+
+#### 5. Azure リソースで Managed Identity を有効化する
 
 - **Azure Portal** → 対象リソース (App Service など) → `Identity`
 - `System assigned` または `User assigned` を有効化
 - 有効化後、Managed Identity の **principal object ID** を控える
 
-#### 5. Managed Identity に App Role を割り当てる
+#### 6. Managed Identity に App Role を割り当てる
 
 カスタム API の App Role を Managed Identity に割り当てる作業は、UI より **Microsoft Graph / Azure CLI** の方が確実です。
 
@@ -290,31 +379,44 @@ sequenceDiagram
 
 ## Go Resource Server の実装例
 
-以下は `github.com/MicahParks/keyfunc/v3` と `github.com/golang-jwt/jwt/v5` を使った最小例です。
+以下は `github.com/MicahParks/keyfunc/v3` と `github.com/golang-jwt/jwt/v5` を使った最小例です。環境変数から設定を読み込み、ポート `8080`（App Service 既定）で動作します。
 
 ```go
 package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const (
-	tenantID         = "<YOUR_TENANT_ID>"         // Entra 管理センター → 概要 → テナント ID
-	apiClientID      = "<API_APP_CLIENT_ID>"      // App registrations → workshop-api → Application (client) ID
-	requiredScope    = "access_as_user"           // ユーザー委任フローで検証するスコープ
-	requiredAppRole  = "Svc.Invoke"               // M2M フローで検証する App Role
-	jwksURL          = "https://login.microsoftonline.com/" + tenantID + "/discovery/v2.0/keys"
-	expectedIssuer   = "https://login.microsoftonline.com/" + tenantID + "/v2.0"
-)
-
 func main() {
+	// 環境変数から設定を読み込み
+	tenantID := os.Getenv("TENANT_ID")
+	apiClientID := os.Getenv("API_CLIENT_ID")
+	requiredScope := os.Getenv("REQUIRED_SCOPE")
+	if requiredScope == "" {
+		requiredScope = "access_as_user"
+	}
+	requiredAppRole := os.Getenv("REQUIRED_APP_ROLE")
+	if requiredAppRole == "" {
+		requiredAppRole = "Svc.Invoke"
+	}
+
+	if tenantID == "" || apiClientID == "" {
+		log.Fatal("Error: TENANT_ID and API_CLIENT_ID must be set")
+	}
+
+	jwksURL := fmt.Sprintf("https://login.microsoftonline.com/%s/discovery/v2.0/keys", tenantID)
+	expectedIssuer := fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tenantID)
+
+	// トークン検証用の JWKS を取得
 	kf, err := keyfunc.NewDefault([]string{jwksURL})
 	if err != nil {
 		log.Fatalf("failed to create keyfunc: %v", err)
@@ -328,6 +430,7 @@ func main() {
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		// JWT の署名、Issuer、Audience を検証
 		token, err := jwt.Parse(tokenStr, kf.Keyfunc,
 			jwt.WithIssuer(expectedIssuer),
 			jwt.WithAudience(apiClientID),
@@ -344,8 +447,7 @@ func main() {
 			return
 		}
 
-		scp, _ := claims["scp"].(string)
-
+		// App Role の検証 (M2M フロー用)
 		hasValidRole := false
 		if rawRoles, ok := claims["roles"].([]any); ok {
 			for _, r := range rawRoles {
@@ -356,6 +458,8 @@ func main() {
 			}
 		}
 
+		// Scope の検証 (ユーザー委任フロー用)
+		scp, _ := claims["scp"].(string)
 		hasValidScope := false
 		for _, s := range strings.Fields(scp) {
 			if s == requiredScope {
@@ -372,11 +476,18 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "ok",
 			"user":   claims["name"],
+			"claims": claims,
 		})
 	})
 
-	log.Println("server started on :8081")
-	log.Fatal(http.ListenAndServe(":8081", nil))
+	// PORT 環境変数を使用（App Service の既定は 8080）
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Starting API server on port %s...", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 ```
 
@@ -385,6 +496,8 @@ func main() {
 - **`aud` 検証**: 実際のトークンの `aud` claim に合わせる。v2 トークンでは API の **client ID (GUID)** になる
 - **`scp` 検証**: `scp` claim は複数スコープの場合 **スペース区切り**（例: `"access_as_user profile"`）。`strings.Contains` ではなく `strings.Fields` で分割して比較すること
 - **M2M との違い**: ユーザー委任トークンは `scp`、M2M トークンは `roles` が入る
+- **環境変数**: App Service の設定から `TENANT_ID` と `API_CLIENT_ID` を必ず設定してください。
+- **デプロイ**: 4-1 と同様の Dockerfile を使用して amd64 イメージとしてビルド・デプロイします。
 
 ---
 
