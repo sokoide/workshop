@@ -118,7 +118,47 @@ In short, you only want to represent the "shape of the tree," but you are paying
 
 ---
 
-## 2. Succinct Trie Concept (LOUDS)
+## 2. Radix Tree / Patricia Trie (Structure Compression)
+
+This method compresses the Trie by merging nodes that have only one child, holding strings (labels) on the edges.
+
+* **Pros**: Reduced tree depth and dramatically fewer nodes. Used in Go's `httprouter`.
+* **Cons**: String splitting and splicing make the implementation slightly more complex.
+
+### Structure Image
+
+```mermaid
+graph TD
+    R["root"]
+    R -- "app" --> AP["app *"]
+    AP -- "le" --> APPLE["apple *"]
+    R -- "ba" --> BA["ba"]
+    BA -- "nana" --> BANANA["banana *"]
+    BA -- "ll" --> BALL["ball *"]
+```
+
+---
+
+## 3. Double Array Trie (Acceleration via Arrays)
+
+This method represents the Trie using only two integer arrays (`base` and `check`), completely eliminating pointers. It is often considered the **best balance between search speed and memory efficiency** for static dictionaries.
+
+* **Transition formula**: `next_state = base[current_state] + code(char)`
+* **Verification**: `check[next_state] == current_state` (verifies if the transition is valid)
+
+### Pros
+
+* **Blazing Fast**: Transition achieved via simple array index access ($O(1)$ per character).
+* **Pointer-less**: Densely packed in memory, leading to excellent cache efficiency.
+
+### Cons
+
+* **Construction Cost**: Heavy construction as it requires searching for empty slots while filling.
+* **Dynamic Updates**: Primarily suitable for static dictionaries.
+
+---
+
+## 4. Succinct Trie Concept (LOUDS)
 
 LOUDS (Level-Order Unary Degree Sequence) arranges each node of the tree (Trie) in Breadth-First Search (BFS) order and represents the structure as a bit string instead of pointers.
 
@@ -192,7 +232,7 @@ While memory efficient, implementation and updates are more difficult.
 
 ---
 
-## 3. Minimal Rank Implementation in Go (For Learning)
+## 5. Minimal Rank Implementation in Go (For Learning)
 
 The following is a minimal example of "holding a bit string in `[]uint64`." `Rank1` uses linear scanning for educational purposes, but the implementation style is natural for Go.
 
@@ -263,21 +303,22 @@ func (bv *BitVector) Rank1(i int) int {
 
 ---
 
-## 4. Complexity and Trade-offs
+## 6. Complexity and Trade-offs
 
-| Aspect | Pointer-based Trie | Succinct Trie |
-| :--- | :--- | :--- |
-| Space Efficiency | Low (Pointer/`map` overhead) | High (Aims for `n + o(n)`) |
-| Ease of Implementation | High | Low |
-| Updates (Insert/Delete) | Easy | Hard (Reconstruction cost) |
-| Search Speed | Implementation Dependent | Often advantageous due to array cache locality |
+| Implementation | Space Efficiency | Search Speed | Updates | Main Use Cases |
+| :--- | :--- | :--- | :--- | :--- |
+| **Pointer-based Trie** | Low (Heavy pointers) | Medium | Fast | Prototyping, frequent updates |
+| **Radix Tree** | Medium (Merged nodes) | Medium-High | Medium | Routers, path searching |
+| **Double Array** | High (Arrays only) | **Extremely High** | Difficult | Static dictionaries |
+| **LOUDS** | **Extremely High** | Medium-High | Difficult | Large-scale / low-memory |
 
 ### In a Nutshell
 
-* **Pointer-based**: Easy to build and update, but consumes logic memory due to runtime overhead.
-* **LOUDS**: Difficult to build, but extremely powerful for large-scale, read-mostly scenarios (saves memory, improves cache hits).
+* **Pointer-based**: Easy to build and update, but consumes memory due to runtime overhead.
+* **Double Array**: Difficult to build, but extremely fast lookup and compact.
+* **LOUDS**: The hardest to build, but achieves near-theoretical memory limits.
 
-### Rough Estimate: 1 Million Words
+### Rough Estimate: How much difference for 1 million words?
 
 Let's estimate with some assumptions:
 
@@ -330,26 +371,20 @@ For the same 1 million words, a `map`-based pointer Trie can be **GB-class**, wh
 
 Of course, this is because the conditions are "read-mostly and almost immutable." If frequent updates are needed, choosing based on memory alone is dangerous.
 
-### Visualizing Memory Difference
+### Memory Comparison (Rough Estimate: 1M words / 6M nodes)
 
-```mermaid
-flowchart TD
-    P["Pointer-based Trie\n~ 0.8 GB - 1.5 GB"] --> P1["Node bodies\n~ 96 MB"]
-    P --> P2["map headers\n~ 288 MB"]
-    P --> P3["Bucket area\n~ 400-900 MB"]
-    P --> P4["GC / Fragmentation\nDecent amount"]
+| Item | Pointer-based | Radix Tree | Double Array | LOUDS (Succinct) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Total Size** | **0.8 - 1.5 GB** | **300 - 600 MB** | **100 - 150 MB** | **10 - 20 MB** |
+| **Structure** | Pointers / map | Pointers / map (Merged) | Two integer arrays | Bit string (2n bits) |
+| **Management** | Very High | High | Low | Extremely Low |
+| **Search Speed** | Medium | Medium-High | **Extremely High** | Medium-High |
 
-    L["LOUDS Trie\n~ 10 MB - 20+ MB"] --> L1["LOUDS bit string\n~ 1.5 MB"]
-    L --> L2["Label array\n~ 6 MB"]
-    L --> L3["End flags\n~ 0.75 MB"]
-    L --> L4["Auxiliary index\n~ 1-5 MB"]
-```
-
-The essence of this difference is that while pointer-based implementations have per-node management structures (headers, pointers), LOUDS packs the entire tree into contiguous memory. When management costs dominate actual data, pointer-based structures become extremely inefficient.
+The essence of this difference is that while pointer-based or Radix implementations manage "nodes as objects," Double Array and LOUDS "flatten the structure into arrays or bit strings." LOUDS, in particular, achieves overwhelming memory savings by bringing management costs close to zero.
 
 **Criteria for Practical Decision**
 
-* Fixed or near-fixed dictionaries/indices: Consider **Succinct**.
+* Fixed or near-fixed dictionaries/indices: Consider **Succinct (LOUDS)** or **Double Array**.
 * Frequent updates or early stage of development: Prioritize **Standard Trie**.
 
 ### Usage Cheat Sheet
@@ -358,15 +393,16 @@ The essence of this difference is that while pointer-based implementations have 
 flowchart TD
     A["Is the data large?"] -->|Yes| B["Is it read-heavy?"]
     A -->|No| N["Standard structures are enough"]
-    B -->|Yes| C["Is memory reduction critical?"]
+    B -->|Yes| C["Speed-focused or Memory-focused?"]
     B -->|No| D["Standard Trie (better for updates)"]
-    C -->|Yes| E["Consider Succinct"]
-    C -->|No| F["Prioritize simple implementation"]
+    C -->|Speed| E["Double Array Trie"]
+    C -->|Memory| F["Succinct (LOUDS)"]
+    C -->|Balance| G["Radix Tree"]
 ```
 
 ---
 
-## 5. SWE Implementation Guide (Go)
+## 7. SWE Implementation Guide (Go)
 
 * Start by creating a baseline with `[]uint64` + `bits.OnesCount64`.
 * Measure memory and latency using `go test -bench . -benchmem`.
@@ -383,8 +419,66 @@ flowchart TD
 
 ---
 
+## 8. Real-world Example: Mozc (Google Japanese Input)
+
+[Mozc](https://github.com/google/mozc), the open-source version of Google Japanese Input, extensively uses Trie structures to balance memory efficiency and search speed.
+
+### Key Use Cases
+
+1. **Fast Lookup with Double-Array Trie**:
+    * Mozc uses a [Darts](https://github.com/google/mozc/blob/master/src/base/darts.h) based implementation.
+    * **Purpose**: Candidate search and predictive input (Kana-Kanji conversion).
+    * **Source**: [`src/storage/dictionary/`](https://github.com/google/mozc/tree/master/src/storage/dictionary)
+
+2. **Massive Dictionary Compression with LOUDS**:
+    * For huge system dictionaries (millions of words), it uses LOUDS.
+    * **Purpose**: Minimize memory footprint while maintaining millisecond-level lookups.
+    * **Source**: [`src/storage/louds/`](https://github.com/google/mozc/tree/master/src/storage/louds)
+
+3. **Predictive Input (Suggestion) Acceleration**:
+    * Uses "Common Prefix Search" to instantly list words (e.g., "today", "tomorrow") starting from a prefix.
+    * **Source**: [`src/prediction/dictionary_predictor.cc`](https://github.com/google/mozc/blob/master/src/prediction/dictionary_predictor.cc)
+
+### Why Trie for Mozc?
+
+* **Common Prefix Search**: Japanese "yomi" (readings) often overlap, and Trie's prefix sharing directly leads to massive memory savings.
+* **Deterministic Speed**: Unlike hash tables, lookups have a constant speed ($O(1)$ per char for Double-Array), minimizing latency for the user.
+
+---
+
+## 9. Optimization for Multi-byte (Japanese/Unicode) Environments
+
+In languages like Japanese (Unicode) where the character set is massive, implementing "one character = one node" would result in tens of thousands of branches per node, causing the structure to collapse. Real-world products solve this with the following strategies.
+
+### UTF-8 Byte Sequence Decomposition
+
+Instead of treating multi-byte characters as single units, it is common to **decompose them into UTF-8 byte sequences (0–255) and map them onto the Trie**.
+
+* **Pros**: Limits the branches per node to a maximum of 256, stabilizing Double Array packing efficiency and pointer-based memory management.
+* **Cons**: Increases tree depth by 3x–4x (3 bytes per Japanese character), but the benefits of simplified search algorithms and improved memory efficiency outweigh this cost.
+
+### Static vs. Dynamic Dictionary Trade-offs
+
+IMEs like Mozc choose different data structures based on the use case:
+
+* **System Dictionary (Static)**: Since it is not rewritten after construction, **LOUDS** (extreme compression) or **Double Array** (fastest lookup) are chosen.
+* **User Dictionary (Dynamic)**: Due to frequent additions and deletions, **B-trees** or **Hash Tables**, which are more resilient to updates than Tries, are typically used.
+
+### Suitability in Japanese Environments
+
+| Structure | Suitability | Features |
+| :--- | :--- | :--- |
+| **Pointer-based** | Low | Excessive memory consumption. Not suitable for mobile or background PC software. |
+| **Double Array** | **High (Lookup)** | Fastest speed. Cache efficiency is key when traversing deeper trees due to UTF-8 decomposition. |
+| **LOUDS** | **High (Compression)** | Smallest size. Powerful in memory-constrained environments like mobile devices. |
+| **Radix Tree** | Medium | Effective for long readings. Concepts are sometimes integrated into LOUDS internal optimizations. |
+
+---
+
 ## Summary
 
-* Succinct is more about an **efficient, operable memory representation** than just "compression."
-* In Go, favoring array-centric implementations yields better locality and predictability.
+* **Radix Tree**: "Structural efficiency" by pruning redundant nodes.
+* **Double Array**: "Lookup efficiency" by reducing it to array operations.
+* **Succinct (LOUDS)**: "Memory efficiency" by representing the tree as bits.
+* In Go, choose your weapon (Radix for routing, DAT for static dictionaries, LOUDS for billions of words) based on the specific constraints of your use case.
 * Don't implement everything at once; introduce phases in the order of `BitVector -> rank/select -> LOUDS`.
