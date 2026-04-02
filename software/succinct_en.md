@@ -148,13 +148,253 @@ This method represents the Trie using only two integer arrays (`base` and `check
 
 ### Pros
 
-* **Blazing Fast**: Transition achieved via simple array index access ($O(1)$ per character).
+* **Blazing Fast**: Transition achieved via simple array index access (O(1) per character).
 * **Pointer-less**: Densely packed in memory, leading to excellent cache efficiency.
 
 ### Cons
 
 * **Construction Cost**: Heavy construction as it requires searching for empty slots while filling.
 * **Dynamic Updates**: Primarily suitable for static dictionaries.
+
+### Conversion Flow
+
+```mermaid
+flowchart LR
+    T["Trie"] --> A["Assign state numbers to each node"]
+    A --> B["Determine base[s]<br>(Find position where children don't collide)"]
+    B --> C["next = base[s] + code(c)<br>Record check[next] = s"]
+    C --> D["Set term flag for<br>terminal nodes"]
+```
+
+### Example (`app`, `apple`, `ban` - 3 words)
+
+First, let's visualize the Trie.
+
+```text
+root
+├─ a (code=97)
+│  └─ p (code=112)
+│     └─ p * (code=112, Terminate: "app")
+│        └─ l (code=108)
+│           └─ e * (code=101, Terminate: "apple")
+└─ b (code=98)
+   └─ a (code=97)
+      └─ n * (code=110, Terminate: "ban")
+```
+
+Next, assign state numbers (starting from 0, BFS order) and map them into `base/check`.
+
+```text
+State assignment (BFS order):
+  0=root, 1=a, 2=b, 3=p(p of app), 4=a(a of ban), 5=p(pp of app), 6=n, 7=l, 8=e
+
+base[0] = 0  → child 'a'(97) is next=0+97=97, child 'b'(98) is next=0+98=98
+             (Choose base[0] such that it doesn't collide)
+
+Simplified representation:
+
+ state | base | check | term
+-------|------|-------|------
+   0   |  1   |  -1   |  0    ← root
+   1   |  2   |   0   |  0    ← 'a'
+   2   |  3   |   0   |  0    ← 'b'
+   3   |  4   |   1   |  0    ← 'p'
+   4   |  5   |   2   |  0    ← 'a'
+   5   |  6   |   3   |  1    ← 'p' (end of "app")
+   6   |  -   |   4   |  1    ← 'n' (end of "ban")
+   7   |  8   |   5   |  0    ← 'l'
+   8   |  -   |   7   |  1    ← 'e' (end of "apple")
+
+Transition Example: Search "app"
+  s=0, 'a' → next = base[0] + code('a') = ...
+  (See the Go code below for the actual implementation details)
+```
+
+> [!NOTE]
+> The actual value of `base` is determined as an "index offset where all children do not collide." The table above is a simplified version for conceptual understanding.
+
+### Visualizing the Transformation
+
+```mermaid
+graph TD
+    subgraph "Pointer Trie (Before Conversion)"
+        R0["root"] --> A0["a"]
+        R0 --> B0["b"]
+        A0 --> P10["p"]
+        P10 --> P20["p *"]
+        P20 --> L0["l"]
+        L0 --> E0["e *"]
+        B0 --> BA0["a"]
+        BA0 --> N0["n *"]
+    end
+    subgraph "Double Array (After Conversion)"
+        direction LR
+        T1["base[]:<br>[1,2,3,4,5,6,-,8,-]"]
+        T2["check[]:<br>[-1,0,0,1,2,3,-,5,-]"]
+        T3["term[]:<br>[0,0,0,0,0,1,-,0,1]"]
+    end
+    P20 -. "No pointers<br>Replaced by array access" .-> T1
+```
+
+### Go Implementation Example
+
+A simple Double Array Trie construction and search (limited to lowercase alphabet).
+
+```go
+package main
+
+import "fmt"
+
+const (
+	alphabetSize = 26
+	base0        = 1 // Offset for character codes ('a'=1)
+)
+
+// DoubleArrayTrie represents a Trie with three arrays: base, check, and term.
+// base[s] + code(c) = next state, and check[next] == s verifies the transition.
+type DoubleArrayTrie struct {
+	base  []int
+	check []int
+	term  []bool
+}
+
+// newDAT initializes with small slice sizes.
+func newDAT(size int) *DoubleArrayTrie {
+	d := &DoubleArrayTrie{
+		base:  make([]int, size),
+		check: make([]int, size),
+		term:  make([]bool, size),
+	}
+	for i := range d.check {
+		d.check[i] = -1 // Unused
+	}
+	return d
+}
+
+// code converts byte c to a 1-based integer ('a'=1, 'b'=2, ...).
+func code(c byte) int { return int(c-'a') + 1 }
+
+// Build constructs a Double Array from a list of words (minimal demo).
+// Requirement: words must be sorted and contain lowercase alphabet only.
+func Build(words []string) *DoubleArrayTrie {
+	// First, create a pointer-based Trie, then convert to DA.
+	type node struct {
+		children [alphabetSize + 1]*node
+		isWord   bool
+	}
+	insert := func(root *node, word string) {
+		n := root
+		for i := 0; i < len(word); i++ {
+			idx := code(word[i])
+			if n.children[idx] == nil {
+				n.children[idx] = &node{}
+			}
+			n = n.children[idx]
+		}
+		n.isWord = true
+	}
+
+	root := &node{}
+	for _, w := range words {
+		insert(root, w)
+	}
+
+	dat := newDAT(1024)
+	dat.check[0] = 0 // Root's check is itself or 0
+
+	// Pack into DA using BFS.
+	type item struct {
+		n     *node
+		state int
+	}
+	queue := []item{{root, 0}}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+
+		if cur.n.isWord {
+			dat.term[cur.state] = true
+		}
+
+		// Collect children.
+		var children []int
+		for c := 1; c <= alphabetSize; c++ {
+			if cur.n.children[c] != nil {
+				children = append(children, c)
+			}
+		}
+		if len(children) == 0 {
+			continue
+		}
+
+		// Find base: minimum value b such that base[s] + children[i] are all empty slots.
+		b := 1
+	outer:
+		for {
+			ok := true
+			for _, c := range children {
+				next := b + c
+				if next >= len(dat.base) || dat.check[next] != -1 {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				break outer
+			}
+			b++
+			// Expand arrays if necessary.
+			for b+alphabetSize >= len(dat.base) {
+				dat.base = append(dat.base, make([]int, 256)...)
+				dat.check = append(dat.check, make([]int, 256)...)
+				dat.term = append(dat.term, make([]bool, 256)...)
+				for i := len(dat.check) - 256; i < len(dat.check); i++ {
+					dat.check[i] = -1
+				}
+			}
+		}
+
+		dat.base[cur.state] = b
+		for _, c := range children {
+			next := b + c
+			dat.check[next] = cur.state
+			queue = append(queue, item{cur.n.children[c], next})
+		}
+	}
+	return dat
+}
+
+// Search determines if the word is in the dictionary.
+func (d *DoubleArrayTrie) Search(word string) bool {
+	s := 0
+	for i := 0; i < len(word); i++ {
+		c := code(word[i])
+		next := d.base[s] + c
+		if next < 0 || next >= len(d.check) || d.check[next] != s {
+			return false
+		}
+		s = next
+	}
+	return d.term[s]
+}
+
+func main() {
+	words := []string{"app", "apple", "ban"}
+	dat := Build(words)
+
+	tests := []string{"app", "apple", "ap", "ban", "band", "ban"}
+	for _, w := range tests {
+		fmt.Printf("Search(%q) = %v\n", w, dat.Search(w))
+	}
+}
+```
+
+### Key Understanding Points
+
+* `base[s] + code(c)` becomes the next state number (replaces pointers).
+* `check[next] == s` verifies if the transition actually originated from this parent.
+* The `base` value is searched as the "minimum offset where all children fit into empty slots."
+* In production, this is often combined with pre-calculating array sizes, sparse compression, or DAFSA.
 
 ---
 

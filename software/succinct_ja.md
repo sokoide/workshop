@@ -148,13 +148,264 @@ graph TD
 
 ### メリット
 
-* **爆速**: 配列の添字アクセスのみで遷移できる（$O(1)$ per character）。
+* **爆速**: 配列の添字アクセスのみで遷移できる（O(1) per character）。
 * **ポインタレス**: 連続したメモリ領域に配置されるためキャッシュ効率が良い。
 
 ### デメリット
 
 * **構築コスト**: 空きスペースを探しながら埋める必要があり、構築が重い。
 * **動的更新**: 基本的に静的な辞書向き。
+
+### 変換の流れ
+
+```mermaid
+flowchart LR
+    T["Trie"] --> A["各ノードに状態番号を割り当て"]
+    A --> B["base[s] を決める<br>（子が衝突しない位置を探す）"]
+    B --> C["next = base[s] + code(c)<br>check[next] = s で記録"]
+    C --> D["終端ノードに<br>term フラグを立てる"]
+```
+
+### 例（`app`, `apple`, `ban` の 3 単語）
+
+まず Trie を描きます。
+
+```text
+root
+├─ a (code=97)
+│  └─ p (code=112)
+│     └─ p * (code=112, 終端: "app")
+│        └─ l (code=108)
+│           └─ e * (code=101, 終端: "apple")
+└─ b (code=98)
+   └─ a (code=97)
+      └─ n * (code=110, 終端: "ban")
+```
+
+次に各ノードへ状態番号（0 始まり）を割り当て、`base/check` に落とし込みます。
+
+```text
+状態番号の割り当て（BFS 順）:
+  0=root, 1=a, 2=b, 3=p(appのp), 4=a(banのa), 5=p(appのpp), 6=n, 7=l, 8=e
+
+base[0] = 0  → 子 'a'(97) は next=0+97=97, 子 'b'(98) は next=0+98=98
+             (衝突しない位置 base[0] を選ぶ)
+
+簡略化して示すと:
+
+ state | base | check | term
+-------|------|-------|------
+   0   |  1   |  -1   |  0    ← root
+   1   |  2   |   0   |  0    ← 'a'
+   2   |  3   |   0   |  0    ← 'b'
+   3   |  4   |   1   |  0    ← 'p'
+   4   |  5   |   2   |  0    ← 'a'
+   5   |  6   |   3   |  1    ← 'p' (app の終端)
+   6   |  -   |   4   |  1    ← 'n' (ban の終端)
+   7   |  8   |   5   |  0    ← 'l'
+   8   |  -   |   7   |  1    ← 'e' (apple の終端)
+
+遷移例: "app" を検索
+  s=0, 'a' → next = base[0] + code('a') = 1+97-96 = ...
+  （実際の実装は後述の Go コードを参照）
+```
+
+> [!NOTE]
+> 実際の `base` の値は「すべての子が衝突しない添字オフセット」として決まります。上表は概念を示す簡略版です。コードと合わせて読んでください。
+
+### 何が起きているかを図で見る
+
+```mermaid
+graph TD
+    subgraph "ポインタ Trie（変換前）"
+        R0["root"] --> A0["a"]
+        R0 --> B0["b"]
+        A0 --> P10["p"]
+        P10 --> P20["p *"]
+        P20 --> L0["l"]
+        L0 --> E0["e *"]
+        B0 --> BA0["a"]
+        BA0 --> N0["n *"]
+    end
+    subgraph "Double Array（変換後）"
+        direction LR
+        T1["base[]:<br>[1,2,3,4,5,6,-,8,-]"]
+        T2["check[]:<br>[-1,0,0,1,2,3,-,5,-]"]
+        T3["term[]:<br>[0,0,0,0,0,1,-,0,1]"]
+    end
+    P20 -. "ポインタなし<br>配列参照で代替" .-> T1
+```
+
+### Go 実装例
+
+シンプルな Double Array Trie（アルファベット小文字限定）の構築と検索です。
+
+```go
+package main
+
+import "fmt"
+
+const (
+	alphabetSize = 26
+	base0        = 1 // 文字コードのオフセット（'a'=1 として扱う）
+)
+
+// DoubleArrayTrie は base, check, term の 3 配列で Trie を表す。
+// base[s] + code(c) = 次の状態, check[next] == s で遷移を検証する。
+type DoubleArrayTrie struct {
+	base  []int
+	check []int
+	term  []bool
+}
+
+// newDAT は小さいスロット数で初期化する。
+func newDAT(size int) *DoubleArrayTrie {
+	d := &DoubleArrayTrie{
+		base:  make([]int, size),
+		check: make([]int, size),
+		term:  make([]bool, size),
+	}
+	for i := range d.check {
+		d.check[i] = -1 // 未使用
+	}
+	return d
+}
+
+// code は文字 c を 1-based の整数に変換する（'a'=1, 'b'=2, ...）。
+func code(c byte) int { return int(c-'a') + 1 }
+
+// Build は単語リストから Double Array を構築する（最小デモ実装）。
+// 前提: 単語は事前ソート済み・アルファベット小文字のみ。
+func Build(words []string) *DoubleArrayTrie {
+	// まずポインタ Trie を作り、その後 DA に変換する。
+	type node struct {
+		children [alphabetSize + 1]*node
+		isWord   bool
+	}
+	insert := func(root *node, word string) {
+		n := root
+		for i := 0; i < len(word); i++ {
+			idx := code(word[i])
+			if n.children[idx] == nil {
+				n.children[idx] = &node{}
+			}
+			n = n.children[idx]
+		}
+		n.isWord = true
+	}
+
+	root := &node{}
+	for _, w := range words {
+		insert(root, w)
+	}
+
+	dat := newDAT(1024)
+	dat.check[0] = 0 // root の check は自分自身 or 0
+
+	// BFS で DA に詰める。
+	type item struct {
+		n     *node
+		state int
+	}
+	queue := []item{{root, 0}}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+
+		if cur.n.isWord {
+			dat.term[cur.state] = true
+		}
+
+		// 子を収集する。
+		var children []int
+		for c := 1; c <= alphabetSize; c++ {
+			if cur.n.children[c] != nil {
+				children = append(children, c)
+			}
+		}
+		if len(children) == 0 {
+			continue
+		}
+
+		// base を探す: base[s] + children[i] がすべて空きスロットになる最小値。
+		b := 1
+	outer:
+		for {
+			ok := true
+			for _, c := range children {
+				next := b + c
+				if next >= len(dat.base) || dat.check[next] != -1 {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				break outer
+			}
+			b++
+			// 配列を必要に応じて拡張する。
+			for b+alphabetSize >= len(dat.base) {
+				dat.base = append(dat.base, make([]int, 256)...)
+				dat.check = append(dat.check, make([]int, 256)...)
+				dat.term = append(dat.term, make([]bool, 256)...)
+				for i := len(dat.check) - 256; i < len(dat.check); i++ {
+					dat.check[i] = -1
+				}
+			}
+		}
+
+		dat.base[cur.state] = b
+		for _, c := range children {
+			next := b + c
+			dat.check[next] = cur.state
+			queue = append(queue, item{cur.n.children[c], next})
+		}
+	}
+	return dat
+}
+
+// Search は word が辞書に含まれるかを判定する。
+func (d *DoubleArrayTrie) Search(word string) bool {
+	s := 0
+	for i := 0; i < len(word); i++ {
+		c := code(word[i])
+		next := d.base[s] + c
+		if next < 0 || next >= len(d.check) || d.check[next] != s {
+			return false
+		}
+		s = next
+	}
+	return d.term[s]
+}
+
+func main() {
+	words := []string{"app", "apple", "ban"}
+	dat := Build(words)
+
+	tests := []string{"app", "apple", "ap", "ban", "band", "ban"}
+	for _, w := range tests {
+		fmt.Printf("Search(%q) = %v\n", w, dat.Search(w))
+	}
+}
+```
+
+実行結果:
+
+```text
+Search("app")   = true
+Search("apple") = true
+Search("ap")    = false
+Search("ban")   = true
+Search("band")  = false
+Search("ban")   = true
+```
+
+### このコードで理解すべき点
+
+* `base[s] + code(c)` が次の状態番号になる（ポインタの代わり）
+* `check[next] == s` で「その遷移が本当にこの親から来たものか」を検証する
+* `base` の値は「すべての子が空きスロットに入る最小オフセット」として探索する
+* 実運用では配列サイズを事前計算し、スパース圧縮や DAFSA を組み合わせることが多い
 
 ---
 
