@@ -1,4 +1,4 @@
-module github.com/sokoide/workshop/software/go_cache_patterns
+module github.com/sokoide/workshop/software/assets/go_cache_patterns
 
 go 1.25.5
 

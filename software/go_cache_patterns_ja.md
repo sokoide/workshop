@@ -240,7 +240,7 @@ flowchart TD
 
 ### リファレンス実装
 
-`software/go_cache_patterns/pattern1_ttl_cache/main.go`
+`software/assets/go_cache_patterns/pattern1_ttl_cache/main.go`
 
 ---
 
@@ -292,7 +292,7 @@ flowchart TD
 
 ### LRUリファレンス実装
 
-`software/go_cache_patterns/pattern2_lru_cache/main.go`
+`software/assets/go_cache_patterns/pattern2_lru_cache/main.go`
 
 ---
 
@@ -356,7 +356,7 @@ flowchart TD
 
 ### キャッシュアサイドのリファレンス実装
 
-`software/go_cache_patterns/pattern3_cache_aside_singleflight/main.go`
+`software/assets/go_cache_patterns/pattern3_cache_aside_singleflight/main.go`
 
 ---
 
@@ -417,7 +417,7 @@ flowchart TD
 
 ### Redisリファレンス実装
 
-`software/go_cache_patterns/pattern4_redis_cache/main.go`
+`software/assets/go_cache_patterns/pattern4_redis_cache/main.go`
 
 ---
 
@@ -471,4 +471,4 @@ flowchart TD
 
 ### ライトスルーのリファレンス実装
 
-`software/go_cache_patterns/pattern5_write_through/main.go`
+`software/assets/go_cache_patterns/pattern5_write_through/main.go`

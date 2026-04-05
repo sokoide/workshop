@@ -240,7 +240,7 @@ Typical use cases:
 
 ### Reference Implementation
 
-`software/go_mq_patterns/pattern1_simple_channel/main.go`
+`software/assets/go_mq_patterns/pattern1_simple_channel/main.go`
 
 ---
 
@@ -292,7 +292,7 @@ Fan-out enables:
 
 ### Fan-out Reference Implementation
 
-`software/go_mq_patterns/pattern2_fanout/main.go`
+`software/assets/go_mq_patterns/pattern2_fanout/main.go`
 
 ---
 
@@ -351,7 +351,7 @@ flowchart TD
 
 ### Worker Pool Reference Implementation
 
-`software/go_mq_patterns/pattern3_worker_pool/main.go`
+`software/assets/go_mq_patterns/pattern3_worker_pool/main.go`
 
 ---
 
@@ -414,7 +414,7 @@ flowchart TD
 
 ### Kafka Reference Implementation
 
-`software/go_mq_patterns/pattern4_kafka/main.go`
+`software/assets/go_mq_patterns/pattern4_kafka/main.go`
 
 ---
 
@@ -474,4 +474,4 @@ flowchart TD
 
 ### DLQ Reference Implementation
 
-`software/go_mq_patterns/pattern5_retry_dlq/main.go`
+`software/assets/go_mq_patterns/pattern5_retry_dlq/main.go`

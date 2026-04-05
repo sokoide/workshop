@@ -251,7 +251,7 @@ Typical use cases:
 
 ### Reference Implementation
 
-`software/go_cache_patterns/pattern1_ttl_cache/main.go`
+`software/assets/go_cache_patterns/pattern1_ttl_cache/main.go`
 
 ---
 
@@ -303,7 +303,7 @@ This makes the pattern production-ready for **memory-constrained environments**.
 
 ### LRU Reference Implementation
 
-`software/go_cache_patterns/pattern2_lru_cache/main.go`
+`software/assets/go_cache_patterns/pattern2_lru_cache/main.go`
 
 ---
 
@@ -367,7 +367,7 @@ If 200 goroutines request the same uncached key simultaneously:
 
 ### Cache-Aside Reference Implementation
 
-`software/go_cache_patterns/pattern3_cache_aside_singleflight/main.go`
+`software/assets/go_cache_patterns/pattern3_cache_aside_singleflight/main.go`
 
 ---
 
@@ -428,7 +428,7 @@ Minimal wrapper code required for production use.
 
 ### Redis Reference Implementation
 
-`software/go_cache_patterns/pattern4_redis_cache/main.go`
+`software/assets/go_cache_patterns/pattern4_redis_cache/main.go`
 
 ---
 
@@ -482,4 +482,4 @@ flowchart TD
 
 ### Write-Through Reference Implementation
 
-`software/go_cache_patterns/pattern5_write_through/main.go`
+`software/assets/go_cache_patterns/pattern5_write_through/main.go`

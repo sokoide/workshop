@@ -21,6 +21,7 @@ pb/
 .claude/
 .codex/
 .gemini/
+.omc/
 .serena/
 **/.serena/
 conductor/archive
