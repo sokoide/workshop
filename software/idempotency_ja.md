@@ -1,8 +1,20 @@
 # 冪等性（Idempotency）パターン：安全な再試行を実現する設計
 
+> **⏱️ 所要時間**: 約 45 分
+
 この実習では、分散システムにおいてネットワーク障害やタイムアウトが発生した際に安全に再試行を行うための「冪等性（Idempotency）」パターンを学びます。
 
 > **💡 用語集**: この実習で登場する[冪等性](glossary.md#software)や[再試行](glossary.md#software)、[デッドレターキュー](glossary.md#software)などの専門用語は [用語集](glossary.md) を参照してください。
+
+## 実装コード
+
+この実習の完全な実装は [`software/assets/idempotency/`](assets/idempotency/) にあります。
+
+```bash
+cd software/assets/idempotency
+ls -la
+# domain/  usecase/  infra/  main.go
+```
 
 ## ゴール
 
@@ -59,14 +71,14 @@ sequenceDiagram
 
 | メソッド | 冪等性 | 説明 |
 |---------|-------|------|
-| GET | ✅ あり | リソースの取得のみ |
-| HEAD | ✅ あり | ヘッダーの取得のみ |
-| PUT | ✅ あり | リソースの完全置換 |
-| DELETE | ✅ あり | リソースの削除（2回目は404） |
-| POST | ❌ なし | リソースの作成（副作用がある） |
-| PATCH | ⚠️ 依存 | 変更内容による |
+| GET | ✅ あり | リソースの取得のみ（副作用なし） |
+| HEAD | ✅ あり | ヘッダーの取得のみ（副作用なし） |
+| PUT | ✅ あり | リソースの完全置換（同じデータなら同じ結果） |
+| DELETE | ✅ あり | リソースの削除（2回目は404だが状態は同じ） |
+| POST | ❌ なし | リソースの作成（同じデータでも毎回新しいリソースが作成される） |
+| PATCH | ⚠️ 依存 | 変更内容による（絶対値なら冪等、相対値なら非冪等） |
 
-**重要**: POST はデフォルトで非冪等です。冪等性が必要な場合は追加の設計が必要です。
+**重要**: POST はデフォルトで非冪等です。同じリクエストを2回送ると、2つの異なるリソースが作成されます。冪等性が必要な場合は Idempotency Key パターンを使用します。
 
 ---
 
@@ -116,20 +128,35 @@ software/assets/idempotency/
 ### 1. データベースの起動
 
 ```bash
+# Podman の場合
 podman run -d --name idempotency-db \
   -e POSTGRES_USER=user \
   -e POSTGRES_PASSWORD=pass \
   -e POSTGRES_DB=idempotency \
   -p 5432:5432 \
   docker.io/library/postgres:alpine
+
+# Docker の場合（読み替え）
+docker run -d --name idempotency-db \
+  -e POSTGRES_USER=user \
+  -e POSTGRES_PASSWORD=pass \
+  -e POSTGRES_DB=idempotency \
+  -p 5432:5432 \
+  postgres:alpine
 ```
 
 ### 2. Redis の起動（キャッシュ用）
 
 ```bash
+# Podman の場合
 podman run -d --name idempotency-redis \
   -p 6379:6379 \
   docker.io/library/redis:alpine
+
+# Docker の場合（読み替え）
+docker run -d --name idempotency-redis \
+  -p 6379:6379 \
+  redis:alpine
 ```
 
 ### 3. プロジェクトのセットアップ

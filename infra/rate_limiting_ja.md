@@ -1,8 +1,20 @@
 # Rate Limiting 実習：Redis で作るリクエスト制限
 
+> **⏱️ 所要時間**: 約 60 分
+
 この実習では、Redis のデータ構造を活用して、API や Web サービスの過負荷を防ぐ「レート制限（Rate Limiting）」システムを構築します。
 
 > **💡 用語集**: この実習で登場する[Rate Limiting](glossary.md#network)や[Token Bucket](glossary.md#network)、[Sliding Window](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+
+## 実装コード
+
+この実習の完全な実装は [`infra/assets/rate_limiting/`](assets/rate_limiting/) にあります。
+
+```bash
+cd infra/assets/rate_limiting
+ls -la
+# domain/  usecase/  infra/  main.go
+```
 
 ## ゴール
 
@@ -96,6 +108,19 @@ sequenceDiagram
 **利点**: メモリ効率が良い、実装が簡単。
 **欠点**: 窓の境界でリクエストが集中する（2倍のトラフィックが発生可能）。
 
+#### 境界スパイク問題の具体例
+
+```
+制限: 10リクエスト/10秒
+
+時刻 00:09 に 10リクエスト → 許可（窓1: 0-10秒）
+時刻 00:11 に 10リクエスト → 許可（窓2: 10-20秒）
+
+結果: 2秒間に 20リクエスト = 設定の2倍のトラフィック！
+```
+
+この問題を解決するのがスライディング窓やトークンバケットです。
+
 ### 2. スライディング窓（Sliding Window）
 
 ```mermaid
@@ -160,7 +185,11 @@ infra/assets/rate_limiting/
 ### 1. Redis の起動
 
 ```bash
+# Podman の場合
 podman run -d --name rate-limit-redis -p 6379:6379 docker.io/library/redis:alpine
+
+# Docker の場合（読み替え）
+docker run -d --name rate-limit-redis -p 6379:6379 redis:alpine
 ```
 
 ### 2. プロジェクトのセットアップ
@@ -191,6 +220,8 @@ go run main.go -algorithm fixed-window -user user1 -limit 5 -window 10s
 
 ```go
 // Redis キーの例: rate_limit:{userID}:{window_start}
+// Unix時間をwindowSecondsで割ることで、同じ時間枠内では同じキーになる
+// 例: window=10s の場合、10:00:05 と 10:00:08 は同じキー "rate_limit:user1:123456789"
 key := fmt.Sprintf("rate_limit:%s:%d", userID, time.Now().Unix()/windowSeconds)
 count, _ := redis.Incr(ctx, key).Result()
 redis.Expire(ctx, key, windowDuration)
