@@ -28,7 +28,7 @@ Is a user involved?
               │
               └─ NO  → M2M (Client Credentials + Secret/Certificate)
                         (On-premises, connections from other clouds)
-```text
+```
 
 ---
 
@@ -97,7 +97,7 @@ To verify your configuration, decode the acquired token and inspect its contents
 ```bash
 # Decode token (without signature validation)
 echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
-```text
+```
 
 ### Claims to Verify
 
@@ -144,7 +144,7 @@ sequenceDiagram
     Workload->>API: Authorization: Bearer <JWT>
     API->>API: Validate iss / aud / roles / signature
     API-->>Workload: 200 OK
-```text
+```
 
 ### Setup Steps
 
@@ -176,7 +176,7 @@ By default, v1 tokens are issued. To use v2 tokens, follow these steps:
 "api": {
   "requestedAccessTokenVersion": 2
 }
-```text
+```
 
 > **Why v2**: In v2 tokens, `aud` becomes the API's client ID (GUID), simplifying the validation logic.
 >
@@ -195,7 +195,7 @@ Use `azidentity` from the Azure SDK for Go.
 ```bash
 go get github.com/Azure/azure-sdk-for-go/sdk/azidentity
 go get github.com/Azure/azure-sdk-for-go/sdk/azcore
-```text
+```
 
 #### 4-2. Go Code Example
 
@@ -293,7 +293,7 @@ func main() {
 		log.Fatal(err)
 	}
 }
-```text
+```
 
 #### 4-3. Execution Notes
 
@@ -351,7 +351,7 @@ az rest --method POST \
     \"resourceId\": \"${API_SP_OBJECT_ID}\",
     \"appRoleId\": \"${APP_ROLE_ID}\"
   }"
-```text
+```
 
 > **Important**: When a Managed Identity acquires a token, it usually doesn't hit Entra's `/token` directly. It uses the Azure Identity SDK or the local endpoint for Managed Identity.
 
@@ -382,7 +382,7 @@ sequenceDiagram
     Client->>API: Authorization: Bearer <JWT>
     API->>API: Validate iss / aud / scp / signature
     API-->>Client: 200 OK
-```text
+```
 
 ### Setup Steps
 
@@ -537,7 +537,7 @@ func main() {
 	log.Printf("Starting API server on port %s...", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
-```text
+```
 
 ### Implementation Notes
 
@@ -572,7 +572,7 @@ func main() {
 TENANT_ID=<tenant-id> \
 API_CLIENT_ID=<api-client-id> \
 go run main.go
-```text
+```
 
 ### 2. Acquire a Token and Test
 
@@ -592,7 +592,7 @@ go run main.go
 ```bash
 # Call the API with the acquired token
 curl -H "Authorization: Bearer <token>" http://localhost:8081/api/profile
-```text
+```
 
 #### For M2M (Using Azure CLI)
 
@@ -610,7 +610,7 @@ TOKEN=$(az account get-access-token \
 
 # API call
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
-```text
+```
 
 ### 3. Common Errors and Verification
 
@@ -647,7 +647,7 @@ If you encounter token validation errors, follow these steps:
 
 # Or use jq
 echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
-```text
+```
 
 #### 2. Claims to Verify (v2 Tokens)
 
@@ -659,7 +659,7 @@ echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
   "roles": ["Svc.Invoke"],      // For M2M flow
   "appid": "client-app-id"      // The requesting application ID
 }
-```text
+```
 
 #### 3. Common Mistakes
 
@@ -681,7 +681,7 @@ Expires On: 2026-03-23 ...
 ✅ API Call Success! (Status: 200 OK)
 Response Body:
 {"claims":{..., "roles":["Svc.Invoke"], ...}, "status":"ok", ...}
-```text
+```
 
 **Display when App Role is NOT assigned:**
 The token can be obtained from Entra ID, but if the API rejects it, you will see the following (note that token acquisition itself may timeout if the Managed Identity has no App Role assigned to any API):
@@ -694,7 +694,7 @@ Expires On: 2026-03-23 ...
 ⚠️ API Call Failed (Status: 403 Forbidden)
 Response Body:
 Forbidden: insufficient permissions
-```text
+```
 
 **Display when Managed Identity is not enabled or Entra ID denies token issuance:**
 If there is an issue with the Managed Identity configuration itself, an error like this will appear:
@@ -707,7 +707,7 @@ Attempted credentials:
 	ManagedIdentityCredential: managed identity timed out. See https://aka.ms/azsdk/go/identity/troubleshoot#dac for more information
 	AzureCLICredential: Azure CLI not found on path
 	AzureDeveloperCLICredential: Azure Developer CLI not found on path
-```text
+```
 
 ---
 

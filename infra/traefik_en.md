@@ -55,7 +55,7 @@ graph LR
     Traefik -- "Routing" --> App3
 
     Traefik -.->|Watch Events| PodmanSocket((Podman Socket))
-```text
+```
 
 ### Directory Structure
 
@@ -63,7 +63,7 @@ graph LR
 infra/assets/traefik/
 ├── docker-compose.yml      # Traefik and backend definition
 └── Makefile                # Operations commands
-```text
+```
 
 ---
 
@@ -106,13 +106,13 @@ services:
             - "traefik.enable=true"
             - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
             - "traefik.http.services.whoami.loadbalancer.server.port=80"
-```text
+```
 
 ### 2. Start Containers
 
 ```bash
 podman compose up -d
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -143,7 +143,7 @@ curl -H "Host: whoami.localhost" http://localhost
 # 2nd request
 curl -H "Host: whoami.localhost" http://localhost
 # Output: Hostname: <Container-ID-B>
-```text
+```
 
 **Check Point**: The output `Hostname` is the container ID. If a different ID is displayed for each request, load balancing is successful.
 _Note_: Just by launching multiple containers with the same `Host` rule in `docker-compose.yml`, Traefik automatically handles load balancing.
@@ -158,13 +158,13 @@ podman run -d --name nginx-demo \
   --label "traefik.http.routers.nginx.rule=Host(`localhost`) && PathPrefix(`/nginx`)" \
   --label "traefik.http.services.nginx.loadbalancer.server.port=80" \
   nginx:alpine
-```text
+```
 
 Verify:
 
 ```bash
 curl http://localhost/nginx
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -180,7 +180,7 @@ Try Middleware, a powerful feature of Traefik. Apply Basic Auth to specific rout
 # Generate password (user:password)
 htpasswd -nb user password
 # user:$apr1$Sr...
-```text
+```
 
 By adding labels and restarting the container, you can add an authentication layer without changing application code.
 
@@ -203,7 +203,7 @@ Traefik mainly handles "Edge (External to Internal)" traffic, while controlling 
 ```bash
 podman compose down
 podman rm -f nginx-demo
-```text
+```
 
 ---
 

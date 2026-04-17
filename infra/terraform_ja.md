@@ -28,7 +28,7 @@ graph LR
     Router -- "3. dig @a server.foo.sokoide.com" --> A
     A -- "4. 問い合わせをbへ転送" --> B
     B -- "5. Aレコードを返す" --> A
-```text
+```
 
 **この実習で習得すること:**
 
@@ -72,7 +72,7 @@ terraform-handson/
     ├── Dockerfile        # CoreDNSイメージ用
     ├── main.tf           # コンテナ・NW定義
     └── versions.tf       # プロバイダー設定
-```text
+```
 
 ---
 
@@ -89,7 +89,7 @@ resource "local_file" "hello" {
   content  = "hello-terraform"
   filename = "${path.module}/hello.txt"
 }
-```text
+```
 
 ### STEP 2: 初期化・計画・適用
 
@@ -98,7 +98,7 @@ cd part1
 terraform init    # プロバイダーのダウンロード
 terraform plan    # 変更内容の確認
 terraform apply   # 実行 (yes と入力)
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -120,7 +120,7 @@ variable "filename" {
 output "file_path" {
   value = local_file.hello.filename
 }
-```text
+```
 
 `main.tf` を修正して変数を参照します。
 
@@ -129,7 +129,7 @@ resource "local_file" "hello" {
   content  = "hello-terraform"
   filename = "${path.module}/${var.filename}"
 }
-```text
+```
 
 再び `terraform apply` を実行してください。
 
@@ -148,7 +148,7 @@ resource "local_file" "user_files" {
   content  = "hello, ${each.key}"
   filename = "${path.module}/${each.value}.txt"
 }
-```text
+```
 
 ※ `outputs.tf` が以前のリソース `local_file.hello` を参照している場合、エラーが発生します。STEP 4 を実行する前に `outputs.tf` を削除するか、コメントアウトしてください。
 
@@ -169,7 +169,7 @@ Podman 互換プロバイダーを使用し、複雑なネットワーク構成�
 
 ```bash
 cd ../part2
-```text
+```
 
 `Dockerfile` を作成します。
 
@@ -180,13 +180,13 @@ RUN wget https://github.com/coredns/coredns/releases/download/v${COREDNS_VERSION
     tar -xvzf /tmp/coredns.tgz -C /usr/local/bin/ && \
     rm /tmp/coredns.tgz
 CMD ["/usr/local/bin/coredns", "-conf", "/etc/coredns/Corefile"]
-```text
+```
 
 Podman でイメージをビルドします。
 
 ```bash
 podman build -t coredns-handson .
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -206,7 +206,7 @@ terraform {
     }
   }
 }
-```text
+```
 
 ### STEP 2: コンテナとネットワークの定義
 
@@ -304,7 +304,7 @@ resource "docker_container" "router" {
     name = docker_network.net_a.name
   }
 }
-```text
+```
 
 ### STEP 3: 環境のデプロイと検証
 
@@ -312,7 +312,7 @@ resource "docker_container" "router" {
 cd ../part2
 terraform init
 terraform apply
-```text
+```
 
 構築後、`router` コンテナに入って `dig` コマンドで名前解決をテストします。
 
@@ -322,7 +322,7 @@ podman exec -it container-router sh
 apk add bind-tools
 # Aレコードの直接解決をテスト
 dig @192.168.10.10 server.foo.sokoide.com
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -336,7 +336,7 @@ dig @192.168.10.10 server.foo.sokoide.com
 
 ```bash
 terraform destroy
-```text
+```
 
 ※ すべてのコンテナ、ネットワーク、一時ファイルが一括で削除されます。
 

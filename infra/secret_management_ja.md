@@ -77,7 +77,7 @@ graph TB
     VA -.->|実装| Repo
     VA --> SDK
     SDK --> V
-```text
+```
 
 ### 想定ディレクトリ構造
 
@@ -89,7 +89,7 @@ infra/assets/secret_management/
 ├── infra/                      # Vault アダプターの実装
 ├── Makefile                    # コンテナ管理コマンド
 └── go.mod
-```text
+```
 
 ---
 
@@ -100,14 +100,14 @@ infra/assets/secret_management/
 ```bash
 cd infra/assets/secret_management
 make vault-up
-```text
+```
 
 ### 2. KV v2 シークレットエンジンの有効化
 
 ```bash
 # コンテナ内で初期化を実行
 make init
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -130,7 +130,7 @@ make init
 go run cmd/put-secret/main.go api/external-key "sk-live-abc123xyz789"
 # 取得
 go run cmd/get-secret/main.go api/external-key
-```text
+```
 
 ### STEP 3: 実践例 - API クライアント
 
@@ -138,7 +138,7 @@ go run cmd/get-secret/main.go api/external-key
 
 ```bash
 go run cmd/api-client/main.go
-```text
+```
 
 ### STEP 4: バージョニングとローテーション
 
@@ -149,7 +149,7 @@ Vault KV v2 では、同じキーに新しい値を書き込むと自動的に�
 go run cmd/put-secret/main.go api/key "new-value"
 # 履歴確認 (コンテナ内コマンド)
 podman exec workshop-vault vault kv metadata get secret/api/key
-```text
+```
 
 `internal/usecase` レイヤーのコードを見て、Vault への依存が一切ない（`internal/domain` のインターフェースにのみ依存している）ことを確認してください。
 
@@ -171,7 +171,7 @@ podman exec workshop-vault vault kv metadata get secret/api/key
 
 ```bash
 make vault-down
-```text
+```
 
 ---
 

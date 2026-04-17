@@ -14,7 +14,7 @@
 cd infra/assets/rate_limiting
 ls -la
 # domain/  usecase/  infra/  main.go
-```text
+```
 
 ## ゴール
 
@@ -49,7 +49,7 @@ graph LR
     Decide -->|Deny| API
     Check --> Algorithms
     Algorithms --> Redis
-```text
+```
 
 **この実習で理解すること:**
 
@@ -103,10 +103,10 @@ sequenceDiagram
     RL->>R: INCR rate_limit:user123:10:00:00
     R-->>RL: 11
     RL-->>C: Deny (11/10)
-```text
+```
 
 **利点**: メモリ効率が良い、実装が簡単。
-**欠点**: 窓の境界でリクエストが集中する（2倍のトラフィックが発生可能）。
+**欠点**: 窓の境界でリクエストが集中する（2 倍のトラフィックが発生可能）。
 
 #### 境界スパイク問題の具体例
 
@@ -117,7 +117,7 @@ sequenceDiagram
 時刻 00:11 に 10リクエスト → 許可（窓2: 10-20秒）
 
 結果: 2秒間に 20リクエスト = 設定の2倍のトラフィック！
-```text
+```
 
 この問題を解決するのがスライディング窓やトークンバケットです。
 
@@ -138,7 +138,7 @@ graph LR
     T3 -. Active .-> Current
 
     Count[Count = T2_Weight + T3_Count]
-```text
+```
 
 **利点**: 滑らかな制限、境界でのスパイクがない。
 **欠点**: 計算コストが高い、メモリ使用量が増える。
@@ -158,7 +158,7 @@ graph LR
     Tokens -->|Available| Allow[Allow]
 
     Rate -.-> Tokens
-```text
+```
 
 **利点**: バースト許容、柔軟なレート設定。
 **欠点**: 複雑なパラメータ調整。
@@ -176,7 +176,7 @@ infra/assets/rate_limiting/
 ├── infra/          # Redis アダプター
 ├── cmd/            # テスト用 CLI
 └── main.go         # エントリーポイント
-```text
+```
 
 ---
 
@@ -190,14 +190,14 @@ podman run -d --name rate-limit-redis -p 6379:6379 docker.io/library/redis:alpin
 
 # Docker の場合（読み替え）
 docker run -d --name rate-limit-redis -p 6379:6379 redis:alpine
-```text
+```
 
 ### 2. プロジェクトのセットアップ
 
 ```bash
 cd infra/assets/rate_limiting
 go mod tidy
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -214,7 +214,7 @@ go mod tidy
 ```bash
 # 10秒間に最大5リクエスト
 go run main.go -algorithm fixed-window -user user1 -limit 5 -window 10s
-```text
+```
 
 **実装のポイント:**
 
@@ -225,11 +225,11 @@ go run main.go -algorithm fixed-window -user user1 -limit 5 -window 10s
 key := fmt.Sprintf("rate_limit:%s:%d", userID, time.Now().Unix()/windowSeconds)
 count, _ := redis.Incr(ctx, key).Result()
 redis.Expire(ctx, key, windowDuration)
-```text
+```
 
 ### ✅ チェックポイント
 
-- [ ] 5リクエスト成功後、6回目が拒否されることを確認した
+- [ ] 5 リクエスト成功後、6 回目が拒否されることを確認した
 - [ ] 次の時間枠でリセットされることを確認した
 
 ### STEP 2: スライディング窓の実装
@@ -239,7 +239,7 @@ redis.Expire(ctx, key, windowDuration)
 ```bash
 # 直近10秒間に最大5リクエスト
 go run main.go -algorithm sliding-window -user user2 -limit 5 -window 10s
-```text
+```
 
 **実装のポイント:**
 
@@ -253,7 +253,7 @@ oldWindowCount := redis.Get(ctx, key(oldWindowStart))
 elapsed := now % windowSeconds
 weightedOldCount := float64(oldWindowCount) * (1 - float64(elapsed)/float64(windowSeconds))
 currentCount := weightedOldCount + currentWindowCount
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -267,7 +267,7 @@ currentCount := weightedOldCount + currentWindowCount
 ```bash
 # 容量10、補充レート1/秒
 go run main.go -algorithm token-bucket -user user3 -capacity 10 -rate 1
-```text
+```
 
 **実装のポイント:**
 
@@ -283,7 +283,7 @@ if currentTokens >= requestedTokens {
     redis.Set(ctx, "tokens:"+userID, currentTokens - requestedTokens)
     return true
 }
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -300,7 +300,7 @@ for i in {1..20}; do
   curl -s http://localhost:8080/api?user=test
   sleep 0.5
 done
-```text
+```
 
 | アルゴリズム | 境界での挙動 | メモリ使用 | CPU 使用 | バースト許容 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -321,7 +321,7 @@ type RateLimiter interface {
     Allow(ctx context.Context, userID string) (bool, error)
     Reset(ctx context.Context, userID string) error
 }
-```text
+```
 
 **Usecase（アルゴリズム実装）:**
 
@@ -335,7 +335,7 @@ type FixedWindowLimiter struct {
 func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, error) {
     // 実装...
 }
-```text
+```
 
 **Infra（Redis アダプター）:**
 
@@ -343,7 +343,7 @@ func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, er
 type RedisRepository struct {
     client *redis.Client
 }
-```text
+```
 
 ---
 
@@ -352,7 +352,7 @@ type RedisRepository struct {
 ```bash
 podman stop rate-limit-redis
 podman rm rate-limit-redis
-```text
+```
 
 ---
 
@@ -389,7 +389,7 @@ local key = KEYS[1]
 local now = tonumber(ARGV[1])
 local window = tonumber(ARGV[2])
 -- ... 処理 ...
-```text
+```
 
 ---
 
@@ -402,7 +402,7 @@ Homebrew で Redis をインストールすることも可能です。
 ```bash
 brew install redis
 brew services start redis
-```text
+```
 
 ### Windows の場合
 

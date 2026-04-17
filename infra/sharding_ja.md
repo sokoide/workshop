@@ -242,7 +242,7 @@ graph LR
     R --> I2[Ingester B]
     R --> I3[Ingester C]
     Q[Querier] --> R
-```text
+```
 
 ### 概念対応
 

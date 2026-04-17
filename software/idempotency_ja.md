@@ -14,7 +14,7 @@
 cd software/assets/idempotency
 ls -la
 # domain/  usecase/  infra/  main.go
-```text
+```
 
 ## ゴール
 
@@ -39,7 +39,7 @@ sequenceDiagram
     Client->>API: POST /charge (idempotency-key: abc123)
     API->>DB: Check key → Found (skip)
     Note over DB: 前回と同じ結果を返す
-```text
+```
 
 **この実習で理解すること:**
 
@@ -55,7 +55,7 @@ sequenceDiagram
 
 ### ❌ 課題
 
-- **二重処理**: クライアントが応答を受け取る前に再試行すると、同じ処理が2回実行される。
+- **二重処理**: クライアントが応答を受け取る前に再試行すると、同じ処理が 2 回実行される。
 - **不整合**: 残高更新、在庫減少、課金処理などで重複が発生するとデータが破損する。
 - **曖昧な状態**: リクエストが処理されたかどうかが不明確になる。
 
@@ -78,7 +78,7 @@ sequenceDiagram
 | POST | ❌ なし | リソースの作成（同じデータでも毎回新しいリソースが作成される） |
 | PATCH | ⚠️ 依存 | 変更内容による（絶対値なら冪等、相対値なら非冪等） |
 
-**重要**: POST はデフォルトで非冪等です。同じリクエストを2回送ると、2つの異なるリソースが作成されます。冪等性が必要な場合は Idempotency Key パターンを使用します。
+**重要**: POST はデフォルトで非冪等です。同じリクエストを 2 回送ると、2 つの異なるリソースが作成されます。冪等性が必要な場合は Idempotency Key パターンを使用します。
 
 ---
 
@@ -100,7 +100,7 @@ flowchart TD
     I --> G
 
     G -- Yes --> J[キャッシュされた<br>結果を返却]
-```text
+```
 
 ---
 
@@ -119,7 +119,7 @@ software/assets/idempotency/
 ├── cmd/                     # CLI エントリーポイント
 │   └── main.go
 └── main.go                  # 依存注入
-```text
+```
 
 ---
 
@@ -143,7 +143,7 @@ docker run -d --name idempotency-db \
   -e POSTGRES_DB=idempotency \
   -p 5432:5432 \
   postgres:alpine
-```text
+```
 
 ### 2. Redis の起動（キャッシュ用）
 
@@ -157,14 +157,14 @@ podman run -d --name idempotency-redis \
 docker run -d --name idempotency-redis \
   -p 6379:6379 \
   redis:alpine
-```text
+```
 
 ### 3. プロジェクトのセットアップ
 
 ```bash
 cd software/assets/idempotency
 go mod tidy
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -186,9 +186,9 @@ go run main.go -action charge -user user1 -amount 100
 # タイムアウトを想定して再試行
 go run main.go -action charge -user user1 -amount 100
 # 残高: 800円（二重課金！）
-```text
+```
 
-**問題**: 同じ取引が2回処理され、残高が2回減少しました。
+**問題**: 同じ取引が 2 回処理され、残高が 2 回減少しました。
 
 ### ✅ チェックポイント
 
@@ -208,7 +208,7 @@ go run main.go -action charge -user user1 -amount 100 \
 go run main.go -action charge -user user1 -amount 100 \
   -idempotency-key abc123-def456-...
 # 残高: 900円（変わらず）、前回と同じ結果を返す
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -247,7 +247,7 @@ func (s *RedisIdempotencyStore) GetResult(ctx context.Context, key string) ([]by
 func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, result []byte) error {
     return s.client.Set(ctx, "idempotency:"+key, result, s.ttl).Err()
 }
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -284,7 +284,7 @@ func (uc *ChargeUsecase) Execute(ctx context.Context, req ChargeRequest) (*Charg
 
     return result, nil
 }
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -322,7 +322,7 @@ sequenceDiagram
     API->>Store: Save result
     Store-->>API: Saved
     API-->>C1: 200 OK
-```text
+```
 
 **実装方法**: Redis の `SETNX`（Set if Not eXists）を使用
 
@@ -333,7 +333,7 @@ if !locked {
     return nil, ErrRequestInProgress
 }
 defer redis.Del(ctx, "lock:"+key)
-```text
+```
 
 ### 2. Key の有効期限戦略
 
@@ -353,7 +353,7 @@ log.Printf("Charge request received: %v", req)
 
 // 残高更新のみ冪等性を保証
 result, err := uc.chargeWithIdempotency(ctx, req)
-```text
+```
 
 ---
 
@@ -362,7 +362,7 @@ result, err := uc.chargeWithIdempotency(ctx, req)
 ```bash
 podman stop idempotency-db idempotency-redis
 podman rm idempotency-db idempotency-redis
-```text
+```
 
 ---
 
@@ -391,7 +391,7 @@ podman rm idempotency-db idempotency-redis
 
 **原因と対処:**
 
-- **Lock の TTL**: ロックには必ず TTL（通常30秒）を設定してください
+- **Lock の TTL**: ロックには必ず TTL（通常 30 秒）を設定してください
 - **デッドロック検出**: 処理時間が TTL を超える場合は、バックオフと再試行を実装してください
 
 ### キャッシュと DB の不整合
@@ -416,7 +416,7 @@ Homebrew で PostgreSQL と Redis を直接インストールすることも可�
 brew install postgresql@14 redis
 brew services start postgresql@14
 brew services start redis
-```text
+```
 
 ### Windows の場合
 

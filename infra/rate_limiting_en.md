@@ -14,7 +14,7 @@ The complete implementation for this workshop can be found in [`infra/assets/rat
 cd infra/assets/rate_limiting
 ls -la
 # domain/  usecase/  infra/  main.go
-```text
+```
 
 ## Goal
 
@@ -49,7 +49,7 @@ graph LR
     Decide -->|Deny| API
     Check --> Algorithms
     Algorithms --> Redis
-```text
+```
 
 **What you will learn:**
 
@@ -103,7 +103,7 @@ sequenceDiagram
     RL->>R: INCR rate_limit:user123:10:00:00
     R-->>RL: 11
     RL-->>C: Deny (11/10)
-```text
+```
 
 **Pros**: Memory efficient, easy to implement.
 **Cons**: Traffic can double at window boundaries.
@@ -117,7 +117,7 @@ Time 00:09: 10 requests -> Allowed (Window 1: 0-10s)
 Time 00:11: 10 requests -> Allowed (Window 2: 10-20s)
 
 Result: 20 requests in 2 seconds = 2x the configured traffic!
-```text
+```
 
 Algorithms like Sliding Window or Token Bucket solve this issue.
 
@@ -138,7 +138,7 @@ graph LR
     T3 -. Active .-> Current
 
     Count[Count = T2_Weight + T3_Count]
-```text
+```
 
 **Pros**: Smooth limiting, no spikes at boundaries.
 **Cons**: Higher computational cost and memory usage.
@@ -158,7 +158,7 @@ graph LR
     Tokens -->|Available| Allow[Allow]
 
     Rate -.-> Tokens
-```text
+```
 
 **Pros**: Allows bursts, flexible rate settings.
 **Cons**: Complex parameter tuning.
@@ -176,7 +176,7 @@ infra/assets/rate_limiting/
 ├── infra/          # Redis adapter
 ├── cmd/            # Test CLI
 └── main.go         # Entry point
-```text
+```
 
 ---
 
@@ -190,14 +190,14 @@ podman run -d --name rate-limit-redis -p 6379:6379 docker.io/library/redis:alpin
 
 # For Docker (alternative)
 docker run -d --name rate-limit-redis -p 6379:6379 redis:alpine
-```text
+```
 
 ### 2. Project Setup
 
 ```bash
 cd infra/assets/rate_limiting
 go mod tidy
-```text
+```
 
 ### ✅ Checkpoint
 
@@ -214,7 +214,7 @@ Implement a counter per time window.
 ```bash
 # Max 5 requests per 10 seconds
 go run main.go -algorithm fixed-window -user user1 -limit 5 -window 10s
-```text
+```
 
 **Implementation Highlights:**
 
@@ -225,7 +225,7 @@ go run main.go -algorithm fixed-window -user user1 -limit 5 -window 10s
 key := fmt.Sprintf("rate_limit:%s:%d", userID, time.Now().Unix()/windowSeconds)
 count, _ := redis.Incr(ctx, key).Result()
 redis.Expire(ctx, key, windowDuration)
-```text
+```
 
 ### ✅ Checkpoint
 
@@ -239,7 +239,7 @@ Accurately count requests in the last N seconds.
 ```bash
 # Max 5 requests in the last 10 seconds
 go run main.go -algorithm sliding-window -user user2 -limit 5 -window 10s
-```text
+```
 
 **Implementation Highlights:**
 
@@ -253,7 +253,7 @@ oldWindowCount := redis.Get(ctx, key(oldWindowStart))
 elapsed := now % windowSeconds
 weightedOldCount := float64(oldWindowCount) * (1 - float64(elapsed)/float64(windowSeconds))
 currentCount := weightedOldCount + currentWindowCount
-```text
+```
 
 ### ✅ Checkpoint
 
@@ -267,7 +267,7 @@ Implement burstable rate limiting.
 ```bash
 # Capacity 10, Refill rate 1/sec
 go run main.go -algorithm token-bucket -user user3 -capacity 10 -rate 1
-```text
+```
 
 **Implementation Highlights:**
 
@@ -283,7 +283,7 @@ if currentTokens >= requestedTokens {
     redis.Set(ctx, "tokens:"+userID, currentTokens - requestedTokens)
     return true
 }
-```text
+```
 
 ### ✅ Checkpoint
 
@@ -300,7 +300,7 @@ for i in {1..20}; do
   curl -s http://localhost:8080/api?user=test
   sleep 0.5
 done
-```text
+```
 
 | Algorithm | Boundary Behavior | Memory Usage | CPU Usage | Burst Tolerance |
 | :--- | :--- | :--- | :--- | :--- |
@@ -321,7 +321,7 @@ type RateLimiter interface {
     Allow(ctx context.Context, userID string) (bool, error)
     Reset(ctx context.Context, userID string) error
 }
-```text
+```
 
 **Usecase (Algorithm Implementation):**
 
@@ -335,7 +335,7 @@ type FixedWindowLimiter struct {
 func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, error) {
     // Implementation...
 }
-```text
+```
 
 **Infra (Redis Adapter):**
 
@@ -343,7 +343,7 @@ func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, er
 type RedisRepository struct {
     client *redis.Client
 }
-```text
+```
 
 ---
 
@@ -352,7 +352,7 @@ type RedisRepository struct {
 ```bash
 podman stop rate-limit-redis
 podman rm rate-limit-redis
-```text
+```
 
 ---
 
@@ -389,7 +389,7 @@ local key = KEYS[1]
 local now = tonumber(ARGV[1])
 local window = tonumber(ARGV[2])
 -- ... processing ...
-```text
+```
 
 ---
 
@@ -402,7 +402,7 @@ You can also install Redis directly via Homebrew.
 ```bash
 brew install redis
 brew services start redis
-```text
+```
 
 ### Windows
 

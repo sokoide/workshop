@@ -36,7 +36,7 @@ graph TD
     RI_Impl -- "implements" --> RI
     RI_Impl --> DB
     UC --> Presenter
-```text
+```
 
 ---
 
@@ -89,7 +89,7 @@ import "context"
 type MembershipRepository interface {
 	IsMember(ctx context.Context, userID, groupID string) (bool, error)
 }
-```text
+```
 
 ### 2. UseCase Layer (Implementation)
 
@@ -119,7 +119,7 @@ func (uc *MembershipUseCase) Execute(ctx context.Context, userID, groupID string
 	// Domain-specific validation can be performed here if necessary.
 	return uc.repo.IsMember(ctx, userID, groupID)
 }
-```text
+```
 
 ### 3. Infra Adapters Layer (Implementation)
 
@@ -150,7 +150,7 @@ func (r *SQLMembershipRepository) IsMember(ctx context.Context, userID, groupID 
 	err := r.db.QueryRowContext(ctx, query, userID, groupID).Scan(&exists)
 	return exists, err
 }
-```text
+```
 
 ---
 
@@ -168,7 +168,7 @@ import "context"
 type MembershipChecker interface {
 	Execute(ctx context.Context, userID, groupID string) (bool, error)
 }
-```text
+```
 
 ```go
 // Example usage in a Web handler
@@ -185,7 +185,7 @@ func HandleCheckMembership(w http.ResponseWriter, r *http.Request) {
 	// 4. Return result as response
 	json.NewEncoder(w).Encode(map[string]bool{"is_member": isMember})
 }
-```text
+```
 
 ### Role of context.Context
 

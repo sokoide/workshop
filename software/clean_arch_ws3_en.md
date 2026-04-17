@@ -59,7 +59,7 @@ graph TD
     style Usecase fill: #555, stroke-width:2px
     style Domain fill: #555, stroke-width:2px
     style Infra fill: #555, stroke-width:2px
-```text
+```
 
 > **Note: Unifying External Interfaces**
 > `Customer` (the person ordering) and `Admin` (inventory manager) interact with the system via the appropriate API endpoints. The `Inventory REST Client` within the `Order Service` should be treated as calling an **external Inventory Service API, not the same-process Framework layer**, to avoid confusion about dependency direction.
@@ -100,7 +100,7 @@ type Order struct {
 	Status     OrderStatus
 	CreatedAt  time.Time
 }
-```text
+```
 
 **2. Define Interfaces (Ports) (`domain/repository/interfaces.go`)**
 **Abstract** how data is saved or how external services are accessed. The implementation of these interfaces will be done in Step 3.
@@ -119,7 +119,7 @@ type InventoryClient interface {
 type PaymentPublisher interface {
 	PublishPaymentTask(ctx context.Context, order *entity.Order) error
 }
-```text
+```
 
 ### Step 2: Implementing the Usecase Layer (`usecase/`)
 
@@ -140,7 +140,7 @@ func (u *CreateOrderUsecase) Execute(ctx context.Context, input CreateOrderInput
 	// 3. Save to database (using Repository)
 	// 4. Publish event
 }
-```text
+```
 
 The key point here is that `CreateOrderUsecase` does not know about the concrete database (e.g., Postgres) or communication protocols (REST/gRPC). It only knows the Ports (e.g., `OrderRepository`).
 
@@ -164,7 +164,7 @@ func (r *PostgresOrderRepository) Save(ctx context.Context, order *entity.Order)
 	// Actual SQL execution logic...
 	return nil
 }
-```text
+```
 
 **Error boundary note**
 
@@ -192,7 +192,7 @@ func main() {
 	// 3. Run
 	createOrderUsecase.Execute(ctx, input)
 }
-```text
+```
 
 > **Note: Composition Root vs Framework separation**
 > This sample keeps wiring and execution in `main.go` for simplicity. For stricter layering, keep `main.go` as composition root only, and move CLI/Web I/O handling into `framework/...`.
@@ -219,7 +219,7 @@ go mod tidy
 
 # Run the application
 go run main.go
-```text
+```
 
 ## Summary
 

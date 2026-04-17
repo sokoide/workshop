@@ -29,7 +29,7 @@ graph LR
     VIP -- "2. DNAT" --> DNAT
     DNAT -- "3. Forward" --> Pod
     Client -. "x Direct Ping x" .-x Pod
-```text
+```
 
 **What you will understand in this workshop:**
 
@@ -86,7 +86,7 @@ sudo podman exec b apk add --no-cache busybox-extras
 
 # Start a simple HTTP server on Container B (Port 80)
 sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello from Pod B' | nc -l -p 80; done"
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -100,7 +100,7 @@ To enforce the principle of "use Service IP instead of accessing Pod IP directly
 ```bash
 # Block forwarding at the Router (VLAN 10 -> VLAN 20)
 sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -115,7 +115,7 @@ Add an external-facing IP (`192.168.10.100`) to the router's public interface.
 
 ```bash
 sudo podman exec router ip addr add 192.168.10.100/32 dev eth1
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -133,7 +133,7 @@ Write a rule to forward access to the VIP to Pod B (the role of kube-proxy).
 sudo podman exec router iptables -t nat -A PREROUTING \
   -d 192.168.10.100 -p tcp --dport 80 \
   -j DNAT --to-destination 192.168.20.20:80
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -147,14 +147,14 @@ Rewrite the source IP to the router's IP to ensure responses correctly return vi
 sudo podman exec router iptables -t nat -A POSTROUTING \
   -d 192.168.20.20 -p tcp --dport 80 \
   -j MASQUERADE
-```text
+```
 
 ### STEP 6: Verify Operation
 
 ```bash
 # Access VIP
 # -> Should output "Hello from Pod B"!
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -181,7 +181,7 @@ Understanding both low-level packet manipulation (this workshop) and high-level 
 sudo podman exec router ip addr del 192.168.10.100/32 dev eth1
 # Delete firewall rule
 sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
-```text
+```
 
 ---
 

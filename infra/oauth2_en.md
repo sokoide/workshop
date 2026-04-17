@@ -57,7 +57,7 @@ graph LR
     CL -->|5. Bearer Token| RS["Resource Server<br>Go REST API"]
     RS -->|6. Signature Verification via JWKS| AS
     RS -->|7. Protected Resource| CL
-```text
+```
 
 ### Directory Layout
 
@@ -72,7 +72,7 @@ infra/assets/oauth2/
 │   ├── main.go              # Go Resource Server
 │   └── go.mod
 └── README.md                # Supplementary notes (optional)
-```text
+```
 
 ---
 
@@ -96,7 +96,7 @@ services:
 YAML
 
 podman compose up -d
-```text
+```
 
 Keycloak admin console: `http://localhost:8080`
 
@@ -148,7 +148,7 @@ graph LR
     KC -->|Access token| C
     C -->|Bearer access token| API["Resource Server"]
     API -->|If needed: introspection| KC
-```text
+```
 
 - `ID token`: tells the client who signed in
 - `access token`: tells the resource server whether the API call is allowed
@@ -213,7 +213,7 @@ flowchart TD
     A["Client"] -->|Bearer token| B["Resource Server"]
     B -->|Option 1: validate JWT locally| C["Check JWKS and claims"]
     B -->|Option 2: introspection| D["Ask Keycloak"]
-```text
+```
 
 Characteristics of direct JWT validation:
 
@@ -383,7 +383,7 @@ sequenceDiagram
     C->>A: Authorization: Bearer access_token
     A-->>C: /api/profile result
     C-->>U: Render token and API response as JSON
-```text
+```
 
 What the client app does:
 
@@ -412,14 +412,14 @@ Endpoints in this sample:
 ```go
 // client/main.go
 package main
-```text
+```
 
 Run it with:
 
 ```bash
 cd infra/assets/oauth2/client
 go run main.go
-```text
+```
 
 Then open `http://localhost:3000` in your browser and click `Login with Keycloak`.
 
@@ -532,7 +532,7 @@ func main() {
 	log.Println("Resource Server started on :8081")
 	log.Fatal(http.ListenAndServe(":8081", nil))
 }
-```text
+```
 
 Minimal run command:
 
@@ -540,7 +540,7 @@ Minimal run command:
 cd api
 go mod tidy
 go run main.go
-```text
+```
 
 API endpoints:
 
@@ -554,7 +554,7 @@ curl -i http://localhost:8081/health
 
 curl -i http://localhost:8081/api/profile \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
-```text
+```
 
 Expected results:
 
@@ -589,13 +589,13 @@ At a minimum, verify the following when validating a JWT:
 ```bash
 cd infra/assets/oauth2
 podman compose down
-```text
+```
 
 To completely remove data:
 
 ```bash
 podman rm -f workshop-keycloak
-```text
+```
 
 ---
 

@@ -21,7 +21,7 @@ graph TD
         HP1["Host PID 1234 (sh)"]
         HP2["Host PID 1235 (sh)"]
     end
-```text
+```
 
 **What you will learn in this workshop:**
 
@@ -62,7 +62,7 @@ We will directly call Linux kernel features to dynamically reconstruct the execu
 ├── rootfs.tar        # Exported image before extraction
 ├── main.go           # Source code for your custom runtime
 └── mycontainer       # Compiled binary
-```text
+```
 
 ---
 
@@ -76,7 +76,7 @@ We will directly call Linux kernel features to dynamically reconstruct the execu
 
 ```bash
 sudo apt update && sudo apt install -y podman golang-go iproute2
-```text
+```
 
 ---
 
@@ -94,7 +94,7 @@ podman export tmp-alpine > rootfs.tar
 podman rm tmp-alpine
 mkdir -p rootfs && tar -xf rootfs.tar -C rootfs
 cp /etc/resolv.conf rootfs/etc/resolv.conf
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -128,7 +128,7 @@ echo 0 | sudo tee /sys/fs/cgroup/workshop/memory.swap.max
 
 # Register process (Write the PID identified in another terminal)
 echo $TARGET_PID | sudo tee /sys/fs/cgroup/workshop/cgroup.procs
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -146,7 +146,7 @@ sudo ip link set veth-child netns container1
 # Host side IP setup
 sudo ip addr add 10.0.0.1/24 dev veth-host
 sudo ip link set veth-host up
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -161,7 +161,7 @@ Automate the previous operations using the `syscall` package (see `main.go` for 
 cmd.SysProcAttr = &syscall.SysProcAttr{
     Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET,
 }
-```text
+```
 
 ---
 

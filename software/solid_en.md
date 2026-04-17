@@ -32,7 +32,7 @@ func ProcessOrder(o Order, db *sql.DB, smtp SMTPClient) error {
 	// send email
 	return nil
 }
-```text
+```
 
 ```go
 // Example where tax rule changes require checking notification formatting too.
@@ -53,7 +53,7 @@ func ProcessOrder(o Order, db *sql.DB, smtp SMTPClient) error {
 	body := fmt.Sprintf("Order total: %d (%s)", o.Total, taxLabel)
 	return smtp.Send(o.Email, body)
 }
-```text
+```
 
 In this shape, tax rule changes also require checking/adjusting notification text behavior (`taxLabel`).
 You may not always edit notification code directly, but the impact-analysis scope is still wider.
@@ -119,7 +119,7 @@ type MailNotifier struct {
 func (n MailNotifier) SendOrderCreated(ctx context.Context, to, body string) error {
 	return n.client.Send(ctx, to, body)
 }
-```text
+```
 
 With separated responsibilities, pricing logic can be tested independently and notification implementations can be swapped independently.
 Tax-rule changes (10% -> 12%, reduced-tax condition changes, etc.) only touch `OrderPricer`; `MailNotifier` remains unchanged.
@@ -165,7 +165,7 @@ func Checkout(ctx context.Context, paymentType string, amount int) error {
 		return errors.New("unsupported payment type")
 	}
 }
-```text
+```
 
 ### Example: Adding a Payment Method
 
@@ -185,7 +185,7 @@ func (PayPayPayment) Pay(ctx context.Context, amount int) error { return nil }
 func Checkout(ctx context.Context, pm PaymentMethod, amount int) error {
 	return pm.Pay(ctx, amount)
 }
-```text
+```
 
 A new payment method can be added by implementing `PaymentMethod`, without modifying existing `Checkout` logic.
 
@@ -233,7 +233,7 @@ func Checkout(ctx context.Context, gw PaymentGateway, amount int) error {
 	// Caller expects failures to be returned as error.
 	return gw.Charge(ctx, amount)
 }
-```text
+```
 
 `Checkout` is written under the assumption that failures are returned as `error`.
 Replacing with `PanicGateway` breaks that assumption, so safe substitution no longer holds.
@@ -263,7 +263,7 @@ type UserService interface {
 	Find(ctx context.Context, id string) (User, error)
 	List(ctx context.Context) ([]User, error)
 }
-```text
+```
 
 ### Improved Example
 
@@ -275,7 +275,7 @@ type UserFinder interface {
 type UserCreator interface {
 	Create(ctx context.Context, u User) error
 }
-```text
+```
 
 A read-only use case depends only on `UserFinder`, minimizing coupling.
 
@@ -310,7 +310,7 @@ type CreateOrderUseCase struct {
 func (uc *CreateOrderUseCase) Execute(ctx context.Context, sku string, qty int) error {
 	return uc.inv.Reserve(ctx, sku, qty)
 }
-```text
+```
 
 When `infra` implements `InventoryGateway`, UseCase remains isolated from external-technology details.
 

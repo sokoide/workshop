@@ -23,7 +23,7 @@ The essence of network communication is "Encapsulation." Higher-layer data is wr
 | | +--------------------------------------------+ | |
 | +------------------------------------------------+ |
 +----------------------------------------------------+
-```text
+```
 
 ### Components to Implement
 
@@ -45,7 +45,7 @@ This workshop requires **Linux (Ubuntu 22.04/24.04 recommended)** as it involves
 
 ```bash
 sudo apt update && sudo apt install -y golang-go gcc tcpdump wireshark iproute2
-```text
+```
 
 ### 2. Project Structure
 
@@ -54,7 +54,7 @@ mkdir -p tcpip_stack/pkg/{rawsock,ethernet,ipv4,icmp}
 mkdir -p tcpip_stack/cmd/ping
 cd tcpip_stack
 go mod init github.com/sokoide/workshop/infra/assets/tcpip_stack
-```text
+```
 
 ### 3. Creating a "Safe" Sandbox (Network Namespace)
 
@@ -77,7 +77,7 @@ sudo ip netns exec workshop ip link set veth-ns up
 # 5. Assign IP addresses. Set .1 for host side and .2 for namespace side
 sudo ip addr add 192.168.100.1/24 dev veth-host
 sudo ip netns exec workshop ip addr add 192.168.100.2/24 dev veth-ns
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -137,7 +137,7 @@ int rawsock_set_promisc(int fd, const char *iface, int enable);
 #endif
 
 #endif // RAWSOCK_H
-```text
+```
 
 #### Implementation: C Source File (`pkg/rawsock/rawsock.c`)
 
@@ -263,7 +263,7 @@ int rawsock_set_promisc(int fd, const char *iface, int enable) {
 
     return 0;
 }
-```text
+```
 
 #### Implementation: Go Bindings (`pkg/rawsock/rawsock.go`)
 
@@ -354,7 +354,7 @@ func GetMAC(iface string) (net.HardwareAddr, error) {
 		byte(mac[3]), byte(mac[4]), byte(mac[5]),
 	}, nil
 }
-```text
+```
 
 #### Key Learning Points
 
@@ -373,7 +373,7 @@ Raw Socket (AF_PACKET)
 |   App     | <-- | Raw Ethernet frame (bytes)         |
 +-----------+     | Build headers from MAC layer up    |
                   +------------------------------------+
-```text
+```
 
 ##### socket() System Call Arguments
 
@@ -383,7 +383,7 @@ int fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 //              │          │         └─ Protocol: Receive all packets
 //              │          └─ Type: Raw data including headers
 //              └─ Family: Data link layer access
-```text
+```
 
 | Argument | Value                | Meaning                           |
 | :------- | :------------------- | :-------------------------------- |
@@ -428,7 +428,7 @@ import "C"
 
 // Pass Go memory directly to C using unsafe.Pointer (avoid copy)
 n := C.rawsock_recv(s.fd, unsafe.Pointer(&buf[0]), C.int(len(buf)))
-```text
+```
 
 - **Zero-Copy**: Pass Go slice address directly to C using `unsafe.Pointer`, avoiding memory copy
 - **Performance**: Microsecond-level speed is critical in packet processing
@@ -439,7 +439,7 @@ Normally, NIC only passes packets addressed to its own MAC or broadcast. Enablin
 
 ```c
 setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
-```text
+```
 
 ---
 
@@ -457,7 +457,7 @@ Ethernet controls communication with physically adjacent devices using MAC addre
 ├───────────────────┴───────────────────┴──────────────┴─────────────┤
 │                          Minimum 60 bytes                          │
 └────────────────────────────────────────────────────────────────────┘
-```text
+```
 
 #### Implementation: Ethernet Frame (`pkg/ethernet/frame.go`)
 
@@ -564,7 +564,7 @@ func IsMulticast(mac net.HardwareAddr) bool {
 	}
 	return mac[0]&0x01 == 0x01
 }
-```text
+```
 
 #### Key Learning Points
 
@@ -596,7 +596,7 @@ IPv4 enables communication between different network segments. It uses 32-bit IP
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                    Destination Address                        |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```text
+```
 
 #### Implementation: IPv4 Packet (`pkg/ipv4/packet.go`)
 
@@ -774,7 +774,7 @@ func (p *Packet) PseudoHeader() []byte {
 	binary.BigEndian.PutUint16(buf[10:12], uint16(len(p.Payload)))
 	return buf
 }
-```text
+```
 
 #### Key Learning Points
 
@@ -802,7 +802,7 @@ ICMP (Internet Control Message Protocol) is used for network diagnostics. The mo
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                             Data                              |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```text
+```
 
 #### Implementation: ICMP Message (`pkg/icmp/message.go`)
 
@@ -907,7 +907,7 @@ func (m *Message) IsEchoRequest() bool {
 func (m *Message) IsEchoReply() bool {
 	return m.Type == EchoReply
 }
-```text
+```
 
 #### Key Learning Points
 
@@ -1148,7 +1148,7 @@ func main() {
 
 	log.Println("TCP/IP stack shut down gracefully")
 }
-```text
+```
 
 ---
 
@@ -1159,14 +1159,14 @@ func main() {
 ```bash
 go mod tidy
 go build -o tcpip_stack main.go
-```text
+```
 
 ### 2. Start the Stack
 
 ```bash
 # Start on the host side of the created veth
 sudo ./tcpip_stack -iface veth-host
-```text
+```
 
 ### 3. Ping Test
 
@@ -1175,13 +1175,13 @@ From another terminal:
 ```bash
 # Ping from within the namespace
 sudo ip netns exec workshop ping 192.168.100.1
-```text
+```
 
 ### 4. Observe Packets
 
 ```bash
 sudo tcpdump -i veth-host -nn -vv icmp
-```text
+```
 
 ---
 
@@ -1202,7 +1202,7 @@ NIC --> Raw Socket --> Ethernet.Parse --> IPv4.Parse --> ICMP.Parse
 ==================== Send Path (Tx) ====================
 
 NIC <-- Raw Socket <-- Ethernet.Marshal <-- IPv4.Marshal <-- ICMP.Reply
-```text
+```
 
 **Legend:**
 
@@ -1247,7 +1247,7 @@ Step 4: ICMP.Parse
 ・[Type Check]: Check if Type is Echo Request (8)
   - Type = 8 → Generate Echo Reply and send
   - Otherwise → Drop
-```text
+```
 
 #### 2. Send Path (Right to Left)
 
@@ -1278,7 +1278,7 @@ Step 4: Raw Socket → NIC
 ────────────────────────
 ・Pass completed byte sequence to Raw Socket
 ・NIC transmits as electrical signal
-```text
+```
 
 ### Concrete Example: Ping Request-Reply Sequence
 
@@ -1312,7 +1312,7 @@ T4: Packet sent (Echo Reply)
     |
 T5: ping receives Reply
     "64 bytes from 192.168.100.1: icmp_seq=1 ttl=64"
-```text
+```
 
 ---
 
@@ -1321,7 +1321,7 @@ T5: ping receives Reply
 ```bash
 sudo ip link delete veth-host
 sudo ip netns delete workshop
-```text
+```
 
 ---
 

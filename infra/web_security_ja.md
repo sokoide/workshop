@@ -28,12 +28,12 @@ sequenceDiagram
     Note over A, S: 1. スクリプトを投稿 (<script>alert(1)</script>)
     A->>S: 投稿リクエスト
     Note over S: データベースに保存 (格納型)
-    
+
     Note over V, S: 2. ページを閲覧
     V->>S: GET /xss/stored
     S-->>V: HTML (スクリプトが含まれる)
     Note over V: スクリプトが実行される
-```text
+```
 
 ### CSRF (Cross-Site Request Forgery)
 
@@ -51,7 +51,7 @@ sequenceDiagram
     Note over V: フォームが（自動）送信される
     V->>S: 3. 不正リクエスト (Cookieが自動付与される)
     Note over S: ユーザー本人の操作として処理
-```text
+```
 
 ### クリックジャッキング (Clickjacking)
 
@@ -63,10 +63,10 @@ graph TD
         AttackerPage["攻撃者のページ (背景)"]
         VictimIframe["脆弱なサイトのiframe (透明)"]
     end
-    
+
     AttackerPage -->|重なっている| VictimIframe
     UserClick["ユーザーのクリック"] --> VictimIframe
-```text
+```
 
 ---
 
@@ -92,7 +92,7 @@ infra/assets/web_security/
 ├── go.mod
 ├── Dockerfile
 └── docker-compose.yml
-```text
+```
 
 ---
 
@@ -103,7 +103,7 @@ infra/assets/web_security/
 ```bash
 cd infra/assets/web_security
 podman compose up -d
-```text
+```
 
 ### 2. 動作確認
 
@@ -128,7 +128,7 @@ URL パラメータに含まれるスクリプトがそのままページに反�
 1. `反射型 XSS デモ` ページへ移動します。
 2. URL の末尾に `<script>alert(document.cookie);</script>` を追加してアクセスします。
    - `http://localhost:8080/xss/reflected?q=<script>alert(document.cookie);</script>`
-3. クッキー情報が表示されることを確認します（HttpOnly属性がないため取得可能です）。
+3. クッキー情報が表示されることを確認します（HttpOnly 属性がないため取得可能です）。
 
 ### STEP 3: CSRF (Cross-Site Request Forgery)
 
@@ -158,7 +158,7 @@ fmt.Fprintf(w, "<li>%s</li>", comment)
 
 // ✅ 安全な例: テンプレートエンジンを使用（自動エスケープ）
 // 詳細は Go の公式ドキュメントを参照してください
-```text
+```
 
 ### CSRF 対策
 
@@ -178,7 +178,7 @@ fmt.Fprintf(w, "<li>%s</li>", comment)
 
 ```bash
 podman compose down
-```text
+```
 
 ---
 

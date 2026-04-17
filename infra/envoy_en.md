@@ -47,7 +47,7 @@ graph LR
     end
 
     Envoy -.->|Stats/Admin| Admin[Admin Interface :9901]
-```text
+```
 
 ### Directory Structure
 
@@ -56,7 +56,7 @@ infra/assets/envoy/
 ├── envoy.yaml              # Envoy configuration file
 ├── docker-compose.yml      # Configuration definition
 └── app/                    # Test backend app (with delay/error generation features)
-```text
+```
 
 ---
 
@@ -109,14 +109,14 @@ static_resources:
                               address:
                                   socket_address:
                                       { address: backend, port_value: 80 }
-```text
+```
 
 ### 2. Start Environment
 
 ```bash
 cd infra/assets/envoy
 podman compose up -d
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -135,7 +135,7 @@ Verify that you can access the backend via Envoy (port 10000).
 
 ```bash
 curl -v http://localhost:10000/
-```text
+```
 
 Check that `server: envoy` is included in the response header. This is proof that it went through Envoy.
 
@@ -150,7 +150,7 @@ Since `timeout: 2s` is set, request a **3-second sleep** from the backend (a fea
 
 ```bash
 curl -v http://localhost:10000/sleep/3
-```text
+```
 
 **Result**: Verify that Envoy cuts the connection after 2 seconds and returns `504 Gateway Timeout`. This prevents the client from waiting indefinitely due to backend issues.
 
@@ -165,7 +165,7 @@ The configuration sets `num_retries: 3`. Request the backend to return a `500` e
 
 ```bash
 curl -v http://localhost:10000/error/500
-```text
+```
 
 Checking Envoy logs or statistics (Admin IF) reveals that multiple requests were actually sent to the backend. If it were a temporary network error, it could succeed without showing an error to the user.
 
@@ -195,7 +195,7 @@ Business logic (Usecase/Domain) is protected from "infrastructure details" like 
 
 ```bash
 podman compose down
-```text
+```
 
 ---
 

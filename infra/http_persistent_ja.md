@@ -83,7 +83,7 @@ sequenceDiagram
     C->>S: GET /bar
     S-->>C: Response
     Note over C,S: TCP Close
-```text
+```
 
 ### HTTP/1.1 (Keep-Alive / Connection Pooling)
 
@@ -114,7 +114,7 @@ sequenceDiagram
     C->>S: Conn 2: GET /image2.jpg
     S-->>C: Response (from Conn 1)
     S-->>C: Response (from Conn 2)
-```text
+```
 
 ### WebSocket (Upgrade)
 
@@ -133,7 +133,7 @@ sequenceDiagram
         C->>S: Data from Client
         S->>C: Data from Server
     end
-```text
+```
 
 ### HTTP/2 (Multiplexing)
 
@@ -165,7 +165,7 @@ sequenceDiagram
     S-->>C: Data for Stream 3
     S-->>C: Data for Stream 1
     S-->>C: ...
-```text
+```
 
 ### HTTP/3 (QUIC / 0-RTT)
 
@@ -185,7 +185,7 @@ sequenceDiagram
     C->>S: QUIC Handshake + GET /img1.jpg (0-RTT if resumed)
     C->>S: GET /img2.jpg ... GET /img100.jpg
     S-->>C: Response (Stream 0, 4, 8...)
-```text
+```
 
 ---
 
@@ -272,7 +272,7 @@ curl -v http://localhost:8080/ http://localhost:8080/
 
 # 2. Connection: close を指定して Keep-Alive を無効化（HTTP/1.0相当の挙動）
 curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -338,7 +338,7 @@ WebSocket は **HTTP/1.1 の `Upgrade` ヘッダー** を利用して開始さ�
     sleep 1
 done
 ) | websocat -v ws://localhost:8080/ws
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -364,7 +364,7 @@ podman-compose up --build -d
         sleep 1
     done
 ) | websocat -v ws://localhost:18080/ws
-```text
+```
 
 **観察ポイント**:
 
@@ -397,7 +397,7 @@ podman-compose up --build -d
 ```bash
 # HTTP/2 を強制して複数のファイルをダウンロード
 curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -437,7 +437,7 @@ HTTP/3 は TCP ではなく、UDP ベースの **QUIC** プロトコル上で動
 brew install curl
 alias curl=$(find $(brew --prefix) -name curl |grep bin/curl)
 curl --version | grep HTTP3
-```text
+```
 
 > **なぜ TCP をやめたのか？ (TCP レベル of HoL Blocking 解消)**:
 > TCP は順序保証を全データに対して一括で行う「一本のパイプ」です。QUIC は、順序保証を「ストリーム単位」で行うため、パケットロスが起きた「特定のストリーム」だけを再送し、他のストリームは止めることなく流し続けることができます。これが HoL Blocking 解消の技術的本質です。
@@ -445,7 +445,7 @@ curl --version | grep HTTP3
 ```bash
 # HTTP/3 でアクセス
 curl --http3 -k -v https://localhost:8444/
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -493,7 +493,7 @@ grpcurl -plaintext -d '{"name": "stream"}' localhost:50051 pb.Greeter/SayHelloSt
 # 3. Bidirectional Streaming のテスト（双方向で送り合う）
 # (Ctrl+D で入力を終了)
 grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 pb.Greeter/Chat
-```text
+```
 
 **観察ポイント**:
 
@@ -530,7 +530,7 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
 ```bash
 # HTTP/1.1 ポートに対して SSE をリクエスト
 curl -v http://localhost:8080/sse
-```text
+```
 
 **観察ポイント**:
 
@@ -589,7 +589,7 @@ graph LR
     InfraImpl -- implements --> DomainPort
     DomainPort --> DomainLogic
     InfraImpl --> GRPC_SDK
-```text
+```
 
 1. **受信フロー**: HTTP ハンドラーや gRPC などの Framework は Controller を呼び出し、UseCase へ入力を渡します。
 2. **ドメインのインターフェース**: Domain が `通知ポート` のようなインターフェース/ポートを所有し、UseCase はそれに依存します。
@@ -629,7 +629,7 @@ graph LR
 kill $(jobs -p)
 # コンテナを停止
 podman-compose down
-```text
+```
 
 ---
 

@@ -32,7 +32,7 @@ sequenceDiagram
 
     Note over UC: Ban ユーザーを除外し、順位を再割り当て
     UC-->>CLI: []domain.UserScore (Filtered)
-```text
+```
 
 **この実習で習得すること:**
 
@@ -72,7 +72,7 @@ infra/assets/redis_leaderboard/
 ├── infra/          # Redis アダプター
 ├── main.go         # エントリーポイント & 依存注入
 └── go.mod
-```text
+```
 
 ---
 
@@ -84,20 +84,20 @@ Makefile を使用する場合（推奨）:
 
 ```bash
 make redis-up
-```text
+```
 
 podman を直接使用する場合:
 
 ```bash
 podman run -d --name workshop-redis -p 6379:6379 docker.io/library/redis:alpine
-```text
+```
 
 ### 2. プロジェクトのセットアップ
 
 ```bash
 cd infra/assets/redis_leaderboard
 go mod tidy
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -116,7 +116,7 @@ go mod tidy
 go run main.go -action add -user user1 -score 100
 go run main.go -action add -user user2 -score 250
 go run main.go -action add -user user3 -score 180
-```text
+```
 
 ### STEP 2: トップランカーの表示 (ZREVRANGE)
 
@@ -125,7 +125,7 @@ go run main.go -action add -user user3 -score 180
 ```bash
 go run main.go -action top -n 3
 # 期待される結果: user2(250), user3(180), user1(100)
-```text
+```
 
 ### STEP 3: 不正ユーザーの Ban (Sets)
 
@@ -135,7 +135,7 @@ go run main.go -action top -n 3
 go run main.go -action ban -user user2
 go run main.go -action top -n 3
 # 期待される結果: user2 が消え、user3 が 1 位に繰り上がる
-```text
+```
 
 ---
 
@@ -156,14 +156,14 @@ Makefile を使用する場合（推奨）:
 
 ```bash
 make redis-down
-```text
+```
 
 podman を直接使用する場合:
 
 ```bash
 podman stop workshop-redis
 podman rm workshop-redis
-```text
+```
 
 ---
 
@@ -242,7 +242,7 @@ Podman は動作しますが、Homebrew で Redis を直接インストールす
 ```bash
 brew install redis
 brew services start redis
-```text
+```
 
 この場合、コード内の接続先を `localhost:6379` に変更してください。
 

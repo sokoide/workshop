@@ -57,7 +57,7 @@ graph TB
     end
 
     SDK -- S3 Protocol --> MinIO
-```text
+```
 
 ### Directory Structure
 
@@ -66,7 +66,7 @@ infra/assets/minio/
 ├── docker-compose.yml
 ├── main.go                 # Sample App (Implementation of Upload/Share features)
 └── go.mod
-```text
+```
 
 ---
 
@@ -77,7 +77,7 @@ infra/assets/minio/
 ```bash
 cd infra/assets/minio
 podman compose up -d
-```text
+```
 
 MinIO Console: `http://localhost:9001`
 
@@ -96,7 +96,7 @@ Verify connection using MinIO Client (`mc`) or AWS CLI.
 ```bash
 # Using AWS CLI (configured to point to local MinIO)
 aws --endpoint-url http://localhost:9000 s3 mb s3://my-bucket
-```text
+```
 
 ---
 
@@ -119,13 +119,13 @@ func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
     })
     return err
 }
-```text
+```
 
 Command:
 
 ```bash
 go run main.go upload sample.jpg
-```text
+```
 
 ### STEP 2: Generate Presigned URL
 
@@ -147,14 +147,14 @@ func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
 
     return req.URL, nil
 }
-```text
+```
 
 Command:
 
 ```bash
 go run main.go share sample.jpg
 # Output: http://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
-```text
+```
 
 **Why is it secure?**: The URL contains a cryptographic signature, so if any part of the path or expiration time is tampered with, it becomes invalid.
 
@@ -183,7 +183,7 @@ This allows switching between local disk in development, AWS S3 in production, a
 
 ```bash
 podman compose down
-```text
+```
 
 If data persistence is not configured, data will be lost when containers are removed.
 

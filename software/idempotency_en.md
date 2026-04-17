@@ -14,7 +14,7 @@ The complete implementation for this workshop can be found in [`software/assets/
 cd software/assets/idempotency
 ls -la
 # domain/  usecase/  infra/  main.go
-```text
+```
 
 ## Goal
 
@@ -39,7 +39,7 @@ sequenceDiagram
     Client->>API: POST /charge (idempotency-key: abc123)
     API->>DB: Check key → Found (skip)
     Note over DB: Return the same result as before
-```text
+```
 
 **What you will learn:**
 
@@ -100,7 +100,7 @@ flowchart TD
     I --> G
 
     G -- Yes --> J[Return Cached Result]
-```text
+```
 
 ---
 
@@ -119,7 +119,7 @@ software/assets/idempotency/
 ├── cmd/                     # CLI Entry Point
 │   └── main.go
 └── main.go                  # Dependency Injection
-```text
+```
 
 ---
 
@@ -143,7 +143,7 @@ docker run -d --name idempotency-db \
   -e POSTGRES_DB=idempotency \
   -p 5432:5432 \
   postgres:alpine
-```text
+```
 
 ### 2. Start Redis (for Caching)
 
@@ -157,14 +157,14 @@ podman run -d --name idempotency-redis \
 docker run -d --name idempotency-redis \
   -p 6379:6379 \
   redis:alpine
-```text
+```
 
 ### 3. Project Setup
 
 ```bash
 cd software/assets/idempotency
 go mod tidy
-```text
+```
 
 ### ✅ Checkpoint
 
@@ -186,7 +186,7 @@ go run main.go -action charge -user user1 -amount 100
 # Retry assuming a timeout
 go run main.go -action charge -user user1 -amount 100
 # Balance: 800 (Double charged!)
-```text
+```
 
 **Issue**: The same transaction was processed twice, and the balance decreased twice.
 
@@ -208,7 +208,7 @@ go run main.go -action charge -user user1 -amount 100 \
 go run main.go -action charge -user user1 -amount 100 \
   -idempotency-key abc123-def456-...
 # Balance: 900 (Unchanged), returns same result as before
-```text
+```
 
 ### ✅ Checkpoint
 
@@ -247,7 +247,7 @@ func (s *RedisIdempotencyStore) GetResult(ctx context.Context, key string) ([]by
 func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, result []byte) error {
     return s.client.Set(ctx, "idempotency:"+key, result, s.ttl).Err()
 }
-```text
+```
 
 ### ✅ Checkpoint
 
@@ -284,7 +284,7 @@ func (uc *ChargeUsecase) Execute(ctx context.Context, req ChargeRequest) (*Charg
 
     return result, nil
 }
-```text
+```
 
 ### ✅ Checkpoint
 
@@ -322,7 +322,7 @@ sequenceDiagram
     API->>Store: Save result
     Store-->>API: Saved
     API-->>C1: 200 OK
-```text
+```
 
 **Implementation**: Use Redis `SETNX` (Set if Not eXists)
 
@@ -333,7 +333,7 @@ if !locked {
     return nil, ErrRequestInProgress
 }
 defer redis.Del(ctx, "lock:"+key)
-```text
+```
 
 ### 2. Key Expiration Strategy
 
@@ -353,7 +353,7 @@ log.Printf("Charge request received: %v", req)
 
 // Ensure only balance update is idempotent
 result, err := uc.chargeWithIdempotency(ctx, req)
-```text
+```
 
 ---
 
@@ -362,7 +362,7 @@ result, err := uc.chargeWithIdempotency(ctx, req)
 ```bash
 podman stop idempotency-db idempotency-redis
 podman rm idempotency-db idempotency-redis
-```text
+```
 
 ---
 
@@ -416,7 +416,7 @@ You can also install PostgreSQL and Redis directly via Homebrew.
 brew install postgresql@14 redis
 brew services start postgresql@14
 brew services start redis
-```text
+```
 
 ### Windows
 

@@ -37,7 +37,7 @@ graph TD
     eth20 --- eth0.20
 
     RouterContainer -->|NAT| eth0
-```text
+```
 
 **Achieved State:**
 
@@ -74,7 +74,7 @@ In this workshop, we use Rootful Podman and directly manipulate Linux kernel net
 /etc/cni/net.d/ (Internal)
     -- net-vlan10.conflist   # Podman VLAN 10 network definition
     -- net-vlan20.conflist   # Podman VLAN 20 network definition
-```text
+```
 
 ---
 
@@ -92,7 +92,7 @@ In this workshop, we use Rootful Podman and directly manipulate Linux kernel net
 # Ensure Rootful mode (should be false)
 sudo podman info | grep rootless
 # rootless: false
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -116,7 +116,7 @@ sudo ip link add link $IF name $IF.10 type vlan id 10
 sudo ip link add link $IF name $IF.20 type vlan id 20
 sudo ip link set $IF.10 up
 sudo ip link set $IF.20 up
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -130,7 +130,7 @@ sudo podman network create --driver macvlan --subnet 192.168.10.0/24 --gateway 1
 
 # VLAN 20 definition
 sudo podman network create --driver macvlan --subnet 192.168.20.0/24 --gateway 192.168.20.1 -o parent=$IF.20 net-vlan20
-```text
+```
 
 ### STEP 3: Build Router Container
 
@@ -147,7 +147,7 @@ sudo podman network connect --ip 192.168.20.1 net-vlan20 router
 # 3. Remove redundant default routes
 sudo podman exec router ip route del default via 192.168.10.1 dev eth1 2>/dev/null || true
 sudo podman exec router ip route del default via 192.168.20.1 dev eth2 2>/dev/null || true
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -164,7 +164,7 @@ sudo podman exec router sh -c \
 iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
 iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
 iptables -A FORWARD -i eth0 -m state --state ESTABLISHED,RELATED -j ACCEPT'
-```text
+```
 
 ### STEP 5: Create Client Containers
 
@@ -174,7 +174,7 @@ sudo podman run -d --name a --network net-vlan10 --ip 192.168.10.10 alpine sleep
 
 # Container B (VLAN 20)
 sudo podman run -d --name b --network net-vlan20 --ip 192.168.20.20 alpine sleep infinity
-```text
+```
 
 ### STEP 6: Verify Operation
 
@@ -200,7 +200,7 @@ sudo podman rm -f a b router
 sudo podman network rm net-vlan10 net-vlan20
 sudo ip link delete $IF.10
 sudo ip link delete $IF.20
-```text
+```
 
 ---
 

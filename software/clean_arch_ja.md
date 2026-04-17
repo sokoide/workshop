@@ -36,7 +36,7 @@ graph TD
     RI_Impl -- "implements" --> RI
     RI_Impl --> DB
     UC --> Presenter
-```text
+```
 
 ---
 
@@ -89,7 +89,7 @@ import "context"
 type MembershipRepository interface {
 	IsMember(ctx context.Context, userID, groupID string) (bool, error)
 }
-```text
+```
 
 ### 2. UseCase 層
 
@@ -119,7 +119,7 @@ func (uc *MembershipUseCase) Execute(ctx context.Context, userID, groupID string
 	// 必要に応じてここでドメイン固有のバリデーションなどを行う。
 	return uc.repo.IsMember(ctx, userID, groupID)
 }
-```text
+```
 
 ### 3. Infra Adapters 層
 
@@ -150,7 +150,7 @@ func (r *SQLMembershipRepository) IsMember(ctx context.Context, userID, groupID 
 	err := r.db.QueryRowContext(ctx, query, userID, groupID).Scan(&exists)
 	return exists, err
 }
-```text
+```
 
 ---
 
@@ -168,7 +168,7 @@ import "context"
 type MembershipChecker interface {
 	Execute(ctx context.Context, userID, groupID string) (bool, error)
 }
-```text
+```
 
 ### context.Context の役割
 
@@ -194,7 +194,7 @@ func LongRunningProcess(ctx context.Context) error {
 	// ... 重い処理 ...
 	return nil
 }
-```text
+```
 
 #### 💡 ctx と引数の使い分け
 

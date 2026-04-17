@@ -29,7 +29,7 @@ graph LR
     VIP -- "2. DNAT" --> DNAT
     DNAT -- "3. Forward" --> Pod
     Client -. "x Direct Ping x" .-x Pod
-```text
+```
 
 **この実習で理解すること:**
 
@@ -89,7 +89,7 @@ graph LR
     DNAT -- "3. Route to Pod" --> Pod
     Pod -. "4. Reply" .-> SNAT
     SNAT -. "5. Restore Src" .-> Client
-```text
+```
 
 - **VIP (MetalLB)**: `192.168.10.100` へのアクセスを受け付ける（ARP 応答）。
 - **DNAT (kube-proxy)**: 宛先を VIP から Pod の IP (`192.168.20.20`) に書き換える。
@@ -121,7 +121,7 @@ sudo podman exec b apk add --no-cache busybox-extras
 
 # Container B でシンプルな HTTP サーバーを起動 (ポート 80)
 sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello from Pod B' | nc -l -p 80; done"
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -135,7 +135,7 @@ sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello fr
 ```bash
 # Router で転送をブロック (VLAN 10 -> VLAN 20)
 sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -150,7 +150,7 @@ sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
 
 ```bash
 sudo podman exec router ip addr add 192.168.10.100/32 dev eth1
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -168,7 +168,7 @@ VIP へのアクセスを Pod B へ転送するルール（kube-proxy の役割�
 sudo podman exec router iptables -t nat -A PREROUTING \
   -d 192.168.10.100 -p tcp --dport 80 \
   -j DNAT --to-destination 192.168.20.20:80
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -182,14 +182,14 @@ sudo podman exec router iptables -t nat -A PREROUTING \
 sudo podman exec router iptables -t nat -A POSTROUTING \
   -d 192.168.20.20 -p tcp --dport 80 \
   -j MASQUERADE
-```text
+```
 
 ### STEP 6: 動作確認
 
 ```bash
 # VIP にアクセス
 # -> "Hello from Pod B" と出れば成功！
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -216,7 +216,7 @@ sudo podman exec router iptables -t nat -A POSTROUTING \
 sudo podman exec router ip addr del 192.168.10.100/32 dev eth1
 # 遮断ルールの削除
 sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
-```text
+```
 
 ---
 

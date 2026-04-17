@@ -33,7 +33,7 @@ sequenceDiagram
     V->>S: GET /xss/stored
     S-->>V: HTML (contains script)
     Note over V: Script is executed
-```text
+```
 
 ### CSRF (Cross-Site Request Forgery)
 
@@ -51,7 +51,7 @@ sequenceDiagram
     Note over V: Form is (automatically) submitted
     V->>S: 3. Unauthorized request (Cookie automatically attached)
     Note over S: Processed as user's operation
-```text
+```
 
 ### Clickjacking
 
@@ -66,7 +66,7 @@ graph TD
     
     AttackerPage -->|Overlaid| VictimIframe
     UserClick["User Click"] --> VictimIframe
-```text
+```
 
 ---
 
@@ -92,7 +92,7 @@ infra/assets/web_security/
 ├── go.mod
 ├── Dockerfile
 └── docker-compose.yml
-```text
+```
 
 ---
 
@@ -103,7 +103,7 @@ infra/assets/web_security/
 ```bash
 cd infra/assets/web_security
 podman compose up -d
-```text
+```
 
 ### 2. Verification
 
@@ -158,7 +158,7 @@ fmt.Fprintf(w, "<li>%s</li>", comment)
 
 // ✅ Secure: Use template engine (automatic escaping)
 // See official Go documentation for details
-```text
+```
 
 ### CSRF Prevention
 
@@ -178,7 +178,7 @@ Add the following to response headers:
 
 ```bash
 podman compose down
-```text
+```
 
 ---
 

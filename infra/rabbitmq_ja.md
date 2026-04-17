@@ -25,7 +25,7 @@ sequenceDiagram
     P->>E: Publish: market.eth.jpy
     E-->>L: Logger へ配信 (market.#)
     E-->>J: Japan Desk へ配信 (market.*.jpy)
-```text
+```
 
 **この実習で習得すること:**
 
@@ -70,7 +70,7 @@ infra/assets/rabbitmq_crypto/
     ├── domain/                 # エンティティ、リポジトリ I/F
     ├── usecase/                # シミュレーション・監視ロジック
     └── infra/                  # RabbitMQ アダプター
-```text
+```
 
 ---
 
@@ -81,7 +81,7 @@ infra/assets/rabbitmq_crypto/
 ```bash
 cd infra/assets/rabbitmq_crypto
 make mq-up
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -94,7 +94,7 @@ make mq-up
 
 ```bash
 go mod tidy
-```text
+```
 
 ---
 
@@ -106,7 +106,7 @@ go mod tidy
 
 ```bash
 go run cmd/ticker/main.go
-```text
+```
 
 ※ `market.btc.usd` などのキーでメッセージを投げ続けます。
 
@@ -121,7 +121,7 @@ go run cmd/ticker/main.go
 
 ```bash
 go run cmd/logger/main.go
-```text
+```
 
 ### STEP 3: 条件付きフィルタリング
 
@@ -146,7 +146,7 @@ go run cmd/logger/main.go
 type TradePublisher interface {
     Publish(ctx context.Context, trade Trade) error
 }
-```text
+```
 
 この設計により、将来的にメッセージブローカーを Kafka や NATS に変更する場合でも、ビジネスロジック（Usecase）を一切修正せずに、インフラ層の実装を差し替えるだけで対応可能です。
 
@@ -156,7 +156,7 @@ type TradePublisher interface {
 
 ```bash
 make mq-down
-```text
+```
 
 ---
 
@@ -232,7 +232,7 @@ Homebrew で RabbitMQ を直接インストールすることも可能です。
 ```bash
 brew install rabbitmq
 brew services start rabbitmq
-```text
+```
 
 この場合、管理画面は <http://localhost:15672> で、デフォルトユーザーは `guest/guest` です。
 

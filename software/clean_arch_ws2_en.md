@@ -26,7 +26,7 @@ import "context"
 type NotificationService interface {
 	Send(ctx context.Context, message string) error
 }
-```text
+```
 
 ### 1-2. Usage in UseCase
 
@@ -42,7 +42,7 @@ func (uc *ApproveUseCase) Execute(ctx context.Context, userID string) error {
 	// ... Approval logic ...
 	return uc.notifier.Send(ctx, "Membership has been approved!")
 }
-```text
+```
 
 ### 1-3. Implementation Swap in the Infra Layer
 
@@ -62,7 +62,7 @@ func (n *SlackNotifier) Send(ctx context.Context, msg string) error {
 	// Implementation to call Slack API
 	return nil
 }
-```text
+```
 
 ---
 
@@ -103,7 +103,7 @@ func (r *CachedUserRepository) FindByID(ctx context.Context, id string) (*domain
 	}
 	return user, err
 }
-```text
+```
 
 ### 2-2. Configuration Change in DI Container
 
@@ -118,7 +118,7 @@ func main() {
 	// UseCase looks at the interface, so it can accept the wrapped cachedRepo as-is
 	useCase := usecase.NewCheckVeteranUseCase(cachedRepo, domain.VeteranService{})
 }
-```text
+```
 
 ---
 

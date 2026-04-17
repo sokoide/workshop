@@ -28,7 +28,7 @@ graph TD
 
     style Pod fill:#D5F5E3,stroke:#2ECC71
     style ISCSI_Server fill:#EBF5FB,stroke:#3498DB
-```text
+```
 
 **この実習で習得すること:**
 
@@ -90,7 +90,7 @@ graph TD
     end
 
     Initiator == "iSCSI Protocol (TCP 3260)" ==> Target
-```text
+```
 
 ### 重要なポイント
 
@@ -104,7 +104,7 @@ graph TD
 ├── iscsi-pv.yaml    # 物理ストレージ定義 (Admin)
 ├── iscsi-pvc.yaml   # ストレージ要求定義 (Developer)
 └── test-pod.yaml    # 利用する Pod の定義
-```text
+```
 
 ---
 
@@ -139,7 +139,7 @@ sudo truncate -s 1G /var/lib/iscsi_disk.img
 sudo targetcli /iscsi create iqn.2025-12.world.server:storage
 sudo targetcli /backstores/fileio create disk01 /var/lib/iscsi_disk.img
 sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backstores/fileio/disk01
-```text
+```
 
 次に、VM1 からの接続を許可します。
 ※ VM1 で `cat /etc/iscsi/initiatorname.iscsi` を実行して IQN を確認してください。
@@ -148,7 +148,7 @@ sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backsto
 # VM1のIQNを使ってアクセス許可
 sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/acls create <VM1_IQN>
 sudo targetcli saveconfig
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -170,7 +170,7 @@ sudo iscsiadm -m node --targetname iqn.2025-12.world.server:storage --portal 192
 # ディスクの確認とフォーマット
 lsblk # /dev/sdb 等が増えているはず
 sudo mkfs.ext4 /dev/sdb
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -185,7 +185,7 @@ curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/miniku
 
 # 起動 (リソース節約のため --driver=none を推奨)
 sudo minikube start --driver=none
-```text
+```
 
 ### STEP 4: PV と PVC の適用
 
@@ -227,7 +227,7 @@ sudo minikube start --driver=none
 kubectl apply -f iscsi-pv.yaml
 kubectl apply -f iscsi-pvc.yaml
 kubectl get pvc # Status が Bound になれば成功
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -250,7 +250,7 @@ kubectl apply -f test-pod.yaml
 # 読み取り確認
 kubectl exec test-pod -- cat /data/hello.txt
 # -> "Hello persistent" と出れば永続化成功！
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -277,7 +277,7 @@ kubectl delete -f iscsi-pvc.yaml
 kubectl delete -f iscsi-pv.yaml
 sudo minikube delete
 sudo iscsiadm -m node --logout
-```text
+```
 
 ---
 

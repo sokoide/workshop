@@ -84,7 +84,7 @@ sequenceDiagram
     C->>S: GET /bar
     S-->>C: Response
     Note over C,S: TCP Close
-```text
+```
 
 ### HTTP/1.1 (Keep-Alive / Connection Pooling)
 
@@ -115,7 +115,7 @@ sequenceDiagram
     C->>S: Conn 2: GET /image2.jpg
     S-->>C: Response (from Conn 1)
     S-->>C: Response (from Conn 2)
-```text
+```
 
 ### WebSocket (Upgrade)
 
@@ -134,7 +134,7 @@ sequenceDiagram
         C->>S: Data from Client
         S->>C: Data from Server
     end
-```text
+```
 
 ### HTTP/2 (Multiplexing)
 
@@ -164,7 +164,7 @@ sequenceDiagram
     S-->>C: Data for Stream 3
     S-->>C: Data for Stream 1
     S-->>C: ...
-```text
+```
 
 ### HTTP/3 (QUIC / 0-RTT)
 
@@ -184,7 +184,7 @@ sequenceDiagram
     C->>S: QUIC Handshake + GET /img1.jpg (0-RTT if resumed)
     C->>S: GET /img2.jpg ... GET /img100.jpg
     S-->>C: Response (Stream 0, 4, 8...)
-```text
+```
 
 ---
 
@@ -274,7 +274,7 @@ curl -v http://localhost:8080/ http://localhost:8080/
 
 # 2. Disable Keep-Alive with "Connection: close" (simulating HTTP/1.0-like behavior)
 curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -338,7 +338,7 @@ WebSocket starts with an **HTTP/1.1 `Upgrade` header**, but once established, it
     sleep 1
 done
 ) | websocat -v ws://localhost:8080/ws
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -366,7 +366,7 @@ podman-compose up --build -d
         sleep 1
     done
 ) | websocat -v ws://localhost:18080/ws
-```text
+```
 
 **Observation Points**:
 
@@ -401,7 +401,7 @@ HTTP/2 creates multiple virtual "streams" within a single TCP connection to proc
 ```bash
 # Force HTTP/2 to download multiple files
 curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -441,7 +441,7 @@ HTTP/3 completely abandons TCP in favor of the UDP-based **QUIC** protocol.
 brew install curl
 alias curl=$(find $(brew --prefix) -name curl |grep bin/curl)
 curl --version | grep HTTP3
-```text
+```
 
 > **Why abandon TCP? (Resolving TCP-level HoL Blocking)**:
 > TCP treats all data as a "single pipe" and performs order guarantee for the entire stream. QUIC performs order guarantee on a **"per-stream"** basis. If a packet for one stream is lost, only that stream waits for retransmission, while other streams continue without being blocked. This is the technical essence of resolving HoL Blocking.
@@ -449,7 +449,7 @@ curl --version | grep HTTP3
 ```bash
 # Access via HTTP/3
 curl --http3 -k -v https://localhost:8444/
-```text
+```
 
 ### ✅ Verification Checkpoints
 
@@ -497,7 +497,7 @@ grpcurl -plaintext -d '{"name": "stream"}' localhost:50051 pb.Greeter/SayHelloSt
 # 3. Bidirectional Streaming Test
 # (Press Ctrl+D to end input)
 grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 pb.Greeter/Chat
-```text
+```
 
 **Observation Points**:
 
@@ -535,7 +535,7 @@ Observe SSE, the easiest way to implement "server-to-client notifications" for b
 ```bash
 # Request SSE from HTTP/1.1 port
 curl -v http://localhost:8080/sse
-```text
+```
 
 **Observation Points**:
 
@@ -593,7 +593,7 @@ graph LR
     InfraImpl -- implements --> DomainPort
     DomainPort --> DomainLogic
     InfraImpl --> GRPC_SDK
-```text
+```
 
 1. **Inbound (Receiving)**: Frameworks (HTTP Handlers, gRPC/gateway) receive requests and hand control to Controllers, which invoke UseCases.
 2. **Domain Interfaces**: The Domain layer owns ports/interfaces (e.g., Notification Port). UseCases depend on these abstractions rather than concrete infra.
@@ -633,7 +633,7 @@ In modern system design, the following segregation is common:
 kill $(jobs -p)
 # Stop containers
 podman-compose down
-```text
+```
 
 ---
 

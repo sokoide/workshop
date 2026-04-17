@@ -21,7 +21,7 @@ graph TD
         HP1["Host PID 1234 (sh)"]
         HP2["Host PID 1235 (sh)"]
     end
-```text
+```
 
 **この実習で習得すること:**
 
@@ -62,7 +62,7 @@ Linux カーネルの機能を直接呼び出し、プロセスの実行環境�
 ├── rootfs.tar        # 展開前のイメージ
 ├── main.go           # 自作ランタイムのソースコード
 └── mycontainer       # ビルドされたバイナリ
-```text
+```
 
 ---
 
@@ -76,7 +76,7 @@ Linux カーネルの機能を直接呼び出し、プロセスの実行環境�
 
 ```bash
 sudo apt update && sudo apt install -y podman golang-go iproute2
-```text
+```
 
 ---
 
@@ -94,7 +94,7 @@ podman export tmp-alpine > rootfs.tar
 podman rm tmp-alpine
 mkdir -p rootfs && tar -xf rootfs.tar -C rootfs
 cp /etc/resolv.conf rootfs/etc/resolv.conf
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -133,7 +133,7 @@ echo 0 | sudo tee /sys/fs/cgroup/workshop/memory.swap.max
 
 # プロセスの登録 (別ターミナルで特定した PID を書き込む)
 echo $TARGET_PID | sudo tee /sys/fs/cgroup/workshop/cgroup.procs
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -151,7 +151,7 @@ sudo ip link set veth-child netns container1
 # ホスト側 IP 設定
 sudo ip addr add 10.0.0.1/24 dev veth-host
 sudo ip link set veth-host up
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -166,7 +166,7 @@ sudo ip link set veth-host up
 cmd.SysProcAttr = &syscall.SysProcAttr{
     Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWNET,
 }
-```text
+```
 
 ---
 

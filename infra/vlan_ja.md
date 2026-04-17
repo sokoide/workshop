@@ -37,7 +37,7 @@ graph TD
     eth20 --- eth0.20
 
     RouterContainer -->|NAT| eth0
-```text
+```
 
 **達成する状態:**
 
@@ -87,7 +87,7 @@ graph TD
     style PhysNIC fill:#eee,stroke:#333
     style V10 fill:#d1e7dd,stroke:#0f5132
     style V20 fill:#f8d7da,stroke:#842029
-```text
+```
 
 ---
 
@@ -101,7 +101,7 @@ graph TD
 /etc/cni/net.d/ (内部的)
 ├── net-vlan10.conflist   # Podman VLAN 10 ネットワーク定義
 └── net-vlan20.conflist   # Podman VLAN 20 ネットワーク定義
-```text
+```
 
 ---
 
@@ -119,7 +119,7 @@ graph TD
 # Rootful モードであることを確認 (false ならOK)
 sudo podman info | grep rootless
 # rootless: false
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -143,7 +143,7 @@ sudo ip link add link $IF name $IF.10 type vlan id 10
 sudo ip link add link $IF name $IF.20 type vlan id 20
 sudo ip link set $IF.10 up
 sudo ip link set $IF.20 up
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -157,7 +157,7 @@ sudo podman network create --driver macvlan --subnet 192.168.10.0/24 --gateway 1
 
 # VLAN 20 ネットワーク定義
 sudo podman network create --driver macvlan --subnet 192.168.20.0/24 --gateway 192.168.20.1 -o parent=$IF.20 net-vlan20
-```text
+```
 
 ### STEP 3: ルーターコンテナを構築する
 
@@ -174,7 +174,7 @@ sudo podman network connect --ip 192.168.20.1 net-vlan20 router
 # 3. 不要なデフォルトルートの削除
 sudo podman exec router ip route del default via 192.168.10.1 dev eth1 2>/dev/null || true
 sudo podman exec router ip route del default via 192.168.20.1 dev eth2 2>/dev/null || true
-```text
+```
 
 ### ✅ チェックポイント
 
@@ -191,7 +191,7 @@ sudo podman exec router sh -c \
 iptables -A FORWARD -i eth1 -o eth0 -j ACCEPT
 iptables -A FORWARD -i eth2 -o eth0 -j ACCEPT
 iptables -A FORWARD -i eth0 -m state --state ESTABLISHED,RELATED -j ACCEPT'
-```text
+```
 
 ### STEP 5: クライアントコンテナを作成する
 
@@ -201,7 +201,7 @@ sudo podman run -d --name a --network net-vlan10 --ip 192.168.10.10 alpine sleep
 
 # Container B (VLAN 20)
 sudo podman run -d --name b --network net-vlan20 --ip 192.168.20.20 alpine sleep infinity
-```text
+```
 
 ### STEP 6: 動作確認
 
@@ -227,7 +227,7 @@ sudo podman rm -f a b router
 sudo podman network rm net-vlan10 net-vlan20
 sudo ip link delete $IF.10
 sudo ip link delete $IF.20
-```text
+```
 
 ---
 
