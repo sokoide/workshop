@@ -59,7 +59,7 @@ graph TD
     style Usecase fill: #555, stroke-width:2px
     style Domain fill: #555, stroke-width:2px
     style Infra fill: #555, stroke-width:2px
-```
+```text
 
 > **注記: 外部インターフェースの集約**
 > `Customer`（注文者）と `Admin`（在庫管理者）は、それぞれ適切な API エンドポイントを叩きます。`Order Service` 内の `Inventory REST Client` が叩く先は、**同一プロセスの Framework ではなく外部 Inventory Service の API** として扱います（依存方向の誤解を防ぐため）。
@@ -100,7 +100,7 @@ type Order struct {
 	Status     OrderStatus
 	CreatedAt  time.Time
 }
-```
+```text
 
 **2. インターフェース（Ports）の定義 (`domain/repository/interfaces.go`)**
 データの保存や外部サービスへのアクセス方法を**抽象化**します。ここで定義したインターフェースの実装は、Step 3 で行います。
@@ -119,7 +119,7 @@ type InventoryClient interface {
 type PaymentPublisher interface {
 	PublishPaymentTask(ctx context.Context, order *entity.Order) error
 }
-```
+```text
 
 ### Step 2: ユースケース層の実装 (`usecase/`)
 
@@ -140,7 +140,7 @@ func (u *CreateOrderUsecase) Execute(ctx context.Context, input CreateOrderInput
 	// 3. データベース保存 (Repository利用)
 	// 4. イベント発行
 }
-```
+```text
 
 ここでのポイントは、`CreateOrderUsecase` が具体的なデータベース（Postgres など）や通信プロトコル（REST/gRPC）を知らないことです。知っているのは Ports（`OrderRepository` など）のみです。
 
@@ -164,7 +164,7 @@ func (r *PostgresOrderRepository) Save(ctx context.Context, order *entity.Order)
 	// 実際のSQL実行処理...
 	return nil
 }
-```
+```text
 
 **エラー境界の注意**
 
@@ -192,7 +192,7 @@ func main() {
 	// 3. 実行
 	createOrderUsecase.Execute(ctx, input)
 }
-```
+```text
 
 > **補足: Composition Root と Framework の分離**
 > このサンプルは説明簡略化のため `main.go` に組み立てと実行を同居させています。規約をより厳密に適用する場合は、`main.go` を Composition Root 専用にし、CLI/Web の入出力処理は `framework/...` に分離します。
@@ -219,7 +219,7 @@ go mod tidy
 
 # アプリケーションの実行
 go run main.go
-```
+```text
 
 ## まとめ
 

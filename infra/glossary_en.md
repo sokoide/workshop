@@ -29,7 +29,7 @@ Media Access Control Address. A unique 48-bit identifier assigned to a network i
 
 ```text
 Example: 00:1A:2B:3C:4D:5E
-```
+```text
 
 ### IP Address
 
@@ -38,7 +38,7 @@ Internet Protocol Address. An address used to identify devices on a network. IPv
 ```text
 IPv4 Example: 192.168.1.1
 IPv6 Example: 2001:db8::1
-```
+```text
 
 ### Subnet Mask
 
@@ -47,7 +47,7 @@ Indicates which part of an IP address is the network portion and which is the ho
 ```text
 Example: 255.255.255.0 (/24)
      -> Range of 192.168.1.0 to 192.168.1.255
-```
+```text
 
 ### Default Gateway
 
@@ -59,7 +59,7 @@ A technology that translates private IP addresses to global IP addresses and vic
 
 ```text
 Private: 192.168.1.10 ---[NAT]---> Global: 203.0.113.5
-```
+```text
 
 ---
 
@@ -82,7 +82,7 @@ A pair of virtual Ethernet cables used to connect different Network Namespaces.
 ┌─────────────┐     veth      ┌─────────────┐
 │ Namespace A │<------------->│ Namespace B │
 └─────────────┘   (peer)      └─────────────┘
-```
+```text
 
 ---
 
@@ -145,7 +145,7 @@ A key used to specify the destination of a message. Typically in a dot-separated
 
 ```text
 Example: market.btc.usd
-```
+```text
 
 ### Wildcards
 
@@ -168,7 +168,7 @@ A Redis data structure. A set of members sorted by score.
 ZADD game_leaderboard 100 player1
 ZADD game_leaderboard 250 player2
 ZREVRANGE game_leaderboard 0 9  # Retrieve top 10 players
-```
+```text
 
 ### Sets
 
@@ -177,7 +177,7 @@ A set of unique members with no duplicates.
 ```text
 SADD banned_users player2
 SISMEMBER banned_users player2  # 1 (true)
-```
+```text
 
 ---
 
@@ -193,7 +193,7 @@ The process of wrapping data from a higher layer as the payload of a lower layer
 
 ```text
 [ICMP] → [IPv4 [ICMP]] → [Ethernet [IPv4 [ICMP]]]
-```
+```text
 
 ### Raw Socket
 
@@ -234,7 +234,7 @@ A design pattern where dependencies point inwards.
 ```text
 Framework → UseCase → Domain ← Infra
             (depends on)
-```
+```text
 
 ### Context (context.Context)
 

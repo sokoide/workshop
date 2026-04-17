@@ -23,7 +23,7 @@ sequenceDiagram
     P->>S: Forward Query
     S-->>P: Response (2.2.2.2)
     P-->>C: Response (2.2.2.2)
-```
+```text
 
 **What you will learn in this workshop:**
 
@@ -57,7 +57,7 @@ Using two VMs, we will build the parent and child zones physically separated.
 └── coredns_child/  (VM2)
     ├── Corefile          # Child DNS configuration
     └── db.foo.sokoide.com # Record definitions for foo.sokoide.com
-```
+```text
 
 ---
 
@@ -73,7 +73,7 @@ Using two VMs, we will build the parent and child zones physically separated.
 
 ```bash
 sudo apt update && sudo apt install -y curl tar dnsutils
-```
+```text
 
 ---
 
@@ -94,7 +94,7 @@ sudo mv coredns /usr/local/bin/
 
 # Verify operation
 coredns -version
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -192,7 +192,7 @@ VM2 holds the authoritative data for the subdomain `foo.sokoide.com`.
 # Navigate to each directory and start
 # sudo may not be required for port 10053
 coredns -conf Corefile
-```
+```text
 
 ### ✅ Verification Checkpoints
 

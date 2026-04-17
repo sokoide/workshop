@@ -38,7 +38,7 @@ func (u *User) GetTenureYears() int {
 	}
 	return years
 }
-```
+```text
 
 ### 1-2. Creating the Domain Service
 
@@ -54,7 +54,7 @@ type VeteranService struct{}
 func (s VeteranService) IsVeteran(user *User) bool {
 	return user.GetTenureYears() >= 5
 }
-```
+```text
 
 ### 1-3. UseCase Implementation
 
@@ -86,7 +86,7 @@ func (uc *CheckVeteranUseCase) Execute(ctx context.Context, id string) (bool, er
 	}
 	return uc.veteranSvc.IsVeteran(user), nil
 }
-```
+```text
 
 ---
 
@@ -124,7 +124,7 @@ func (r *ADUserRepository) FindByID(ctx context.Context, id string) (*domain.Use
 		JoinedAt: entry.CreationDate,
 	}, nil
 }
-```
+```text
 
 ### 2-2. Switching via Dependency Injection (DI)
 
@@ -141,7 +141,7 @@ func main() {
 
 	// After this, the code calling useCase.Execute() requires ZERO changes!
 }
-```
+```text
 
 ---
 

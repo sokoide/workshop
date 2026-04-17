@@ -9,7 +9,7 @@
 
 ## ゴール
 
-1つの仮想 IP（VIP）へのリクエストを、複数のバックエンドサーバーに分散する仕組みを構築します。
+1 つの仮想 IP（VIP）へのリクエストを、複数のバックエンドサーバーに分散する仕組みを構築します。
 
 ```mermaid
 graph LR
@@ -39,7 +39,7 @@ graph LR
     RR -.->|2| B2
     RR -.->|3| B3
     RR -.->|1| B1
-```
+```text
 
 **この実習で理解すること:**
 
@@ -81,7 +81,7 @@ graph LR
     R -->|轮| B1
     R -->|轮| B2
     R -->|轮| B3
-```
+```text
 
 単純に順番に割り振る。均等に分散されるが、サーバーの性能差を考慮しない。
 
@@ -94,7 +94,7 @@ graph LR
     B3[Backend 3<br>Connections: 3]
 
     Request[New Request] -->|Choose| B1
-```
+```text
 
 最も接続数が少ないサーバーに割り振る。処理時間が不均一な場合に有効。
 
@@ -108,7 +108,7 @@ graph LR
 
     Client --> Hash
     Hash --> B2
-```
+```text
 
 クライアント IP からハッシュを計算し、同じクライアントは常に同じサーバーへ。セッション保持に有効。
 
@@ -140,7 +140,7 @@ graph TB
         L2 -->|Dst: Backend IP| B2
         B2 -->|直接返信| C2
     end
-```
+```text
 
 **NAT モード**: 戻りパケットも LB 経由（シンプルだが LB がボトルネック）。
 **DSR モード**: バックエンドから直接応答（高速 but 複雑）。
@@ -167,7 +167,7 @@ podman network create lb-backend --subnet 10.0.1.0/24
 # Docker の場合（読み替え）
 docker network create lb-public --subnet 10.0.0.0/24
 docker network create lb-backend --subnet 10.0.1.0/24
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -205,7 +205,7 @@ podman run -d --name backend3 \
 docker run -d --name backend1 --network lb-backend --ip 10.0.1.10 nginx:alpine
 docker run -d --name backend2 --network lb-backend --ip 10.0.1.11 nginx:alpine
 docker run -d --name backend3 --network lb-backend --ip 10.0.1.12 nginx:alpine
-```
+```text
 
 各バックエンドに識別用の HTML を設定します。
 
@@ -213,7 +213,7 @@ docker run -d --name backend3 --network lb-backend --ip 10.0.1.12 nginx:alpine
 echo "Backend 1" | podman exec -i backend1 sh -c 'cat > /usr/share/nginx/html/index.html'
 echo "Backend 2" | podman exec -i backend2 sh -c 'cat > /usr/share/nginx/html/index.html'
 echo "Backend 3" | podman exec -i backend3 sh -c 'cat > /usr/share/nginx/html/index.html'
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -243,13 +243,13 @@ docker run -d --name loadbalancer \
 
 # Docker の場合は後から backend ネットワークに接続
 docker network connect lb-backend loadbalancer
-```
+```text
 
 必要なパッケージをインストールします。
 
 ```bash
 podman exec loadbalancer apk add --no-cache iptables ipvsadm curl
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -259,7 +259,7 @@ podman exec loadbalancer apk add --no-cache iptables ipvsadm curl
 
 ```bash
 podman exec loadbalancer sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
-```
+```text
 
 ### STEP 4: iptables による DNAT 設定（オプション）
 
@@ -284,9 +284,10 @@ podman exec loadbalancer iptables -t nat -A BACKENDS -m statistic --mode random 
 podman exec loadbalancer iptables -t nat -A BACKENDS -m statistic --mode random --probability 0.50 -j DNAT --to-destination 10.0.1.11:80
 # 残りは Backend 3 へ
 podman exec loadbalancer iptables -t nat -A BACKENDS -j DNAT --to-destination 10.0.1.12:80
-```
+```text
 
 > **💡 解説**: `statistic` モジュールを使用することで、iptables でも負荷分散を実現できます。確率は以下のように計算します:
+>
 > - 1番目: 1/3 ≈ 0.33
 > - 2番目: 1/2 = 0.50（残りの2台から1台を選ぶ確率）
 > - 3番目: 100%（残りは必ずここへ）
@@ -314,18 +315,18 @@ podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.12:80 -m -w 1
 
 # 設定確認
 podman exec loadbalancer ipvsadm -L -n
-```
+```text
 
 期待される出力:
 
-```
+```text
 Prot LocalAddress:Port Scheduler Flags
   -> RemoteAddress:Port           Forward Weight ActiveConn InActConn
 TCP  10.0.0.100:80 rr
   -> 10.0.1.10:80                 Masq    1      0          0
   -> 10.0.1.11:80                 Masq    1      0          0
   -> 10.0.1.12:80                 Masq    1      0          0
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -338,11 +339,11 @@ TCP  10.0.0.100:80 rr
 podman run --rm --network lb-public \
   docker.io/library/alpine:latest \
   sh -c "apk add curl && for i in \$(seq 1 12); do curl -s 10.0.0.100; echo; done"
-```
+```text
 
 期待される結果: バックエンドが均等に分散される
 
-```
+```text
 Backend 1
 Backend 2
 Backend 3
@@ -350,22 +351,22 @@ Backend 1
 Backend 2
 Backend 3
 ...
-```
+```text
 
 接続統計の確認:
 
 ```bash
 podman exec loadbalancer ipvsadm -L -c --stats
-```
+```text
 
 期待される出力例:
 
-```
+```text
 CP 00:54 :80          0     0     0     0     0
   -> 10.0.1.10:80      0     0     4    252     0
   -> 10.0.1.11:80      0     0     4    252     0
   -> 10.0.1.12:80      0     0     4    252     0
-```
+```text
 
 ### STEP 7: ヘルスチェックの動作確認
 
@@ -386,7 +387,7 @@ podman run --rm --network lb-public \
 # Backend 2
 # Backend 3
 # ...
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -402,13 +403,13 @@ podman run --rm --network lb-public \
 
 ```bash
 podman exec loadbalancer ipvsadm -E -t 10.0.0.100:80 -s rr
-```
+```text
 
 ### Least Connections
 
 ```bash
 podman exec loadbalancer ipvsadm -E -t 10.0.0.100:80 -s lc
-```
+```text
 
 ### Weighted Round Robin
 
@@ -422,7 +423,7 @@ podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.12:80
 podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.10:80 -g -w 3  # 3倍
 podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.11:80 -g -w 2  # 2倍
 podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.12:80 -g -w 1  # 1倍
-```
+```text
 
 ---
 
@@ -441,7 +442,7 @@ podman network rm lb-public lb-backend
 # Docker の場合
 docker rm -f backend1 backend2 backend3 loadbalancer
 docker network rm lb-public lb-backend
-```
+```text
 
 ---
 

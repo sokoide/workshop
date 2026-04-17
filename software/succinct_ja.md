@@ -83,7 +83,7 @@ func main() {
 	fmt.Println(t.Search("appl"))  // false
 	fmt.Println(t.Search("apple")) // true
 }
-```
+```text
 
 ### 構造イメージ
 
@@ -101,7 +101,7 @@ graph TD
     B --> BA["a"]
     BA --> BAN["n..."]
     BA --> BAL["l..."]
-```
+```text
 
 この形は直感的ですが、各ノードが `map` とポインタを持つため、単語数が増えるほどメモリ効率が悪化しやすくなります。
 
@@ -135,7 +135,7 @@ graph TD
     R -- "ba" --> BA["ba"]
     BA -- "nana" --> BANANA["banana *"]
     BA -- "ll" --> BALL["ball *"]
-```
+```text
 
 ---
 
@@ -164,7 +164,7 @@ flowchart LR
     A --> B["base[s] を決める<br>（子が衝突しない位置を探す）"]
     B --> C["next = base[s] + code(c)<br>check[next] = s で記録"]
     C --> D["終端ノードに<br>term フラグを立てる"]
-```
+```text
 
 ### 例（`app`, `apple`, `ban` の 3 単語）
 
@@ -180,7 +180,7 @@ root
 └─ b (code=98)
    └─ a (code=97)
       └─ n * (code=110, 終端: "ban")
-```
+```text
 
 次に各ノードへ状態番号（0 始まり）を割り当て、`base/check` に落とし込みます。
 
@@ -208,7 +208,7 @@ base[0] = 0  → 子 'a'(97) は next=0+97=97, 子 'b'(98) は next=0+98=98
 遷移例: "app" を検索
   s=0, 'a' → next = base[0] + code('a') = 1+97-96 = ...
   （実際の実装は後述の Go コードを参照）
-```
+```text
 
 > [!NOTE]
 > 実際の `base` の値は「すべての子が衝突しない添字オフセット」として決まります。上表は概念を示す簡略版です。コードと合わせて読んでください。
@@ -234,7 +234,7 @@ graph TD
         T3["term[]:<br>[0,0,0,0,0,1,-,0,1]"]
     end
     P20 -. "ポインタなし<br>配列参照で代替" .-> T1
-```
+```text
 
 ### Go 実装例
 
@@ -387,7 +387,7 @@ func main() {
 		fmt.Printf("Search(%q) = %v\n", w, dat.Search(w))
 	}
 }
-```
+```text
 
 実行結果:
 
@@ -398,7 +398,7 @@ Search("ap")    = false
 Search("ban")   = true
 Search("band")  = false
 Search("ban")   = true
-```
+```text
 
 ### このコードで理解すべき点
 
@@ -426,14 +426,14 @@ flowchart LR
     B --> C["辺ラベルを配列に格納"]
     L --> Q["rank/select で親子関係を復元"]
     C --> Q
-```
+```text
 
 ### 例（概念）
 
 ```text
 ノードの子数: [3,2,1,0,1,0,...]
 LOUDS:        1110 110 10 0 10 0 ...
-```
+```text
 
 ### 何が起きているかをASCIIで見る
 
@@ -454,7 +454,7 @@ root=2, a=1, b=1, p=1, a=0, p=0
 
 LOUDS:
 110 10 10 10 0 0
-```
+```text
 
 読み方は単純です。子が 2 個なら `110`、子が 1 個なら `10`、子が 0 個なら `0` です。木の形そのものはこのビット列に押し込み、文字情報は別のラベル配列に置きます。
 
@@ -544,7 +544,7 @@ func (bv *BitVector) Rank1(i int) int {
 	sum += bits.OnesCount64(bv.words[full] & mask)
 	return sum
 }
-```
+```text
 
 ### このコードで理解すべき点
 
@@ -649,7 +649,7 @@ flowchart TD
     C -->|速度| E["Double Array Trie"]
     C -->|メモリ| F["Succinct (LOUDS)"]
     C -->|バランス| G["Radix Tree"]
-```
+```text
 
 ---
 

@@ -12,7 +12,7 @@ This is a collection of hands-on technical workshops covering infrastructure and
 
 ## Repository Structure
 
-```
+```text
 /workshop/
 ├── infra/              # Infrastructure workshops (DNS, VLAN, K8s, TLS, etc.)
 ├── software/           # Software architecture workshops
@@ -20,13 +20,13 @@ This is a collection of hands-on technical workshops covering infrastructure and
 │   └── go_cache_patterns/      # Caching pattern examples (5 patterns)
 ├── conductor/          # Project management workflows and guidelines
 └── Makefile            # Repository-level markdown formatting
-```
+```text
 
 ## Clean Architecture (4-Layer Structure)
 
 All Go projects in this repository follow Clean Architecture principles with dependencies pointing inward:
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │  Framework Layer (Web/gRPC/CLI)         │
 │  - Controllers, Handlers, Presenters    │
@@ -51,7 +51,7 @@ All Go projects in this repository follow Clean Architecture principles with dep
 └──────────────▲──────────────────────────┘
                │ implements
     Domain Interfaces (Ports)
-```
+```text
 
 **Key Principles:**
 
@@ -63,14 +63,14 @@ All Go projects in this repository follow Clean Architecture principles with dep
 
 **Directory Pattern per Project:**
 
-```
+```text
 project/
 ├── domain/         # Business entities and interfaces (no external deps)
 ├── usecase/        # Application logic orchestration
 ├── infra/          # External system implementations
 ├── cmd/            # CLI entry points (if applicable)
 └── main.go         # Dependency injection
-```
+```text
 
 ## Development Commands
 
@@ -79,7 +79,7 @@ project/
 ```bash
 # Format all markdown files
 make format
-```
+```text
 
 ### Go Projects (Individual Workshops)
 
@@ -98,7 +98,7 @@ go test ./... -cover
 
 # Format code
 go fmt ./...
-```
+```text
 
 ### Infrastructure Workshops
 
@@ -110,7 +110,7 @@ make redis-down      # Stop Redis container
 # RabbitMQ crypto (infra/assets/rabbitmq_crypto/)
 make mq-up           # Start RabbitMQ container
 make mq-down         # Stop RabbitMQ container
-```
+```text
 
 ## Testing Conventions
 
@@ -139,7 +139,7 @@ func TestFeature(t *testing.T) {
     }
     // Assertions...
 }
-```
+```text
 
 ## Go Code Style Conventions
 

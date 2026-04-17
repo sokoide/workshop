@@ -51,6 +51,8 @@ This repository contains hands-on materials for various technical topics.
   - Practical sharding design with Elasticsearch and Cortex examples, including a summary of Cortex PRs #7266 and #7270.
 - [TCP/IP Protocol Stack Workshop: Building a Network Stack from Scratch](./infra/tcpip_stack_en.md)
   - Implement Ethernet/IP/ICMP/UDP with Go and C (CGO), understanding packets from raw socket.
+- [Web Security Workshop: XSS, CSRF, and Clickjacking](./infra/web_security_en.md)
+  - Experience common web attacks and learn defense mechanisms (escaping, tokens, etc.) using an intentionally vulnerable application.
 
 #### Infrastructure: Contents planned for the future
 

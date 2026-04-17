@@ -25,7 +25,7 @@ sequenceDiagram
     Note over C,N: (3) SPNEGO 認証
     C->>N: HTTP GET (Authorization: Negotiate <Ticket>)
     N-->>C: 200 OK (User: user1@TEST.LOCAL)
-```
+```text
 
 **この実習で習得すること:**
 
@@ -62,7 +62,7 @@ kerberos_lab/
 ├── index.txt          # 認証後に返す固定レスポンス
 ├── kdc-data/          # KDC DB 永続化ディレクトリ
 └── (krb5.keytab)      # STEP 2 で生成される
-```
+```text
 
 ---
 
@@ -73,7 +73,7 @@ kerberos_lab/
 ```bash
 # Ubuntu/Debian の場合
 sudo apt update && sudo apt install -y krb5-user curl podman podman-compose
-```
+```text
 
 ### 2. ホスト解決の設定
 
@@ -81,7 +81,7 @@ sudo apt update && sudo apt install -y krb5-user curl podman podman-compose
 
 ```bash
 sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
-```
+```text
 
 ---
 
@@ -254,7 +254,7 @@ KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
 echo "$KDC_CID" # IDを確認
 podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -280,7 +280,7 @@ kdestroy
 
 # 破棄確認（通常は "No credentials cache found" になる）
 klist
-```
+```text
 
 ### STEP 4: NGINX の起動と動作確認
 
@@ -306,7 +306,7 @@ curl -i --negotiate -u : http://nginx.test.local:8080/
 # 5. サービスチケットの取得を確認
 # curl 実行後に実行。HTTP/nginx.test.local@TEST.LOCAL が増えているはずです
 klist
-```
+```text
 
 **成功時の確認ポイント:**
 
@@ -346,7 +346,7 @@ sequenceDiagram
     S-->>C: AP-REP (TS+1 を K_c,s で暗号化)
 
     Note over C,S: C が AP-REP を K_c,s で復号できれば mutual auth 成立
-```
+```text
 
 #### どの鍵で何を暗号化・復号するか
 
@@ -375,7 +375,7 @@ sequenceDiagram
 
 ```bash
 curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
-```
+```text
 
 **参考出力（要点）**
 
@@ -386,7 +386,7 @@ curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
 > Authorization: Negotiate YIIF...   # クライアントの AP-REQ
 < HTTP/1.1 200 OK
 < WWW-Authenticate: Negotiate YIGC... # サーバーの AP-REP（mutual 認証）
-```
+```text
 
 `200 OK` なのに後者の `WWW-Authenticate: Negotiate <token>` が無い場合は、相互認証トークンが返っていない可能性があります（モジュール設定・実装差分を確認）。
 
@@ -398,7 +398,7 @@ curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
 podman compose down
 rm krb5.keytab
 # /etc/hosts の編集内容は必要に応じて手動で削除してください
-```
+```text
 
 ---
 

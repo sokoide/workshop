@@ -32,7 +32,7 @@ func ProcessOrder(o Order, db *sql.DB, smtp SMTPClient) error {
 	// メール送信
 	return nil
 }
-```
+```text
 
 ```go
 // 税率変更時に、同じ関数内の通知文面ロジックとの整合まで見る必要がある例
@@ -54,7 +54,7 @@ func ProcessOrder(o Order, db *sql.DB, smtp SMTPClient) error {
 	body := fmt.Sprintf("注文合計: %d (%s)", o.Total, taxLabel)
 	return smtp.Send(o.Email, body)
 }
-```
+```text
 
 この形だと税ルール変更時に、通知文面（`taxLabel` の扱い）まで同時に確認・調整が必要になります。
 通知コードを「必ず書き換える」わけではないですが、同居しているため変更影響の調査範囲が広がります。
@@ -120,7 +120,7 @@ type MailNotifier struct {
 func (n MailNotifier) SendOrderCreated(ctx context.Context, to, body string) error {
 	return n.client.Send(ctx, to, body)
 }
-```
+```text
 
 責務を分離すると、計算ロジックだけのテスト、通知だけの差し替えが可能になります。
 税ルール変更（10% -> 12%、軽減税率条件変更など）は `OrderPricer` 実装だけを直せばよく、`MailNotifier` は変更不要です。
@@ -166,7 +166,7 @@ func Checkout(ctx context.Context, paymentType string, amount int) error {
 		return errors.New("unsupported payment type")
 	}
 }
-```
+```text
 
 ### 例: 支払い方法の追加
 
@@ -186,7 +186,7 @@ func (PayPayPayment) Pay(ctx context.Context, amount int) error { return nil }
 func Checkout(ctx context.Context, pm PaymentMethod, amount int) error {
 	return pm.Pay(ctx, amount)
 }
-```
+```text
 
 新しい支払い方法は `PaymentMethod` 実装を追加するだけで対応できます。
 
@@ -234,7 +234,7 @@ func Checkout(ctx context.Context, gw PaymentGateway, amount int) error {
 	// 呼び出し側は「失敗は error で返る」と期待している
 	return gw.Charge(ctx, amount)
 }
-```
+```text
 
 `Checkout` は `error` を処理する前提で書かれています。`PanicGateway` に差し替えると前提が崩れ、同じ `PaymentGateway` でも安全に置換できません。これが L 違反です。
 
@@ -263,7 +263,7 @@ type UserService interface {
 	Find(ctx context.Context, id string) (User, error)
 	List(ctx context.Context) ([]User, error)
 }
-```
+```text
 
 ### 改善例
 
@@ -275,7 +275,7 @@ type UserFinder interface {
 type UserCreator interface {
 	Create(ctx context.Context, u User) error
 }
-```
+```text
 
 読み取り専用ユースケースは `UserFinder` のみを要求し、依存を最小化できます。
 
@@ -310,7 +310,7 @@ type CreateOrderUseCase struct {
 func (uc *CreateOrderUseCase) Execute(ctx context.Context, sku string, qty int) error {
 	return uc.inv.Reserve(ctx, sku, qty)
 }
-```
+```text
 
 `infra` 側で `InventoryGateway` を実装すれば、UseCase は外部技術の詳細を知らずに済みます。
 

@@ -25,7 +25,7 @@ sequenceDiagram
     Note over C,N: (3) SPNEGO Authentication
     C->>N: HTTP GET (Authorization: Negotiate <Ticket>)
     N-->>C: 200 OK (User: user1@TEST.LOCAL)
-```
+```text
 
 **What you will learn in this workshop:**
 
@@ -62,7 +62,7 @@ kerberos_lab/
 ├── index.txt          # Fixed response returned after auth
 ├── kdc-data/          # Persistent KDC DB directory
 └── (krb5.keytab)      # Generated in STEP 2
-```
+```text
 
 ---
 
@@ -73,7 +73,7 @@ kerberos_lab/
 ```bash
 # For Ubuntu/Debian
 sudo apt update && sudo apt install -y krb5-user curl podman podman-compose
-```
+```text
 
 ### 2. Host Resolution Setup
 
@@ -81,7 +81,7 @@ Add the following to the host machine's `/etc/hosts` so that container names can
 
 ```bash
 sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
-```
+```text
 
 ---
 
@@ -249,7 +249,7 @@ KDC_CID=$(podman ps -a -q --filter name=_kdc_ | head -n1)
 echo "$KDC_CID" # Verify container ID
 podman cp "$KDC_CID":/tmp/krb5.keytab ./krb5.keytab
 chmod 644 ./krb5.keytab
-```
+```text
 
 ### ✅ Checkpoint
 
@@ -275,7 +275,7 @@ kdestroy
 
 # Confirm destroy (typically shows "No credentials cache found")
 klist
-```
+```text
 
 ### STEP 4: Starting NGINX and Verification
 
@@ -301,7 +301,7 @@ curl -i --negotiate -u : http://nginx.test.local:8080/
 # 5. Verify Service Ticket acquisition
 # Run this after curl. You should see HTTP/nginx.test.local@TEST.LOCAL added to the list.
 klist
-```
+```text
 
 **Successful verification points:**
 
@@ -341,7 +341,7 @@ sequenceDiagram
     S-->>C: AP-REP (encrypt TS+1 with K_c,s)
 
     Note over C,S: Mutual auth succeeds if C can decrypt AP-REP with K_c,s
-```
+```text
 
 #### Which key encrypts/decrypts what
 
@@ -370,7 +370,7 @@ With `curl -v --negotiate`, if `WWW-Authenticate: Negotiate <token>` appears in 
 
 ```bash
 curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
-```
+```text
 
 **Reference output (key lines)**
 
@@ -381,7 +381,7 @@ curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
 > Authorization: Negotiate YIIF...   # Client AP-REQ
 < HTTP/1.1 200 OK
 < WWW-Authenticate: Negotiate YIGC... # Server AP-REP (mutual auth)
-```
+```text
 
 If `200 OK` is returned but the second `WWW-Authenticate: Negotiate <token>` is missing, mutual-auth token return may not be happening (check module behavior/config).
 
@@ -393,7 +393,7 @@ If `200 OK` is returned but the second `WWW-Authenticate: Negotiate <token>` is 
 podman compose down
 rm krb5.keytab
 # Delete entries in /etc/hosts manually if needed
-```
+```text
 
 ---
 

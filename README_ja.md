@@ -51,6 +51,8 @@
   - Elasticsearch/Cortex を題材にしたシャーディング設計の実践ガイド（Cortex PR #7266 / #7270 の要点を含む、日本語）。
 - [TCP/IP プロトコルスタック実習：スクラッチからネットワークスタックを構築する](./infra/tcpip_stack_ja.md)
   - Go と C (CGO) で Ethernet/IP/ICMP/UDP を実装し、raw socket からパケットを理解
+- [Webセキュリティ実習：XSS, CSRF, クリックジャッキングを体験する](./infra/web_security_ja.md)
+  - 意図的に脆弱なアプリを用い、代表的な Web 攻撃の仕組みと対策（エスケープ、トークン等）を学習
 
 #### インフラ: 今後追加予定のコンテンツ
 

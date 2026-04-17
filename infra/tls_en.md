@@ -14,7 +14,7 @@ graph TD
     RootCA -.-> |Import Trust| Client["curl (cacert)"]
     ServerCert --> Traefik["Traefik (SSL Termination)"]
     Traefik --> App["Backend App (HTTP)"]
-```
+```text
 
 **What you will learn in this workshop:**
 
@@ -55,7 +55,7 @@ In this workshop, we will reproduce all roles (CA, Server, Client) in a local en
     ├── server.csr        # Server signing request
     ├── server.crt        # Server certificate (signed by CA)
     └── dynamic_conf.yaml # TLS configuration for Traefik
-```
+```text
 
 ---
 
@@ -77,7 +77,7 @@ openssl genrsa -out rootCA.key 4096
 # 1.2 Create a self-signed root certificate (valid for 10 years)
 openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 3650 -out rootCA.crt \
   -subj "/C=JP/ST=Tokyo/L=Minato/O=Workshop/CN=Workshop Root CA"
-```
+```text
 
 ### STEP 2: Issue a Server Certificate
 
@@ -102,7 +102,7 @@ EOF
 # 2.4 Sign the certificate with the CA
 openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial \
   -out server.crt -days 365 -sha256 -extfile server.ext
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -114,7 +114,7 @@ openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateseria
 ```bash
 openssl verify -CAfile rootCA.crt server.crt
 # -> Success if it outputs: server.crt: OK
-```
+```text
 
 ### STEP 4: Practical Application with Traefik
 
@@ -134,7 +134,7 @@ sudo podman run -d --name traefik -p 443:443 \
   docker.io/library/traefik:v3.1 \
   --providers.file.filename=/etc/traefik/dynamic_conf.yaml \
   --entrypoints.websecure.address=:443
-```
+```text
 
 ### STEP 5: Verification from Client (curl)
 
@@ -144,7 +144,7 @@ curl https://server.workshop.local
 
 # Access by specifying your custom Root CA certificate (expected to succeed)
 curl --cacert rootCA.crt https://server.workshop.local
-```
+```text
 
 ---
 
@@ -165,7 +165,7 @@ This ensures security through infrastructure layer changes alone, without needin
 sudo podman rm -f traefik
 kill %1  # Stop Python server
 rm rootCA.* server.* dynamic_conf.yaml
-```
+```text
 
 ---
 

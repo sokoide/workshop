@@ -57,7 +57,7 @@ graph TB
     end
 
     SDK -- S3 Protocol --> MinIO
-```
+```text
 
 ### 想定ディレクトリ構造
 
@@ -66,7 +66,7 @@ infra/assets/minio/
 ├── docker-compose.yml
 ├── main.go                 # サンプルアプリ (Upload/Share機能の実装)
 └── go.mod
-```
+```text
 
 ---
 
@@ -77,7 +77,7 @@ infra/assets/minio/
 ```bash
 cd infra/assets/minio
 podman compose up -d
-```
+```text
 
 MinIO コンソール: `http://localhost:9001`
 
@@ -96,7 +96,7 @@ MinIO クライアント (`mc`) が利用可能な場合、または AWS CLI を
 ```bash
 # AWS CLI の場合 (ローカルのMinIOに向ける設定)
 aws --endpoint-url http://localhost:9000 s3 mb s3://my-bucket
-```
+```text
 
 ---
 
@@ -119,13 +119,13 @@ func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
     })
     return err
 }
-```
+```text
 
 実行コマンド:
 
 ```bash
 go run main.go upload sample.jpg
-```
+```text
 
 ### STEP 2: 署名付き URL (Presigned URL) の生成
 
@@ -147,14 +147,14 @@ func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
 
     return req.URL, nil
 }
-```
+```text
 
 実行コマンド:
 
 ```bash
 go run main.go share sample.jpg
 # Output: http://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
-```
+```text
 
 **なぜ安全なのか？**: URL には暗号学的な署名が含まれており、有効期限やパスの一部でも改ざんされると無効になります。
 
@@ -183,7 +183,7 @@ go run main.go share sample.jpg
 
 ```bash
 podman compose down
-```
+```text
 
 データの永続化設定をしていない場合、コンテナ削除と共にデータも消えます。
 

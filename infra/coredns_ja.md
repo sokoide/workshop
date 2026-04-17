@@ -23,7 +23,7 @@ sequenceDiagram
     P->>S: Forward Query
     S-->>P: Response (2.2.2.2)
     P-->>C: Response (2.2.2.2)
-```
+```text
 
 **この実習で習得すること:**
 
@@ -57,7 +57,7 @@ sequenceDiagram
 └── coredns_child/  (VM2)
     ├── Corefile          # 子DNSの設定
     └── db.foo.sokoide.com # foo.sokoide.com のレコード定義
-```
+```text
 
 ---
 
@@ -73,7 +73,7 @@ sequenceDiagram
 
 ```bash
 sudo apt update && sudo apt install -y curl tar dnsutils
-```
+```text
 
 ---
 
@@ -94,7 +94,7 @@ sudo mv coredns /usr/local/bin/
 
 # 動作確認
 coredns -version
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -192,7 +192,7 @@ VM2 はサブドメイン `foo.sokoide.com` の正解データを持ちます。
 # 各ディレクトリに移動して起動
 # ポート10053を使用するため sudo は不要な場合があります
 coredns -conf Corefile
-```
+```text
 
 ### ✅ チェックポイント
 

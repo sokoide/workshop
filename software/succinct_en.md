@@ -83,7 +83,7 @@ func main() {
 	fmt.Println(t.Search("appl"))  // false
 	fmt.Println(t.Search("apple")) // true
 }
-```
+```text
 
 ### Structure Image
 
@@ -101,7 +101,7 @@ graph TD
     B --> BA["a"]
     BA --> BAN["n..."]
     BA --> BAL["l..."]
-```
+```text
 
 While intuitive, the memory efficiency degrades as the number of words increases because each node holds a `map` and pointers.
 
@@ -135,7 +135,7 @@ graph TD
     R -- "ba" --> BA["ba"]
     BA -- "nana" --> BANANA["banana *"]
     BA -- "ll" --> BALL["ball *"]
-```
+```text
 
 ---
 
@@ -164,7 +164,7 @@ flowchart LR
     A --> B["Determine base[s]<br>(Find position where children don't collide)"]
     B --> C["next = base[s] + code(c)<br>Record check[next] = s"]
     C --> D["Set term flag for<br>terminal nodes"]
-```
+```text
 
 ### Example (`app`, `apple`, `ban` - 3 words)
 
@@ -180,7 +180,7 @@ root
 └─ b (code=98)
    └─ a (code=97)
       └─ n * (code=110, Terminate: "ban")
-```
+```text
 
 Next, assign state numbers (starting from 0, BFS order) and map them into `base/check`.
 
@@ -208,7 +208,7 @@ Simplified representation:
 Transition Example: Search "app"
   s=0, 'a' → next = base[0] + code('a') = ...
   (See the Go code below for the actual implementation details)
-```
+```text
 
 > [!NOTE]
 > The actual value of `base` is determined as an "index offset where all children do not collide." The table above is a simplified version for conceptual understanding.
@@ -234,7 +234,7 @@ graph TD
         T3["term[]:<br>[0,0,0,0,0,1,-,0,1]"]
     end
     P20 -. "No pointers<br>Replaced by array access" .-> T1
-```
+```text
 
 ### Go Implementation Example
 
@@ -387,7 +387,7 @@ func main() {
 		fmt.Printf("Search(%q) = %v\n", w, dat.Search(w))
 	}
 }
-```
+```text
 
 ### Key Understanding Points
 
@@ -415,14 +415,14 @@ flowchart LR
     B --> C["Store edge labels in an array"]
     L --> Q["Restore parent-child with rank/select"]
     C --> Q
-```
+```text
 
 ### Example (Concept)
 
 ```text
 Children count per node: [3, 2, 1, 0, 1, 0, ...]
 LOUDS:                   1110 110 10 0 10 0 ...
-```
+```text
 
 ### Visualizing in ASCII
 
@@ -443,7 +443,7 @@ root=2, a=1, b=1, p=1, a=0, p=0
 
 LOUDS:
 110 10 10 10 0 0
-```
+```text
 
 The reading method is simple: `110` for 2 children, `10` for 1 child, and `0` for 0 children. The shape of the tree is packed into this bit string, and character information is placed in a separate label array.
 
@@ -533,7 +533,7 @@ func (bv *BitVector) Rank1(i int) int {
 	sum += bits.OnesCount64(bv.words[full] & mask)
 	return sum
 }
-```
+```text
 
 ### Key Understanding Points
 
@@ -638,7 +638,7 @@ flowchart TD
     C -->|Speed| E["Double Array Trie"]
     C -->|Memory| F["Succinct (LOUDS)"]
     C -->|Balance| G["Radix Tree"]
-```
+```text
 
 ---
 

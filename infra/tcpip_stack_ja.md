@@ -23,7 +23,7 @@
 | | +--------------------------------------------+ | |
 | +------------------------------------------------+ |
 +----------------------------------------------------+
-```
+```text
 
 ### 今回実装するコンポーネント
 
@@ -45,7 +45,7 @@
 
 ```bash
 sudo apt update && sudo apt install -y golang-go gcc tcpdump wireshark iproute2
-```
+```text
 
 ### 2. プロジェクト構成
 
@@ -54,7 +54,7 @@ mkdir -p tcpip_stack/pkg/{rawsock,ethernet,ipv4,icmp}
 mkdir -p tcpip_stack/cmd/ping
 cd tcpip_stack
 go mod init github.com/sokoide/workshop/infra/assets/tcpip_stack
-```
+```text
 
 ### 3. 安全な実験場の作成 (Network Namespace)
 
@@ -77,7 +77,7 @@ sudo ip netns exec workshop ip link set veth-ns up
 # 5. IPアドレスを割り当て
 sudo ip addr add 192.168.100.1/24 dev veth-host
 sudo ip netns exec workshop ip addr add 192.168.100.2/24 dev veth-ns
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -134,7 +134,7 @@ int rawsock_set_promisc(int fd, const char *iface, int enable);
 #endif
 
 #endif // RAWSOCK_H
-```
+```text
 
 #### 実装: C 実装ファイル (`pkg/rawsock/rawsock.c`)
 
@@ -260,7 +260,7 @@ int rawsock_set_promisc(int fd, const char *iface, int enable) {
 
     return 0;
 }
-```
+```text
 
 #### 実装: Go バインディング (`pkg/rawsock/rawsock.go`)
 
@@ -351,7 +351,7 @@ func GetMAC(iface string) (net.HardwareAddr, error) {
 		byte(mac[3]), byte(mac[4]), byte(mac[5]),
 	}, nil
 }
-```
+```text
 
 #### 学習ポイント
 
@@ -370,7 +370,7 @@ Raw Socket (AF_PACKET)
 |   App     | <-- | Raw Ethernet frame (bytes)         |
 +-----------+     | Build headers from MAC layer up    |
                   +------------------------------------+
-```
+```text
 
 ##### socket() システムコールの引数
 
@@ -380,7 +380,7 @@ int fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 //              │          │         └─ プロトコル: 全てのパケットを受信
 //              │          └─ タイプ: ヘッダを含む生データ
 //              └─ ファミリ: データリンク層アクセス
-```
+```text
 
 | 引数       | 値                   | 意味                           |
 | :--------- | :------------------- | :----------------------------- |
@@ -425,7 +425,7 @@ import "C"
 
 // unsafe.Pointer で Go のメモリを C に直接渡す（コピー回避）
 n := C.rawsock_recv(s.fd, unsafe.Pointer(&buf[0]), C.int(len(buf)))
-```
+```text
 
 - **ゼロコピー**: `unsafe.Pointer` で Go スライスのアドレスを直接 C に渡し、メモリコピーを回避
 - **パフォーマンス**: パケット処理では μ秒単位の速度が重要
@@ -436,7 +436,7 @@ n := C.rawsock_recv(s.fd, unsafe.Pointer(&buf[0]), C.int(len(buf)))
 
 ```c
 setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -459,7 +459,7 @@ Ethernet は物理的に隣接する機器間の通信を制御します。MAC �
 ├───────────────────┴───────────────────┴──────────────┴─────────────┤
 │                          Minimum 60 bytes                          │
 └────────────────────────────────────────────────────────────────────┘
-```
+```text
 
 #### 実装: Ethernet Frame (`pkg/ethernet/frame.go`)
 
@@ -566,7 +566,7 @@ func IsMulticast(mac net.HardwareAddr) bool {
 	}
 	return mac[0]&0x01 == 0x01
 }
-```
+```text
 
 #### 学習ポイント
 
@@ -598,7 +598,7 @@ IPv4 は異なるネットワークセグメント間での通信を可能にし
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                    Destination Address                        |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
+```text
 
 #### 実装: IPv4 Packet (`pkg/ipv4/packet.go`)
 
@@ -776,7 +776,7 @@ func (p *Packet) PseudoHeader() []byte {
 	binary.BigEndian.PutUint16(buf[10:12], uint16(len(p.Payload)))
 	return buf
 }
-```
+```text
 
 #### 学習ポイント
 
@@ -809,7 +809,7 @@ ICMP (Internet Control Message Protocol) はネットワーク診断に使用さ
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                             Data                              |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
+```text
 
 #### 実装: ICMP Message (`pkg/icmp/message.go`)
 
@@ -914,7 +914,7 @@ func (m *Message) IsEchoRequest() bool {
 func (m *Message) IsEchoReply() bool {
 	return m.Type == EchoReply
 }
-```
+```text
 
 #### 学習ポイント
 
@@ -1156,7 +1156,7 @@ func main() {
 
 	log.Println("TCP/IP stack shut down gracefully")
 }
-```
+```text
 
 ---
 
@@ -1167,14 +1167,14 @@ func main() {
 ```bash
 go mod tidy
 go build -o tcpip_stack main.go
-```
+```text
 
 ### 2. スタックの起動
 
 ```bash
 # 作成した veth のホスト側で起動
 sudo ./tcpip_stack -iface veth-host
-```
+```text
 
 ### 3. Ping テスト
 
@@ -1183,13 +1183,13 @@ sudo ./tcpip_stack -iface veth-host
 ```bash
 # Namespace 内から Ping
 sudo ip netns exec workshop ping 192.168.100.1
-```
+```text
 
 ### 4. パケット観察
 
 ```bash
 sudo tcpdump -i veth-host -nn -vv icmp
-```
+```text
 
 ---
 
@@ -1210,7 +1210,7 @@ NIC --> Raw Socket --> Ethernet.Parse --> IPv4.Parse --> ICMP.Parse
 ==================== Send Path (Tx) ====================
 
 NIC <-- Raw Socket <-- Ethernet.Marshal <-- IPv4.Marshal <-- ICMP.Reply
-```
+```text
 
 **凡例:**
 
@@ -1255,7 +1255,7 @@ Ping 要求が届いた時の処理フロー:
 ・[Type Check]: Type が Echo Request (8) か確認
   - Type = 8 → Echo Reply を生成して送信パスへ
   - それ以外 → 破棄
-```
+```text
 
 #### 2. 送信パス（右から左へ）
 
@@ -1286,7 +1286,7 @@ Echo Reply を返す時の処理フロー:
 ───────────────────────────
 ・完成したバイト列を Raw Socket に渡す
 ・NIC が電気信号として送信
-```
+```text
 
 ### 具体例：Ping 要求〜応答のシーケンス
 
@@ -1320,7 +1320,7 @@ T4: Packet sent (Echo Reply)
     |
 T5: ping receives Reply
     "64 bytes from 192.168.100.1: icmp_seq=1 ttl=64"
-```
+```text
 
 ---
 
@@ -1329,7 +1329,7 @@ T5: ping receives Reply
 ```bash
 sudo ip link delete veth-host
 sudo ip netns delete workshop
-```
+```text
 
 ---
 
@@ -1454,6 +1454,6 @@ WSL2 は Linux カーネルベースですが、Raw Socket のサポートに制
 ```bash
 # WSL2 のカーネルバージョンを確認
 uname -r
-```
+```text
 
 問題が発生する場合は、クラウド上の Ubuntu VM での実行を推奨します。

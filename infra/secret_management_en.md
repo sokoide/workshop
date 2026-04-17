@@ -77,7 +77,7 @@ graph TB
     VA -.->|implements| Repo
     VA --> SDK
     SDK --> V
-```
+```text
 
 ### Directory Structure
 
@@ -89,7 +89,7 @@ infra/assets/secret_management/
 ├── infra/                      # Vault adapter implementation
 ├── Makefile                    # Container management commands
 └── go.mod
-```
+```text
 
 ---
 
@@ -100,13 +100,13 @@ infra/assets/secret_management/
 ```bash
 cd infra/assets/secret_management
 make vault-up
-```
+```text
 
 ### 2. Enable KV v2 Secrets Engine
 
 ```bash
 make init
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -129,7 +129,7 @@ Look for hardcoded passwords in other workshop assets. Realize how terrifying it
 go run cmd/put-secret/main.go api/external-key "sk-live-abc123xyz789"
 # Retrieve
 go run cmd/get-secret/main.go api/external-key
-```
+```text
 
 ### STEP 3: Practical Example - API Client
 
@@ -137,7 +137,7 @@ Verify the pattern of retrieving a key from Vault at startup and using it for a 
 
 ```bash
 go run cmd/api-client/main.go
-```
+```text
 
 ### STEP 4: Versioning and Rotation
 
@@ -148,7 +148,7 @@ In Vault KV v2, writing a new value to the same key automatically increments the
 go run cmd/put-secret/main.go api/key "new-value"
 # Check history (using container command)
 podman exec workshop-vault vault kv metadata get secret/api/key
-```
+```text
 
 Examine the `internal/usecase` layer code and confirm it has zero dependencies on Vault (it only depends on the interface defined in `internal/domain`).
 
@@ -170,7 +170,7 @@ The business logic doesn't care **"whether the secret is in Vault or AWS."** It 
 
 ```bash
 make vault-down
-```
+```text
 
 ---
 

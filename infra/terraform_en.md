@@ -28,7 +28,7 @@ graph LR
     Router -- "3. dig @a server.foo.sokoide.com" --> A
     A -- "4. Forwards query to b" --> B
     B -- "5. Returns A Record" --> A
-```
+```text
 
 **What you will learn in this workshop:**
 
@@ -72,7 +72,7 @@ terraform-handson/
     ├── Dockerfile        # For CoreDNS image
     ├── main.tf           # Container and Network definitions
     └── versions.tf       # Provider settings
-```
+```text
 
 ---
 
@@ -89,7 +89,7 @@ resource "local_file" "hello" {
   content  = "hello-terraform"
   filename = "${path.module}/hello.txt"
 }
-```
+```text
 
 ### STEP 2: Init, Plan, and Apply
 
@@ -98,7 +98,7 @@ cd part1
 terraform init    # Download providers
 terraform plan    # Review changes
 terraform apply   # Execute (type 'yes')
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -120,7 +120,7 @@ variable "filename" {
 output "file_path" {
   value = local_file.hello.filename
 }
-```
+```text
 
 Update `main.tf` to reference the variable:
 
@@ -129,7 +129,7 @@ resource "local_file" "hello" {
   content  = "hello-terraform"
   filename = "${path.module}/${var.filename}"
 }
-```
+```text
 
 Run `terraform apply` again.
 
@@ -148,7 +148,7 @@ resource "local_file" "user_files" {
   content  = "hello, ${each.key}"
   filename = "${path.module}/${each.value}.txt"
 }
-```
+```text
 
 _Note: If `outputs.tf` still references the previous `local_file.hello` resource, an error will occur. Delete or comment out `outputs.tf` before running STEP 4._
 
@@ -169,7 +169,7 @@ Use a Podman-compatible provider to automatically build a complex network config
 
 ```bash
 cd ../part2
-```
+```text
 
 Create a `Dockerfile`:
 
@@ -180,13 +180,13 @@ RUN wget https://github.com/coredns/coredns/releases/download/v${COREDNS_VERSION
     tar -xvzf /tmp/coredns.tgz -C /usr/local/bin/ && \
     rm /tmp/coredns.tgz
 CMD ["/usr/local/bin/coredns", "-conf", "/etc/coredns/Corefile"]
-```
+```text
 
 Build the image with Podman:
 
 ```bash
 podman build -t coredns-handson .
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -206,7 +206,7 @@ terraform {
     }
   }
 }
-```
+```text
 
 ### STEP 2: Define Containers and Networks
 
@@ -304,7 +304,7 @@ resource "docker_container" "router" {
     name = docker_network.net_a.name
   }
 }
-```
+```text
 
 ### STEP 3: Deploy and Verify
 
@@ -312,7 +312,7 @@ resource "docker_container" "router" {
 cd ../part2
 terraform init
 terraform apply
-```
+```text
 
 After deployment, enter the `router` container and test name resolution with the `dig` command.
 
@@ -322,7 +322,7 @@ podman exec -it container-router sh
 apk add bind-tools
 # Test direct resolution of A record
 dig @192.168.10.10 server.foo.sokoide.com
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -336,7 +336,7 @@ dig @192.168.10.10 server.foo.sokoide.com
 
 ```bash
 terraform destroy
-```
+```text
 
 _Note: All containers, networks, and temporary files will be deleted at once._
 

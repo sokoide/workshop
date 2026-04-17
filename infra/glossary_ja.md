@@ -29,7 +29,7 @@ Media Access Control Address。ネットワークインターフェース（NIC�
 
 ```text
 例: 00:1A:2B:3C:4D:5E
-```
+```text
 
 ### IP アドレス
 
@@ -38,7 +38,7 @@ Internet Protocol Address。ネットワーク上のデバイスを識別する�
 ```text
 IPv4 例: 192.168.1.1
 IPv6 例: 2001:db8::1
-```
+```text
 
 ### サブネットマスク
 
@@ -47,7 +47,7 @@ IP アドレスのどの部分がネットワーク部で、どの部分がホ�
 ```text
 例: 255.255.255.0 (/24)
      -> 192.168.1.0 〜 192.168.1.255 の範囲
-```
+```text
 
 ### デフォルトゲートウェイ
 
@@ -59,7 +59,7 @@ IP アドレスのどの部分がネットワーク部で、どの部分がホ�
 
 ```text
 プライベート: 192.168.1.10 ---[NAT]---> グローバル: 203.0.113.5
-```
+```text
 
 ---
 
@@ -82,7 +82,7 @@ Linux カーネルの機能で、ネットワークスタック（インター�
 ┌─────────────┐     veth      ┌─────────────┐
 │ Namespace A │<------------->│ Namespace B │
 └─────────────┘   (peer)      └─────────────┘
-```
+```text
 
 ---
 
@@ -145,7 +145,7 @@ Transport Layer Security / Secure Sockets Layer。通信を暗号化するプロ
 
 ```text
 例: market.btc.usd
-```
+```text
 
 ### ワイルドカード
 
@@ -168,7 +168,7 @@ Redis のデータ構造。スコア順にソートされたメンバーの集�
 ZADD game_leaderboard 100 player1
 ZADD game_leaderboard 250 player2
 ZREVRANGE game_leaderboard 0 9  # 上位 10 名を取得
-```
+```text
 
 ### Sets
 
@@ -177,7 +177,7 @@ ZREVRANGE game_leaderboard 0 9  # 上位 10 名を取得
 ```text
 SADD banned_users player2
 SISMEMBER banned_users player2  # 1 (true)
-```
+```text
 
 ---
 
@@ -197,7 +197,7 @@ SISMEMBER banned_users player2  # 1 (true)
 
 ```text
 192.168.10.100:80 (VIP) → 192.168.20.10:80 (Backend)
-```
+```text
 
 ### SNAT (Source NAT)
 
@@ -242,7 +242,7 @@ Linux カーネルレベルのロードバランシング機能。
 ```text
 [容量: 10] [補充レート: 1/秒]
 リクエストごとに1トークン消費
-```
+```text
 
 ### Throttling (スロットリング)
 
@@ -259,7 +259,7 @@ Linux カーネルレベルのロードバランシング機能。
 ```text
 例: x = 5 （冪等）
 例: x++ （非冪等）
-```
+```text
 
 ### Idempotency Key (冪等性キー)
 
@@ -267,7 +267,7 @@ Linux カーネルレベルのロードバランシング機能。
 
 ```text
 Header: Idempotency-Key: uuid-v4
-```
+```text
 
 ### Retry (再試行)
 
@@ -291,7 +291,7 @@ TCP と IP を中心とするインターネット通信プロトコルの階層
 
 ```text
 [ICMP] → [IPv4 [ICMP]] → [Ethernet [IPv4 [ICMP]]]
-```
+```text
 
 ### Raw Socket
 
@@ -332,7 +332,7 @@ Docker と互換性のあるコンテナエンジン。デーモンレスで roo
 ```text
 Framework → UseCase → Domain ← Infra
             (depends on)
-```
+```text
 
 ### Context (context.Context)
 
