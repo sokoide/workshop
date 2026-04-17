@@ -241,7 +241,7 @@ graph LR
     R --> I2[Ingesters B]
     R --> I3[Ingesters C]
     Q[Querier] --> R
-```
+```text
 
 ### How it maps to sharding concepts
 

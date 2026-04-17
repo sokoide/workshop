@@ -57,7 +57,7 @@ graph LR
     CL -->|5. Bearer Token| RS["Resource Server<br>Go REST API"]
     RS -->|6. JWKSで署名検証| AS
     RS -->|7. Protected Resource| CL
-```
+```text
 
 ### 想定ディレクトリ構造
 
@@ -72,7 +72,7 @@ infra/assets/oauth2/
 │   ├── main.go              # Go Resource Server
 │   └── go.mod
 └── README.md                # 補足メモ（任意）
-```
+```text
 
 ---
 
@@ -96,7 +96,7 @@ services:
 YAML
 
 podman compose up -d
-```
+```text
 
 Keycloak 管理画面: `http://localhost:8080`
 
@@ -148,7 +148,7 @@ graph LR
     KC -->|Access token| C
     C -->|Bearer access token| API["Resource Server"]
     API -->|必要なら introspection| KC
-```
+```text
 
 - `ID token`: 「誰がログインしたか」を Client に伝える
 - `access token`: 「この token で API を呼んでよいか」を Resource Server に伝える
@@ -213,7 +213,7 @@ flowchart TD
     A["Client"] -->|Bearer token| B["Resource Server"]
     B -->|方式1: JWTを自前検証| C["JWKS / claims を確認"]
     B -->|方式2: introspection| D["Keycloak に問い合わせ"]
-```
+```text
 
 JWT 直接検証の特徴:
 
@@ -383,7 +383,7 @@ sequenceDiagram
     C->>A: Authorization: Bearer access_token
     A-->>C: /api/profile の結果
     C-->>U: token と API 応答を JSON 表示
-```
+```text
 
 この Client app がやっていること:
 
@@ -412,14 +412,14 @@ PKCE の意味:
 ```go
 // client/main.go
 package main
-```
+```text
 
 起動例:
 
 ```bash
 cd infra/assets/oauth2/client
 go run main.go
-```
+```text
 
 起動したらブラウザで `http://localhost:3000` を開き、`Login with Keycloak` を押します。
 
@@ -532,7 +532,7 @@ func main() {
 	log.Println("Resource Server started on :8081")
 	log.Fatal(http.ListenAndServe(":8081", nil))
 }
-```
+```text
 
 最小構成の起動例:
 
@@ -540,7 +540,7 @@ func main() {
 cd api
 go mod tidy
 go run main.go
-```
+```text
 
 API 例:
 
@@ -554,7 +554,7 @@ curl -i http://localhost:8081/health
 
 curl -i http://localhost:8081/api/profile \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
-```
+```text
 
 期待結果:
 
@@ -589,13 +589,13 @@ JWT 検証時は最低限以下を確認します。
 ```bash
 cd infra/assets/oauth2
 podman compose down
-```
+```text
 
 データを完全に消す場合:
 
 ```bash
 podman rm -f workshop-keycloak
-```
+```text
 
 ---
 

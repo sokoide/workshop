@@ -156,7 +156,7 @@ kubectl apply -f k8s/istio/peer-authentication.yaml
 
 IP アドレスではなく、暗号的な身元（SPIFFE ID）をワークロードに付与します。
 
-1.  **SPIRE のデプロイ**: Helm を使用してクラスタに SPIRE をインストールします。SPIRE はアイデンティティを管理する「コントロールプレーン」として機能します。
+1. **SPIRE のデプロイ**: Helm を使用してクラスタに SPIRE をインストールします。SPIRE はアイデンティティを管理する「コントロールプレーン」として機能します。
 
     ```bash
     # SPIFFE Helm リポジトリの追加
@@ -167,7 +167,7 @@ IP アドレスではなく、暗号的な身元（SPIFFE ID）をワークロ�
     helm install spire spiffe/spire --namespace spire-mgmt --create-namespace
     ```
 
-2.  **Istio と SPIRE の連携設定**: Istio が SPIRE によって発行されたアイデンティティを信頼するように設定します。
+2. **Istio と SPIRE の連携設定**: Istio が SPIRE によって発行されたアイデンティティを信頼するように設定します。
 
     ```yaml
     # k8s/istio/spire-config.yaml (概念イメージ)
@@ -183,9 +183,10 @@ IP アドレスではなく、暗号的な身元（SPIFFE ID）をワークロ�
             -----END CERTIFICATE-----
     ```
 
-3.  **SVID の自動発行**: 設定後、Envoy サイドカーは Workload API (Unix Domain Socket) を介して SPIRE Agent と通信し、自身の **SVID (SPIFFE Verifiable Identity Document)** を自動的に取得します。
+3. **SVID の自動発行**: 設定後、Envoy サイドカーは Workload API (Unix Domain Socket) を介して SPIRE Agent と通信し、自身の **SVID (SPIFFE Verifiable Identity Document)** を自動的に取得します。
 
 **検証**: 発行された SPIFFE ID を確認します。
+
 ```bash
 istioctl proxy-config secret <pod-name> | grep spiffe
 # 出力に spiffe://cluster.local/ns/default/sa/server-sa が含まれていることを確認
@@ -228,14 +229,17 @@ ZTA 環境での開発における SWE の関わり方は以下の通りです�
 ## トラブルシューティング：SWE のためのデバッグガイド
 
 ### 1. 接続が切れる (503 / 403)
+
 - **原因**: mTLS 設定の不一致、または認可ポリシーによるブロック。
-- **調査**: 
+- **調査**:
+
   ```bash
   istioctl proxy-config secret <pod-name> # 証明書が来ているか
   kubectl logs <pod-name> -c istio-proxy # Envoy のログを確認
   ```
 
 ### 2. サイドカーが起動しない
+
 - **原因**: 必要なリソース（メモリ/CPU）が不足している、または名前空間のラベル忘れ。
 - **調査**: `kubectl describe pod <pod-name>` の `Events` を確認。
 

@@ -601,15 +601,18 @@ kubectl get all -n development
 **Causes & Fixes**:
 
 1. Verify Metrics Server:
+
    ```bash
    kubectl get apiservice v1beta1.metrics.k8s.io
    kubectl top pods
    ```
 
 2. Check request values:
+
    ```bash
    kubectl describe hpa <hpa-name>
    ```
+
    - `resources.requests` must be set
 
 3. Verify target values:
@@ -622,16 +625,19 @@ kubectl get all -n development
 **Causes & Fixes**:
 
 1. Check sync status:
+
    ```bash
    argocd app get <app-name>
    ```
 
 2. Manual sync:
+
    ```bash
    argocd app sync <app-name>
    ```
 
 3. Enable auto-sync:
+
    ```yaml
    syncPolicy:
      automated:

@@ -25,7 +25,7 @@ sequenceDiagram
     P->>E: Publish: market.eth.jpy
     E-->>L: Route to Logger (market.#)
     E-->>J: Route to Japan Desk (market.*.jpy)
-```
+```text
 
 **What you will learn in this workshop:**
 
@@ -70,7 +70,7 @@ infra/assets/rabbitmq_crypto/
     ├── domain/                 # Entities, Repository Interface
     ├── usecase/                # Simulation and Monitoring logic
     └── infra/                  # RabbitMQ Adapter
-```
+```text
 
 ---
 
@@ -81,7 +81,7 @@ infra/assets/rabbitmq_crypto/
 ```bash
 cd infra/assets/rabbitmq_crypto
 make mq-up
-```
+```text
 
 _Note: Access the management UI at [http://localhost:15672](http://localhost:15672) (guest/guest)._
 
@@ -94,7 +94,7 @@ _Note: Access the management UI at [http://localhost:15672](http://localhost:156
 
 ```bash
 go mod tidy
-```
+```text
 
 ---
 
@@ -106,7 +106,7 @@ Start the `ticker` that continuously generates trade data.
 
 ```bash
 go run cmd/ticker/main.go
-```
+```text
 
 _Note: It will keep publishing messages with keys like `market.btc.usd`._
 
@@ -116,7 +116,7 @@ Use the `#` wildcard to subscribe to all currency pairs.
 
 ```bash
 go run cmd/logger/main.go
-```
+```text
 
 ### STEP 3: Conditional Filtering
 
@@ -135,7 +135,7 @@ The code communicates with RabbitMQ through an interface defined in `internal/do
 type TradePublisher interface {
     Publish(ctx context.Context, trade Trade) error
 }
-```
+```text
 
 This design allows you to swap the broker for Kafka or NATS in the future by simply replacing the infrastructure implementation without touching the business logic (UseCase).
 
@@ -145,7 +145,7 @@ This design allows you to swap the broker for Kafka or NATS in the future by sim
 
 ```bash
 make mq-down
-```
+```text
 
 ---
 

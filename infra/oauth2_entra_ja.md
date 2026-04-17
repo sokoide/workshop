@@ -28,7 +28,7 @@
               │
               └─ NO  → M2M (Client Credentials + Secret/Certificate)
                         （オンプレミス、他クラウドからの接続）
-```
+```text
 
 ---
 
@@ -97,7 +97,7 @@ Entra ID は 2 種類のアクセストークン形式を発行します。こ�
 ```bash
 # トークンをデコード（署名検証なし）
 echo "<トークン>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
-```
+```text
 
 ### 確認すべき Claim
 
@@ -144,7 +144,7 @@ sequenceDiagram
     Workload->>API: Authorization: Bearer <JWT>
     API->>API: iss / aud / roles / signature を検証
     API-->>Workload: 200 OK
-```
+```text
 
 ### 設定手順
 
@@ -176,7 +176,7 @@ sequenceDiagram
 "api": {
   "requestedAccessTokenVersion": 2
 }
-```
+```text
 
 > **なぜ v2 か**: v2 トークンでは `aud` が API の client ID (GUID) になり、検証ロジックがシンプルになります。
 >
@@ -195,7 +195,7 @@ Azure SDK for Go の `azidentity` を使用します。
 ```bash
 go get github.com/Azure/azure-sdk-for-go/sdk/azidentity
 go get github.com/Azure/azure-sdk-for-go/sdk/azcore
-```
+```text
 
 #### 4-2. Go のコード例
 
@@ -293,7 +293,7 @@ func main() {
 		log.Fatal(err)
 	}
 }
-```
+```text
 
 #### 4-3. 実行時の注意点
 
@@ -351,7 +351,7 @@ az rest --method POST \
     \"resourceId\": \"${API_SP_OBJECT_ID}\",
     \"appRoleId\": \"${APP_ROLE_ID}\"
   }"
-```
+```text
 
 > 重要:
 > Managed Identity がトークンを取るとき、通常は Entra の `/token` を直接叩きません。
@@ -384,7 +384,7 @@ sequenceDiagram
     Client->>API: Authorization: Bearer <JWT>
     API->>API: iss / aud / scp / signature を検証
     API-->>Client: 200 OK
-```
+```text
 
 ### 設定手順
 
@@ -539,7 +539,7 @@ func main() {
 	log.Printf("Starting API server on port %s...", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
-```
+```text
 
 ### 実装上の注意
 
@@ -577,7 +577,7 @@ go run main.go
 
 # または main.go 内の定数を書き換えて
 go run main.go
-```
+```text
 
 ### 2. トークンを取得してテスト
 
@@ -597,7 +597,7 @@ go run main.go
 ```bash
 # 取得したトークンで API 呼び出し
 curl -H "Authorization: Bearer <token>" http://localhost:8081/api/profile
-```
+```text
 
 #### M2M の場合（Azure CLI 使用）
 
@@ -618,7 +618,7 @@ TOKEN=$(az account get-access-token \
 
 # API 呼び出し
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
-```
+```text
 
 ### 3. よくあるエラーと確認方法
 
@@ -655,7 +655,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
 
 # または jq で確認
 echo "<トークン>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
-```
+```text
 
 #### 2. 確認すべき Claim（v2 トークン）
 
@@ -667,7 +667,7 @@ echo "<トークン>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
   "roles": ["Svc.Invoke"],      // M2M フローの場合
   "appid": "client-app-id"      // どのアプリが要求したか
 }
-```
+```text
 
 #### 3. よくある間違い
 
@@ -689,7 +689,7 @@ Expires On: 2026-03-23 ...
 ✅ API Call Success! (Status: 200 OK)
 Response Body:
 {"claims":{..., "roles":["Svc.Invoke"], ...}, "status":"ok", ...}
-```
+```text
 
 **権限 (App Role) が未割り当ての場合の表示:**
 Entra ID 側でトークンは取得できますが、API 側で拒否されると以下のように表示されます（Managed Identity 自体に API への App Role が割り当てられていない場合などは、トークン取得自体がタイムアウトすることもあります）。
@@ -702,7 +702,7 @@ Expires On: 2026-03-23 ...
 ⚠️ API Call Failed (Status: 403 Forbidden)
 Response Body:
 Forbidden: insufficient permissions
-```
+```text
 
 **Managed Identity が有効化されていない、または Entra ID がトークン発行を拒否した場合のエラー表示:**
 Managed Identity の設定自体に不備がある場合などは、以下のようなエラーが表示されます。
@@ -715,7 +715,7 @@ Attempted credentials:
 	ManagedIdentityCredential: managed identity timed out. See https://aka.ms/azsdk/go/identity/troubleshoot#dac for more information
 	AzureCLICredential: Azure CLI not found on path
 	AzureDeveloperCLICredential: Azure Developer CLI not found on path
-```
+```text
 
 ---
 

@@ -57,6 +57,8 @@ This repository contains hands-on materials for various technical topics.
   - Hands-on with RBAC, NetworkPolicy, HPA, GitOps (ArgoCD), Backup (Velero), and more.
 - [Zero Trust Architecture Workshop: Implementing "Always Verify" with mTLS and Service Mesh](./infra/zero_trust_en.md)
   - Implement identity-based security (mTLS/AuthZ) using Istio and SPIRE, moving beyond network perimeters.
+- [Web Security Workshop: XSS, CSRF, and Clickjacking](./infra/web_security_en.md)
+  - Experience common web attacks and learn defense mechanisms (escaping, tokens, etc.) using an intentionally vulnerable application.
 
 #### Infrastructure: Contents planned for the future
 

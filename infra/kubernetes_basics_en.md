@@ -821,12 +821,14 @@ spec:
 **Causes and Solutions**:
 
 1. Check logs:
+
    ```bash
    kubectl logs <pod-name>
    kubectl logs <pod-name> --previous  # Logs from the previous run
    ```
 
 2. Check events:
+
    ```bash
    kubectl describe pod <pod-name>
    ```
@@ -843,22 +845,28 @@ spec:
 **Causes and Solutions**:
 
 1. Check Endpoints:
+
    ```bash
    kubectl get endpoints <service-name>
    ```
+
    - Pods must be `Ready` to be registered.
 
 2. Check Selector:
+
    ```bash
    kubectl get service <service-name> -o yaml | grep selector -A 3
    kubectl get pods --show-labels
    ```
+
    - Ensure labels match.
 
 3. Network Policy:
+
    ```bash
    kubectl get networkpolicies
    ```
+
    - Check if traffic is blocked by policies.
 
 ### Out of Disk Space

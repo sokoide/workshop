@@ -593,15 +593,18 @@ kubectl get all -n development
 **原因と対処**:
 
 1. Metrics Server 動作確認:
+
    ```bash
    kubectl get apiservice v1beta1.metrics.k8s.io
    kubectl top pods
    ```
 
 2. リクエスト値設定確認:
+
    ```bash
    kubectl describe hpa <hpa-name>
    ```
+
    - `resources.requests` が設定されている必要あり
 
 3. ターゲット値確認:
@@ -614,16 +617,19 @@ kubectl get all -n development
 **原因と対処**:
 
 1. 同期状態確認:
+
    ```bash
    argocd app get <app-name>
    ```
 
 2. 手動同期:
+
    ```bash
    argocd app sync <app-name>
    ```
 
 3. 自動同期設定:
+
    ```yaml
    syncPolicy:
      automated:

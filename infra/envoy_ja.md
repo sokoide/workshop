@@ -47,7 +47,7 @@ graph LR
     end
 
     Envoy -.->|Stats/Admin| Admin[Admin Interface :9901]
-```
+```text
 
 ### 想定ディレクトリ構造
 
@@ -56,7 +56,7 @@ infra/assets/envoy/
 ├── envoy.yaml              # Envoy 設定ファイル
 ├── docker-compose.yml      # 構成定義
 └── app/                    # テスト用バックエンドアプリ (遅延・エラー生成機能付き)
-```
+```text
 
 ---
 
@@ -109,14 +109,14 @@ static_resources:
                               address:
                                   socket_address:
                                       { address: backend, port_value: 80 }
-```
+```text
 
 ### 2. 環境の起動
 
 ```bash
 cd infra/assets/envoy
 podman compose up -d
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -135,7 +135,7 @@ Envoy（ポート 10000）経由でバックエンドにアクセスできるこ
 
 ```bash
 curl -v http://localhost:10000/
-```
+```text
 
 レスポンスヘッダーに `server: envoy` が含まれていることを確認してください。これは Envoy を経由した証拠です。
 
@@ -150,7 +150,7 @@ curl -v http://localhost:10000/
 
 ```bash
 curl -v http://localhost:10000/sleep/3
-```
+```text
 
 **結果**: Envoy が 2 秒経過した時点で接続を切り、`504 Gateway Timeout` を返すことを確認します。これにより、バックエンドの不調が原因でクライアントが無限に待たされるのを防ぎます。
 
@@ -165,7 +165,7 @@ curl -v http://localhost:10000/sleep/3
 
 ```bash
 curl -v http://localhost:10000/error/500
-```
+```text
 
 Envoy のログまたは統計情報（Admin IF）を確認すると、実際にはバックエンドに対して複数回のリクエストが送信されたことがわかります。一時的なネットワークエラーであれば、ユーザーにはエラーを見せずに成功させることができます。
 
@@ -195,7 +195,7 @@ Clean Architecture における「Framework & Drivers」層（詳細）として
 
 ```bash
 podman compose down
-```
+```text
 
 ---
 

@@ -876,12 +876,14 @@ spec:
 **原因と対処**:
 
 1. ログでエラー確認:
+
    ```bash
    kubectl logs <pod-name>
    kubectl logs <pod-name> --previous  # 前回のログ
    ```
 
 2. イベント確認:
+
    ```bash
    kubectl describe pod <pod-name>
    ```
@@ -898,22 +900,28 @@ spec:
 **原因と対処**:
 
 1. Endpoint 確認:
+
    ```bash
    kubectl get endpoints <service-name>
    ```
+
    - Pod が `Ready` でないと登録されない
 
 2. Selector 確認:
+
    ```bash
    kubectl get service <service-name> -o yaml | grep selector -A 3
    kubectl get pods --show-labels
    ```
+
    - ラベルが一致しているか確認
 
 3. ネットワークポリシー:
+
    ```bash
    kubectl get networkpolicies
    ```
+
    - ポリシーで通信がブロックされていないか確認
 
 ### ディスク容量不足

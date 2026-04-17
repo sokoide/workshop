@@ -32,7 +32,7 @@ sequenceDiagram
 
     Note over UC: Exclude banned users and re-assign ranks
     UC-->>CLI: []domain.UserScore (Filtered)
-```
+```text
 
 **What you will learn in this workshop:**
 
@@ -72,7 +72,7 @@ infra/assets/redis_leaderboard/
 ├── infra/          # Redis Adapter
 ├── main.go         # Entry point & Dependency Injection
 └── go.mod
-```
+```text
 
 ---
 
@@ -84,20 +84,20 @@ Using Makefile (recommended):
 
 ```bash
 make redis-up
-```
+```text
 
 Or directly with podman:
 
 ```bash
 podman run -d --name workshop-redis -p 6379:6379 docker.io/library/redis:alpine
-```
+```text
 
 ### 2. Project Setup
 
 ```bash
 cd infra/assets/redis_leaderboard
 go mod tidy
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -116,7 +116,7 @@ Register or update user scores. Redis automatically re-orders them internally.
 go run main.go -action add -user user1 -score 100
 go run main.go -action add -user user2 -score 250
 go run main.go -action add -user user3 -score 180
-```
+```text
 
 ### STEP 2: Display Top Rankers (ZREVRANGE)
 
@@ -125,7 +125,7 @@ Retrieve the top N members instantly.
 ```bash
 go run main.go -action top -n 3
 # Expected output: user2(250), user3(180), user1(100)
-```
+```text
 
 ### STEP 3: Ban Fraudulent Users (Sets)
 
@@ -135,7 +135,7 @@ Add specific users to a Ban list and exclude them from rankings.
 go run main.go -action ban -user user2
 go run main.go -action top -n 3
 # Expected result: user2 disappears, and user3 is promoted to 1st place.
-```
+```text
 
 ---
 
@@ -156,14 +156,14 @@ Using Makefile (recommended):
 
 ```bash
 make redis-down
-```
+```text
 
 Or directly with podman:
 
 ```bash
 podman stop workshop-redis
 podman rm workshop-redis
-```
+```text
 
 ---
 

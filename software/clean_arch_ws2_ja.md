@@ -26,7 +26,7 @@ import "context"
 type NotificationService interface {
 	Send(ctx context.Context, message string) error
 }
-```
+```text
 
 ### 1-2. UseCase での利用
 
@@ -42,7 +42,7 @@ func (uc *ApproveUseCase) Execute(ctx context.Context, userID string) error {
 	// ... 承認ロジック ...
 	return uc.notifier.Send(ctx, "メンバーシップが承認されました！")
 }
-```
+```text
 
 ### 1-3. Infra 層での実装差し替え
 
@@ -62,7 +62,7 @@ func (n *SlackNotifier) Send(ctx context.Context, msg string) error {
 	// Slack API を叩く実装
 	return nil
 }
-```
+```text
 
 ---
 
@@ -103,7 +103,7 @@ func (r *CachedUserRepository) FindByID(ctx context.Context, id string) (*domain
 	}
 	return user, err
 }
-```
+```text
 
 ### 2-2. DI コンテナでの構成変更
 
@@ -118,7 +118,7 @@ func main() {
 	// UseCase は interface を見ているので、ラップされた cachedRepo もそのまま受け取れる
 	useCase := usecase.NewCheckVeteranUseCase(cachedRepo, domain.VeteranService{})
 }
-```
+```text
 
 ---
 

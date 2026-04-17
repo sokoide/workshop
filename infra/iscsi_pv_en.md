@@ -28,7 +28,7 @@ graph TD
 
     style Pod fill:#D5F5E3,stroke:#2ECC71
     style ISCSI_Server fill:#EBF5FB,stroke:#3498DB
-```
+```text
 
 **What you will learn in this workshop:**
 
@@ -63,7 +63,7 @@ graph LR
     A[Pod] -- "requests (uses)" --> B(PersistentVolumeClaim);
     B -- "binds to" --> C(PersistentVolume);
     C -- "points to physical entity" --> D[(iSCSI LUN on VM2)];
-```
+```text
 
 ### Directory Structure
 
@@ -72,7 +72,7 @@ graph LR
 ├── iscsi-pv.yaml    # Physical storage definition (Admin)
 ├── iscsi-pvc.yaml   # Storage request definition (Developer)
 └── test-pod.yaml    # Pod definition using the storage
-```
+```text
 
 ---
 
@@ -107,7 +107,7 @@ sudo truncate -s 1G /var/lib/iscsi_disk.img
 sudo targetcli /iscsi create iqn.2025-12.world.server:storage
 sudo targetcli /backstores/fileio create disk01 /var/lib/iscsi_disk.img
 sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/luns create /backstores/fileio/disk01
-```
+```text
 
 Next, allow connection from VM1.
 _Note: Run `cat /etc/iscsi/initiatorname.iscsi` on VM1 to check the IQN._
@@ -116,7 +116,7 @@ _Note: Run `cat /etc/iscsi/initiatorname.iscsi` on VM1 to check the IQN._
 # Grant access using VM1's IQN
 sudo targetcli /iscsi/iqn.2025-12.world.server:storage/tpg1/acls create <VM1_IQN>
 sudo targetcli saveconfig
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -138,7 +138,7 @@ sudo iscsiadm -m node --targetname iqn.2025-12.world.server:storage --portal 192
 # Check disk and format
 lsblk # You should see /dev/sdb or similar
 sudo mkfs.ext4 /dev/sdb
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -153,7 +153,7 @@ curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/miniku
 
 # Start (Recommended to use --driver=none to save resources)
 sudo minikube start --driver=none
-```
+```text
 
 ### STEP 4: Apply PV and PVC
 
@@ -195,7 +195,7 @@ Register physical storage with Kubernetes and issue a Claim.
 kubectl apply -f iscsi-pv.yaml
 kubectl apply -f iscsi-pvc.yaml
 kubectl get pvc # Success if Status becomes Bound
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -218,7 +218,7 @@ kubectl apply -f test-pod.yaml
 # Verify reading
 kubectl exec test-pod -- cat /data/hello.txt
 # -> Persistence successful if "Hello persistent" is shown!
-```
+```text
 
 ### ✅ Verification Checkpoints
 
@@ -245,7 +245,7 @@ kubectl delete -f iscsi-pvc.yaml
 kubectl delete -f iscsi-pv.yaml
 sudo minikube delete
 sudo iscsiadm -m node --logout
-```
+```text
 
 ---
 

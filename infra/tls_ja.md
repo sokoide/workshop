@@ -14,7 +14,7 @@ graph TD
     RootCA -.-> |信頼のインポート| Client["curl (cacert)"]
     ServerCert --> Traefik["Traefik (SSL 終端)"]
     Traefik --> App["Backend App (HTTP)"]
-```
+```text
 
 **この実習で習得すること:**
 
@@ -55,7 +55,7 @@ graph TD
 ├── server.csr        # サーバーの署名要求
 ├── server.crt        # サーバーの証明書 (CA署名済)
 └── dynamic_conf.yaml # Traefik の TLS 設定
-```
+```text
 
 ---
 
@@ -77,7 +77,7 @@ openssl genrsa -out rootCA.key 4096
 # 1.2 自己署名ルート証明書を作成 (有効期限10年)
 openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 3650 -out rootCA.crt \
   -subj "/C=JP/ST=Tokyo/L=Minato/O=Workshop/CN=Workshop Root CA"
-```
+```text
 
 ### STEP 2: サーバー証明書の発行
 
@@ -102,7 +102,7 @@ EOF
 # 2.4 CA による署名
 openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial \
   -out server.crt -days 365 -sha256 -extfile server.ext
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -114,7 +114,7 @@ openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateseria
 ```bash
 openssl verify -CAfile rootCA.crt server.crt
 # -> server.crt: OK と出れば成功
-```
+```text
 
 ### STEP 4: Web サーバーでの実践利用 (Traefik)
 
@@ -134,7 +134,7 @@ sudo podman run -d --name traefik -p 443:443 \
   docker.io/library/traefik:v3.1 \
   --providers.file.filename=/etc/traefik/dynamic_conf.yaml \
   --entrypoints.websecure.address=:443
-```
+```text
 
 ### STEP 5: クライアントからの検証 (curl)
 
@@ -144,7 +144,7 @@ curl https://server.workshop.local
 
 # 自作のルート CA 証明書を指定してアクセス (成功するはず)
 curl --cacert rootCA.crt https://server.workshop.local
-```
+```text
 
 ---
 
@@ -165,7 +165,7 @@ curl --cacert rootCA.crt https://server.workshop.local
 sudo podman rm -f traefik
 kill %1  # Python サーバーの停止
 rm rootCA.* server.* dynamic_conf.yaml
-```
+```text
 
 ---
 

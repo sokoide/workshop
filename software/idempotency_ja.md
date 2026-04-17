@@ -14,7 +14,7 @@
 cd software/assets/idempotency
 ls -la
 # domain/  usecase/  infra/  main.go
-```
+```text
 
 ## ゴール
 
@@ -39,7 +39,7 @@ sequenceDiagram
     Client->>API: POST /charge (idempotency-key: abc123)
     API->>DB: Check key → Found (skip)
     Note over DB: 前回と同じ結果を返す
-```
+```text
 
 **この実習で理解すること:**
 
@@ -70,7 +70,7 @@ sequenceDiagram
 ## HTTP メソッドと冪等性
 
 | メソッド | 冪等性 | 説明 |
-|---------|-------|------|
+| :--- | :--- | :--- |
 | GET | ✅ あり | リソースの取得のみ（副作用なし） |
 | HEAD | ✅ あり | ヘッダーの取得のみ（副作用なし） |
 | PUT | ✅ あり | リソースの完全置換（同じデータなら同じ結果） |
@@ -100,7 +100,7 @@ flowchart TD
     I --> G
 
     G -- Yes --> J[キャッシュされた<br>結果を返却]
-```
+```text
 
 ---
 
@@ -119,7 +119,7 @@ software/assets/idempotency/
 ├── cmd/                     # CLI エントリーポイント
 │   └── main.go
 └── main.go                  # 依存注入
-```
+```text
 
 ---
 
@@ -143,7 +143,7 @@ docker run -d --name idempotency-db \
   -e POSTGRES_DB=idempotency \
   -p 5432:5432 \
   postgres:alpine
-```
+```text
 
 ### 2. Redis の起動（キャッシュ用）
 
@@ -157,14 +157,14 @@ podman run -d --name idempotency-redis \
 docker run -d --name idempotency-redis \
   -p 6379:6379 \
   redis:alpine
-```
+```text
 
 ### 3. プロジェクトのセットアップ
 
 ```bash
 cd software/assets/idempotency
 go mod tidy
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -186,7 +186,7 @@ go run main.go -action charge -user user1 -amount 100
 # タイムアウトを想定して再試行
 go run main.go -action charge -user user1 -amount 100
 # 残高: 800円（二重課金！）
-```
+```text
 
 **問題**: 同じ取引が2回処理され、残高が2回減少しました。
 
@@ -208,7 +208,7 @@ go run main.go -action charge -user user1 -amount 100 \
 go run main.go -action charge -user user1 -amount 100 \
   -idempotency-key abc123-def456-...
 # 残高: 900円（変わらず）、前回と同じ結果を返す
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -247,7 +247,7 @@ func (s *RedisIdempotencyStore) GetResult(ctx context.Context, key string) ([]by
 func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, result []byte) error {
     return s.client.Set(ctx, "idempotency:"+key, result, s.ttl).Err()
 }
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -284,7 +284,7 @@ func (uc *ChargeUsecase) Execute(ctx context.Context, req ChargeRequest) (*Charg
 
     return result, nil
 }
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -322,7 +322,7 @@ sequenceDiagram
     API->>Store: Save result
     Store-->>API: Saved
     API-->>C1: 200 OK
-```
+```text
 
 **実装方法**: Redis の `SETNX`（Set if Not eXists）を使用
 
@@ -333,12 +333,12 @@ if !locked {
     return nil, ErrRequestInProgress
 }
 defer redis.Del(ctx, "lock:"+key)
-```
+```text
 
 ### 2. Key の有効期限戦略
 
 | ユースケース | 推奨 TTL | 理由 |
-|------------|---------|------|
+| :--- | :--- | :--- |
 | 課金処理 | 48時間 | 決済完了後の問い合わせ対応期間 |
 | 在庫確保 | 15分 | カートのセッション時間 |
 | ファイルアップロード | 24時間 | アップロード完了の猶予期間 |
@@ -353,7 +353,7 @@ log.Printf("Charge request received: %v", req)
 
 // 残高更新のみ冪等性を保証
 result, err := uc.chargeWithIdempotency(ctx, req)
-```
+```text
 
 ---
 
@@ -362,7 +362,7 @@ result, err := uc.chargeWithIdempotency(ctx, req)
 ```bash
 podman stop idempotency-db idempotency-redis
 podman rm idempotency-db idempotency-redis
-```
+```text
 
 ---
 
@@ -416,7 +416,7 @@ Homebrew で PostgreSQL と Redis を直接インストールすることも可�
 brew install postgresql@14 redis
 brew services start postgresql@14
 brew services start redis
-```
+```text
 
 ### Windows の場合
 

@@ -55,7 +55,7 @@ graph LR
     Traefik -- "Routing" --> App3
 
     Traefik -.->|Watch Events| PodmanSocket((Podman Socket))
-```
+```text
 
 ### 想定ディレクトリ構造
 
@@ -63,7 +63,7 @@ graph LR
 infra/assets/traefik/
 ├── docker-compose.yml      # Traefik とバックエンドの定義
 └── Makefile                # 操作コマンド
-```
+```text
 
 ---
 
@@ -106,13 +106,13 @@ services:
             - "traefik.enable=true"
             - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
             - "traefik.http.services.whoami.loadbalancer.server.port=80"
-```
+```text
 
 ### 2. コンテナの起動
 
 ```bash
 podman compose up -d
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -143,7 +143,7 @@ curl -H "Host: whoami.localhost" http://localhost
 # 2回目
 curl -H "Host: whoami.localhost" http://localhost
 # Output: Hostname: <Container-ID-B>
-```
+```text
 
 **確認ポイント**: 出力される `Hostname` はコンテナ ID です。リクエストごとに異なる ID が表示されれば、ロードバランシングが成功しています。
 ※ `docker-compose.yml` で同じ `Host` ルールを持つコンテナを複数起動するだけで、Traefik が自動的に負荷分散を行います。
@@ -158,13 +158,13 @@ podman run -d --name nginx-demo \
   --label "traefik.http.routers.nginx.rule=Host(`localhost`) && PathPrefix(`/nginx`)" \
   --label "traefik.http.services.nginx.loadbalancer.server.port=80" \
   nginx:alpine
-```
+```text
 
 確認：
 
 ```bash
 curl http://localhost/nginx
-```
+```text
 
 ### ✅ チェックポイント
 
@@ -180,7 +180,7 @@ Traefik の強力な機能であるミドルウェアを試します。特定の
 # パスワード生成 (user:password)
 htpasswd -nb user password
 # user:$apr1$Sr...
-```
+```text
 
 ラベルを追加してコンテナを再起動することで、アプリケーションコードを変更せずに認証層を追加できます。
 
@@ -203,7 +203,7 @@ Traefik は主に「エッジ（外部から内部）」のトラフィックを
 ```bash
 podman compose down
 podman rm -f nginx-demo
-```
+```text
 
 ---
 

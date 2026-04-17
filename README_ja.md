@@ -57,6 +57,8 @@
   - RBAC, NetworkPolicy, HPA, GitOps (ArgoCD), Backup (Velero) 等、プロダクション運用に必要な技術を体験
 - [Zero Trust Architecture 実習：mTLS と Service Mesh による「常に検証」の実現](./infra/zero_trust_ja.md)
   - Istio と SPIRE を活用し、ネットワーク境界に頼らない身元ベースのセキュリティ（mTLS/認可）を実装
+- [Webセキュリティ実習：XSS, CSRF, クリックジャッキングを体験する](./infra/web_security_ja.md)
+  - 意図的に脆弱なアプリを用い、代表的な Web 攻撃の仕組みと対策（エスケープ、トークン等）を学習
 
 #### インフラ: 今後追加予定のコンテンツ
 

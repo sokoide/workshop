@@ -156,7 +156,7 @@ kubectl apply -f k8s/istio/peer-authentication.yaml
 
 Assign a cryptographic identity (SPIFFE ID) to workloads instead of using IP addresses.
 
-1.  **Deploy SPIRE**: Install SPIRE into the cluster using Helm. SPIRE provides a "Control Plane" for identity.
+1. **Deploy SPIRE**: Install SPIRE into the cluster using Helm. SPIRE provides a "Control Plane" for identity.
 
     ```bash
     # Add the SPIFFE Helm repository
@@ -167,7 +167,7 @@ Assign a cryptographic identity (SPIFFE ID) to workloads instead of using IP add
     helm install spire spiffe/spire --namespace spire-mgmt --create-namespace
     ```
 
-2.  **Configure Istio to use SPIRE**: Enable the Custom CA integration so that Istio trusts identities issued by SPIRE.
+2. **Configure Istio to use SPIRE**: Enable the Custom CA integration so that Istio trusts identities issued by SPIRE.
 
     ```yaml
     # k8s/istio/spire-config.yaml (Conceptual)
@@ -183,9 +183,10 @@ Assign a cryptographic identity (SPIFFE ID) to workloads instead of using IP add
             -----END CERTIFICATE-----
     ```
 
-3.  **Automatic SVID Issuance**: Once configured, the Envoy sidecar automatically communicates with the SPIRE Agent via the Workload API (using a Unix Domain Socket) to retrieve its **SVID (SPIFFE Verifiable Identity Document)**.
+3. **Automatic SVID Issuance**: Once configured, the Envoy sidecar automatically communicates with the SPIRE Agent via the Workload API (using a Unix Domain Socket) to retrieve its **SVID (SPIFFE Verifiable Identity Document)**.
 
 **Verification**: Check the issued SPIFFE ID.
+
 ```bash
 istioctl proxy-config secret <pod-name> | grep spiffe
 # Output should contain: spiffe://cluster.local/ns/default/sa/server-sa
@@ -228,14 +229,17 @@ Here is how SWEs interact with development in a ZTA environment:
 ## Troubleshooting: A Debugging Guide for SWEs
 
 ### 1. Connection Drops (503 / 403)
+
 - **Cause**: mTLS configuration mismatch or block by an authorization policy.
-- **Investigation**: 
+- **Investigation**:
+
   ```bash
   istioctl proxy-config secret <pod-name> # Check if certificate is delivered
   kubectl logs <pod-name> -c istio-proxy # Check Envoy logs
   ```
 
 ### 2. Sidecar Fails to Start
+
 - **Cause**: Insufficient resources (Memory/CPU) or missing namespace label.
 - **Investigation**: Check `Events` via `kubectl describe pod <pod-name>`.
 
