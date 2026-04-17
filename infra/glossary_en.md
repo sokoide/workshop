@@ -2,7 +2,7 @@
 
 This document provides concise explanations of technical terms used across various workshops.
 
-## Networking Terms
+## <a name="network"></a>Networking Terms
 
 ### L1 / L2 / L3 (Layer 1/2/3)
 
@@ -27,27 +27,13 @@ The function of forwarding packets between different IP subnets, typically handl
 
 Media Access Control Address. A unique 48-bit identifier assigned to a network interface (NIC).
 
-```text
-Example: 00:1A:2B:3C:4D:5E
-```
-
 ### IP Address
 
 Internet Protocol Address. An address used to identify devices on a network. IPv4 is 32-bit, and IPv6 is 128-bit.
 
-```text
-IPv4 Example: 192.168.1.1
-IPv6 Example: 2001:db8::1
-```
-
 ### Subnet Mask
 
 Indicates which part of an IP address is the network portion and which is the host portion.
-
-```text
-Example: 255.255.255.0 (/24)
-     -> Range of 192.168.1.0 to 192.168.1.255
-```
 
 ### Default Gateway
 
@@ -57,13 +43,9 @@ The IP address of the router that forwards packets to destinations outside the l
 
 A technology that translates private IP addresses to global IP addresses and vice versa.
 
-```text
-Private: 192.168.1.10 ---[NAT]---> Global: 203.0.113.5
-```
-
 ---
 
-## Container & Virtualization Terms
+## <a name="container"></a>Container & Virtualization Terms
 
 ### Rootful / Rootless
 
@@ -78,47 +60,103 @@ A Linux kernel feature that isolates the network stack (interfaces, routing tabl
 
 A pair of virtual Ethernet cables used to connect different Network Namespaces.
 
-```text
-┌─────────────┐     veth      ┌─────────────┐
-│ Namespace A │<------------->│ Namespace B │
-└─────────────┘   (peer)      └─────────────┘
-```
+---
+
+## <a name="kubernetes"></a>Kubernetes Terms
+
+### Pod
+
+The smallest deployable unit in Kubernetes. One or more containers that share the same network namespace, storage, and IP address.
+
+### Deployment
+
+A resource that manages the desired state of a set of Pods, handling replication, self-healing, and rolling updates.
+
+### Service
+
+An abstraction that defines a logical set of Pods and a policy by which to access them (Stable IP and DNS).
+
+### ConfigMap / Secret
+
+Resources used to inject configuration data and sensitive information (passwords, keys) into Pods separately from the container image.
+
+### PersistentVolume (PV) / PersistentVolumeClaim (PVC)
+
+K8s storage abstraction. A PV is the actual storage resource, while a PVC is a request for storage by a user/Pod.
+
+### Helm
+
+The package manager for Kubernetes. It uses "Charts" to define, install, and upgrade complex Kubernetes applications.
+
+### Ingress
+
+An API object that manages external access to services in a cluster, typically providing HTTP/HTTPS routing.
 
 ---
 
-## Security Terms
+## <a name="security"></a>Security & Zero Trust Terms
 
-### TLS/SSL
+### Zero Trust Architecture (ZTA)
 
-Transport Layer Security / Secure Sockets Layer. Protocols used to encrypt communication. TLS is the current standard.
+A security model based on the principle of "Never Trust, Always Verify," where every access request is authenticated and authorized regardless of origin.
 
-### CA (Certificate Authority)
+### mTLS (Mutual TLS)
 
-A trusted third-party entity that issues digital certificates.
+A process in which both the client and server prove their identities using digital certificates before establishing a secure connection.
 
-### Certificate Chain
+### SPIFFE / SPIRE
 
-A hierarchical structure: Root CA → Intermediate CA → Server Certificate.
+- **SPIFFE**: Secure Production Identity Framework for Everyone. A set of open standards for identifying software services.
+- **SPIRE**: SPIFFE Runtime Environment. An implementation of the SPIFFE APIs that issues identities to workloads.
 
-### SAN (Subject Alternative Name)
+### SVID (SPIFFE Verifiable Identity Document)
 
-An extension that specifies valid domain names for a certificate. Modern browsers prioritize SAN over CN.
+A document (usually an X.509 certificate) used by a workload to prove its identity to other workloads.
 
-### CSR (Certificate Signing Request)
+### RBAC (Role-Based Access Control)
 
-A file containing a server's public key and information, used to request a signature from a CA.
+A method of regulating access to computer or network resources based on the roles of individual users within an enterprise.
+
+### NetworkPolicy
+
+A K8s resource that controls the flow of traffic between Pods at the network level (L3/L4).
+
+---
+
+## <a name="mesh"></a>Service Mesh Terms
+
+### Service Mesh
+
+A dedicated infrastructure layer for managing service-to-service communication, typically providing observability, security, and reliability.
+
+### Sidecar Proxy (Envoy)
+
+A proxy instance deployed alongside an application container within the same Pod. It intercepts and manages all incoming and outgoing traffic.
+
+### Istio
+
+An open-source service mesh that provides a uniform way to secure, connect, and monitor microservices.
+
+### Control Plane / Data Plane
+
+- **Control Plane**: Manages and configures proxies (e.g., Istiod).
+- **Data Plane**: Handles actual traffic between services (e.g., Envoy proxies).
+
+---
+
+## OAuth2 & Identity Terms
 
 ### OAuth2
 
 A standard protocol for authorization. It allows third-party applications to grant access to resources without knowing the user's password.
 
-### Access Token
+### Access Token (JWT)
 
-A token used to prove the right to access specific resources to a resource server. Typically in JWT (JSON Web Token) format.
+A token used to prove the right to access specific resources. JSON Web Token (JWT) is a common format.
 
-### Resource Server
+### Entra ID (Azure AD)
 
-A server that holds protected user resources. It validates access tokens and provides resources for legitimate requests.
+Microsoft's cloud-based identity and access management service.
 
 ---
 
@@ -128,33 +166,9 @@ A server that holds protected user resources. It validates access tokens and pro
 
 An asynchronous communication pattern where a sender (Publisher) sends messages and receivers (Subscribers) subscribe to them.
 
-### Exchange
+### Exchange (RabbitMQ)
 
-A component that handles message routing. RabbitMQ has several types.
-
-| Type | Description |
-| :--- | :--- |
-| Direct | Routing key must match exactly |
-| Fanout | Delivers to all queues |
-| Topic | Wildcard pattern matching |
-| Headers | Matching based on header attributes |
-
-### Routing Key
-
-A key used to specify the destination of a message. Typically in a dot-separated format.
-
-```text
-Example: market.btc.usd
-```
-
-### Wildcards
-
-Pattern matching characters used in Topic Exchanges.
-
-| Character | Description | Example |
-| :--- | :--- | :--- |
-| `*` | Matches exactly one word | `market.*.jpy` matches `market.btc.jpy` |
-| `#` | Matches zero or more words | `market.#` matches `market.btc.usd` |
+A component that routes messages to queues based on rules (Direct, Fanout, Topic, Headers).
 
 ---
 
@@ -162,22 +176,12 @@ Pattern matching characters used in Topic Exchanges.
 
 ### Sorted Set (ZSET)
 
-A Redis data structure. A set of members sorted by score.
+A Redis data structure. A set of members sorted by score, ideal for leaderboards.
 
-```text
-ZADD game_leaderboard 100 player1
-ZADD game_leaderboard 250 player2
-ZREVRANGE game_leaderboard 0 9  # Retrieve top 10 players
-```
+### Write-Through / Cache-Aside
 
-### Sets
-
-A set of unique members with no duplicates.
-
-```text
-SADD banned_users player2
-SISMEMBER banned_users player2  # 1 (true)
-```
+- **Write-Through**: Data is written to the cache and the backend database simultaneously.
+- **Cache-Aside**: The application first checks the cache. If data is missing (cache miss), it reads from the database and updates the cache.
 
 ---
 
@@ -187,41 +191,9 @@ SISMEMBER banned_users player2  # 1 (true)
 
 A layered implementation of internet communication protocols centered around TCP and IP.
 
-### Encapsulation
-
-The process of wrapping data from a higher layer as the payload of a lower layer.
-
-```text
-[ICMP] → [IPv4 [ICMP]] → [Ethernet [IPv4 [ICMP]]]
-```
-
 ### Raw Socket
 
 A socket that bypasses the OS network stack to send and receive raw packets.
-
-### Promiscuous Mode
-
-A mode where all packets are received, even those not addressed to the device. Used by packet analysis tools.
-
-### Checksum
-
-A verification value used to detect data corruption. RFC 1071 uses the "1's complement of the 1's complement sum."
-
-### MTU (Maximum Transmission Unit)
-
-The maximum data size that can be sent in one transmission. Typically 1500 bytes for Ethernet.
-
----
-
-## Podman Terms
-
-### Podman
-
-A container engine compatible with Docker. It is daemonless and capable of rootless execution.
-
-### Pod
-
-A group of one or more containers that share the same network namespace.
 
 ---
 
@@ -229,25 +201,8 @@ A group of one or more containers that share the same network namespace.
 
 ### Clean Architecture
 
-A design pattern where dependencies point inwards.
-
-```text
-Framework → UseCase → Domain ← Infra
-            (depends on)
-```
-
-### Context (context.Context)
-
-The standard Go pattern for propagating cancellation signals, timeouts, and deadlines.
-
-### Interface
-
-A type that defines a set of methods. The principle is "Accept interfaces, return structs."
+A software design pattern that separates concerns into concentric layers (Domain, UseCase, Infra, Framework).
 
 ### CGO
 
-A mechanism for calling C code from Go. Enabled by `import "C"`.
-
-### unsafe.Pointer
-
-A pointer type that bypasses Go's type system constraints, used for interoperation with C.
+A mechanism for calling C code from Go.

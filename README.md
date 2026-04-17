@@ -51,6 +51,12 @@ This repository contains hands-on materials for various technical topics.
   - Practical sharding design with Elasticsearch and Cortex examples, including a summary of Cortex PRs #7266 and #7270.
 - [TCP/IP Protocol Stack Workshop: Building a Network Stack from Scratch](./infra/tcpip_stack_en.md)
   - Implement Ethernet/IP/ICMP/UDP with Go and C (CGO), understanding packets from raw socket.
+- [Kubernetes Workshop: From Basics to Practical Container Orchestration](./infra/kubernetes_basics_en.md)
+  - Comprehensive guide covering Pod, Deployment, Service, ConfigMap, Helm, and more.
+- [Kubernetes Operations & Security Workshop: Advanced Features for Production](./infra/kubernetes_operations_en.md)
+  - Hands-on with RBAC, NetworkPolicy, HPA, GitOps (ArgoCD), Backup (Velero), and more.
+- [Zero Trust Architecture Workshop: Implementing "Always Verify" with mTLS and Service Mesh](./infra/zero_trust_en.md)
+  - Implement identity-based security (mTLS/AuthZ) using Istio and SPIRE, moving beyond network perimeters.
 
 #### Infrastructure: Contents planned for the future
 

@@ -51,6 +51,12 @@
   - Elasticsearch/Cortex を題材にしたシャーディング設計の実践ガイド（Cortex PR #7266 / #7270 の要点を含む、日本語）。
 - [TCP/IP プロトコルスタック実習：スクラッチからネットワークスタックを構築する](./infra/tcpip_stack_ja.md)
   - Go と C (CGO) で Ethernet/IP/ICMP/UDP を実装し、raw socket からパケットを理解
+- [Kubernetes 実習：コンテナオーケストレーションの基礎から実践まで](./infra/kubernetes_basics_ja.md)
+  - Pod, Deployment, Service, ConfigMap, Helm 等、K8s の基本リソースとエコシステムを網羅的に学習
+- [Kubernetes 運用・セキュリティ実習：本番運用のための高度な機能](./infra/kubernetes_operations_ja.md)
+  - RBAC, NetworkPolicy, HPA, GitOps (ArgoCD), Backup (Velero) 等、プロダクション運用に必要な技術を体験
+- [Zero Trust Architecture 実習：mTLS と Service Mesh による「常に検証」の実現](./infra/zero_trust_ja.md)
+  - Istio と SPIRE を活用し、ネットワーク境界に頼らない身元ベースのセキュリティ（mTLS/認可）を実装
 
 #### インフラ: 今後追加予定のコンテンツ
 
