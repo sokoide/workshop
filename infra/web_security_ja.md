@@ -8,8 +8,8 @@
 
 - XSS の仕組み（格納型・反射型）を理解し、JavaScript が実行される様子を確認する。
 - CSRF の仕組みを理解し、認証済みユーザーに代わって不正なリクエストが送られる様子を確認する。
-- クリックジャッキングの仕組みを理解し、iframe を用いた視覚的な騙しの手法を確認する。
-- CORS 設定ミスによる情報漏洩の仕組みを理解し、適切なオリジン制御の重要性を確認する。
+- クリックジャッキングの仕組みを理解し、iframe を用いてユーザーを視覚的に欺く手法を確認する。
+- CORS の誤設定による情報漏洩の仕組みを理解し、適切なオリジン制御の重要性を確認する。
 - 各脆弱性に対する防御策（エスケープ、トークン、ヘッダー設定、CORS 設定）を理解する。
 
 ---
@@ -69,9 +69,9 @@ graph TD
     UserClick["ユーザーのクリック"] --> VictimIframe
 ```
 
-### CORS 設定ミスによる情報漏洩 (Cross-Origin Data Leakage)
+### CORS の誤設定による情報漏洩 (Cross-Origin Data Leakage)
 
-CORS の誤設定（特に Origin ヘッダーの反射）により、攻撃者がユーザーの機密データを取得できる脆弱性です。
+CORS の誤設定（特に Origin Reflection）により、攻撃者がユーザーの機密データを取得できる脆弱性です。
 
 ```mermaid
 sequenceDiagram
@@ -103,9 +103,9 @@ sequenceDiagram
 **なぜ攻撃が成功するのか？**
 
 1. **ユーザーはログイン済み**: Cookie がブラウザに保存されている
-2. **CORS が過寛大**: Origin ヘッダーをそのまま反射するため、どのオリジンからのリクエストでもレスポンスを読み取り可能
+2. **CORS 設定が緩すぎる（過剰な許可）**: Origin Reflection（Origin ヘッダーをそのまま返す設定）により、どのオリジンからのリクエストでもレスポンスを読み取ることができるようになっています。
 3. **Cookie は自動送信**: クロスオリジンのリクエストでも Cookie が送信される
-4. **ブラウザがレスポンスを許可**: Origin が反射されるため、JavaScript がレスポンスを読める
+4. **ブラウザがレスポンスへのアクセスを許可**: Origin Reflection により、JavaScript がレスポンスの内容を読み取ることが可能になります。
 
 ---
 
@@ -113,16 +113,16 @@ sequenceDiagram
 
 |脆弱性|❌ 危険な実装|✅ 安全な対策|
 |:---|:---|:---|
-|**XSS**|ユーザー入力をそのまま HTML として出力する|出力を適切にエスケープする、CSPを設定する|
+|**XSS**|ユーザー入力をエスケープせずに出力する|出力を適切にエスケープする、CSPを設定する|
 |**CSRF**|Cookie だけに頼った認証を行う|CSRFトークンを使用する、SameSite属性を設定する|
 |**クリックジャッキング**|外部サイトからの iframe 埋め込みを許可している|`X-Frame-Options` または CSP の `frame-ancestors` を設定する|
-|**CORS 設定ミス**|Origin ヘッダーをそのまま反射する|許可リストに基づく特定オリジンのみ許可|
+|**CORS の誤設定**|Origin Reflection（Origin ヘッダーをそのまま返す）|許可リストに基づく特定のオリジンのみを許可する|
 
 ---
 
 ## アーキテクチャ
 
-この実習では、2つの Go アプリケーションがそれぞれ別ポートで動作します。「被害者サイト（Victim）」と「攻撃者サイト（Attacker）」が別オリジンになるため、CSRF や CORS のデモが現実に近い形で体験できます。
+この実習では、2 つの Go アプリケーションがそれぞれ別ポートで動作します。「被害者サイト（Victim）」と「攻撃者サイト（Attacker）」が別オリジンになるため、CSRF や CORS のデモが現実に近い形で体験できます。
 
 ### ディレクトリ構造
 
@@ -142,7 +142,7 @@ infra/assets/web_security/
 
 ### 1. アプリケーションの起動
 
-ターミナルを2つ開き、それぞれでサーバーを起動します。
+ターミナルを 2 つ開き、それぞれでサーバーを起動します。
 
 ```bash
 # ターミナル1: 被害者サイト
@@ -222,11 +222,11 @@ URL パラメータに含まれるスクリプトがそのままページに反�
 1. `Reflected XSS Demo` ページへ移動します。
 2. URL の末尾に以下を追加してアクセスします。
 
-   ```
+   ```text
    http://localhost:8080/xss/reflected?q=<img src=x onerror=alert(document.cookie)>
    ```
 
-   ※ 現代のブラウザは `<script>` タグによる反射型 XSS を自動ブロックします。`<img onerror>` を使うとこのフィルタをバイパスできます。
+   ※ 現代の多くのブラウザは、`<script>` タグによる反射型 XSS を自動的にブロックします。`<img onerror>` を使うとこのフィルタをバイパスできます。
 
 **何が起きているのか？**
 
@@ -331,9 +331,9 @@ Cookieによる「認証」は成功 → メールアドレスが変更される
 
 1. 攻撃者サイト（port 8081）の `Clickjacking Attack Page` をクリックします。
 2. 「無料ドーナツ配布中！」のページが表示されます。
-3. 「GET DONUTS」ボタンの下に、薄く見える被害者サイトの「Follow @hacker」ページが表示されます（デモ用に半透明にしています）。
+3. 「GET DONUTS」ボタンの下に、うっすらと見える被害者サイトの「Follow @hacker」ページが表示されます（デモ用に半透明にしています）。
 4. 「GET DONUTS」ボタンをクリックすると、実際には裏にある「Follow」ボタンがクリックされます。
-5. 意図しないのに @hacker をフォローしてしまいます。
+5. 意図せず @hacker をフォローしてしまいます。
 
 **何が起きているのか？**
 
@@ -392,9 +392,9 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-### STEP 5: CORS 設定ミス (Cross-Origin Data Leakage) ～別サイトからのデータ窃取～
+### STEP 5: CORS の誤設定 (Cross-Origin Data Leakage) ～別サイトからのデータ窃取～
 
-API がリクエストの Origin ヘッダーをそのまま反射していると、攻撃者サイトから Cookie を含めたリクエストでユーザーの機密データを取得できます。
+API が Origin Reflection（リクエストの Origin ヘッダーをそのまま返す設定）を行っていると、攻撃者サイトから Cookie を含めたリクエストを送り、ユーザーの機密データを取得できてしまいます。
 
 **実施手順:**
 
@@ -417,10 +417,10 @@ OPTIONS /api/profile HTTP/1.1
 Host: localhost:8080
 Origin: http://localhost:8081
 
-↓ 被害者サーバーのレスポンス（❌ 脆弱性: Origin をそのまま反射）
+↓ 被害者サーバーのレスポンス（❌ 脆弱性: Origin Reflection）
 
 HTTP/1.1 204 No Content
-Access-Control-Allow-Origin: http://localhost:8081   ← Origin を反射！
+Access-Control-Allow-Origin: http://localhost:8081   ← Origin Reflection!
 Access-Control-Allow-Credentials: true
 
 ↓ ブラウザが実際のリクエスト送信
@@ -433,7 +433,7 @@ Cookie: session_id=secret-session-123  ← credentials: 'include' で送信！
 ↓ 被害者サーバーのレスポンス
 
 HTTP/1.1 200 OK
-Access-Control-Allow-Origin: http://localhost:8081   ← Origin を反射
+Access-Control-Allow-Origin: http://localhost:8081   ← Origin Reflection
 Access-Control-Allow-Credentials: true
 Content-Type: application/json
 
@@ -449,7 +449,7 @@ Origin が一致 → 許可
 
 ```go
 func profileHandler(w http.ResponseWriter, r *http.Request) {
-    // ❌ 脆弱性: Origin ヘッダーをそのまま反射
+    // ❌ 脆弱性: Origin Reflection
     origin := r.Header.Get("Origin")
     w.Header().Set("Access-Control-Allow-Origin", origin)
     w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -462,9 +462,9 @@ func profileHandler(w http.ResponseWriter, r *http.Request) {
 **なぜ攻撃が成功するのか？**
 
 1. **ユーザーはログイン済み**: Cookie がブラウザに保存されている
-2. **Origin が反射される**: サーバーが Origin を検証せずそのまま返すため、どんなオリジンでも許可される
+2. **Origin Reflection**: サーバーが Origin を検証せずそのまま返すため、あらゆるオリジンが許可されてしまいます。
 3. **Credentials が許可**: `Access-Control-Allow-Credentials: true` により Cookie が送信される
-4. **プリフライトも通過**: OPTIONS リクエストでも同じ反射が行われる
+4. **プリフライトも通過**: OPTIONS リクエストでも同様に Origin Reflection が行われます。
 
 **実際の攻撃では:**
 
@@ -852,6 +852,15 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
     .then(data => sendToAttacker(data));
 </script>
 ```
+
+**比較：`Access-Control-Allow-Origin: *` vs `Origin Reflection`**
+
+| 特徴 | ACAO: * | Origin Reflection |
+| :--- | :--- | :--- |
+| **許可する相手** | 全員 | 全員（一人ずつ個別に許可） |
+| **Credentials (Cookie)** | 使えない | 使えてしまう（超危険） |
+| **主な用途** | 公共の API、静的ファイル | 開発中のデバッグ（※本番では NG） |
+| **セキュリティ** | 比較的安全（公共データのみ） | 脆弱性（情報漏洩の温床） |
 
 **安全な CORS 設定:**
 
@@ -1274,8 +1283,8 @@ document.getElementById("output").innerHTML = hash;  // エスケープなしで
 4. **HttpOnly属性が設定されたCookieは、JavaScriptから読み取れますか？**
    - <details><summary>解答</summary>いいえ、HttpOnly属性が設定されたCookieは`document.cookie`で読み取ることができません。XSSによるCookie盗難を防げます。</details>
 
-5. **Origin ヘッダーをそのまま反射するCORS設定はなぜ危険ですか？**
-   - <details><summary>解答</summary>Originをそのまま反射すると、どんなオリジンからのリクエストでも許可されてしまいます。`Access-Control-Allow-Credentials: true` と組み合わさると、攻撃者サイトからCookie付きリクエストで機密データを窃取できます。</details>
+5. **Origin Reflection（Origin ヘッダーをそのまま返す設定）が危険な理由は何ですか？**
+   - <details><summary>解答</summary>Origin Reflection により、あらゆるオリジンからのリクエストが許可されてしまうためです。`Access-Control-Allow-Credentials: true` と組み合わさると、攻撃者サイトからCookie付きリクエストで機密データを窃取できます。</details>
 
 ---
 
@@ -1306,7 +1315,7 @@ document.getElementById("output").innerHTML = hash;  // エスケープなしで
 **A:** ブラウザの iframe ブロック機能が動作している可能性があります。
 
 - 被害者サイト（localhost:8080）と攻撃者サイト（localhost:8081）が両方起動しているか確認
-- 攻撃者サイトのiframe srcが `http://localhost:8080/follow` を指しているか確認
+- 攻撃者サイトの iframe src が `http://localhost:8080/follow` を指しているか確認
 
 ---
 
