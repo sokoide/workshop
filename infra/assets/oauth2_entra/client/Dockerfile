@@ -1,5 +1,5 @@
 # --- Stage 1: Build ---
-FROM --platform=linux/amd64 golang:1.26.1-alpine AS builder
+FROM --platform=linux/amd64 docker.io/library/golang:1.26.1-alpine AS builder
 
 # Install necessary tools (git, ca-certificates, etc.)
 RUN apk add --no-cache git ca-certificates
@@ -18,7 +18,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o main .
 
 # --- Stage 2: Runtime ---
 # Use a minimal alpine image for security and size efficiency
-FROM --platform=linux/amd64 alpine:3.19
+FROM --platform=linux/amd64 docker.io/library/alpine:3.19
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
