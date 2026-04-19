@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,6 +29,7 @@ func main() {
 	mux.HandleFunc("/xss/reflected", reflectedXSSHandler)
 	mux.HandleFunc("/update-email", updateEmailHandler)
 	mux.HandleFunc("/follow", followHandler)
+	mux.HandleFunc("/api/profile", profileHandler)
 
 	log.Println("Victim site starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
@@ -51,7 +53,8 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		<ul>
 			<li><a href="http://localhost:8081/csrf">CSRF Attack Page (port 8081)</a></li>
 			<li><a href="http://localhost:8081/clickjacking">Clickjacking Attack Page (port 8081)</a></li>
-		</ul>
+				<li><a href="http://localhost:8081/cors">CORS Attack Page (port 8081)</a></li>
+			</ul>
 	`, data.Email)
 }
 
@@ -133,4 +136,32 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 			<button class="btn">Follow</button>
 		</form>
 	`)
+}
+
+func profileHandler(w http.ResponseWriter, r *http.Request) {
+	// Vulnerability: reflects the request Origin header back, trusting any origin
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	cookie, err := r.Cookie("session_id")
+	if err != nil || cookie.Value != "secret-session-123" {
+		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	profile := map[string]string{
+		"name":   "Alice Victim",
+		"email":  data.Email,
+		"secret": "my-secret-api-key-abc123",
+	}
+	json.NewEncoder(w).Encode(profile)
 }
