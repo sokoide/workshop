@@ -102,10 +102,15 @@ sequenceDiagram
 
 **Why does the attack succeed?**
 
-1. **User is logged in**: The Cookie is stored in the browser.
-2. **CORS configuration is too weak (over-permissive)**: Origin Reflection (returning the Origin header as-is) allows the response to be read from any origin.
-3. **Cookie is sent automatically**: The Cookie is sent even for cross-origin requests.
-4. **Browser allows access to the response**: Due to Origin Reflection, the `Access-Control-Allow-Origin` matches the attacker's origin, allowing JavaScript to read the response data.
+CORS does not control "whether to send a request", but rather the browser controls "whether to allow JavaScript to read the response returned from the server".
+
+1. **Automatic sending of Cookies (Browser spec independent of CORS)**: Browsers automatically attach and send cookies stored for the request-destination domain (`localhost:8080`), even if the request is from an attacker's site.
+2. **Authentication establishment**: The server verifies the arrived Cookie, authenticates the user, and includes sensitive data in the response.
+3. **Abuse of CORS misconfiguration**:
+   - **Origin Reflection**: Since the server returns the `Origin` header from the request as-is, the browser falsely recognizes the access from the attack site as "allowed".
+   - **Access-Control-Allow-Credentials: true**: Because this is set, the browser determines that "it is safe to pass the authenticated response to the attacker's JavaScript" and allows reading the response.
+
+In other words, **CORS misconfiguration is a state where the "breakwater for preventing others from stealing and viewing sensitive information obtained through Cookies that were sent anyway" has been broken by oneself.**
 
 ---
 
@@ -350,6 +355,8 @@ Uses a transparent iframe to make the user click a button different from the one
     z-index: 1;          /* Background layer */
     /* "Free Donut" fake page */
 }
+```
+
 ```text
 ┌─────────────────────────────────────┐
 │    [Attacker Fake Page - z-index: 1]│
@@ -746,6 +753,15 @@ http.SetCookie(w, &http.Cookie{
 })
 ```
 
+**Effect of SameSite:**
+
+```text
+[With SameSite=Lax]
+
+✗ POST from attacker site → Cookie not sent → Authentication fails
+✓ POST within same site   → Cookie sent     → Authentication succeeds
+```
+
 ---
 
 #### 3. Proper Configuration of CORS (Cross-Origin Resource Sharing)
@@ -1029,9 +1045,18 @@ Browser: "Only execute scripts that come from the same origin ('self')."
 
 #### How CSP Works
 
-1. **Server declares policy** via HTTP response header.
-2. **Browser evaluates policy** during page load.
-3. **Violations are blocked** and optionally reported to a specified URI.
+```text
+1. Server declares policy via HTTP response header
+   Content-Security-Policy: script-src 'self'; style-src 'self'
+
+2. Browser evaluates policy during page load
+   - Checks the source of each resource
+   - Blocks resources that violate the policy
+
+3. On violation
+   - Outputs error message to console
+   - Sends violation report (if configured)
+```
 
 #### Common Directives
 
@@ -1040,9 +1065,14 @@ Browser: "Only execute scripts that come from the same origin ('self')."
 | `script-src` | Where JavaScript can be loaded from | `'self'`, `'unsafe-inline'`, `'nonce-abc'` |
 | `style-src` | Where CSS can be loaded from | `'self'`, `'unsafe-inline'` |
 | `img-src` | Where images can be loaded from | `'self'`, `https://images.example.com` |
+| `font-src` | Where fonts can be loaded from | `'self'`, `https://fonts.googleapis.com` |
 | `connect-src` | Destinations for fetch/XHR/WebSockets | `'self'`, `https://api.example.com` |
+| `frame-src` | Where iframes can be loaded from | `'self'`, `https://trusted.com` |
 | `frame-ancestors` | Which pages can embed this page | `'none'`, `'self'` (Clickjacking defense) |
 | `default-src` | Fallback for other directives | `'self'` |
+| `object-src` | Plugins like Flash/Java | `'none'` (Recommended) |
+| `base-uri` | Restricts `<base>` tags | `'self'` |
+| `form-action` | Where forms can be submitted | `'self'` |
 
 #### Source Values
 
@@ -1051,34 +1081,140 @@ Browser: "Only execute scripts that come from the same origin ('self')."
 | `'self'` | Same origin only | Safe (Recommended) |
 | `'none'` | Allow nothing | Safest |
 | `'unsafe-inline'` | Allow inline scripts/styles | Dangerous (Negates XSS protection) |
+| `'unsafe-eval'` | Allow `eval()` etc. | Dangerous |
 | `'nonce-<value>'` | Only allow scripts with matching nonce attribute | Safe (Recommended) |
+| `'sha256-<hash>'` | Only allow scripts matching the hash | Safe |
 | `https://...` | Allow specific domain | Moderate |
+| `*` | Allow everything | Dangerous |
 
 #### Step-by-Step CSP Implementation
 
 **Step 1: Report-Only Mode (No Impact)**
 
 ```go
+// Content-Security-Policy-Report-Only blocks nothing, only reports violations
 w.Header().Set("Content-Security-Policy-Report-Only",
-    "default-src 'self'; report-uri /csp-report")
+    "default-src 'self'; " +
+    "report-uri /csp-report")
+
+// Use this in production first to collect violation logs before switching to actual CSP
 ```
 
 **Step 2: Lenient Policy (Migration Phase)**
 
 ```go
+// Temporarily allow inline scripts (while refactoring existing code)
 w.Header().Set("Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'")
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; " +  // Remove gradually
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data:; " +
+    "frame-ancestors 'none'")
 ```
 
 **Step 3: Strict Policy (Nonce-based, Recommended)**
 
 ```go
-nonce := generateNonce()
-w.Header().Set("Content-Security-Policy",
-    "default-src 'none'; script-src 'nonce-" + nonce + "'; style-src 'self'; frame-ancestors 'none'")
+import (
+    "crypto/rand"
+    "encoding/base64"
+)
 
-// HTML
-fmt.Fprintf(w, `<script nonce="%s">console.log('Safe script');</script>`, nonce)
+func generateNonce() string {
+    b := make([]byte, 16)
+    rand.Read(b)
+    return base64.StdEncoding.EncodeToString(b)
+}
+
+func secureHandler(w http.ResponseWriter, r *http.Request) {
+    nonce := generateNonce()
+
+    w.Header().Set("Content-Security-Policy",
+        "default-src 'none'; " +
+        "script-src 'nonce-" + nonce + "'; " +     // Only allow scripts with this nonce
+        "style-src 'self'; " +
+        "img-src 'self'; " +
+        "connect-src 'self'; " +
+        "frame-ancestors 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self'")
+
+    // Add nonce attribute in HTML
+    fmt.Fprintf(w, `
+        <script nonce="%s">
+            // Only this script will execute
+            // Injected <script> tags have no nonce → blocked
+            console.log('legitimate script');
+        </script>
+    `, nonce)
+}
+```
+
+**How nonce-based defense works:**
+
+```text
+Server generates: <script nonce="abc123">...</script>
+CSP header:       script-src 'nonce-abc123'
+
+Attacker injects: <script>alert('XSS')</script>
+                   ↑ No nonce attribute → Browser blocks ✓
+
+<script nonce="abc123">alert('XSS')</script>
+                   ↑ Attacker cannot know the nonce value → Blocked ✓
+```
+
+#### What CSP Can and Cannot Prevent
+
+| Attack | Prevented by CSP? | Reason |
+| :--- | :--- | :--- |
+| Inline `<script>` XSS | Yes, with `script-src 'self'` | Inline scripts are blocked |
+| External malicious scripts | Yes, with `script-src 'self'` | Non-allowed domains are blocked |
+| `eval()`-based XSS | Yes, without `unsafe-eval` | `eval()` is blocked |
+| Clickjacking | Yes, with `frame-ancestors 'none'` | iframe embedding is blocked |
+| CSRF | No | CSRF uses form submissions, not scripts |
+| `<img onerror=...>` XSS | Yes, without `unsafe-inline` | Inline event handlers are blocked |
+
+#### Implementation: Go CSP Middleware
+
+```go
+func cspMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        nonce := generateNonce()
+        r.Header.Set("X-CSP-Nonce", nonce) // Make available to handlers
+
+        w.Header().Set("Content-Security-Policy",
+            "default-src 'none'; " +
+            "script-src 'nonce-" + nonce + "'; " +
+            "style-src 'self'; " +
+            "img-src 'self'; " +
+            "connect-src 'self'; " +
+            "frame-ancestors 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self'; " +
+            "report-uri /csp-report")
+
+        next.ServeHTTP(w, r)
+    })
+}
+```
+
+#### Checking CSP Violations
+
+```text
+Chrome DevTools:
+  Console tab → "Refused to execute inline script because it violates
+                  the following Content Security Policy directive: 'script-src'"
+
+  Network tab → Check POST requests to "csp-report"
+
+Example report body:
+{
+  "csp-report": {
+    "document-uri": "http://localhost:8080/xss/stored",
+    "violated-directive": "script-src 'self'",
+    "blocked-uri": "inline"
+  }
+}
 ```
 
 ---
