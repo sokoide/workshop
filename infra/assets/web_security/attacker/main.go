@@ -78,10 +78,10 @@ func clickjackingHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		</style>
 		<div id="fake-page">
-			<h1>Free Cookies Giveaway!</h1>
-			<p>Press the big button below to get free cookies now!</p>
-			<button class="fake-btn">GET COOKIES</button>
+			<h1>Free Donuts Giveaway!</h1>
+			<p>Press the big button below to get free donuts now!</p>
+			<button class="fake-btn">GET DONUTS</button>
 		</div>
-		<iframe id="victim-frame" src="http://localhost:8080/transfer"></iframe>
+		<iframe id="victim-frame" src="http://localhost:8080/follow"></iframe>
 	`)
 }

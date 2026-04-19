@@ -27,7 +27,7 @@ func main() {
 	mux.HandleFunc("/xss/stored", storedXSSHandler)
 	mux.HandleFunc("/xss/reflected", reflectedXSSHandler)
 	mux.HandleFunc("/update-email", updateEmailHandler)
-	mux.HandleFunc("/transfer", transferHandler)
+	mux.HandleFunc("/follow", followHandler)
 
 	log.Println("Victim site starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
@@ -44,7 +44,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 			<li><button onclick="document.cookie='session_id=; path=/; max-age=0'; alert('Logged out. Cookie has been cleared.')">Logoff (clear session cookie)</button></li>
 			<li><a href="/xss/stored">Stored XSS Demo</a></li>
 			<li><a href="/xss/reflected?q=test">Reflected XSS Demo</a></li>
-			<li><a href="/transfer">Transfer Page (Clickjacking Demo)</a></li>
+			<li><a href="/follow">Follow Page (Clickjacking Demo)</a></li>
 		</ul>
 		<hr>
 		<h2>Links to Attacker Site (for exercises)</h2>
@@ -113,10 +113,10 @@ func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
 	`, data.Email)
 }
 
-func transferHandler(w http.ResponseWriter, r *http.Request) {
+func followHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, "<h2>Transfer of $1000 completed!</h2><a href='/'>Back to home</a>")
+		fmt.Fprintf(w, "<h2>You are now following @hacker!</h2><a href='/'>Back to home</a>")
 		return
 	}
 
@@ -125,12 +125,12 @@ func transferHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `
 		<style>
 			body { font-family: sans-serif; text-align: center; padding-top: 50px; }
-			.btn { background: #ff4444; color: white; padding: 20px 40px; border: none; font-size: 20px; cursor: pointer; border-radius: 5px; }
+			.btn { background: #1da1f2; color: white; padding: 20px 40px; border: none; font-size: 20px; cursor: pointer; border-radius: 5px; }
 		</style>
-		<h1>Transfer Confirmation</h1>
-		<p>Send <strong>$1000</strong> to "Malicious Hacker"?</p>
+		<h1>Follow @hacker</h1>
+		<p>Are you sure you want to follow <strong>@hacker</strong>?</p>
 		<form method="POST">
-			<button class="btn">Confirm Transfer</button>
+			<button class="btn">Follow</button>
 		</form>
 	`)
 }

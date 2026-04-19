@@ -187,7 +187,7 @@ podman compose up -d
     単に URL をリクエストするだけでデータを外部送信できるため
 ```
 
-**脆弱なコード (main.go:78-):**
+**脆弱なコード (victim/main.go:74-77):**
 
 ```go
 for _, c := range data.Comments {
@@ -233,7 +233,7 @@ HTML出力: <p>0 results found for "<img src=x onerror=alert(document.cookie)>".
    <img onerror> はフィルタをバイパスできる
 ```
 
-**脆弱なコード (main.go:86-):**
+**脆弱なコード (victim/main.go:81-86):**
 
 ```go
 func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
@@ -320,10 +320,11 @@ Cookieによる「認証」は成功 → メールアドレスが変更される
 
 **実施手順:**
 
-1. `攻撃者サイトへのリンク` の `クリックジャッキング 攻撃ページ` をクリックします。
-2. 「無料クッキー配布中！」のページが表示されます。
-3. 「GET COOKIES」ボタンの下に、薄く見える被害者サイトの「送金確認」ページが表示されます（デモ用に半透明にしています）。
-4. 「GET COOKIES」ボタンをクリックすると、実際には裏にある「送金を確定する」ボタンがクリックされます。
+1. 攻撃者サイト（port 8081）の `Clickjacking Attack Page` をクリックします。
+2. 「無料ドーナツ配布中！」のページが表示されます。
+3. 「GET DONUTS」ボタンの下に、薄く見える被害者サイトの「Follow @hacker」ページが表示されます（デモ用に半透明にしています）。
+4. 「GET DONUTS」ボタンをクリックすると、実際には裏にある「Follow」ボタンがクリックされます。
+5. 意図しないのに @hacker をフォローしてしまいます。
 
 **何が起きているのか？**
 
@@ -340,35 +341,35 @@ Cookieによる「認証」は成功 → メールアドレスが変更される
 #fake-page {
     position: absolute;
     z-index: 1;          /* 背景側 */
-    /* 「無料クッキー」の偽ページ */
+    /* 「無料ドーナツ」の偽ページ */
 }
 ```text
 ┌─────────────────────────────────────┐
 │  [攻撃者の偽ページ - z-index: 1]    │
-│  🍪 無料クッキー配布中！            │
+│  🍩 無料ドーナツ配布中！            │
 │                                     │
 │     ┌───────────────────────────┐   │
 │     │ [被害者サイトのiframe]    │   │
 │     │ z-index: 2 (手前)         │   │
-│     │ 送金確認                  │   │
-│     │ [$1000送金]ボタン         │   │ ← 透明/半透明
+│     │ Follow @hacker            │   │
+│     │ [Follow]ボタン            │   │ ← 透明/半透明
 │     └───────────────────────────┘   │
 │                                     │
-│         [GET COOKIES]ボタン         │ ← 偽ボタン
+│         [GET DONUTS]ボタン          │ ← 偽ボタン
 │         (実際はiframeのボタンの上)  │
 └─────────────────────────────────────┘
 ```
 
-**脆弱なコード (main.go:162-182):**
+**脆弱なコード (victim/main.go:116-136):**
 
 ```go
-func transferHandler(w http.ResponseWriter, r *http.Request) {
+func followHandler(w http.ResponseWriter, r *http.Request) {
     // ❌ 脆弱性: X-Frame-Options ヘッダーがない
     // 他サイトのiframe内で表示可能になっている
 
     fmt.Fprintf(w, `
-        <h1>送金確認</h1>
-        <button>送金を確定する</button>
+        <h1>Follow @hacker</h1>
+        <button>Follow</button>
     `)
 }
 ```
@@ -872,14 +873,14 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 #### 1. X-Frame-Options ヘッダー
 
 ```go
-func transferHandler(w http.ResponseWriter, r *http.Request) {
+func followHandler(w http.ResponseWriter, r *http.Request) {
     // ✅ iframe埋め込みを完全に禁止
     w.Header().Set("X-Frame-Options", "DENY")
 
     // または、同一オリジンのみ許可
     // w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 
-    fmt.Fprintf(w, "<h1>送金確認</h1>...")
+    fmt.Fprintf(w, "<h1>Follow @hacker</h1>...")
 }
 ```
 
@@ -894,7 +895,7 @@ func transferHandler(w http.ResponseWriter, r *http.Request) {
 #### 2. Content-Security-Policy (CSP)
 
 ```go
-func transferHandler(w http.ResponseWriter, r *http.Request) {
+func followHandler(w http.ResponseWriter, r *http.Request) {
     // ✅ frame-ancestors でiframe埋め込みを制御
     w.Header().Set("Content-Security-Policy",
         "frame-ancestors 'self';")  // 同一サイトのみ許可
