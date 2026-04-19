@@ -3,27 +3,32 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 )
 
-// In-memory data for demo
-type Data struct {
-	sync.Mutex
+const (
+	addr       = ":8080"
+	sessionKey = "session_id"
+	sessionVal = "secret-session-123"
+)
+
+// Store holds in-memory application state for the demo.
+type Store struct {
+	mu       sync.Mutex
 	Comments []string
 	Email    string
 }
 
-var data = &Data{
+var store = &Store{
 	Comments: []string{"Welcome to the workshop!"},
 	Email:    "victim@example.com",
 }
 
 func main() {
 	mux := http.NewServeMux()
-
-	// Victim Site
 	mux.HandleFunc("/", homeHandler)
 	mux.HandleFunc("/xss/stored", storedXSSHandler)
 	mux.HandleFunc("/xss/reflected", reflectedXSSHandler)
@@ -31,11 +36,18 @@ func main() {
 	mux.HandleFunc("/follow", followHandler)
 	mux.HandleFunc("/api/profile", profileHandler)
 
-	log.Println("Victim site starting on :8080")
-	log.Fatal(http.ListenAndServe(":8080", mux))
+	slog.Info("victim site starting", "addr", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
+	}
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
+	store.mu.Lock()
+	email := store.Email
+	store.mu.Unlock()
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `
 		<h1>Victim Site</h1>
@@ -53,28 +65,32 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		<ul>
 			<li><a href="http://localhost:8081/csrf">CSRF Attack Page (port 8081)</a></li>
 			<li><a href="http://localhost:8081/clickjacking">Clickjacking Attack Page (port 8081)</a></li>
-				<li><a href="http://localhost:8081/cors">CORS Attack Page (port 8081)</a></li>
-			</ul>
-	`, data.Email)
+			<li><a href="http://localhost:8081/cors">CORS Attack Page (port 8081)</a></li>
+		</ul>
+	`, email)
 }
 
 func storedXSSHandler(w http.ResponseWriter, r *http.Request) {
-	data.Lock()
-	defer data.Unlock()
-
 	if r.Method == http.MethodPost {
 		comment := r.FormValue("comment")
-		data.Comments = append(data.Comments, comment)
+		store.mu.Lock()
+		store.Comments = append(store.Comments, comment)
+		store.mu.Unlock()
 		http.Redirect(w, r, "/xss/stored", http.StatusSeeOther)
 		return
 	}
+
+	store.mu.Lock()
+	comments := make([]string, len(store.Comments))
+	copy(comments, store.Comments)
+	store.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, "<h1>Stored XSS</h1>")
 	fmt.Fprint(w, "<p>Submitted content is stored and displayed as-is.</p>")
 	fmt.Fprint(w, "<form method='POST'><input name='comment' style='width:300px'><input type='submit' value='Submit'></form>")
 	fmt.Fprint(w, "<h2>Comments</h2><ul>")
-	for _, c := range data.Comments {
+	for _, c := range comments {
 		// Vulnerability: user input is rendered unescaped
 		fmt.Fprintf(w, "<li>%s</li>", c)
 	}
@@ -89,22 +105,24 @@ func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
-	// Simplified "authentication" check
-	cookie, err := r.Cookie("session_id")
-	if err != nil || cookie.Value != "secret-session-123" {
+	if !isAuthenticated(r) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	if r.Method == http.MethodPost {
 		newEmail := r.FormValue("email")
-		data.Lock()
-		data.Email = newEmail
-		data.Unlock()
+		store.mu.Lock()
+		store.Email = newEmail
+		store.mu.Unlock()
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, "Email updated to <strong>%s</strong>. <a href='/'>Back to home</a>", newEmail)
 		return
 	}
+
+	store.mu.Lock()
+	email := store.Email
+	store.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `
@@ -113,7 +131,7 @@ func updateEmailHandler(w http.ResponseWriter, r *http.Request) {
 			New email: <input name="email" value="%s">
 			<input type="submit" value="Update">
 		</form>
-	`, data.Email)
+	`, email)
 }
 
 func followHandler(w http.ResponseWriter, r *http.Request) {
@@ -152,16 +170,27 @@ func profileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, err := r.Cookie("session_id")
-	if err != nil || cookie.Value != "secret-session-123" {
-		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+	if !isAuthenticated(r) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized"})
 		return
 	}
 
 	profile := map[string]string{
 		"name":   "Alice Victim",
-		"email":  data.Email,
+		"email":  store.Email,
 		"secret": "my-secret-api-key-abc123",
 	}
-	json.NewEncoder(w).Encode(profile)
+	if err := json.NewEncoder(w).Encode(profile); err != nil {
+		slog.Error("encode profile", "error", err)
+	}
+}
+
+func isAuthenticated(r *http.Request) bool {
+	cookie, err := r.Cookie(sessionKey)
+	if err != nil {
+		return false
+	}
+	return cookie.Value == sessionVal
 }

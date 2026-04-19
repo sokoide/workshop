@@ -2,9 +2,12 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 )
+
+const addr = ":8081"
 
 func main() {
 	mux := http.NewServeMux()
@@ -13,8 +16,11 @@ func main() {
 	mux.HandleFunc("/clickjacking", clickjackingHandler)
 	mux.HandleFunc("/cors", corsHandler)
 
-	log.Println("Attacker site starting on :8081")
-	log.Fatal(http.ListenAndServe(":8081", mux))
+	slog.Info("attacker site starting", "addr", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
+	}
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +30,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		<ul>
 			<li><a href="/csrf">CSRF Attack Page</a></li>
 			<li><a href="/clickjacking">Clickjacking Attack Page</a></li>
-				<li><a href="/cors">CORS Attack Page</a></li>
+			<li><a href="/cors">CORS Attack Page</a></li>
 		</ul>
 		<hr>
 		<p><a href="http://localhost:8080">Back to Victim Site</a></p>
