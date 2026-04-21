@@ -89,8 +89,14 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
     }
 
     // ...以降のロジックは変更なし
-    count, _ := u.postRepo.CountByThreadID(ctx, thread.ID)
-    post, _ := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
+    count, err := u.postRepo.CountByThreadID(ctx, thread.ID)
+    if err != nil {
+        return nil, err
+    }
+    post, err := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
+    if err != nil {
+        return nil, err
+    }
     // ...
 }
 ```

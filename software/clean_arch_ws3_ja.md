@@ -43,7 +43,10 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP 固有の入力変換
     slug := r.PathValue("slug")
     var req createThreadRequest
-    json.NewDecoder(r.Body).Decode(&req)
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, "invalid json")
+        return
+    }
 
     // UseCase 呼び出し（← 通信方式に依存しない）
     out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
@@ -187,8 +190,15 @@ func main() {
     bbsServer := framework.NewBBSServer(createThread, listThreads, ...)
     pb.RegisterBBSServiceServer(grpcServer, bbsServer)
 
-    lis, _ := net.Listen("tcp", ":9090")
-    grpcServer.Serve(lis)
+    lis, err := net.Listen("tcp", ":9090")
+    if err != nil {
+        slog.Error("failed to listen", "error", err)
+        os.Exit(1)
+    }
+    if err := grpcServer.Serve(lis); err != nil {
+        slog.Error("grpc server failed", "error", err)
+        os.Exit(1)
+    }
 }
 ```
 

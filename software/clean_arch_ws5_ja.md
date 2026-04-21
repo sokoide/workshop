@@ -185,7 +185,11 @@ func main() {
     // tm := sqlite.NewTransactionManager(db)
 
     // 新: PostgreSQL（ここだけ変更）
-    db, _ := sql.Open("pgx", os.Getenv("DATABASE_URL"))
+    db, err := sql.Open("pgx", os.Getenv("DATABASE_URL"))
+    if err != nil {
+        slog.Error("failed to open db", "error", err)
+        os.Exit(1)
+    }
     boardRepo := postgres.NewBoardRepository(db)
     threadRepo := postgres.NewThreadRepository(db)
     postRepo := postgres.NewPostRepository(db)

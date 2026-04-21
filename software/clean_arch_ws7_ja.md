@@ -103,13 +103,21 @@ func validateToken(tokenString string, secret string) (*Claims, error) {
         return nil, err
     }
 
-    if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-        return &Claims{
-            UserID: claims["sub"].(string),
-            Role:   claims["role"].(string),
-        }, nil
+    claims, ok := token.Claims.(jwt.MapClaims)
+    if !ok || !token.Valid {
+        return nil, errors.New("invalid token claims")
     }
-    return nil, errors.New("invalid token claims")
+
+    sub, ok := claims["sub"].(string)
+    if !ok {
+        return nil, errors.New("invalid token: missing or non-string sub claim")
+    }
+    role, ok := claims["role"].(string)
+    if !ok {
+        return nil, errors.New("invalid token: missing or non-string role claim")
+    }
+
+    return &Claims{UserID: sub, Role: role}, nil
 }
 
 // writeAuthError は認証ミドルウェア内でエラーレスポンスを書き込みます
