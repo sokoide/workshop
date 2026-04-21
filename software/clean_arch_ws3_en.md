@@ -1,228 +1,222 @@
-# Clean Architecture Workshop: advent-calm-2025
+# Clean Architecture Workshop (WS3): Swapping Communication Protocols
 
-In this workshop, you will learn how to build a robust and testable application using **Go** based on **Clean Architecture**.
-The complete project files are in the [advent-of-calm-2025](./advent-of-calm-2025/) directory.
+In this workshop, you will migrate the BBS (2channel-style bulletin board) REST API to gRPC.
+You will modify **only the Framework layer**, confirming that Domain, UseCase, and Infra remain completely untouched.
 
-## 1. What is Clean Architecture?
+## Prerequisites
 
-Clean Architecture is a design philosophy that separates concerns, keeping business logic independent of frameworks, databases, and external tools.
+This workshop uses the [BBS project](./assets/bbs/) as the subject code.
+You should understand the 4-layer structure:
 
-### The 4 Layers
-
-This workshop adopts a simple and practical **4-layer structure**.
-
-1. **Domain Layer** - `domain/`
-    * **Role**: Core business rules and data structures.
-    * **Characteristics**: **Depends on nothing**. Written purely in Go.
-    * **Components**: Entities, Port Interfaces (Ports), Domain Services (for complex logic).
-
-2. **Usecase Layer** - `usecase/`
-    * **Role**: Application-specific business rules (what the user wants to do).
-    * **Characteristics**: Depends only on the Domain Layer. Knows nothing about the DB or HTTP details.
-    * **Components**: Interactors (Usecases), Input/Output Data Structures (DTOs).
-
-3. **Infra Adapter Layer** - `infra/`
-    * **Role**: Specifically implement domain contracts (Ports) and bridge to external I/O (DB, etc.).
-    * **Characteristics**: **Implements the interfaces defined in the Domain Layer** (dependencies point inward).
-    * **Components**: Repository implementations, External client implementations, DB integration.
-
-4. **Framework Layer**
-    * **Role**: Web frameworks, gRPC, CLI, and their handlers.
-    * **Characteristics**: Controls the outermost I/O, converting inputs for UseCases.
-    * **Components**: Web handlers, Routers, DTO mapping.
-
-### The Dependency Rule
-
-**"Dependencies always point inwards (towards the Domain)."**
-Source code dependencies must always point from lower-level details (concrete implementations) to higher-level abstractions.
-
-```mermaid
-graph TD
-    Customer[Customer / Admin]
-    Framework[Framework<br>API Handler]
-    Usecase[Usecase<br>CreateOrder / CheckInventory]
-    Domain["Domain<br>Entities + Ports"]
-    Infra["Infra Adapters<br>Repo / REST Client"]
-    OrderDB[(Order DB)]
-    InvDB[(Inventory DB)]
-    ExternalInvAPI["Inventory Service API (External)"]
-
-    Customer --> Framework
-    Framework --> Usecase
-    Usecase --> Domain
-    Infra --> Domain
-    Infra --> OrderDB
-    Infra --> InvDB
-    Infra --> ExternalInvAPI
-
-    style Framework fill: #555, stroke-width:2px
-    style Usecase fill: #555, stroke-width:2px
-    style Domain fill: #555, stroke-width:2px
-    style Infra fill: #555, stroke-width:2px
+```
+Framework (HTTP/gRPC)  →  UseCase (Application logic)  →  Domain (Business rules)
+                              ↓                                   ↑
+                         Infra Adapter (DB) ─────────────────────┘
 ```
 
-> **Note: Unifying External Interfaces**
-> `Customer` (the person ordering) and `Admin` (inventory manager) interact with the system via the appropriate API endpoints. The `Inventory REST Client` within the `Order Service` should be treated as calling an **external Inventory Service API, not the same-process Framework layer**, to avoid confusion about dependency direction.
->
-> **What are "Ports"?**
-> Ports are the "contracts (interfaces) that the inner rules demand from the outside." Details about the DB or external APIs are hidden behind Ports. UseCases depend on Ports to define behavior only. The outside layer (Infra Adapters) implements these Ports, keeping the dependency direction pointing inward.
+## Workshop Scenario
 
-### Ports and Repository Boundary
-
-* **Input Port:** The UseCase interface exposed to external adapters. Controllers depend on this port.
-* **Output Port:** Contracts required by Domain/UseCase (e.g., repositories, clients). Interfaces live inside, implementations live in adapters.
-* **Repository Boundary:** Persistence contracts. Transactions/retries belong in UseCase; mapping and query construction belong in adapters.
+You need to migrate the REST API to gRPC without touching any business logic.
 
 ---
 
-## Workshop: Building an Order System
+## Exercise: HTTP → gRPC Migration
 
-We will implement a fictional "Order Creation System," starting from the inside and working our way out.
+### Identify the Scope (What NOT to Change)
 
-### Step 1: Designing the Domain Layer (`domain/`)
+The following layers require **zero modifications**:
 
-The Domain Layer is the **heart** of the application and consists of the following elements. These do not depend on any external (DB or Web) concerns.
+| Layer | Reason |
+|-------|--------|
+| **Domain** | Entities (Board, Thread, Post), Port Interfaces do not depend on any communication protocol |
+| **UseCase** | `Execute(ctx, Input) (Output, error)` signature is unchanged. DTOs are protocol-agnostic |
+| **Infra** | Repository implementations (SQL queries) are unrelated to communication methods |
 
-1. **Entity**: Business data and rules (e.g., `Order`, `Inventory`).
-2. **Interface (Port)**: Contracts for data persistence or external integration (e.g., `OrderRepository`, `InventoryClient`).
-3. **Domain Service**: Complex calculations or logic spanning multiple entities (avoid simple I/O wrapping).
+### Step 1: Review the Current HTTP Handler
 
-First, we define the core business object, the "Order," and the "Interfaces" used to interact with the outside world.
-
-**1. Define Entities (`domain/entity/models.go`)**
-Define the state and structure of an Order.
+Review the current Framework layer. Handlers follow the "input conversion → UseCase call → output conversion" pattern.
 
 ```go
-type Order struct {
-	ID         string
-	CustomerID string
-	Amount     float64
-	Status     OrderStatus
-	CreatedAt  time.Time
+// framework/handler/thread_handler.go
+func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
+    // HTTP-specific input conversion
+    slug := r.PathValue("slug")
+    var req createThreadRequest
+    json.NewDecoder(r.Body).Decode(&req)
+
+    // UseCase call (← protocol-independent)
+    out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
+        BoardSlug: slug, Title: req.Title, Author: req.Author, Body: req.Body,
+    })
+
+    // HTTP-specific output conversion
+    if errors.Is(err, domain.ErrBoardNotFound) {
+        writeError(w, http.StatusNotFound, err.Error())
+        return
+    }
+    writeJSON(w, http.StatusCreated, out)
 }
 ```
 
-**2. Define Interfaces (Ports) (`domain/repository/interfaces.go`)**
-**Abstract** how data is saved or how external services are accessed. The implementation of these interfaces will be done in Step 3.
+**Key observation**: The `Execute` call does not depend on HTTP or gRPC.
 
-```go
-// Dependency Inversion Principle (DIP): High-level modules own the abstractions.
-type OrderRepository interface {
-	Save(ctx context.Context, order *entity.Order) error
-	FindByID(ctx context.Context, id string) (*entity.Order, error)
+### Step 2: Create Protobuf Definitions
+
+Create gRPC type definitions. This is a new file — no existing code is modified.
+
+```protobuf
+// api/proto/bbs.proto
+syntax = "proto3";
+package bbs;
+
+service BBSService {
+    rpc ListBoards(ListBoardsRequest) returns (ListBoardsResponse);
+    rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+    rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
+    rpc ListPosts(ListPostsRequest) returns (ListPostsResponse);
+    rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
 }
 
-type InventoryClient interface {
-	CheckAndReserve(ctx context.Context, productID string, quantity int) (bool, error)
+message CreateThreadRequest {
+    string board_slug = 1;
+    string title = 2;
+    string author = 3;
+    string body = 4;
 }
 
-type PaymentPublisher interface {
-	PublishPaymentTask(ctx context.Context, order *entity.Order) error
-}
-```
-
-### Step 2: Implementing the Usecase Layer (`usecase/`)
-
-Combine the Domain Layer components (Entities and Ports) to implement the application feature: "Create an Order."
-
-**Implementation (`usecase/create_order.go`)**
-
-```go
-type CreateOrderUsecase struct {
-	orderRepo repository.OrderRepository // Depends on abstraction
-	invClient repository.InventoryClient // External API integration via Port
-	// ...
+message CreateThreadResponse {
+    Thread thread = 1;
 }
 
-func (u *CreateOrderUsecase) Execute(ctx context.Context, input CreateOrderInput) error {
-	// 1. Validation and Stock Reservation (using Port)
-	// 2. Create Order entity
-	// 3. Save to database (using Repository)
-	// 4. Publish event
-}
-```
-
-The key point here is that `CreateOrderUsecase` does not know about the concrete database (e.g., Postgres) or communication protocols (REST/gRPC). It only knows the Ports (e.g., `OrderRepository`).
-
-### Step 3: Implementing the Infra Adapters Layer (`infra/`)
-
-This is where concrete technologies like "PostgreSQL" or "REST API" appear. **We implement the Domain Layer interfaces defined in Step 1**.
-
-* `PostgresOrderRepository` implements `domain.OrderRepository`.
-* `RestInventoryClient` implements `domain.InventoryClient`.
-
-**Repository Implementation (`infra/repository/postgres_order_repository.go`)**
-
-```go
-type PostgresOrderRepository struct {
-	// DB connection instance, etc.
-}
-
-// Satisfies the domain/repository.OrderRepository interface
-func (r *PostgresOrderRepository) Save(ctx context.Context, order *entity.Order) error {
-	fmt.Printf("Saving order %s to Postgres\n", order.ID)
-	// Actual SQL execution logic...
-	return nil
+message Thread {
+    int64 id = 1;
+    string title = 2;
+    string author = 3;
+    int32 response_count = 4;
+    string created_at = 5;
+    string last_posted_at = 6;
 }
 ```
 
-**Error boundary note**
+### Step 3: Implement the gRPC Handler
 
-* Infra Adapters should not return driver errors (e.g., `sql.ErrNoRows`) directly across boundaries; convert them into domain/usecase-level errors such as `entity.ErrOrderNotFound`.
-* Framework should convert domain/usecase errors into transport-level errors (HTTP status, gRPC status, etc.).
-
-### Step 4: Assembling the Application (`main.go`)
-
-Finally, we wire up all the parts in `main.go` using **Dependency Injection**.
+Create a gRPC handler in a new file. Confirm that the **UseCase invocation is identical to the HTTP version**.
 
 ```go
+// framework/grpc/bbs_server.go (new file)
+type BBSServer struct {
+    pb.UnimplementedBBSServiceServer
+    createThread usecase.CreateThreadUseCase
+    listThreads  usecase.ListThreadsUseCase
+    // ...
+}
+
+func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadRequest) (*pb.CreateThreadResponse, error) {
+    // gRPC-specific input conversion (only this part differs)
+    out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
+        BoardSlug: req.BoardSlug,
+        Title:     req.Title,
+        Author:    req.Author,
+        Body:      req.Body,
+    })
+
+    // gRPC-specific output conversion (HTTP status → gRPC status)
+    if errors.Is(err, domain.ErrBoardNotFound) {
+        return nil, status.Errorf(codes.NotFound, err.Error())
+    }
+    if err != nil {
+        return nil, status.Errorf(codes.Internal, err.Error())
+    }
+
+    return &pb.CreateThreadResponse{Thread: toProtoThread(out)}, nil
+}
+```
+
+**Compare**: Line up the HTTP and gRPC `Execute` calls side by side:
+
+```go
+// HTTP version
+out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
+    BoardSlug: slug, Title: req.Title, Author: req.Author, Body: req.Body,
+})
+
+// gRPC version (identical!)
+out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
+    BoardSlug: req.BoardSlug, Title: req.Title, Author: req.Author, Body: req.Body,
+})
+```
+
+The UseCase call is completely identical. Only the conversion target (JSON → protobuf) and error mapping (HTTP status → gRPC status) differ.
+
+### Step 4: Switch the Entry Point
+
+Change the startup method from HTTP to gRPC in the Composition Root.
+
+```go
+// cmd/bbs/main.go
 func main() {
-	// 1. Create Infra Adapters objects
-	orderRepo := &repository.PostgresOrderRepository{}
-	inventoryClient := &client.RestInventoryClient{}
-	paymentPub := &messaging.RabbitMQPaymentPublisher{}
-	idGen := &util.UUIDGenerator{}
-	inventoryRepo := &repository.PostgresInventoryRepository{}
+    // DI wiring (UseCase injection) remains unchanged
+    boardRepo := sqlite.NewBoardRepository(db)
+    threadRepo := sqlite.NewThreadRepository(db)
+    postRepo := sqlite.NewPostRepository(db)
+    tm := sqlite.NewTransactionManager(db)
 
-	// 2. Direct injection into Usecase (Pass Adapters that implement Domain Ports)
-	createOrderUsecase := usecase.NewCreateOrderUsecase(orderRepo, inventoryClient, paymentPub, idGen)
-	checkInventoryUsecase := usecase.NewCheckInventoryUsecase(inventoryRepo)
-	updateInventoryUsecase := usecase.NewUpdateInventoryUsecase(inventoryRepo)
+    createThread := usecase.NewCreateThreadUseCase(boardRepo, threadRepo, postRepo, tm)
+    listThreads := usecase.NewListThreadsUseCase(boardRepo, threadRepo)
+    // ...
 
-	// 3. Run
-	createOrderUsecase.Execute(ctx, input)
+    // Old: HTTP server startup
+    // handler := framework.NewThreadHandler(createThread, listThreads)
+    // http.ListenAndServe(":8080", router)
+
+    // New: gRPC server startup (only this changes)
+    grpcServer := grpc.NewServer()
+    bbsServer := framework.NewBBSServer(createThread, listThreads, ...)
+    pb.RegisterBBSServiceServer(grpcServer, bbsServer)
+
+    lis, _ := net.Listen("tcp", ":9090")
+    grpcServer.Serve(lis)
 }
 ```
 
-> **Note: Composition Root vs Framework separation**
-> This sample keeps wiring and execution in `main.go` for simplicity. For stricter layering, keep `main.go` as composition root only, and move CLI/Web I/O handling into `framework/...`.
-
----
-
-## Design Analysis & Quality (Clean Architecture Analysis)
-
-This project maintains high design quality based on the following principles:
-
-1. **Loose Coupling**: Order and Inventory concerns are separated at the domain level, making it easy to split into microservices in the future.
-2. **Pure Business Logic**: The `domain` package has zero dependencies on external libraries, containing only business rules.
-3. **Appropriate Responsibility Separation**: By avoiding the misuse of "Domain Services" as mere I/O wrappers and letting UseCases handle orchestration, we ensure that the Domain remains focused on logic with true business value.
-
----
-
-## How to Run
-
-Execute the following commands in the project root directory to resolve dependencies and run the application.
+### Step 5: Verify
 
 ```bash
-# Tidy up dependencies
-go mod tidy
+# Build
+go build -o bbs ./cmd/bbs/
 
-# Run the application
-go run main.go
+# Start
+./bbs
+
+# Test with gRPC client (using grpcurl)
+grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
+
+grpcurl -plaintext -d '{"board_slug":"program","title":"Go thread","author":"gopher","body":"Go is great!"}' \
+    localhost:9090 bbs.BBSService/CreateThread
 ```
 
-## Summary
+---
 
-* **Robust against change**: Even if you switch the DB to MySQL, the code in `domain` and `usecase` does not change by a single line.
-* **Easy to Test**: You only need to mock the `repository` to test the `usecase`. No database is required.
-* **Separation of Concerns**: Business logic and technical details are clearly separated.
+## Comparison: Without Layer Separation
+
+```go
+// Everything mixed into one function
+func CreateThread(w http.ResponseWriter, r *http.Request) {
+    slug := r.PathValue("slug")           // HTTP dependency
+    db, _ := sql.Open("sqlite3", "bbs.db") // DB dependency
+    tx, _ := db.Begin()                    // Technical detail
+    res, _ := tx.Exec("INSERT INTO ...")   // SQL
+    w.WriteHeader(201)                     // HTTP dependency
+    json.NewEncoder(w).Encode(res)         // JSON dependency
+}
+```
+
+In this case, switching to gRPC requires **rewriting the entire function**.
+
+---
+
+## Key Points
+
+1. **Localized Impact**: Only the Framework layer changes. UseCase's `Execute` call remains untouched.
+2. **Protocol Differences Are "Conversion" Differences**: Both HTTP and gRPC follow the same "convert input to DTO → call UseCase" structure.
+3. **Easy Swapping**: Production uses gRPC, internal tools use HTTP, tests use CLI — all sharing the same UseCases.

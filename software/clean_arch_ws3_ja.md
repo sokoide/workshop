@@ -1,228 +1,222 @@
-# クリーンアーキテクチャ実習: advent-calm-2025
+# クリーンアーキテクチャ実習 (WS3): 通信プロトコルの差し替え
 
-このワークショップでは、Go 言語を用いて「Clean Architecture」に基づいた堅牢でテスト容易なアプリケーションを構築する方法を学びます。
-完全なプロジェクトファイルは [advent-of-calm-2025](./advent-of-calm-2025/) ディレクトリにあります。
+この実習では、BBS（2ちゃんねる風掲示板）の REST API を gRPC に移行します。
+**Framework 層だけを変更**し、Domain・UseCase・Infra が一切変更不要であることを体験します。
 
-## 1. Clean Architecture とは？
+## 前提知識
 
-Clean Architecture（クリーンアーキテクチャ）は、ソフトウェアの関心事を分離し、ビジネスロジックをフレームワークや外部ツールから独立させるための設計指針です。
+本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
+以下の4層構造を理解していることが前提です。
 
-### 4層構造（The 4 Layers）
-
-本ワークショップでは、シンプルで実用的な **4層構造** を採用します。
-
-1. **ドメイン層 (Domain Layer)** - `domain/`
-    * **役割**: ビジネスの中核となるルールとデータ構造。
-    * **特徴**: **他のどの層にも依存しません**。純粋な Go のコードのみで記述されます。
-    * **構成要素**: エンティティ (Entity), ポートインターフェース (Port), ドメインサービス (Domain Service: 複雑なロジック用)。
-
-2. **ユースケース層 (Usecase Layer)** - `usecase/`
-    * **役割**: アプリケーション固有のビジネスルール（ユーザーが何をしたいか）。
-    * **特徴**: ドメイン層にのみ依存します。DB や HTTP の詳細を知りません。
-    * **構成要素**: ユースケース (Interactor), 入力/出力データ構造 (DTO)。
-
-3. **インフラアダプター層 (Infra Adapters)** - `infra/`
-    * **役割**: ドメインの契約（Port）を具体的に実装し、外部 I/O（DB 等）との橋渡しを行う。
-    * **特徴**: **ドメイン層のインターフェースに依存して実装する層**です（依存は内向き）。
-    * **構成要素**: リポジトリの実装 (Repository Impl), 外部クライアント (Client Impl), DB 連携。
-
-4. **フレームワーク層 (Framework Layer)**
-    * **役割**: Web フレームワーク、gRPC、CLI、およびそれらのハンドラー。
-    * **特徴**: 最外周の I/O を制御し、入力を UseCase 向けに変換して呼び出します。
-    * **構成要素**: Web ハンドラー, Router, DTO 変換。
-
-### 依存性のルール (The Dependency Rule)
-
-**「依存は常に内側（ドメイン側）に向かう」**
-ソースコードの依存関係は、常に低レベル（詳細）から高レベル（抽象）へ向かいます。
-
-```mermaid
-graph TD
-    Customer[Customer / Admin]
-    Framework[Framework<br>API Handler]
-    Usecase[Usecase<br>CreateOrder / CheckInventory]
-    Domain["Domain<br>Entities + Ports"]
-    Infra["Infra Adapters<br>Repo / REST Client"]
-    OrderDB[(Order DB)]
-    InvDB[(Inventory DB)]
-    ExternalInvAPI["Inventory Service API (External)"]
-
-    Customer --> Framework
-    Framework --> Usecase
-    Usecase --> Domain
-    Infra --> Domain
-    Infra --> OrderDB
-    Infra --> InvDB
-    Infra --> ExternalInvAPI
-
-    style Framework fill: #555, stroke-width:2px
-    style Usecase fill: #555, stroke-width:2px
-    style Domain fill: #555, stroke-width:2px
-    style Infra fill: #555, stroke-width:2px
+```
+Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domain (ビジネスルール)
+                              ↓                                   ↑
+                         Infra Adapter (DB) ─────────────────────┘
 ```
 
-> **注記: 外部インターフェースの集約**
-> `Customer`（注文者）と `Admin`（在庫管理者）は、それぞれ適切な API エンドポイントを叩きます。`Order Service` 内の `Inventory REST Client` が叩く先は、**同一プロセスの Framework ではなく外部 Inventory Service の API** として扱います（依存方向の誤解を防ぐため）。
->
-> **Ports とは？**
-> Ports は「内側のルールが外側に求める契約（インターフェース）」です。DBや外部APIの詳細は Ports の背後に隠れ、ユースケースは Ports に依存して振る舞いだけを定義します。外側（Infra Adapters）は Ports を実装することで依存方向を内向きに保ちます。
+## 実習のシナリオ
 
-### ポート設計とリポジトリ境界
-
-* **入力ポート:** UseCase が公開するインターフェース。Web/CLI などの Controller はこのポートに依存します。
-* **出力ポート:** Domain/UseCase が外側に要求する契約（例: Repository, Client）。インターフェースは内側に置き、実装は Adapter 側に置きます。
-* **リポジトリ境界:** 永続化の契約。トランザクション/リトライなどの制御は UseCase 側、データ変換やクエリ組み立ては Adapter 側の責務です。
+「REST API を gRPC に移行したい」という要件に対応します。
 
 ---
 
-## ワークショップ: 注文システムの構築
+## 課題: HTTP → gRPC 移行
 
-架空の「注文作成システム」を題材に、内側から外側へと実装を進めていきます。
+### 変更範囲の確認（やってはいけないこと）
 
-### Step 1: ドメイン層の設計 (`domain/`)
+以下の層は **1行も変更しません**。
 
-ドメイン層はアプリケーションの**心臓部**であり、以下の要素で構成されます。これらは外部（DB や Web）の都合に一切依存しません。
+| 層 | 理由 |
+|----|------|
+| **Domain** | Entity（Board, Thread, Post）、Port Interface は通信プロトコルに依存しないため |
+| **UseCase** | `Execute(ctx, Input) (Output, error)` のシグネチャが不変。DTO もプロトコル非依存 |
+| **Infra** | Repository 実装（SQLクエリ）は通信方式と無関係 |
 
-1. **Entity**: ビジネスデータとルール（例: `Order`, `Inventory`）。
-2. **Interface (Port)**: データの永続化や外部連携のための契約（例: `OrderRepository`, `InventoryClient`）。
-3. **Domain Service**: 複数のエンティティにまたがる複雑な計算やロジック（※単純な I/O ラップは避ける）。
+### Step 1: 現在の HTTP Handler を確認する
 
-まずはビジネスのコアとなる「注文 (Order)」と、外界と対話するための契約「インターフェース」を定義します。
-
-**1. エンティティの定義 (`domain/entity/models.go`)**
-注文の状態や構造を定義します。
+Framework 層の現状を確認します。Handler は「入力変換 → UseCase 呼び出し → 出力変換」の構造です。
 
 ```go
-type Order struct {
-	ID         string
-	CustomerID string
-	Amount     float64
-	Status     OrderStatus
-	CreatedAt  time.Time
+// framework/handler/thread_handler.go
+func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
+    // HTTP 固有の入力変換
+    slug := r.PathValue("slug")
+    var req createThreadRequest
+    json.NewDecoder(r.Body).Decode(&req)
+
+    // UseCase 呼び出し（← 通信方式に依存しない）
+    out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
+        BoardSlug: slug, Title: req.Title, Author: req.Author, Body: req.Body,
+    })
+
+    // HTTP 固有の出力変換
+    if errors.Is(err, domain.ErrBoardNotFound) {
+        writeError(w, http.StatusNotFound, err.Error())
+        return
+    }
+    writeJSON(w, http.StatusCreated, out)
 }
 ```
 
-**2. インターフェース（Ports）の定義 (`domain/repository/interfaces.go`)**
-データの保存や外部サービスへのアクセス方法を**抽象化**します。ここで定義したインターフェースの実装は、Step 3 で行います。
+**確認ポイント**: `Execute` の呼び出し部分は、HTTP にも gRPC にも依存していません。
 
-```go
-// 依存性逆転の原則 (DIP): 上位モジュールがインターフェースを所有する
-type OrderRepository interface {
-	Save(ctx context.Context, order *entity.Order) error
-	FindByID(ctx context.Context, id string) (*entity.Order, error)
+### Step 2: Protobuf 定義を作成する
+
+gRPC 用の型定義を作ります。これは新規ファイルであり、既存コードの変更ではありません。
+
+```protobuf
+// api/proto/bbs.proto
+syntax = "proto3";
+package bbs;
+
+service BBSService {
+    rpc ListBoards(ListBoardsRequest) returns (ListBoardsResponse);
+    rpc ListThreads(ListThreadsRequest) returns (ListThreadsResponse);
+    rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
+    rpc ListPosts(ListPostsRequest) returns (ListPostsResponse);
+    rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
 }
 
-type InventoryClient interface {
-	CheckAndReserve(ctx context.Context, productID string, quantity int) (bool, error)
+message CreateThreadRequest {
+    string board_slug = 1;
+    string title = 2;
+    string author = 3;
+    string body = 4;
 }
 
-type PaymentPublisher interface {
-	PublishPaymentTask(ctx context.Context, order *entity.Order) error
-}
-```
-
-### Step 2: ユースケース層の実装 (`usecase/`)
-
-ドメイン層の部品（Entity や Port）を組み合わせて、「注文を作成する」というアプリケーションの機能を実装します。
-
-**実装 (`usecase/create_order.go`)**
-
-```go
-type CreateOrderUsecase struct {
-	orderRepo repository.OrderRepository // 抽象に依存
-	invClient repository.InventoryClient // 外部 API 連携も Port 経由
-	// ...
+message CreateThreadResponse {
+    Thread thread = 1;
 }
 
-func (u *CreateOrderUsecase) Execute(ctx context.Context, input CreateOrderInput) error {
-	// 1. バリデーションと在庫確保 (Port利用)
-	// 2. 注文エンティティ作成
-	// 3. データベース保存 (Repository利用)
-	// 4. イベント発行
-}
-```
-
-ここでのポイントは、`CreateOrderUsecase` が具体的なデータベース（Postgres など）や通信プロトコル（REST/gRPC）を知らないことです。知っているのは Ports（`OrderRepository` など）のみです。
-
-### Step 3: インフラアダプター層の実装 (`infra/`)
-
-ここで初めて「PostgreSQL」や「REST API」といった具体的な技術が登場します。**Step 1で定義したドメイン層のインターフェースを実装**します。
-
-* `PostgresOrderRepository` は `domain.OrderRepository` を実装。
-* `RestInventoryClient` は `domain.InventoryClient` を実装。
-
-**リポジトリの実装 (`infra/repository/postgres_order_repository.go`)**
-
-```go
-type PostgresOrderRepository struct {
-	// DB接続インスタンスなど
-}
-
-// domain/repository.OrderRepository インターフェースを満たす
-func (r *PostgresOrderRepository) Save(ctx context.Context, order *entity.Order) error {
-	fmt.Printf("Saving order %s to Postgres\n", order.ID)
-	// 実際のSQL実行処理...
-	return nil
+message Thread {
+    int64 id = 1;
+    string title = 2;
+    string author = 3;
+    int32 response_count = 4;
+    string created_at = 5;
+    string last_posted_at = 6;
 }
 ```
 
-**エラー境界の注意**
+### Step 3: gRPC Handler を実装する
 
-* Infra Adapter は `sql.ErrNoRows` などの driver error を上位にそのまま返さず、`entity.ErrOrderNotFound` のような Domain Error に変換して返します。
-* Framework は最終的に Domain/UseCase Error を HTTP status / gRPC status に変換します。
-
-### Step 4: アプリケーションの組み立て (`main.go`)
-
-最後に、`main.go` で全てのパーツを組み立てます（Dependency Injection）。
+新しいファイルに gRPC 用のハンドラを作ります。**UseCase の呼び出し方が HTTP 版と同一**であることを確認してください。
 
 ```go
+// framework/grpc/bbs_server.go（新規ファイル）
+type BBSServer struct {
+    pb.UnimplementedBBSServiceServer
+    createThread usecase.CreateThreadUseCase
+    listThreads  usecase.ListThreadsUseCase
+    // ...
+}
+
+func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadRequest) (*pb.CreateThreadResponse, error) {
+    // gRPC 固有の入力変換（ここだけが違う）
+    out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
+        BoardSlug: req.BoardSlug,
+        Title:     req.Title,
+        Author:    req.Author,
+        Body:      req.Body,
+    })
+
+    // gRPC 固有の出力変換（HTTP status → gRPC status）
+    if errors.Is(err, domain.ErrBoardNotFound) {
+        return nil, status.Errorf(codes.NotFound, err.Error())
+    }
+    if err != nil {
+        return nil, status.Errorf(codes.Internal, err.Error())
+    }
+
+    return &pb.CreateThreadResponse{Thread: toProtoThread(out)}, nil
+}
+```
+
+**比較**: HTTP 版と gRPC 版の `Execute` 呼び出し行を並べてみてください。
+
+```go
+// HTTP 版
+out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
+    BoardSlug: slug, Title: req.Title, Author: req.Author, Body: req.Body,
+})
+
+// gRPC 版（全く同じ！）
+out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
+    BoardSlug: req.BoardSlug, Title: req.Title, Author: req.Author, Body: req.Body,
+})
+```
+
+UseCase の呼び出しが完全に同一です。変わるのは変換先（JSON → protobuf）とエラー変換先（HTTP status → gRPC status）だけです。
+
+### Step 4: エントリポイントを gRPC に切り替える
+
+Composition Root で、HTTP から gRPC へ起動方法を変えます。
+
+```go
+// cmd/bbs/main.go
 func main() {
-	// 1. 依存オブジェクト（Infra Adapters）の生成
-	orderRepo := &repository.PostgresOrderRepository{}
-	inventoryClient := &client.RestInventoryClient{}
-	paymentPub := &messaging.RabbitMQPaymentPublisher{}
-	idGen := &util.UUIDGenerator{}
-	inventoryRepo := &repository.PostgresInventoryRepository{}
+    // DI の組み立て（UseCase への注入）は変わらない
+    boardRepo := sqlite.NewBoardRepository(db)
+    threadRepo := sqlite.NewThreadRepository(db)
+    postRepo := sqlite.NewPostRepository(db)
+    tm := sqlite.NewTransactionManager(db)
 
-	// 2. ユースケースへの直接注入 (Domain Port を実装した Adapter を渡す)
-	createOrderUsecase := usecase.NewCreateOrderUsecase(orderRepo, inventoryClient, paymentPub, idGen)
-	checkInventoryUsecase := usecase.NewCheckInventoryUsecase(inventoryRepo)
-	updateInventoryUsecase := usecase.NewUpdateInventoryUsecase(inventoryRepo)
+    createThread := usecase.NewCreateThreadUseCase(boardRepo, threadRepo, tm)
+    listThreads := usecase.NewListThreadsUseCase(threadRepo)
+    // ...
 
-	// 3. 実行
-	createOrderUsecase.Execute(ctx, input)
+    // 旧: HTTP サーバー起動
+    // handler := framework.NewThreadHandler(createThread, listThreads)
+    // http.ListenAndServe(":8080", router)
+
+    // 新: gRPC サーバー起動（ここだけ変更）
+    grpcServer := grpc.NewServer()
+    bbsServer := framework.NewBBSServer(createThread, listThreads, ...)
+    pb.RegisterBBSServiceServer(grpcServer, bbsServer)
+
+    lis, _ := net.Listen("tcp", ":9090")
+    grpcServer.Serve(lis)
 }
 ```
 
-> **補足: Composition Root と Framework の分離**
-> このサンプルは説明簡略化のため `main.go` に組み立てと実行を同居させています。規約をより厳密に適用する場合は、`main.go` を Composition Root 専用にし、CLI/Web の入出力処理は `framework/...` に分離します。
-
----
-
-## 設計分析と品質 (Clean Architecture 分析)
-
-本プロジェクトは以下の観点で高品質な設計が維持されています。
-
-1. **疎結合な設計**: 注文 (Order) と在庫 (Inventory) がドメインレベルで分離されており、将来的なマイクロサービス化が容易です。
-2. **ビジネスロジックの純粋性**: `domain` パッケージには外部ライブラリへの依存が一切なく、ビジネスルールのみが記述されています。
-3. **適切な責務分割**: 単なる I/O ラップを「ドメインサービス」と呼ぶ誤用を避け、UseCase がオーケストレーションを担うことで、真にビジネス価値のあるロジックだけを Domain に集中させています。
-
----
-
-## 実行方法
-
-プロジェクトのルートディレクトリで以下のコマンドを実行し、依存関係を解決してから実行してください。
+### Step 5: 動作確認
 
 ```bash
-# 依存関係の整理
-go mod tidy
+# ビルド
+go build -o bbs ./cmd/bbs/
 
-# アプリケーションの実行
-go run main.go
+# 起動
+./bbs
+
+# gRPC クライアントで確認（grpcurl を使用）
+grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
+
+grpcurl -plaintext -d '{"board_slug":"program","title":"Go言語スレ","author":"gopher","body":"Go最高！"}' \
+    localhost:9090 bbs.BBSService/CreateThread
 ```
 
-## まとめ
+---
 
-* **変更に強い**: DB を MySQL に変えても、`domain` や `usecase` のコードは 1 行も変わりません。
-* **テストしやすい**: `usecase` のテストでは、`repository` のモックを作るだけで済みます。DB は不要です。
-* **関心の分離**: ビジネスロジックと技術的詳細が明確に分かれています。
+## レイヤー分離がない場合との比較
+
+```go
+// 全てが1関数に混在している例
+func CreateThread(w http.ResponseWriter, r *http.Request) {
+    slug := r.PathValue("slug")           // HTTP 依存
+    db, _ := sql.Open("sqlite3", "bbs.db") // DB 依存
+    tx, _ := db.Begin()                    // 技術詳細
+    res, _ := tx.Exec("INSERT INTO ...")   // SQL
+    w.WriteHeader(201)                     // HTTP 依存
+    json.NewEncoder(w).Encode(res)         // JSON 依存
+}
+```
+
+この場合、gRPC に変えるには **関数全体を書き直す** 必要があります。
+
+---
+
+## この実習のポイント
+
+1. **影響範囲の局所化**: Framework 層だけで完結。UseCase の `Execute` 呼び出しは一切変わらない。
+2. **プロトコルの違いは「変換」の違い**: HTTP も gRPC も「入力を DTO に詰め替えて UseCase を呼ぶ」構造は同じ。
+3. **差し替えの容易さ**: 本番は gRPC、社内ツル用は HTTP、テスト用は CLI —— どれも UseCase を共有可能。

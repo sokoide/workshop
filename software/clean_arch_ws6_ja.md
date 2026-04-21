@@ -1,0 +1,277 @@
+# クリーンアーキテクチャ実習 (WS6): 外部サービス統合
+
+この実習では、BBS（2ちゃんねる風掲示板）に「新規投稿時に Slack 通知を送る」機能を追加します。
+**新しい Port を定義して Infra Adapter を増やすパターン**を体験し、既存コードへの影響が最小限であることを確認します。
+
+## 前提知識
+
+本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
+
+## 実習のシナリオ
+
+「スレに新しい投稿があったら Slack に通知する」という機能を追加します。
+これは新しい Port を定義し、Infra Adapter を増やすパターンの典型的な例です。
+
+---
+
+## 課題: Slack 通知の追加
+
+### 変更範囲の全体像
+
+| 層 | 変更内容 | 役割 |
+|----|---------|------|
+| **Domain** | `port.NotificationGateway` interface を新規定義 | 「通知が必要である」という抽象の定義 |
+| **UseCase** | `CreatePostUseCase` に `NotificationGateway` を注入、投稿成功後に呼び出し | 通知のタイミング制御 |
+| **Infra** | `infra/notification/slack_gateway.go` を新規作成 | Slack API の具体実装 |
+| **Framework** | **変更なし** | — |
+| **Entity** | **変更なし** | — |
+
+### Step 1: Domain 層 — 新しい Port の定義
+
+「どう通知するか」ではなく「通知を送るという機能」を抽象として定義します。
+
+```go
+// domain/port/notification.go（新規ファイル）
+package port
+
+import "context"
+
+// NotificationGateway は、通知送信の抽象インターフェースです。
+// Slack、Email、LINE など、具体的な通知手段は Domain 層では知りません。
+type NotificationGateway interface {
+    NotifyNewPost(ctx context.Context, threadTitle string, postAuthor string, postBody string) error
+}
+```
+
+**確認ポイント**: この interface には Slack という言葉が一切出てきません。Domain は「何を通知するか」を決め、「どう通知するか」は Infra に任せます。
+
+### Step 2: UseCase 層 — 通知の呼び出し
+
+`CreatePostUseCase` に通知ゲートウェイを注入し、投稿成功後に呼び出します。
+
+```go
+// usecase/create_post.go（既存ファイルを一部変更）
+type CreatePostUseCase struct {
+    threadRepo port.ThreadRepository
+    postRepo   port.PostRepository
+    tm         port.TransactionManager
+    notifier   port.NotificationGateway  // ← 追加: 通知ゲートウェイ
+}
+
+// コンストラクタ引数に notifier を追加
+func NewCreatePostUseCase(
+    threadRepo port.ThreadRepository,
+    postRepo port.PostRepository,
+    tm port.TransactionManager,
+    notifier port.NotificationGateway,  // ← 追加
+) *CreatePostUseCase {
+    return &CreatePostUseCase{
+        threadRepo: threadRepo,
+        postRepo:   postRepo,
+        tm:         tm,
+        notifier:   notifier,
+    }
+}
+
+func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
+    // ...既存の投稿ロジック（変更なし）
+
+    var out *CreatePostOutput
+    if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
+        // ...既存の保存処理（変更なし）
+        out = &CreatePostOutput{Post: toPostDTO(post)}
+        return nil
+    }); err != nil {
+        return nil, err
+    }
+
+    // ↓ 2行追加（トランザクション外で実行 — 通知失敗で投稿を巻き戻さない）
+    u.notifier.NotifyNewPost(ctx, thread.Title, post.Author, post.Body)
+
+    return out, nil
+}
+```
+
+**確認ポイント**: 通知はトランザクションの **外** で呼び出しています。Slack 通知の失敗で投稿が巻き戻るべきではないという設計判断です。
+
+### Step 3: Infra 層 — Slack 実装
+
+新しいディレクトリに Slack 用の Gateway を作ります。
+
+```go
+// infra/notification/slack_gateway.go（新規ファイル）
+package notification
+
+import (
+    "context"
+    "fmt"
+    "net/http"
+    "strings"
+)
+
+type SlackGateway struct {
+    webhookURL string
+    client     *http.Client
+}
+
+func NewSlackGateway(webhookURL string) *SlackGateway {
+    return &SlackGateway{
+        webhookURL: webhookURL,
+        client:     &http.Client{},
+    }
+}
+
+func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
+    payload := fmt.Sprintf(
+        `{"text":"[%s] %s: %s"}`,
+        threadTitle, author, body,
+    )
+    req, err := http.NewRequestWithContext(ctx, "POST", g.webhookURL, strings.NewReader(payload))
+    if err != nil {
+        return fmt.Errorf("create slack request: %w", err)
+    }
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := g.client.Do(req)
+    if err != nil {
+        return fmt.Errorf("send slack notification: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        return fmt.Errorf("slack returned status %d", resp.StatusCode)
+    }
+    return nil
+}
+```
+
+### Step 4: Composition Root — DI に追加
+
+`main.go` で Slack Gateway を生成し、UseCase に注入します。
+
+```go
+// cmd/bbs/main.go
+func main() {
+    // ...既存の DI 組み立て
+
+    // ↓ 追加: 通知ゲートウェイ
+    notifier := notification.NewSlackGateway(os.Getenv("SLACK_WEBHOOK_URL"))
+
+    // UseCase のコンストラクタ引数に notifier を追加
+    createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
+    // 他の UseCase は変更不要（通知不要なため）
+}
+```
+
+### Step 5: 動作確認
+
+```bash
+# Slack Webhook URL を設定
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T.../B.../xxx"
+
+# ビルド・起動
+go build -o bbs ./cmd/bbs/
+./bbs
+
+# 投稿 → Slack に通知が飛ぶ
+curl -X POST http://localhost:8080/api/threads/1/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"author":"gopher","body":"Slack通知テスト"}'
+```
+
+---
+
+## 通知先の差し替えが容易
+
+Slack → Email に変更する場合、Composition Root だけの変更で済みます。
+
+```go
+// infra/notification/email_gateway.go（新規ファイル）
+type EmailGateway struct {
+    smtpHost string
+    from     string
+    to       string
+}
+
+func (g *EmailGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
+    // SMTP でメール送信
+    return nil
+}
+```
+
+```go
+// cmd/bbs/main.go — 差し替え（1行だけ）
+notifier := notification.NewEmailGateway("smtp.example.com:587", "bbs@example.com", "admin@example.com")
+```
+
+UseCase、Domain、Framework は **一切変更不要** です。
+
+---
+
+## テストでの利点
+
+通知をモックすることで、UseCase のテストで実際の Slack にメッセージを飛ばさずに検証できます。
+
+```go
+// usecase/create_post_test.go
+type mockNotifier struct {
+    called bool
+    thread string
+    author string
+    body   string
+}
+
+func (m *mockNotifier) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
+    m.called = true
+    m.thread = threadTitle
+    m.author = author
+    m.body = body
+    return nil
+}
+
+func TestCreatePost_SendsNotification(t *testing.T) {
+    notifier := &mockNotifier{}
+    uc := usecase.NewCreatePostUseCase(mockThreadRepo, mockPostRepo, mockTM, notifier)
+
+    uc.Execute(ctx, input)
+
+    if !notifier.called {
+        t.Error("notification should have been sent")
+    }
+    if notifier.thread != "テストスレ" {
+        t.Errorf("thread title = %q, want %q", notifier.thread, "テストスレ")
+    }
+}
+```
+
+---
+
+## レイヤー分離がない場合との比較
+
+```go
+// NG: 通知処理が Handler に直接埋まっている
+func CreatePost(w http.ResponseWriter, r *http.Request) {
+    // ...DB に投稿保存
+    // Slack 通知をハードコード
+    http.Post("https://hooks.slack.com/...", "application/json", bytes.NewReader(payload))
+    w.WriteHeader(201)
+}
+```
+
+この場合:
+
+- Slack → Email に変えるのに **Handler を書き直す** 必要がある
+- 通知失敗時のリトライやエラーハンドリングも Handler に混ざる
+- テスト時に毎回 Slack に通知が飛ぶ（モックできない）
+
+---
+
+## この実習のポイント
+
+1. **新規 Port/Adapter パターン**: 新機能は新しい Port（interface）を定義し、対応する Adapter を増やすことで追加できる。既存コードへの影響は最小限。
+2. **責務の明確化**:
+    - Domain は「何を通知するか」を定義（`NotificationGateway` のシグネチャ）
+    - UseCase は「いつ通知するか」を決定（投稿成功後）
+    - Infra は「どう通知するか」を実装（Slack Webhook / Email SMTP）
+3. **テスト容易性**: interface によって通知をモックでき、外部サービスに依存しないテストが書ける。
+4. **通知先の差し替え**: Slack → Email → LINE の変更は Composition Root の1行変更だけで完了。

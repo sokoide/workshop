@@ -1,0 +1,261 @@
+# Clean Architecture Workshop (WS7): Adding Authentication
+
+In this workshop, you will add JWT Bearer Token authentication to the BBS (2channel-style bulletin board).
+You will experience the **cross-cutting concern pattern** — adding authentication in the Framework layer — without modifying any inner layers (Domain, UseCase, Infra).
+
+## Prerequisites
+
+This workshop uses the [BBS project](./assets/bbs/) as the subject code.
+
+## Workshop Scenario
+
+Add a requirement that posting requires JWT authentication.
+Authentication is a **cross-cutting concern** of the Framework layer, implemented as middleware.
+
+---
+
+## Exercise: JWT Authentication Middleware
+
+### Identify the Scope (What NOT to Change)
+
+The following layers require **zero modifications**:
+
+| Layer | Reason |
+|-------|--------|
+| **Domain** | Entities and Ports don't know "who" is operating. Authentication is a Framework responsibility |
+| **UseCase** | `Execute(ctx, Input)` signature is unchanged. If authenticated user info is needed, just add a field to the Input DTO |
+| **Infra** | DB access is unrelated to authentication |
+
+### Step 1: Implement Auth Middleware
+
+Create JWT validation middleware in a new file.
+
+```go
+// framework/middleware/auth.go (new file)
+package middleware
+
+import (
+    "context"
+    "errors"
+    "net/http"
+    "strings"
+
+    "github.com/golang-jwt/jwt/v5"
+)
+
+type contextKey struct{}
+
+// Claims holds user info extracted from the JWT
+type Claims struct {
+    UserID string `json:"sub"`
+    Role   string `json:"role"`
+}
+
+// Auth returns middleware that validates JWT Bearer Tokens
+func Auth(secret string) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            // Extract token from Authorization header
+            header := r.Header.Get("Authorization")
+            if header == "" {
+                writeError(w, http.StatusUnauthorized, "missing authorization header")
+                return
+            }
+
+            token := strings.TrimPrefix(header, "Bearer ")
+            if token == header {
+                writeError(w, http.StatusUnauthorized, "invalid authorization format")
+                return
+            }
+
+            // Validate JWT
+            claims, err := validateToken(token, secret)
+            if err != nil {
+                writeError(w, http.StatusUnauthorized, "invalid token")
+                return
+            }
+
+            // Store authenticated user info in context
+            ctx := context.WithValue(r.Context(), contextKey{}, claims)
+            next.ServeHTTP(w, r.WithContext(ctx))
+        })
+    }
+}
+
+func validateToken(tokenString string, secret string) (*Claims, error) {
+    token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+        if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+            return nil, errors.New("unexpected signing method")
+        }
+        return []byte(secret), nil
+    })
+    if err != nil {
+        return nil, err
+    }
+
+    if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+        return &Claims{
+            UserID: claims["sub"].(string),
+            Role:   claims["role"].(string),
+        }, nil
+    }
+    return nil, errors.New("invalid token claims")
+}
+```
+
+### Step 2: Apply Middleware to Router
+
+Require authentication only for write (POST) endpoints. Read (GET) remains publicly accessible.
+
+```go
+// framework/router.go (partial change)
+func NewRouter(
+    boardHandler *handler.BoardHandler,
+    threadHandler *handler.ThreadHandler,
+    postHandler *handler.PostHandler,
+    secret string,  // ← Added: JWT signing secret
+) http.Handler {
+    mux := http.NewServeMux()
+
+    // No auth (GET — existing behavior preserved)
+    mux.HandleFunc("GET /api/boards", boardHandler.ListBoards)
+    mux.HandleFunc("GET /api/boards/{slug}/threads", threadHandler.ListThreads)
+    mux.HandleFunc("GET /api/threads/{threadID}/posts", postHandler.ListPosts)
+
+    // Auth required (POST — apply middleware)
+    auth := middleware.Auth(secret)
+    mux.HandleFunc("POST /api/boards/{slug}/threads", auth(threadHandler.CreateThread))
+    mux.HandleFunc("POST /api/threads/{threadID}/posts", auth(postHandler.CreatePost))
+
+    // Logging middleware applies globally
+    return middleware.Logging(mux)
+}
+```
+
+### Step 3: Pass Secret to Composition Root
+
+```go
+// cmd/bbs/main.go (partial change)
+func main() {
+    // ...existing DI wiring
+
+    // Get JWT secret from environment variable
+    secret := os.Getenv("JWT_SECRET")
+    if secret == "" {
+        secret = "dev-secret-key" // Development fallback
+    }
+
+    // Pass secret to Router
+    router := framework.NewRouter(boardHandler, threadHandler, postHandler, secret)
+
+    log.Println("Server starting on :8080")
+    http.ListenAndServe(":8080", router)
+}
+```
+
+### Step 4: Verify
+
+```bash
+# Build and start
+export JWT_SECRET="my-secret-key"
+go build -o bbs ./cmd/bbs/
+./bbs
+
+# GET without auth → success (existing behavior)
+curl http://localhost:8080/api/boards
+
+# POST without auth → 401 Unauthorized
+curl -X POST http://localhost:8080/api/boards/program/threads \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"test","author":"gopher","body":"hello"}'
+
+# Generate a JWT (for testing)
+TOKEN=$(echo '{"sub":"user123","role":"member","exp":9999999999}' | \
+  base64 | tr -d '\n')
+# In practice, use jwt-cli or similar to generate a signed token:
+# jwt encode --secret "my-secret-key" --sub "user123" --role "member"
+
+# POST with auth → success
+curl -X POST http://localhost:8080/api/boards/program/threads \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"title":"Auth test","author":"gopher","body":"hello with auth"}'
+```
+
+---
+
+## Resilient to Auth Method Changes
+
+Switching from JWT → API Key → OAuth requires only swapping the middleware.
+
+```go
+// framework/middleware/apikey.go (alternative auth method)
+func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            key := r.Header.Get("X-API-Key")
+            if !validKeys[key] {
+                writeError(w, http.StatusUnauthorized, "invalid API key")
+                return
+            }
+            next.ServeHTTP(w, r)
+        })
+    }
+}
+```
+
+```go
+// Swap in Router (one place)
+auth := middleware.APIKey(validKeys)  // Changed from JWT to API Key
+```
+
+UseCase, Domain, and Infra require **zero changes**.
+
+---
+
+## Easy to Create Unauthenticated Version
+
+For internal APIs or admin tools, just skip the middleware:
+
+```go
+// Unauthenticated version
+mux.HandleFunc("POST /api/boards/{slug}/threads", threadHandler.CreateThread)
+
+// Authenticated version (production)
+mux.HandleFunc("POST /api/boards/{slug}/threads", auth(threadHandler.CreateThread))
+```
+
+The same UseCases and Handlers are reused.
+
+---
+
+## Comparison: Without Layer Separation
+
+```go
+// NG: Auth mixed with business logic
+func CreatePost(w http.ResponseWriter, r *http.Request) {
+    token := r.Header.Get("Authorization")  // ← HTTP dependency
+    if !validateJWT(token) {                 // ← Auth buried here
+        w.WriteHeader(401)
+        return
+    }
+    // ...DB logic
+}
+```
+
+In this case:
+
+- Every endpoint **duplicates** the auth check
+- Auth method changes **propagate to all endpoints**
+- UseCase tests need to mock authentication
+- "Unauthenticated version" requires code duplication
+
+---
+
+## Key Points
+
+1. **Cross-Cutting Concern Separation**: Authentication is implemented as Framework layer middleware, never mixing with business logic (UseCase).
+2. **Inner Layers Unchanged**: Domain, UseCase, and Infra don't know authentication exists. `Execute(ctx, Input)` signature is unchanged.
+3. **Auth Method Swap**: JWT → API Key → OAuth changes require only middleware replacement. UseCase is untouched.
+4. **Selective Application**: Granular control like "reads are unauthenticated, writes require auth" is handled entirely in the Router.
+5. **Testability**: UseCase tests don't need to mock authentication. Only Handler tests validate auth middleware.
