@@ -1,6 +1,6 @@
 # クリーンアーキテクチャ実習 (WS6): 外部サービス統合
 
-この実習では、BBS（2ちゃんねる風掲示板）に「新規投稿時に Slack 通知を送る」機能を追加します。
+この実習では、BBS（2 ちゃんねる風掲示板）に「新規投稿時に Slack 通知を送る」機能を追加します。
 **新しい Port を定義して Infra Adapter を増やすパターン**を体験し、既存コードへの影響が最小限であることを確認します。
 
 ## 前提知識
@@ -19,7 +19,7 @@
 ### 変更範囲の全体像
 
 | 層 | 変更内容 | 役割 |
-|----|---------|------|
+| ---- | --------- | ------ |
 | **Domain** | `port.NotificationGateway` interface を新規定義 | 「通知が必要である」という抽象の定義 |
 | **UseCase** | `CreatePostUseCase` に `NotificationGateway` を注入、投稿成功後に呼び出し | 通知のタイミング制御 |
 | **Infra** | `infra/notification/slack_gateway.go` を新規作成 | Slack API の具体実装 |
@@ -85,14 +85,16 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
         return nil, err
     }
 
-    // ↓ 2行追加（トランザクション外で実行 — 通知失敗で投稿を巻き戻さない）
-    u.notifier.NotifyNewPost(ctx, thread.Title, post.Author, post.Body)
+    // ↓ トランザクション外で実行（通知失敗で投稿を巻き戻さない）
+    if err := u.notifier.NotifyNewPost(ctx, thread.Title, post.Author, post.Body); err != nil {
+        slog.Warn("notification failed", "error", err)  // ログだけ出す、投稿は成功させる
+    }
 
     return out, nil
 }
 ```
 
-**確認ポイント**: 通知はトランザクションの **外** で呼び出しています。Slack 通知の失敗で投稿が巻き戻るべきではないという設計判断です。
+**確認ポイント**: 通知はトランザクションの **外** で呼び出しています。Slack 通知の失敗で投稿が巻き戻るべきではないという設計判断です。エラーはログに記録しつつ、投稿処理自体は成功として扱います。
 
 ### Step 3: Infra 層 — Slack 実装
 
@@ -208,6 +210,27 @@ UseCase、Domain、Framework は **一切変更不要** です。
 
 ---
 
+## 通知が不要な場面での対応
+
+テストや CLI 版など、通知が不要な場面では NoOp（何もしない）実装を注入します。
+
+```go
+// infra/notification/noop_gateway.go
+type NoOpGateway struct{}
+
+func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
+    return nil  // 何もしない
+}
+```
+
+```go
+// cmd/bbs/main.go — 通知不要な場面
+notifier := notification.NewNoOpGateway()
+createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
+```
+
+---
+
 ## テストでの利点
 
 通知をモックすることで、UseCase のテストで実際の Slack にメッセージを飛ばさずに検証できます。
@@ -274,4 +297,4 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
     - UseCase は「いつ通知するか」を決定（投稿成功後）
     - Infra は「どう通知するか」を実装（Slack Webhook / Email SMTP）
 3. **テスト容易性**: interface によって通知をモックでき、外部サービスに依存しないテストが書ける。
-4. **通知先の差し替え**: Slack → Email → LINE の変更は Composition Root の1行変更だけで完了。
+4. **通知先の差し替え**: Slack → Email → LINE の変更は Composition Root の 1 行変更だけで完了。

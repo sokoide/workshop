@@ -1,17 +1,18 @@
 # クリーンアーキテクチャ実習 (WS3): 通信プロトコルの差し替え
 
-この実習では、BBS（2ちゃんねる風掲示板）の REST API を gRPC に移行します。
+この実習では、BBS（2 ちゃんねる風掲示板）の REST API を gRPC に移行します。
 **Framework 層だけを変更**し、Domain・UseCase・Infra が一切変更不要であることを体験します。
 
 ## 前提知識
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
-以下の4層構造を理解していることが前提です。
+以下の 4 層構造を理解していることが前提です。
 
-```
+```text
 Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domain (ビジネスルール)
-                              ↓                                   ↑
-                         Infra Adapter (DB) ─────────────────────┘
+                                                         →  Port Interface (抽象)
+                              ↑                                   ↑
+                         Infra Adapter (DB) ─────────────────────┘  (DIP: 具象が抽象に依存)
 ```
 
 ## 実習のシナリオ
@@ -27,7 +28,7 @@ Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domai
 以下の層は **1行も変更しません**。
 
 | 層 | 理由 |
-|----|------|
+| ---- | ------ |
 | **Domain** | Entity（Board, Thread, Post）、Port Interface は通信プロトコルに依存しないため |
 | **UseCase** | `Execute(ctx, Input) (Output, error)` のシグネチャが不変。DTO もプロトコル非依存 |
 | **Infra** | Repository 実装（SQLクエリ）は通信方式と無関係 |
@@ -37,7 +38,7 @@ Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domai
 Framework 層の現状を確認します。Handler は「入力変換 → UseCase 呼び出し → 出力変換」の構造です。
 
 ```go
-// framework/handler/thread_handler.go
+// internal/framework/http/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP 固有の入力変換
     slug := r.PathValue("slug")
@@ -86,15 +87,26 @@ message CreateThreadRequest {
 
 message CreateThreadResponse {
     Thread thread = 1;
+    Post post = 2;
 }
 
 message Thread {
     int64 id = 1;
-    string title = 2;
-    string author = 3;
-    int32 response_count = 4;
+    int64 board_id = 2;
+    string title = 3;
+    int32 post_count = 4;
     string created_at = 5;
     string last_posted_at = 6;
+}
+
+message Post {
+    int64 id = 1;
+    int64 thread_id = 2;
+    int32 number = 3;
+    string author = 4;
+    string body = 5;
+    bool sage = 6;
+    string created_at = 7;
 }
 ```
 
@@ -103,11 +115,11 @@ message Thread {
 新しいファイルに gRPC 用のハンドラを作ります。**UseCase の呼び出し方が HTTP 版と同一**であることを確認してください。
 
 ```go
-// framework/grpc/bbs_server.go（新規ファイル）
+// internal/framework/grpc/bbs_server.go（新規ファイル）
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
-    createThread usecase.CreateThreadUseCase
-    listThreads  usecase.ListThreadsUseCase
+    createThread *usecase.CreateThreadUseCase
+    listThreads  *usecase.ListThreadsUseCase
     // ...
 }
 
@@ -128,7 +140,7 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
         return nil, status.Errorf(codes.Internal, err.Error())
     }
 
-    return &pb.CreateThreadResponse{Thread: toProtoThread(out)}, nil
+    return &pb.CreateThreadResponse{Thread: toProtoThread(out.Thread)}, nil
 }
 ```
 
@@ -161,8 +173,8 @@ func main() {
     postRepo := sqlite.NewPostRepository(db)
     tm := sqlite.NewTransactionManager(db)
 
-    createThread := usecase.NewCreateThreadUseCase(boardRepo, threadRepo, tm)
-    listThreads := usecase.NewListThreadsUseCase(threadRepo)
+    createThread := usecase.NewCreateThreadUseCase(boardRepo, threadRepo, postRepo, tm)
+    listThreads := usecase.NewListThreadsUseCase(boardRepo, threadRepo)
     // ...
 
     // 旧: HTTP サーバー起動
@@ -171,6 +183,7 @@ func main() {
 
     // 新: gRPC サーバー起動（ここだけ変更）
     grpcServer := grpc.NewServer()
+    reflection.Register(grpcServer)  // grpcurl でサービス一覧を表示するために必要
     bbsServer := framework.NewBBSServer(createThread, listThreads, ...)
     pb.RegisterBBSServiceServer(grpcServer, bbsServer)
 
@@ -189,6 +202,7 @@ go build -o bbs ./cmd/bbs/
 ./bbs
 
 # gRPC クライアントで確認（grpcurl を使用）
+# reflection.Register を有効にしているため -plaintext だけでサービス一覧を表示可能
 grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
 
 grpcurl -plaintext -d '{"board_slug":"program","title":"Go言語スレ","author":"gopher","body":"Go最高！"}' \

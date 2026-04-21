@@ -1,12 +1,12 @@
 # BBS (2ちゃんねる風掲示板)
 
-Go + SQLite で実装した2ちゃんねる風掲示板です。Clean Architecture の原則に基づき、依存関係の制御と責務の分離を徹底した構成になっています。
+Go + SQLite で実装した 2 ちゃんねる風掲示板です。Clean Architecture の原則に基づき、依存関係の制御と責務の分離を徹底した構成になっています。
 
 ## 特徴
 
 - **Clean Architecture 4層構成**: ドメインロジックを外部の関心事（HTTP, DB）から完全に分離。
 - **SQLite 永続化**: 単一バイナリで動作可能。
-- **スレッド・レス機能**: 板一覧、スレッド作成、レス投稿、age/sage機能。
+- **スレッド・レス機能**: 板一覧、スレッド作成、レス投稿、age/sage 機能。
 - **トランザクション管理**: スレッド作成やレス投稿時の整合性を保証。
 
 ## 実行方法
@@ -82,7 +82,7 @@ curl -X POST http://localhost:8080/api/threads/1/posts \
   -d '{"author":"名無し","body":"sageテスト","sage":true}'
 ```
 
-※ `sage: true` を指定すると、スレッドの最終更新日時（`last_posted_at`）が更新されません（ageられません）。
+※ `sage: true` を指定すると、スレッドの最終更新日時（`last_posted_at`）が更新されません（age られません）。
 
 ## アーキテクチャ構成図
 
@@ -135,7 +135,7 @@ graph TB
 
 ビジネスルールの中核です。
 
-- **Entity**: `Board`, `Thread`, `Post`。ビジネスロジック（例：sageによるage判定、バリデーション）を保持。
+- **Entity**: `Board`, `Thread`, `Post`。ビジネスロジック（例：sage による age 判定、バリデーション）を保持。
 - **Port**: リポジトリやトランザクションのインターフェース。
 - **Error**: アプリケーション全体で共有されるドメイン例外。
 
@@ -167,7 +167,7 @@ graph TB
 Clean Architecture の核心は **依存関係の方向が一方向（外側→内側）にのみ向かう** ことです。
 内側の層ほど「変更されにくい本質的なルール」を置き、外側の層ほど「交換可能な技術的詳細」を置きます。
 
-```
+```text
 Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domain (ビジネスルール)
                               ↓                                   ↑
                          Infra Adapter (DB/外部API) ──────────────┘
@@ -175,7 +175,7 @@ Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domai
 ```
 
 内側の層は外側の層について **何も知らない** ため、外側の変更が内側に波及することはありません。
-この性質が、以下の3つのシナリオで具体的にどう効くかを説明します。
+この性質が、以下の 3 つのシナリオで具体的にどう効くかを説明します。
 
 ---
 
@@ -186,7 +186,7 @@ Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domai
 #### 変更が必要な層: Framework Layer のみ
 
 | 変更対象 | 変更内容 |
-|----------|---------|
+| ---------- | --------- |
 | `handler/*.go` | `http.ResponseWriter` → protobuf メッセージの変換に差し替え |
 | `router.go` | `http.ServeMux` → gRPC サービス登録 (`RegisterBbsServiceServer`) |
 | `middleware/logging.go` | HTTP middleware → gRPC UnaryInterceptor |
@@ -242,7 +242,7 @@ UseCase のシグネチャ `Execute(ctx, Input) (Output, error)` は通信方式
 #### 変更が不要な層
 
 | 層 | 理由 |
-|----|------|
+| ---- | ------ |
 | **Domain** | Entity（Board, Thread, Post）、Port Interface、ドメインエラー — これらは gRPC の型を一切インポートしていないため |
 | **UseCase** | `Execute` メソッドのシグネチャが不変。DTO（`CreateThreadInput`, `CreateThreadOutput`）も通信プロトコルに依存しないため |
 | **Infra Adapter** | Repository 実装（SQLクエリ）、TransactionManager（`sql.Tx`） — DB アクセス方法は通信方式と無関係なため |
@@ -273,7 +273,7 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 #### 変更内容
 
 | 層 | 変更内容 | 役割 |
-|----|---------|------|
+| ---- | --------- | ------ |
 | **Domain** | `Thread.Owner` フィールド追加、`CanPost()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
 | **UseCase** | `thread.CanPost(in.Author)` の呼び出し1行を追加 | ルールの適用 |
 | **Infra** | `threads` テーブルに `owner` 列を追加、読み書きを対応 | 永続化の追従 |
@@ -373,9 +373,9 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 このコードでは:
 
-- 「スレ主 = 1レス目の投稿者」というルールが **SQL** に埋まっている
+- 「スレ主 = 1 レス目の投稿者」というルールが **SQL** に埋まっている
 - 「スレ主以外禁止」というルールが **HTTP handler** に埋まっている
-- 「招待された人もOK」に変更する場合、**どこを直すべきか** が不明
+- 「招待された人も OK」に変更する場合、**どこを直すべきか** が不明
 - HTTP → gRPC 移行時にも **このルールを書き直す** 必要がある
 
 ---
@@ -387,7 +387,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 #### 変更が必要な層: Infra Adapter Layer のみ
 
 | 変更対象 | 変更内容 |
-|----------|---------|
+| ---------- | --------- |
 | `infra/persistence/sqlite/` | → `infra/persistence/postgres/` を新規作成 |
 | 各 `*_repo.go` | SQL 文法の差異（`?` → `$1`、`AUTOINCREMENT` → `SERIAL`）を修正 |
 | `transaction.go` | `sql.Tx` の扱いは同じだが、接続文字列等の設定を変更 |
@@ -396,7 +396,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 #### 変更が不要な層
 
 | 層 | 理由 |
-|----|------|
+| ---- | ------ |
 | **Domain** | Port Interface（`BoardRepository`, `TransactionManager`）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
 | **UseCase** | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし |
 | **Framework** | Handler は UseCase を呼ぶだけで、DB の種類を知らない |
@@ -421,7 +421,7 @@ boardRepo := postgres.NewBoardRepository(db)
 #### 変更内容
 
 | 層 | 変更内容 | 役割 |
-|----|---------|------|
+| ---- | --------- | ------ |
 | **Domain** | `port.NotificationGateway` interface を新規定義 | 「通知が必要である」という抽象の定義 |
 | **UseCase** | `CreatePostUseCase` に `NotificationGateway` を注入、投稿成功後に呼び出し | 通知のタイミング制御 |
 | **Infra** | `infra/notification/slack_gateway.go` を新規作成 | Slack API の具体実装 |
@@ -497,7 +497,7 @@ createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
 #### 変更が不要な層
 
 | 層 | 理由 |
-|----|------|
+| ---- | ------ |
 | **Entity** | Board, Thread, Post — 通知とは無関係なため |
 | **Framework (Handler)** | HTTP リクエストの処理は通知を知らないため |
 
@@ -541,7 +541,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 #### 変更内容
 
 | 層 | 変更内容 | 役割 |
-|----|---------|------|
+| ---- | --------- | ------ |
 | **Framework** | `middleware/auth.go` を新規作成、Router に適用 | 認証・認可 |
 | その他の層 | **変更なし** | — |
 
@@ -582,7 +582,7 @@ mux.HandleFunc("POST /api/threads/{threadID}/posts", auth(secret)(postHandler.Cr
 #### 変更が不要な層
 
 | 層 | 理由 |
-|----|------|
+| ---- | ------ |
 | **Domain** | Entity と Port は「誰が」操作しているかを知らない。認証は Framework の責務 |
 | **UseCase** | `Execute(ctx, Input)` のシグネチャ不変。認証済みユーザーが必要なら Input DTO にフィールドを追加するだけで対応可能 |
 | **Infra** | DB アクセスは認証とは無関係 |
@@ -594,7 +594,7 @@ UseCase は「認証済みかどうか」を知らず、単に Input を受け�
 これにより:
 
 - 認証方式（JWT → API Key → OAuth）を変えても UseCase は変更不要
-- 認証なしの社内API版を簡単に作れる（ミドルウェアを外すだけ）
+- 認証なしの社内 API 版を簡単に作れる（ミドルウェアを外すだけ）
 - UseCase のテストで認証をモックする必要がない
 
 #### レイヤー分離がない場合との比較
@@ -620,7 +620,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 各層の境界で型変換が行われ、Entity が外部の関心事に汚染されません。
 
-```
+```text
 HTTP Request JSON
     ↓ (Handler でデコード)
 UseCase Input DTO（JSON tag なし）
@@ -649,7 +649,7 @@ Clean Architecture ではこの **怠惰な型共有** を防ぎ、各境界で�
 
 エラーも層の境界で変換され、技術的詳細が内側に漏れません。
 
-```
+```text
 Infra Adapter:  sql.ErrNoRows → domain.ErrBoardNotFound    （DB エラーをドメインエラーに変換）
 UseCase:        domain.ErrBoardNotFound をそのまま返す       （技術的非依存）
 Framework:      domain.ErrBoardNotFound → 404 Not Found     （ドメインエラーをHTTPステータスに変換）
@@ -674,7 +674,7 @@ UseCase が `database/sql` に依存してしまい、DB を変更できなく�
 
 層ごとにテストが独立しているため、変更時のテスト追加も影響層だけで済みます。
 
-```
+```text
 Domain Test:    Thread.CanPost("owner", "other") → false        （DBもHTTPも不要）
 UseCase Test:   モック Repository → ErrNotThreadOwner が返る    （DBもHTTPも不要）
 Infra Test:     実際の SQLite で SQL の整合性確認               （HTTP不要）
@@ -690,7 +690,7 @@ Framework Test: モック UseCase → 403 が返る                     （DBも
 ### まとめ: 変更の種類と影響範囲
 
 | 変更の種類 | 影響する層 | 触らない層 |
-|-----------|-----------|-----------|
+| ----------- | ----------- | ----------- |
 | 通信方式の変更（HTTP → gRPC） | Framework | Domain, UseCase, Infra |
 | DB の変更（SQLite → PostgreSQL） | Infra | Domain, UseCase, Framework |
 | ビジネスルールの追加・変更 | Domain, UseCase | Framework, Infra |

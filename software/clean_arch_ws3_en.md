@@ -8,10 +8,11 @@ You will modify **only the Framework layer**, confirming that Domain, UseCase, a
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
 You should understand the 4-layer structure:
 
-```
+```text
 Framework (HTTP/gRPC)  →  UseCase (Application logic)  →  Domain (Business rules)
-                              ↓                                   ↑
-                         Infra Adapter (DB) ─────────────────────┘
+                                                         →  Port Interface (abstraction)
+                              ↑                                   ↑
+                         Infra Adapter (DB) ─────────────────────┘  (DIP: concrete depends on abstract)
 ```
 
 ## Workshop Scenario
@@ -27,7 +28,7 @@ You need to migrate the REST API to gRPC without touching any business logic.
 The following layers require **zero modifications**:
 
 | Layer | Reason |
-|-------|--------|
+| ------- | -------- |
 | **Domain** | Entities (Board, Thread, Post), Port Interfaces do not depend on any communication protocol |
 | **UseCase** | `Execute(ctx, Input) (Output, error)` signature is unchanged. DTOs are protocol-agnostic |
 | **Infra** | Repository implementations (SQL queries) are unrelated to communication methods |

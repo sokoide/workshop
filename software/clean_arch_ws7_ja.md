@@ -1,6 +1,6 @@
 # クリーンアーキテクチャ実習 (WS7): 認証の追加
 
-この実習では、BBS（2ちゃんねる風掲示板）に JWT Bearer Token 認証を追加します。
+この実習では、BBS（2 ちゃんねる風掲示板）に JWT Bearer Token 認証を追加します。
 **Framework 層に横断的関心を追加するパターン**を体験し、内側の層（Domain・UseCase・Infra）を一切変更しないことを確認します。
 
 ## 前提知識
@@ -21,7 +21,7 @@
 以下の層は **1行も変更しません**。
 
 | 層 | 理由 |
-|----|------|
+| ---- | ------ |
 | **Domain** | Entity と Port は「誰が」操作しているかを知らない。認証は Framework の責務 |
 | **UseCase** | `Execute(ctx, Input)` のシグネチャ不変。認証済みユーザーが必要なら Input DTO にフィールドを追加するだけで対応可能 |
 | **Infra** | DB アクセスは認証とは無関係 |
@@ -31,12 +31,14 @@
 新しいファイルに JWT 検証ミドルウェアを作ります。
 
 ```go
-// framework/middleware/auth.go（新規ファイル）
+// internal/framework/http/middleware/auth.go（新規ファイル）
 package middleware
 
 import (
     "context"
+    "encoding/json"
     "errors"
+    "log/slog"
     "net/http"
     "strings"
 
@@ -51,6 +53,14 @@ type Claims struct {
     Role   string `json:"role"`
 }
 
+// GetClaims は context から認証済みユーザー情報を取り出します
+func GetClaims(ctx context.Context) *Claims {
+    if c, ok := ctx.Value(contextKey{}).(*Claims); ok {
+        return c
+    }
+    return nil
+}
+
 // Auth は JWT Bearer Token を検証するミドルウェアを返します
 func Auth(secret string) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
@@ -58,20 +68,20 @@ func Auth(secret string) func(http.Handler) http.Handler {
             // Authorization ヘッダーからトークンを取得
             header := r.Header.Get("Authorization")
             if header == "" {
-                writeError(w, http.StatusUnauthorized, "missing authorization header")
+                writeAuthError(w, http.StatusUnauthorized, "missing authorization header")
                 return
             }
 
             token := strings.TrimPrefix(header, "Bearer ")
             if token == header {
-                writeError(w, http.StatusUnauthorized, "invalid authorization format")
+                writeAuthError(w, http.StatusUnauthorized, "invalid authorization format")
                 return
             }
 
             // JWT を検証
             claims, err := validateToken(token, secret)
             if err != nil {
-                writeError(w, http.StatusUnauthorized, "invalid token")
+                writeAuthError(w, http.StatusUnauthorized, "invalid token")
                 return
             }
 
@@ -101,6 +111,15 @@ func validateToken(tokenString string, secret string) (*Claims, error) {
     }
     return nil, errors.New("invalid token claims")
 }
+
+// writeAuthError は認証ミドルウェア内でエラーレスポンスを書き込みます
+func writeAuthError(w http.ResponseWriter, status int, msg string) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    if err := json.NewEncoder(w).Encode(map[string]string{"error": msg}); err != nil {
+        slog.Error("json encode failed", "error", err)
+    }
+}
 ```
 
 ### Step 2: Router にミドルウェアを適用する
@@ -108,7 +127,7 @@ func validateToken(tokenString string, secret string) (*Claims, error) {
 書き込み（POST）エンドポイントにだけ認証を要求します。読み取り（GET）は認証なしでアクセス可能です。
 
 ```go
-// framework/router.go（一部変更）
+// internal/framework/http/router.go（一部変更）
 func NewRouter(
     boardHandler *handler.BoardHandler,
     threadHandler *handler.ThreadHandler,
@@ -123,9 +142,10 @@ func NewRouter(
     mux.HandleFunc("GET /api/threads/{threadID}/posts", postHandler.ListPosts)
 
     // 認証あり（POST — ミドルウェアを適用）
+    // auth() は http.Handler を返すため mux.Handle を使用
     auth := middleware.Auth(secret)
-    mux.HandleFunc("POST /api/boards/{slug}/threads", auth(threadHandler.CreateThread))
-    mux.HandleFunc("POST /api/threads/{threadID}/posts", auth(postHandler.CreatePost))
+    mux.Handle("POST /api/boards/{slug}/threads", auth(http.HandlerFunc(threadHandler.CreateThread)))
+    mux.Handle("POST /api/threads/{threadID}/posts", auth(http.HandlerFunc(postHandler.CreatePost)))
 
     // ロギングミドルウェアは全体に適用
     return middleware.Logging(mux)
@@ -146,10 +166,13 @@ func main() {
     }
 
     // Router に secret を渡す
-    router := framework.NewRouter(boardHandler, threadHandler, postHandler, secret)
+    router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler, secret)
 
-    log.Println("Server starting on :8080")
-    http.ListenAndServe(":8080", router)
+    slog.Info("server starting", "addr", ":8080")
+    if err := http.ListenAndServe(":8080", router); err != nil {
+        slog.Error("server failed", "error", err)
+        os.Exit(1)
+    }
 }
 ```
 
@@ -169,11 +192,12 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"テスト","author":"gopher","body":"hello"}'
 
-# JWT を生成（テスト用）
-TOKEN=$(echo '{"sub":"user123","role":"member","exp":9999999999}' | \
-  base64 | tr -d '\n')
-# 実際は jwt-cli 等で署名付きトークンを生成:
-# jwt encode --secret "my-secret-key" --sub "user123" --role "member"
+# JWT を生成（HMAC-SHA256 署名付き）
+# jwt-cli をインストール: go install github.com/matyer/jwt-cli@latest
+TOKEN=$(jwt encode --secret "my-secret-key" --sub "user123" --role "member")
+# または Go のワンライナーで生成:
+# TOKEN=$(go run github.com/golang-jwt/jwt/v5/cmd/jwt@latest \
+#   --secret "my-secret-key" --claim sub:user123 --claim role:member)
 
 # 認証ありで POST → 成功
 curl -X POST http://localhost:8080/api/boards/program/threads \
@@ -181,6 +205,51 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"認証テスト","author":"gopher","body":"hello with auth"}'
 ```
+
+---
+
+## 認証済みユーザーを UseCase で使う
+
+実務では「認証されたユーザーID をビジネスロジックで使いたい」ケースが多々あります。例えば WS4 の「スレ主しか書き込めない」というルールでは、投稿者が誰かを UseCase に伝える必要があります。
+
+### Handler 側: Context から Claims を取り出して Input DTO に渡す
+
+```go
+// internal/framework/http/handler/post_handler.go
+func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
+    // Context から認証済みユーザーを取り出す
+    claims := middleware.GetClaims(r.Context())
+    if claims == nil {
+        writeError(w, http.StatusUnauthorized, "authentication required")
+        return
+    }
+
+    // Input DTO に UserID を渡す（UseCase は HTTP や JWT を知らない）
+    out, err := h.createPost.Execute(r.Context(), usecase.CreatePostInput{
+        ThreadID: threadID,
+        Author:   claims.UserID,  // JWT の sub フィールド → ビジネスロジックで使用
+        Body:     req.Body,
+        Sage:     req.Sage,
+    })
+    // ...
+}
+```
+
+### UseCase 側: 認証の存在を知らない
+
+```go
+// usecase/post_usecase.go — 変更なし
+func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
+    // in.Author に誰が入っているかは知らない。
+    // JWT から来たのか、テストから来たのか、CLI から来たのかは関知しない。
+    if !thread.CanPost(in.Author) {
+        return nil, domain.ErrNotThreadOwner
+    }
+    // ...
+}
+```
+
+このように、**認証情報の変換（JWT Claims → Input DTO）は Handler（Framework 層）の責務**であり、UseCase は単なる文字列として受け取るだけです。
 
 ---
 
@@ -222,7 +291,7 @@ UseCase、Domain、Infra は **一切変更不要** です。
 mux.HandleFunc("POST /api/boards/{slug}/threads", threadHandler.CreateThread)
 
 // 認証あり版（本番用）
-mux.HandleFunc("POST /api/boards/{slug}/threads", auth(threadHandler.CreateThread))
+mux.Handle("POST /api/boards/{slug}/threads", auth(http.HandlerFunc(threadHandler.CreateThread)))
 ```
 
 同じ UseCase・同じ Handler を使い回せます。

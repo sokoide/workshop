@@ -1,6 +1,6 @@
 # クリーンアーキテクチャ実習 (WS4): ビジネスルールの追加
 
-この実習では、BBS（2ちゃんねる風掲示板）に「スレ主しか書き込めない」というビジネスルールを追加します。
+この実習では、BBS（2 ちゃんねる風掲示板）に「スレ主しか書き込めない」というビジネスルールを追加します。
 **内側から外側へ変更が波及する様子**を体験し、各層の変更がその層の責務に直結する最小限のものであることを確認します。
 
 ## 前提知識
@@ -9,7 +9,7 @@
 
 ## 実習のシナリオ
 
-「特定のスレッドでは、スレ主（1レス目の投稿者）しか書き込めない」という制限モードを追加します。
+「特定のスレッドでは、スレ主（1 レス目の投稿者）しか書き込めない」という制限モードを追加します。
 
 ---
 
@@ -20,11 +20,11 @@
 ビジネスルールの追加は内側から外側へ波及しますが、各層の変更は **その層の責務に直結する最小限のもの** です。
 
 | 層 | 変更内容 | 役割 |
-|----|---------|------|
+| ---- | --------- | ------ |
 | **Domain** | `Thread.OwnerOnly` フラグ追加、`CanPost()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
-| **UseCase** | `thread.CanPost(in.Author)` の呼び出しを1行追加 | ルールの適用 |
+| **UseCase** | `thread.CanPost(in.Author)` の呼び出しを1行追加、スレッド作成時に `Owner` を設定 | ルールの適用 |
 | **Infra** | `threads` テーブルに `owner_only` 列を追加、読み書きを対応 | 永続化の追従 |
-| **Framework** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加 | 表示の追従 |
+| **Framework** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加、`createThreadRequest` に `owner_only` フィールドを追加 | 表示と入力の追従 |
 
 ### Step 1: Domain 層 — ルールの定義
 
@@ -32,13 +32,15 @@
 
 **1-1. Thread Entity にフラグと判定メソッドを追加する**
 
+> **注意**: 現在の `Thread` 構造体には `OwnerOnly` と `Owner` フィールドは存在しません。このステップで新規に追加します。
+
 ```go
 // domain/entity/thread.go
 type Thread struct {
     ID           int64
-    BoardSlug    string
+    BoardID      int64
     Title        string
-    ResponseCount int
+    PostCount    int
     CreatedAt    time.Time
     LastPostedAt time.Time
     // ↓ 追加
@@ -74,7 +76,7 @@ var (
 UseCase は「いつルールを適用するか」を知る層です。投稿処理の中に **1行** を追加します。
 
 ```go
-// usecase/create_post.go
+// usecase/post_usecase.go
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
     thread, err := u.threadRepo.FindByID(ctx, in.ThreadID)
     if err != nil {
@@ -87,9 +89,24 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
     }
 
     // ...以降のロジックは変更なし
-    post := entity.NewPost(thread.ID, in.Author, in.Body, in.Sage)
+    count, _ := u.postRepo.CountByThreadID(ctx, thread.ID)
+    post, _ := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
     // ...
 }
+```
+
+**補足: Owner はいつ設定されるか**
+
+`Owner`（スレ主 = 1 番目の投稿者）は、スレッド作成時の `CreateThreadUseCase` で設定します。
+
+```go
+// usecase/thread_usecase.go（CreateThreadUseCase.Execute 内）
+thread, err := entity.NewThread(board.ID, in.Title)
+if err != nil {
+    return nil, err
+}
+thread.OwnerOnly = in.OwnerOnly  // Framework から渡されたフラグ
+thread.Owner = in.Author         // 1番目の投稿者をスレ主として記録
 ```
 
 ### Step 3: Infra 層 — 永続化の追従
@@ -100,7 +117,8 @@ DB に新しい列を追加し、読み書きに対応します。**SQL とモ�
 
 ```sql
 ALTER TABLE threads ADD COLUMN owner_only BOOLEAN NOT NULL DEFAULT FALSE;
-UPDATE threads SET owner_only = FALSE;
+ALTER TABLE threads ADD COLUMN owner TEXT NOT NULL DEFAULT '';
+UPDATE threads SET owner_only = FALSE, owner = '';
 ```
 
 **3-2. DB モデルの更新**
@@ -109,9 +127,11 @@ UPDATE threads SET owner_only = FALSE;
 // infra/persistence/model.go
 type ThreadModel struct {
     ID            int64  `db:"id"`
-    BoardSlug     string `db:"board_slug"`
+    BoardID       int64  `db:"board_id"`
     Title         string `db:"title"`
+    PostCount     int    `db:"post_count"`
     OwnerOnly     bool   `db:"owner_only"`  // 追加
+    Owner         string `db:"owner"`       // 追加
     // ...
 }
 ```
@@ -123,10 +143,11 @@ type ThreadModel struct {
 func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
     return &entity.Thread{
         ID:           m.ID,
-        BoardSlug:    m.BoardSlug,
+        BoardID:      m.BoardID,
         Title:        m.Title,
+        PostCount:    m.PostCount,
         OwnerOnly:    m.OwnerOnly,  // 追加
-        Owner:        m.Owner,       // 既存フィールドを活用
+        Owner:        m.Owner,      // 追加
         // ...
     }
 }
@@ -134,10 +155,10 @@ func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
 
 ### Step 4: Framework 層 — 表示の追従
 
-エラーハンドリングに1 case を追加します。
+エラーハンドリングに 1 case を追加します。
 
 ```go
-// framework/handler/post_handler.go — CreatePost 内のエラーハンドリング
+// internal/framework/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     out, err := h.createPost.Execute(r.Context(), input)
     // ...既存のエラーハンドリング
@@ -145,6 +166,18 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     case errors.Is(err, domain.ErrNotThreadOwner):
         writeError(w, http.StatusForbidden, err.Error())
     }
+}
+```
+
+また、スレッド作成時のリクエスト DTO にも `owner_only` フィールドを追加します。
+
+```go
+// internal/framework/http/handler/thread_handler.go
+type createThreadRequest struct {
+    Title     string `json:"title"`
+    Author    string `json:"author"`
+    Body      string `json:"body"`
+    OwnerOnly bool   `json:"owner_only"`  // 追加
 }
 ```
 
@@ -208,9 +241,9 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-- 「スレ主 = 1レス目の投稿者」というルールが **SQL** に埋まっている
+- 「スレ主 = 1 レス目の投稿者」というルールが **SQL** に埋まっている
 - 「スレ主以外禁止」というルールが **HTTP handler** に埋まっている
-- 「招待された人もOK」に変更する場合、**どこを直すべきか** が不明
+- 「招待された人も OK」に変更する場合、**どこを直すべきか** が不明
 
 ---
 
@@ -222,4 +255,4 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
     - Framework は「ルール違反をどう表示するか」を知っている（403 Forbidden）
     - Infra は「ルールに必要なデータをどう保存するか」を知っている（owner_only 列）
 2. **内→外への波及**: ビジネスルールの変更は Domain から始まり、外側に波及するが、各層の変更は自身の責務に限定される。
-3. **変更の最小化**: 新しい要件「招待者もOK」が追加されても、`CanPost()` の中身だけを変えれば済む。
+3. **変更の最小化**: 新しい要件「招待者も OK」が追加されても、`CanPost()` の中身だけを変えれば済む。

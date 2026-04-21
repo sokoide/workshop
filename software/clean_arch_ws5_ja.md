@@ -1,6 +1,6 @@
 # クリーンアーキテクチャ実習 (WS5): 永続化層の差し替え
 
-この実習では、BBS（2ちゃんねる風掲示板）のデータベースを SQLite から PostgreSQL に移行します。
+この実習では、BBS（2 ちゃんねる風掲示板）のデータベースを SQLite から PostgreSQL に移行します。
 **Infra 層だけを変更**し、Domain・UseCase・Framework が一切変更不要であることを体験します。
 
 ## 前提知識
@@ -20,7 +20,7 @@
 以下の層は **1行も変更しません**。
 
 | 層 | 理由 |
-|----|------|
+| ---- | ------ |
 | **Domain** | Port Interface（`BoardRepository`, `ThreadRepository` 等）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
 | **UseCase** | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし |
 | **Framework** | Handler は UseCase を呼ぶだけで、DB の種類を知らない |
@@ -33,12 +33,13 @@
 // domain/port/repository.go（変更不要 — 見るだけ）
 type BoardRepository interface {
     FindBySlug(ctx context.Context, slug string) (*entity.Board, error)
-    ListAll(ctx context.Context) ([]*entity.Board, error)
+    FindAll(ctx context.Context) ([]*entity.Board, error)
+    Save(ctx context.Context, board *entity.Board) error
 }
 
 type ThreadRepository interface {
+    FindByBoardID(ctx context.Context, boardID int64) ([]*entity.Thread, error)
     FindByID(ctx context.Context, id int64) (*entity.Thread, error)
-    FindByBoardSlug(ctx context.Context, boardSlug string) ([]*entity.Thread, error)
     Save(ctx context.Context, thread *entity.Thread) error
 }
 ```
@@ -52,10 +53,13 @@ type BoardRepository struct {
 func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.Board, error) {
     var m BoardModel
     err := r.db.QueryRowContext(ctx,
-        "SELECT id, slug, name FROM boards WHERE slug = ?", slug,  // SQLite の ? プレースホルダ
-    ).Scan(&m.ID, &m.Slug, &m.Name)
+        "SELECT id, slug, name, created_at FROM boards WHERE slug = ?", slug,  // SQLite の ? プレースホルダ
+    ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
     if err == sql.ErrNoRows {
         return nil, domain.ErrBoardNotFound  // DB エラー → ドメインエラー
+    }
+    if err != nil {
+        return nil, fmt.Errorf("query board by slug: %w", err)
     }
     return r.toEntity(&m), nil
 }
@@ -98,8 +102,8 @@ func NewBoardRepository(db *sql.DB) *BoardRepository {
 func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.Board, error) {
     var m BoardModel
     err := r.db.QueryRowContext(ctx,
-        "SELECT id, slug, name FROM boards WHERE slug = $1", slug,  // PostgreSQL の $1 プレースホルダ
-    ).Scan(&m.ID, &m.Slug, &m.Name)
+        "SELECT id, slug, name, created_at FROM boards WHERE slug = $1", slug,  // PostgreSQL の $1 プレースホルダ
+    ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
     if err == sql.ErrNoRows {
         return nil, domain.ErrBoardNotFound
     }
@@ -109,7 +113,7 @@ func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.
     return r.toEntity(&m), nil
 }
 
-func (r *BoardRepository) ListAll(ctx context.Context) ([]*entity.Board, error) {
+func (r *BoardRepository) FindAll(ctx context.Context) ([]*entity.Board, error) {
     rows, err := r.db.QueryContext(ctx, "SELECT id, slug, name FROM boards ORDER BY slug")
     if err != nil {
         return nil, fmt.Errorf("list boards: %w", err)
@@ -130,12 +134,13 @@ type ThreadRepository struct {
 }
 
 func (r *ThreadRepository) Save(ctx context.Context, thread *entity.Thread) error {
-    _, err := r.db.ExecContext(ctx,
-        `INSERT INTO threads (board_slug, title, owner, response_count, created_at, last_posted_at)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,  // RETURNING = PostgreSQL 固有
-        thread.BoardSlug, thread.Title, thread.Owner,
-        thread.ResponseCount, thread.CreatedAt, thread.LastPostedAt,
-    )
+    // RETURNING で自動採番された ID を取得（PostgreSQL 固有）
+    err := r.db.QueryRowContext(ctx,
+        `INSERT INTO threads (board_id, title, post_count, created_at, last_posted_at)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        thread.BoardID, thread.Title,
+        thread.PostCount, thread.CreatedAt, thread.LastPostedAt,
+    ).Scan(&thread.ID)  // ← ID を取得して entity に反映
     return err
 }
 ```
@@ -173,7 +178,7 @@ func (tm *TransactionManager) RunInTransaction(ctx context.Context, fn func(ctx 
 // cmd/bbs/main.go
 func main() {
     // 旧: SQLite
-    // db, _ := sql.Open("sqlite3", "bbs.db")
+    // db, _ := sqlite.OpenDB("bbs.db")
     // boardRepo := sqlite.NewBoardRepository(db)
     // threadRepo := sqlite.NewThreadRepository(db)
     // postRepo := sqlite.NewPostRepository(db)
@@ -187,14 +192,17 @@ func main() {
     tm := postgres.NewTransactionManager(db)
 
     // ↓ UseCase の組み立ては一切変わらない！
-    createThread := usecase.NewCreateThreadUseCase(boardRepo, threadRepo, tm)
-    createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm)
     listBoards := usecase.NewListBoardsUseCase(boardRepo)
-    listThreads := usecase.NewListThreadsUseCase(threadRepo)
+    listThreads := usecase.NewListThreadsUseCase(boardRepo, threadRepo)
+    createThread := usecase.NewCreateThreadUseCase(boardRepo, threadRepo, postRepo, tm)
     listPosts := usecase.NewListPostsUseCase(postRepo)
+    createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm)
 
     // Handler の組み立ても変わらない
-    handler := framework.NewHandler(createThread, createPost, listBoards, listThreads, listPosts)
+    boardHandler := handler.NewBoardHandler(listBoards)
+    threadHandler := handler.NewThreadHandler(listThreads, createThread)
+    postHandler := handler.NewPostHandler(listPosts, createPost)
+    router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler)
     // ...
 }
 ```

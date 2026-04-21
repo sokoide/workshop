@@ -19,7 +19,7 @@ This is a classic example of the new Port/Adapter pattern.
 ### Change Overview
 
 | Layer | Change | Role |
-|-------|--------|------|
+| ------- | -------- | ------ |
 | **Domain** | Define `port.NotificationGateway` interface (new file) | Abstract definition of "notification is needed" |
 | **UseCase** | Inject `NotificationGateway` into `CreatePostUseCase`, call after successful post | Control notification timing |
 | **Infra** | Create `infra/notification/slack_gateway.go` (new file) | Concrete Slack API implementation |
