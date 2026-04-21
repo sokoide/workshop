@@ -73,8 +73,16 @@ This repository contains hands-on materials for various technical topics.
   - Hands-on implementation of Entity/Domain Service and swapping infrastructure from DB to AD.
 - [Clean Architecture Workshop (WS2): Extension and Optimization](./software/clean_arch_ws2_en.md)
   - Abstraction of notification channels and introduction of transparent caching using the Decorator pattern.
-- [Clean Architecture Workshop (WS3): E-commerce Platform](./software/clean_arch_ws3_en.md)
-  - Designing an order/inventory management system with microservice isolation in mind.
+- [Clean Architecture Workshop (WS3): Swapping Communication Protocols](./software/clean_arch_ws3_en.md)
+  - Migrate a BBS REST API to gRPC by modifying only the Framework layer.
+- [Clean Architecture Workshop (WS4): Adding Business Rules](./software/clean_arch_ws4_en.md)
+  - Add a new business rule and observe changes propagating from inside to outside.
+- [Clean Architecture Workshop (WS5): Swapping the Persistence Layer](./software/clean_arch_ws5_en.md)
+  - Migrate from SQLite to PostgreSQL by modifying only the Infra layer.
+- [Clean Architecture Workshop (WS6): Integrating External Services](./software/clean_arch_ws6_en.md)
+  - Add Slack notifications using the new Port/Adapter pattern.
+- [Clean Architecture Workshop (WS7): Adding Authentication](./software/clean_arch_ws7_en.md)
+  - Add JWT Bearer Token authentication as a cross-cutting concern in the Framework layer.
 - [SOLID Principles (with Go examples)](./software/solid_en.md)
   - Learn S/O/L/I/D with practical Go examples and Clean Architecture mapping.
 - [Caching Patterns in Go](./software/go_cache_patterns_en.md)

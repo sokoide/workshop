@@ -73,8 +73,16 @@
   - Entity・Domain Service の実装と、DB から AD へのインフラ差し替えを体験
 - [クリーンアーキテクチャ実習 (WS2): 拡張と最適化](./software/clean_arch_ws2_ja.md)
   - 通知チャネルの抽象化と Decorator パターンによる透過的キャッシュ導入
-- [クリーンアーキテクチャ実習 (WS3): e-commerce platform](./software/clean_arch_ws3_ja.md)
-  - 注文・在庫管理システムを題材に、マイクロサービス分離を見据えた設計
+- [クリーンアーキテクチャ実習 (WS3): 通信プロトコルの差し替え](./software/clean_arch_ws3_ja.md)
+  - BBS の REST API を gRPC に移行し、Framework 層だけの変更で済むことを体験
+- [クリーンアーキテクチャ実習 (WS4): ビジネスルールの追加](./software/clean_arch_ws4_ja.md)
+  - 新しいビジネスルールを追加し、内側から外側への変更波及を体験
+- [クリーンアーキテクチャ実習 (WS5): 永続化層の差し替え](./software/clean_arch_ws5_ja.md)
+  - SQLite から PostgreSQL への移行を Infra 層だけの変更で実現
+- [クリーンアーキテクチャ実習 (WS6): 外部サービス統合](./software/clean_arch_ws6_ja.md)
+  - Slack 通知を新しい Port/Adapter パターンで追加
+- [クリーンアーキテクチャ実習 (WS7): 認証の追加](./software/clean_arch_ws7_ja.md)
+  - JWT Bearer Token 認証を Framework 層の横断的関心として追加
 - [SOLID principles (Goで学ぶ設計原則)](./software/solid_ja.md)
   - S/O/L/I/D を Go の実例と Clean Architecture の対応で理解
 - [Go キャッシュパターン入門](./software/go_cache_patterns_en.md)
