@@ -50,7 +50,7 @@ type NotificationGateway interface {
 `CreatePostUseCase` に通知ゲートウェイを注入し、投稿成功後に呼び出します。
 
 ```go
-// usecase/create_post.go（既存ファイルを一部変更）
+// usecase/post_usecase.go（既存ファイルを一部変更）
 type CreatePostUseCase struct {
     threadRepo port.ThreadRepository
     postRepo   port.PostRepository

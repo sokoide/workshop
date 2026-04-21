@@ -32,8 +32,8 @@
 ```go
 // domain/port/repository.go（変更不要 — 見るだけ）
 type BoardRepository interface {
-    FindBySlug(ctx context.Context, slug string) (*entity.Board, error)
     FindAll(ctx context.Context) ([]*entity.Board, error)
+    FindBySlug(ctx context.Context, slug string) (*entity.Board, error)
     Save(ctx context.Context, board *entity.Board) error
 }
 

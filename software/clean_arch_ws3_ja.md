@@ -178,7 +178,7 @@ func main() {
     // ...
 
     // 旧: HTTP サーバー起動
-    // handler := framework.NewThreadHandler(createThread, listThreads)
+    // threadHandler := handler.NewThreadHandler(listThreads, createThread)
     // http.ListenAndServe(":8080", router)
 
     // 新: gRPC サーバー起動（ここだけ変更）
