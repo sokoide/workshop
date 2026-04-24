@@ -73,8 +73,10 @@ var (
 
 The UseCase layer knows "when to apply the rule." Add **one line** to the post creation process.
 
+**2-1. Add the rule check to CreatePostUseCase**
+
 ```go
-// usecase/create_post.go
+// usecase/post_usecase.go
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
     thread, err := u.threadRepo.FindByID(ctx, in.ThreadID)
     if err != nil {
@@ -87,9 +89,42 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
     }
 
     // ...rest of the logic is unchanged
-    post := entity.NewPost(thread.ID, in.Author, in.Body, in.Sage)
+    count, err := u.postRepo.CountByThreadID(ctx, thread.ID)
+    if err != nil {
+        return nil, err
+    }
+    post, err := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
     // ...
 }
+```
+
+**2-2. Add `OwnerOnly` to the DTO**
+
+Add the `OwnerOnly` field to `CreateThreadInput` in `usecase/dto.go` so the Framework layer can pass the flag.
+
+```go
+// usecase/dto.go
+type CreateThreadInput struct {
+    BoardSlug string
+    Title     string
+    Author    string
+    Body      string
+    OwnerOnly bool   // Added: owner-only mode
+}
+```
+
+**2-3. Set Owner and OwnerOnly in CreateThreadUseCase**
+
+`Owner` (thread owner = first post author) is set during thread creation in `CreateThreadUseCase`.
+
+```go
+// usecase/thread_usecase.go (inside CreateThreadUseCase.Execute)
+thread, err := entity.NewThread(board.ID, in.Title)
+if err != nil {
+    return nil, err
+}
+thread.OwnerOnly = in.OwnerOnly  // Flag from Framework
+thread.Owner = in.Author         // Record first post author as owner
 ```
 
 ### Step 3: Infra Layer — Persist the Change
@@ -134,7 +169,9 @@ func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
 
 ### Step 4: Framework Layer — Display the Change
 
-Add one case to the error handling.
+Add one case to the error handling in `PostHandler`, and add the `owner_only` field to the thread creation request DTO.
+
+**4-1. Error handling for PostHandler**
 
 ```go
 // framework/handler/post_handler.go — error handling in CreatePost
@@ -145,6 +182,18 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     case errors.Is(err, domain.ErrNotThreadOwner):
         writeError(w, http.StatusForbidden, err.Error())
     }
+}
+```
+
+**4-2. Add `owner_only` to thread creation request**
+
+```go
+// internal/framework/http/handler/thread_handler.go
+type createThreadRequest struct {
+    Title     string `json:"title"`
+    Author    string `json:"author"`
+    Body      string `json:"body"`
+    OwnerOnly bool   `json:"owner_only"`  // Added
 }
 ```
 

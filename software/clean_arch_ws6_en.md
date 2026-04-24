@@ -50,7 +50,8 @@ type NotificationGateway interface {
 Inject the notification gateway into `CreatePostUseCase` and call it after successful post creation.
 
 ```go
-// usecase/create_post.go (modify existing file)
+// usecase/post_usecase.go (modify existing file)
+// NOTE: Add `"log/slog"` to the import list
 type CreatePostUseCase struct {
     threadRepo port.ThreadRepository
     postRepo   port.PostRepository
@@ -85,8 +86,10 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
         return nil, err
     }
 
-    // ↓ 2 lines added (outside transaction — notification failure should not roll back the post)
-    u.notifier.NotifyNewPost(ctx, thread.Title, post.Author, post.Body)
+    // ↓ Outside transaction — notification failure should not roll back the post
+    if err := u.notifier.NotifyNewPost(ctx, thread.Title, post.Author, post.Body); err != nil {
+        slog.Warn("notification failed", "error", err)  // Log only, post still succeeds
+    }
 
     return out, nil
 }

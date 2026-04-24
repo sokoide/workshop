@@ -114,7 +114,7 @@ func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.
 }
 
 func (r *BoardRepository) FindAll(ctx context.Context) ([]*entity.Board, error) {
-    rows, err := r.db.QueryContext(ctx, "SELECT id, slug, name FROM boards ORDER BY slug")
+    rows, err := r.db.QueryContext(ctx, "SELECT id, slug, name, created_at FROM boards ORDER BY id")
     if err != nil {
         return nil, fmt.Errorf("list boards: %w", err)
     }

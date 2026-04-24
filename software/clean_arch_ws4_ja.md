@@ -101,7 +101,22 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 }
 ```
 
-**補足: Owner はいつ設定されるか**
+**補足1: DTO にフラグを追加する**
+
+`CreateThreadInput`（`usecase/dto.go`）に `OwnerOnly` フィールドを追加します。これにより Framework 層からフラグを渡せるようになります。
+
+```go
+// usecase/dto.go
+type CreateThreadInput struct {
+    BoardSlug string
+    Title     string
+    Author    string
+    Body      string
+    OwnerOnly bool   // 追加: スレ主限定モード
+}
+```
+
+**補足2: Owner はいつ設定されるか**
 
 `Owner`（スレ主 = 1 番目の投稿者）は、スレッド作成時の `CreateThreadUseCase` で設定します。
 

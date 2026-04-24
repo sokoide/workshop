@@ -51,6 +51,7 @@ type NotificationGateway interface {
 
 ```go
 // usecase/post_usecase.go（既存ファイルを一部変更）
+// ※ `"log/slog"` を import に追加してください
 type CreatePostUseCase struct {
     threadRepo port.ThreadRepository
     postRepo   port.PostRepository
