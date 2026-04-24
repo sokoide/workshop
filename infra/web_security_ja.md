@@ -972,12 +972,158 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
    → CSRF トークンや SameSite Cookie は依然として必要
 ```
 
+---
+
+### CSRF と CORS の保護目的の違い
+
+**本質的な違い:**
+
+| | **CSRF** | **CORS** |
+| :--- | :--- | :--- |
+| **主な対象** | **リクエストの送信** | **レスポンスの読み取り** |
+| **保護対象** | **サーバー側**（意図しない操作の実行を防ぐ） | **クライアント側**（機密データの盗難を防ぐ） |
+| **攻撃の内容** | なりすまして**操作**させる | 別サイトから**データを窃取**する |
+| **ブラウザの役割** | Cookieを自動付与（攻撃を助ける側面） | レスポンス読み取りをブロック（防御する側面） |
+
+**CSRF の保護目的:** 「誰がリクエストを送ったか」を検証する
+
+```text
+攻撃者: ユーザーになりすまして「パスワード変更」リクエストを送りたい
+         ↓
+サーバー: 本当にユーザー本人の操作か確認する必要がある
+         ↓
+CSRFトークン: フォームを見たユーザーしか持っていない秘密の値
+         ↓
+結果: 攻撃者サイトにはトークンがない → リクエスト拒絶 ✓
+```
+
+**CORS の保護目的:** 「誰がレスポンスを読めるか」を制御する
+
+```text
+攻撃者のJavaScript: fetch('https://victim.com/api/profile')
+         ↓
+ブラウザ: Cookie付きでリクエストは送信する
+         ↓
+サーバー: 認証成功 → 機密データを含むレスポンス
+         ↓
+【ここがCORSの分岐点】
+         ↓
+CORS不許可: ブラウザがレスポンスをブロック ✓
+          → JavaScriptはデータを読めない
+
+CORS誤設定: ブラウザがレスポンスをJavaScriptに渡す ✗
+          → 攻撃者が機密データを窃取
+```
+
+**相互補完的な関係:**
+
+```text
+【CSRF なし】
+攻撃者サイトのフォーム → 不正なリクエスト送信 → サーバーが実行
+                            → データ変更されてしまう ✗
+
+【CORS なし】
+攻撃者サイトの fetch → リクエスト送信 → サーバーが実行
+                    → レスポンス読めないが、副作用は発生 ✗
+
+【両方必要】
+CSRF: リクエストの真正性を保証（操作の防御）
+CORS: レスポンスの読み取りを制限（情報の防御）
+```
+
+---
+
+### プリフライトリクエストだけで CSRF を防げない理由
+
+**結論:** いいえ、プリフライトリクエスト（OPTIONS メソッド）は CSRF を完全には防げません。
+
+**プリフライトが発生する条件:**
+
+プリフライトは**「複雑なリクエスト」**の場合のみ発生します：
+
+```javascript
+// ✅ プリフライト発生
+fetch(url, {
+    method: 'PUT',                    // PUT/DELETE/PATCH
+    headers: { 'X-Custom': 'value' }  // カスタムヘッダー
+})
+
+// ❌ プリフライトなし（シンプルなリクエスト）
+fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+})
+```
+
+**シンプルな POST リクエストの条件:**
+
+- メソッド：GET, HEAD, POST のみ
+- ヘッダー：`Accept`, `Accept-Language`, `Content-Language`, `Content-Type` のみ
+- `Content-Type`：`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain` のみ
+
+**CSRF 攻撃はプリフライトを回避できる:**
+
+攻撃者は**フォーム送信**を使います：
+
+```html
+<!-- 攻撃者サイトのHTML -->
+<form action="https://victim.com/update-email" method="POST">
+    <input type="hidden" name="email" value="hacker@evil.com">
+</form>
+<script>
+    document.forms[0].submit(); // 自動送信
+</script>
+```
+
+このリクエストは：
+
+```text
+POST /update-email HTTP/1.1
+Host: victim.com
+Content-Type: application/x-www-form-urlencoded
+Cookie: session_id=...  ← 自動付与
+
+email=hacker@evil.com
+```
+
+**プリフライトなし**でそのまま送信されます → CORS チェックもバイパス
+
+**攻撃方法ごとの比較:**
+
+| 攻撃方法 | プリフライト発生？ | CORSで防げる？ | CSRFトークンで防げる？ |
+| :--- | :---: | :---: | :---: |
+| **フォーム POST** | ❌ なし | ❌ 不可 | ✅ 可能 |
+| **fetch + PUT/DELETE** | ✅ あり | ✅ 可能 | ✅ 可能 |
+| **fetch + カスタムヘッダー** | ✅ あり | ✅ 可能 | ✅ 可能 |
+| **imgタグによるGET** | ❌ なし | ❌ 不可 | ⚠️ 限次的 |
+
+**まとめ:**
+
+CORS + プリフライトは以下の理由で CSRF 対策として不十分です：
+
+1. **フォーム送信による攻撃を防げない**
+   - 最も一般的な CSRF 攻撃ベクトル
+   - プリフライトなしでリクエストが送信される
+
+2. **GET リクエストによる攻撃を防げない**
+   - `<img src="https://victim.com/delete-account">` など
+   - GET は常にプリフライトなし
+
+3. **SameSite Cookie がないとリスクが残る**
+   - プリフライトありのリクエストでも Cookie は送信される
+   - 読み取りは防げても、副作用（操作実行）は防げない
+
+**したがって、CORS は「情報漏洩対策」としてのみ機能し、CSRF 防御には CSRF トークンまたは SameSite Cookie が必須です。**
+
+---
+
 **まとめ:**
 
 1. **CORS はブラウザの保護**: 異なるオリジンからのレスポンス読み取りを制限
 2. **CORS は CSRF を完全には防げない**: リクエスト自体は送信される
 3. **`Access-Control-Allow-Origin: *` は慎重に**: 認証が必要な API では使用禁止
 4. **プリフライトを忘れず**: OPTIONS メソッドに適切に応答
+5. **CSRF 対策は別途必要**: CSRF トークンまたは SameSite Cookie が必須
 
 ---
 

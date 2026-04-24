@@ -965,12 +965,158 @@ fetch() from attacker site → Request can be sent
    → CSRF tokens and SameSite Cookies are still necessary.
 ```
 
+---
+
+### Difference in Protection Purpose Between CSRF and CORS
+
+**Fundamental Differences:**
+
+| | **CSRF** | **CORS** |
+| :--- | :--- | :--- |
+| **Primary Target** | **Request Submission** | **Response Reading** |
+| **Protection Target** | **Server-side** (preventing unintended operations) | **Client-side** (preventing data theft) |
+| **Attack Nature** | Impersonation to **perform actions** | Data **theft** from other sites |
+| **Browser's Role** | Auto-attaches Cookies (enables attacks) | Blocks response reading (provides defense) |
+
+**CSRF Protection Purpose:** Verify "who sent the request"
+
+```text
+Attacker: Wants to send a "change password" request while impersonating the user
+         ↓
+Server: Needs to verify if it's truly the user's own operation
+         ↓
+CSRF Token: A secret value that only a user who viewed the form possesses
+         ↓
+Result: Attacker site doesn't have the token → Request rejected ✓
+```
+
+**CORS Protection Purpose:** Control "who can read the response"
+
+```text
+Attacker's JavaScript: fetch('https://victim.com/api/profile')
+         ↓
+Browser: Sends request with Cookies attached
+         ↓
+Server: Authentication succeeds → Response includes sensitive data
+         ↓
+[This is where CORS makes the decision]
+         ↓
+CORS Denied: Browser blocks the response ✓
+           → JavaScript cannot read the data
+
+CORS Misconfigured: Browser passes response to JavaScript ✗
+           → Attacker steals sensitive data
+```
+
+**Complementary Relationship:**
+
+```text
+[Without CSRF]
+Attacker's form → Unauthorized request sent → Server executes
+                   → Data gets modified ✗
+
+[Without CORS]
+Attacker's fetch → Request sent → Server executes
+                 → Response can't be read, but side effects occur ✗
+
+[Both Necessary]
+CSRF: Guarantees request authenticity (action defense)
+CORS: Restricts response reading (information defense)
+```
+
+---
+
+### Why Preflight Requests Alone Cannot Prevent CSRF
+
+**Conclusion:** No, preflight requests (OPTIONS method) cannot fully prevent CSRF.
+
+**When Preflight Occurs:**
+
+Preflight only happens for **"complex requests"**:
+
+```javascript
+// ✅ Preflight occurs
+fetch(url, {
+    method: 'PUT',                    // PUT/DELETE/PATCH
+    headers: { 'X-Custom': 'value' }  // Custom headers
+})
+
+// ❌ No preflight (simple request)
+fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+})
+```
+
+**Simple POST Request Conditions:**
+
+- Method: GET, HEAD, POST only
+- Headers: `Accept`, `Accept-Language`, `Content-Language`, `Content-Type` only
+- `Content-Type`: `application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain` only
+
+**CSRF Attacks Can Bypass Preflight:**
+
+Attackers use **form submissions**:
+
+```html
+<!-- Attacker Site HTML -->
+<form action="https://victim.com/update-email" method="POST">
+    <input type="hidden" name="email" value="hacker@evil.com">
+</form>
+<script>
+    document.forms[0].submit(); // Auto-submit
+</script>
+```
+
+This request:
+
+```text
+POST /update-email HTTP/1.1
+Host: victim.com
+Content-Type: application/x-www-form-urlencoded
+Cookie: session_id=...  ← Automatically attached
+
+email=hacker@evil.com
+```
+
+Is sent **without preflight** → Bypasses CORS check
+
+**Attack Method Comparison:**
+
+| Attack Method | Preflight? | CORS Can Block? | CSRF Token Can Block? |
+| :--- | :---: | :---: | :---: |
+| **Form POST** | ❌ No | ❌ No | ✅ Yes |
+| **fetch + PUT/DELETE** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **fetch + Custom Headers** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **img tag GET** | ❌ No | ❌ No | ⚠️ Limited |
+
+**Summary:**
+
+CORS + preflight is insufficient as a CSRF countermeasure because:
+
+1. **Cannot prevent form submission attacks**
+   - The most common CSRF attack vector
+   - Requests are sent without preflight
+
+2. **Cannot prevent GET request attacks**
+   - `<img src="https://victim.com/delete-account">` etc.
+   - GET never triggers preflight
+
+3. **Risks remain without SameSite Cookies**
+   - Even preflight-triggered requests send Cookies
+   - Can prevent reading, but not side effects (operation execution)
+
+**Therefore, CORS only serves as information leak protection, and CSRF defense still requires CSRF tokens or SameSite Cookies.**
+
+---
+
 **Summary:**
 
 1. **CORS is browser protection**: Restricts reading responses from different origins.
 2. **CORS doesn't fully prevent CSRF**: The request itself is still sent.
 3. **Avoid `Access-Control-Allow-Origin: *`**: Forbidden for APIs requiring authentication.
 4. **Don't forget preflight**: Respond properly to the OPTIONS method.
+5. **CSRF countermeasures are still needed**: CSRF tokens or SameSite Cookies are essential.
 
 ---
 
