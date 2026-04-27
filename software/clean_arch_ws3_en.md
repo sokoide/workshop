@@ -80,6 +80,62 @@ curl -s localhost:8080/api/threads/1/posts | jq .
 #     { "number": 3, "author": "sage", "body": "sage", "sage": true } ]
 ```
 
+### About "sage" and Thread Bumping
+
+This BBS implements a 2channel-style "thread bumping" mechanism.
+
+| Term | Meaning | Behavior |
+| :--- | :--- | :--- |
+| **age** | "raise" | Updates `LastPostedAt`, moving thread to top |
+| **sage** | "lower" | Does NOT update `LastPostedAt` |
+
+**Default behavior:**
+
+- `sage: false` or omitted → **bump** (thread floats to top)
+- `sage: true` → **no bump** (thread stays in place)
+
+**Thread list ordering:**
+
+```sql
+ORDER BY last_posted_at DESC  -- Most recently active threads appear first
+```
+
+**Concrete example:**
+
+```bash
+# 1. Three threads created: Ruby, Python, Go
+#    List: Ruby(10:00) → Python(10:05) → Go(10:10)
+
+# 2. Post a bump reply to Ruby thread (sage: false)
+curl -X POST localhost:8080/api/threads/3/posts -d '{"author":"A","body":"hello"}'
+#    Ruby's LastPostedAt updates to now → floats to top
+#    List: Ruby(10:15) ← bumped! → Go(10:10) → Python(10:05)
+
+# 3. Post a no-bump reply to Python thread (sage: true)
+curl -X POST localhost:8080/api/threads/2/posts -d '{"author":"B","body":"sage","sage":true}'
+#    Python's LastPostedAt remains old → position unchanged
+#    List: Ruby(10:15) → Go(10:10) → Python(10:05) ← stays put
+```
+
+**When to use:**
+
+- **bump (default)**: When you want to indicate "this conversation is active"
+- **no bump (sage)**: For minor updates, corrections, or when you don't want to disturb older threads
+
+**Implementation logic:**
+
+```go
+// Thread.Bump() - Updates the thread's last post timestamp
+func (t *Thread) Bump(postedAt time.Time, sage bool) {
+    t.PostCount++
+    if !sage {  // Only update if NOT sage
+        t.LastPostedAt = postedAt
+    }
+}
+```
+
+Note: The first post in a new thread is always a bump, so new threads appear at the top of the list.
+
 ---
 
 ## Prerequisites
