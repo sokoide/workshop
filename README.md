@@ -59,6 +59,8 @@ This repository contains hands-on materials for various technical topics.
   - Implement identity-based security (mTLS/AuthZ) using Istio and SPIRE, moving beyond network perimeters.
 - [Web Security Workshop: XSS, CSRF, and Clickjacking](./infra/web_security_en.md)
   - Experience common web attacks and learn defense mechanisms (escaping, tokens, etc.) using an intentionally vulnerable application.
+- [Supply Chain Security Workshop: Dependency and Container Image Vulnerability Management](./infra/supply_chain_security_en.md)
+  - Detect vulnerabilities with govulncheck/Trivy, generate SBOMs with syft/grype, and sign images with cosign.
 
 #### Infrastructure: Contents planned for the future
 
@@ -85,6 +87,8 @@ This repository contains hands-on materials for various technical topics.
   - Add JWT Bearer Token authentication as a cross-cutting concern in the Framework layer.
 - [SOLID Principles (with Go examples)](./software/solid_en.md)
   - Learn S/O/L/I/D with practical Go examples and Clean Architecture mapping.
+- [Secure Coding Best Practices (Go)](./software/secure_coding_en.md)
+  - Prevent SQL injection, path traversal, password hashing mistakes, race conditions, and information leakage in everyday coding.
 - [Caching Patterns in Go](./software/go_cache_patterns_en.md)
   - Practical cache patterns: TTL, LRU, cache-aside, Redis, and write-through.
 - [Introduction to Succinct Data Structures (Go Perspective)](./software/succinct_en.md)

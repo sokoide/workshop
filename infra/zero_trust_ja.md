@@ -1,30 +1,38 @@
-# Zero Trust Architecture 実習：mTLS と Service Mesh による「常に検証」の実現
+# Zero Trust Architecture 実習：mTLS と Service Mesh による「常に検証」ディープダイブ
 
 このワークショップでは、**Istio Service Mesh** と **SPIRE/SPIFFE** を使用して、Zero Trust Architecture (ZTA) の核となる「信頼なし、常に検証」の原則を実際のシステムで実装します。
 
-> **💡 用語集**: この実習で登場する[Zero Trust](glossary_ja.md#security)、[mTLS](glossary_ja.md#security)、[Service Mesh](glossary_ja.md#security)、[SPIRE](glossary_ja.md#security)などの専門用語は [用語集](glossary_ja.md) を参照してください。
+> **💡 用語集**: [Zero Trust](glossary_ja.md#security)、[mTLS](glossary_ja.md#security)、[Service Mesh](glossary_ja.md#security)、[SPIRE](glossary_ja.md#security) などの用語は [用語集](glossary_ja.md) を参照してください。
 
 ---
 
-## なぜソフトウェアエンジニアが Zero Trust を学ぶのか？
+## 1. なぜソフトウェアエンジニアが Zero Trust を学ぶのか？
 
-従来のネットワーク境界型セキュリティ（Firewall 等）は、一度内部に侵入されると「横移動（Lateral Movement）」が容易であるという脆弱性を抱えています。現代のマイクロサービスやクラウドネイティブな環境では、以下の理由から **Identity-based（身元ベース）** なセキュリティへの移行が不可欠です。
+「セキュリティはインフラチームの仕事」という時代は終わりました。モダンなマイクロサービス環境において、ソフトウェアエンジニア（SWE）が Zero Trust を理解すべき理由は、単なる防御のためではなく、**「よりスケーラブルで保守性の高いソフトウェアを設計するため」** です。
 
-1. **境界の消滅**: リモートワークやクラウド移行により、信頼できる「内部ネットワーク」は存在しなくなりました。
-2. **サプライチェーン攻撃への対策**: 信頼していた内部サービスが侵害された場合でも、被害をそのサービス内に封じ込める必要があります。
-3. **運用負荷の軽減**: IP アドレスベースの管理は、Pod が動的に生成・消滅する K8s 環境では破綻します。身元（Identity）ベースであれば、動的な環境でも一貫したポリシーを適用できます。
+### 1.1 IP アドレスの終焉（Identity へのシフト）
+
+Kubernetes 等の動的環境では、Pod の IP アドレスは一時的なものです。「IP `10.0.x.y` からの通信を許可する」というルールは、Pod が再起動するたびに破綻します。
+ZTA では **「何者か (Identity)」** に基づいて認可を行います。これは API 設計における「認証・認可」の概念を、トランスポート層まで拡張したものと言えます。
+
+### 1.2 境界防御の限界と「横移動」の防止
+
+従来の境界型セキュリティ（Firewall）は、一度内部に侵入されると「内部は安全」と見なされるため、攻撃者がシステム内を自由に動き回る（横移動：Lateral Movement）ことが容易でした。
+ZTA は **「内部ネットワークもすでに侵害されている」** という前提に立ちます。これは、アプリケーション設計における「最小権限の原則 (Least Privilege)」をサービス間通信に適用することと同義です。
+
+### 1.3 ビジネスロジックとセキュリティの分離
+
+SWE にとっての最大の恩恵は、**「暗号化や相互認証のロジックをアプリケーションコードから排除できる」** ことです。Service Mesh を活用することで、ビジネスロジックに集中でき、セキュリティは「インフラの関心事」として外部化（Decoupling）されます。
 
 ---
 
-## ゴール
+## 2. Zero Trust の 3 つの柱（実習のゴール）
 
-Zero Trust Architecture を実践的に理解し、以下のスキルを習得します。
+この実習を通じて、以下の 3 つの技術概念を「動くシステム」として理解します。
 
-- **検証なし信頼なし (Never Trust, Always Verify)** 原則の理解。
-- **mTLS (Mutual TLS)** によるサービス間通信の暗号化と「相互」身元証明の実装。
-- **Istio Service Mesh** による、コードを変更しない認証・認可ポリシーの適用。
-- **SPIRE/SPIFFE** による、動的で暗号的な身元証明システム（SVID）の構築。
-- **Clean Architecture** の文脈で、セキュリティ層を「インフラの関心事」として分離する設計。
+1. **Identity (身元)**: **SPIFFE/SPIRE** を使い、各マイクロサービスに偽造不可能な「身分証（SVID）」を発行します。
+2. **Encryption & Verification (暗号化と検証)**: **mTLS** により、通信を暗号化しつつ「相手が本当に名乗っている通りのサービスか」を相互に確認します。
+3. **Policy (認可ポリシー)**: **Istio AuthorizationPolicy** を使い、「どのサービスが、どのパスに対して、どの HTTP メソッドを許可するか」を宣言的に定義します。
 
 ```mermaid
 graph TB
@@ -39,18 +47,18 @@ graph TB
         EnvoyC --> |2. Verified Traffic| EnvoyS[Envoy Sidecar]
         EnvoyS --> |3. Plaintext| Server[Server Pod]
 
-        subgraph "Control Plane"
-            Istiod[Istiod<br/>Policy / Config]:::control
+        subgraph "Control Plane (Policy Manager)"
+            Istiod[Istiod<br/>Central Policy Manager]:::control
         end
 
-        subgraph "Identity Plane"
+        subgraph "Identity Plane (Identity Issuer)"
             SPIRE[SPIRE Server/Agent<br/>Identity Issuance]:::identity
         end
 
-        Istiod -.-> |Push Config| EnvoyC
-        Istiod -.-> |Push Config| EnvoyS
-        SPIRE -.-> |Issue SVID| EnvoyC
-        SPIRE -.-> |Issue SVID| EnvoyS
+        Istiod -.-> |Push Policy/Config| EnvoyC
+        Istiod -.-> |Push Policy/Config| EnvoyS
+        SPIRE -.-> |Issue SVID via Workload API| EnvoyC
+        SPIRE -.-> |Issue SVID via Workload API| EnvoyS
     end
 
     class EnvoyC,EnvoyS data;
@@ -58,148 +66,125 @@ graph TB
 
 ---
 
-## アーキテクチャと設計思想
+## 3. ソフトウェア設計への影響：Clean Architecture との統合
 
-### 1. 境界防御 vs Zero Trust
+ZTA を導入すると、アプリケーションコードからセキュリティの「汚れ」が消えます。
 
-| 特徴 | 従来の境界防御 (Castle-and-Moat) | Zero Trust (Always Verify) |
-| :--- | :--- | :--- |
-| **信頼の基盤** | ネットワークの場所 (IP/Subnet) | ワークロードの身元 (Identity/SPIFFE) |
-| **通信の想定** | 内部は安全であると仮定 | 内部も侵害されていると仮定 |
-| **暗号化** | 境界のみ (HTTPS) | 全経路 (mTLS) |
-| **認可** | 粗い制御 (VLAN/FW) | 最小権限 (Method/Path 単位) |
+### 【Before】従来のコード（非推奨）
 
-### 2. Clean Architecture との統合（関心の分離）
+ライブラリを使ってコード内で TLS 証明書を読み込み、相手の身元をチェックするロジックが必要でした。これにより、ビジネスロジックが特定のセキュリティ実装に依存（密結合）してしまいます。
 
-ソフトウェアエンジニアにとっての ZTA の最大の利点は、**セキュリティロジックをアプリケーションコードから追い出せる**ことです。
+```go
+// アプリ内にセキュリティロジックが混入し、テストや証明書更新が困難
+func handleRequest(w http.ResponseWriter, req *http.Request) {
+    cert := req.TLS.PeerCertificates[0]
+    if cert.Subject.CommonName != "trusted-client" { // コード内での認可
+        http.Error(w, "forbidden", http.StatusForbidden)
+        return
+    }
+    // ... ビジネスロジック ...
+}
+```
+
+### 【After】Zero Trust + Clean Architecture（推奨）
+
+アプリは **「単純な HTTP (Port 8080)」** で動作します。セキュリティは外部の Envoy Sidecar が担当し、アプリは「検証済みのトラフィック」のみを受け取ります。
 
 ```mermaid
 graph LR
-    subgraph "Application Logic (Inside)"
-        Domain[Domain]
+    subgraph "Application Container (Inside)"
+        Domain[Domain / Logic]
         Usecase[Usecase]
+        Server[HTTP Server<br/>Port: 8080<br/>Protocol: Plain HTTP]
     end
 
-    subgraph "Infrastructure Layer (Outside)"
+    subgraph "Envoy Sidecar (Outside)"
         direction TB
-        Envoy[Envoy Sidecar<br/>- mTLS Termination<br/>- AuthZ Policy<br/>- SPIRE Identity]
-        Framework[Framework / Server]
+        mTLS[mTLS Termination]
+        AuthZ[AuthZ Policy Check]
+        SVID[SPIRE Identity Store]
     end
 
-    Framework --> Usecase
+    Internet((Internet / Mesh)) --> |Encrypted mTLS| mTLS
+    mTLS --> AuthZ
+    AuthZ --> |Verified Plaintext| Server
+    Server --> Usecase
     Usecase --> Domain
-    Envoy -.-> |Intercepts| Framework
 ```
 
-- **Separation of Concerns**: アプリは HTTP(8080) で待ち受けるだけでよく、SSL 証明書の管理や IP 制限のロジックを書く必要はありません。これらは全て Envoy Sidecar が「インフラの関心事」として透過的に処理します。
+- **SWE の視点**: 認可ロジックを宣言的な YAML (Istio) に追い出すことで、コードの単体テストが容易になり、セキュリティポリシーの変更に際してアプリの再デプロイが不要になります。
 
 ---
 
-## 環境準備
+## 4. 環境準備
 
-本実習では `kind` を使用したローカル K8s クラスタと、`istioctl` を使用します。
+`kind` を使用したローカル K8s クラスタと、標準的な Service Mesh ツールを使用します。
 
-### 想定ディレクトリ構造
-
-```text
-infra/assets/zero_trust/
-├── k8s/                        # Kubernetes マニフェスト
-│   ├── istio/                  # Istio / SPIRE 設定
-│   └── services/               # アプリケーションデプロイ
-├── src/                        # Go アプリケーション (Clean Architecture)
-│   ├── client/
-│   └── server/
-└── Makefile
-```
-
-### ✅ チェックリスト
-
-- [ ] `kubectl`, `kind`, `helm`, `istioctl` がインストールされていること。
+### ✅ セットアップ
 
 ```bash
-# クラスター作成
+# 1. クラスター作成
 kind create cluster --name zero-trust-workshop
 
-# Istio インストール
+# 2. Istio インストール
 istioctl install --set profile=demo -y
 
-# サイドカー注入の有効化 (これが ZTA の魔法の第一歩)
+# 3. サイドカー注入を有効化
+# これにより、今後デプロイされる Pod に自動で Envoy プロキシが注入されます
 kubectl label namespace default istio-injection=enabled
 ```
 
 ---
 
-## 実習ステップ
+## 5. 実習ステップ：詳細プロセス
 
-### STEP 1: 「信頼」の剥奪（mTLS Strict モード）
+### STEP 1: 「無条件の信頼」を捨てる（STRICT モード）
 
-デフォルトでは Istio は Permissive モード（平文も許可）ですが、ZTA では平文を一切許容しません。
+デフォルトの Istio は、互換性のために平文通信も受け入れてしまいます（Permissive モード）。Zero Trust の第一歩は、この「甘さ」を排除することです。
 
 ```yaml
-# k8s/istio/peer-authentication.yaml
+# peer-authentication.yaml
 apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
   name: default
 spec:
   mtls:
-    mode: STRICT
+    mode: STRICT # サイドカーを持たない（＝身元を証明できない）通信は 100% 遮断
 ```
 
 ```bash
-kubectl apply -f k8s/istio/peer-authentication.yaml
+kubectl apply -f peer-authentication.yaml
 ```
 
-**検証**: サイドカーを持たない Pod からのアクセスが拒否されることを確認します。
+**なぜ重要か？**:
+攻撃者がクラスタ内の「サイドカーを持たない Pod」を乗っ取ったとしても、STRICT モードであれば他の重要サービスへの通信は拒否されます。
 
-### STEP 2: 身元の証明（SPIRE の統合）
+### STEP 2: 身元の動的証明（SPIRE の仕組み）
 
-IP アドレスではなく、暗号的な身元（SPIFFE ID）をワークロードに付与します。
+ZTA における Identity は、静的な API キーではありません。**SPIRE** は以下のプロセスで「身分証（SVID）」を発行します。
 
-1. **SPIRE のデプロイ**: Helm を使用してクラスタに SPIRE をインストールします。SPIRE はアイデンティティを管理する「コントロールプレーン」として機能します。
+1. **Workload Attestation**: プロセスが起動すると、SPIRE Agent がカーネル情報（UID/GID, Namespace, ServiceAccount 等）を調べ、「このプロセスは間違いなく `client` サービスである」と断定します。
+2. **SVID の発行**: 検証が成功すると、短寿命（Short-lived）の X.509 証明書が Envoy に渡されます。
+3. **自動更新**: 証明書は数時間で期限切れになりますが、SPIRE が自動で更新し続けます。これにより、万が一秘密鍵が漏洩しても被害が最小限に抑えられます。
 
-    ```bash
-    # SPIFFE Helm リポジトリの追加
-    helm repo add spiffe https://spiffe.github.io/helm-charts-hardened/
-    helm repo update
-
-    # SPIRE Server と Agent のインストール
-    helm install spire spiffe/spire --namespace spire-mgmt --create-namespace
-    ```
-
-2. **Istio と SPIRE の連携設定**: Istio が SPIRE によって発行されたアイデンティティを信頼するように設定します。
-
-    ```yaml
-    # k8s/istio/spire-config.yaml (概念イメージ)
-    apiVersion: install.istio.io/v1alpha1
-    kind: IstioOperator
-    spec:
-      meshConfig:
-        trustDomain: cluster.local
-        caCertificates:
-        - pem: |
-            -----BEGIN CERTIFICATE-----
-            <SPIRE-ROOT-CA-CONTENT>
-            -----END CERTIFICATE-----
-    ```
-
-3. **SVID の自動発行**: 設定後、Envoy サイドカーは Workload API (Unix Domain Socket) を介して SPIRE Agent と通信し、自身の **SVID (SPIFFE Verifiable Identity Document)** を自動的に取得します。
-
-**検証**: 発行された SPIFFE ID を確認します。
+**検証コマンド**:
 
 ```bash
+# Envoy が持っている身分証 (SVID) の SPIFFE ID を確認
 istioctl proxy-config secret <pod-name> | grep spiffe
-# 出力に spiffe://cluster.local/ns/default/sa/server-sa が含まれていることを確認
+# 出力例: spiffe://cluster.local/ns/default/sa/client-sa
 ```
 
-**SPIFFE ID の例**: `spiffe://cluster.local/ns/default/sa/server-sa`
+### STEP 3: L7 認可（AuthorizationPolicy）
 
-### STEP 3: 最小権限の適用 (AuthorizationPolicy)
-
-「誰が」「何に対して」「どの操作を」できるかを定義します。
+「誰が」だけでなく「何を」まで検証します。HTTP のパスやメソッドを制限することで、侵害時の被害をその API 単位に封じ込めます。
 
 ```yaml
-# k8s/istio/authorization-policy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: limit-access
 spec:
   selector:
     matchLabels:
@@ -207,43 +192,48 @@ spec:
   rules:
   - from:
     - source:
-        principals: ["cluster.local/ns/default/sa/client-sa"] # Client の身元
+        principals: ["cluster.local/ns/default/sa/client-sa"]
     to:
     - operation:
         methods: ["GET"]
-        paths: ["/api/v1/data"] # 最小限のパス
+        paths: ["/api/v1/data"]
 ```
 
----
-
-## 開発ワークフロー
-
-ZTA 環境での開発における SWE の関わり方は以下の通りです：
-
-1. **Local Dev**: ローカルではプレーンな HTTP で開発。
-2. **Dependency**: 外部 API へのアクセスが必要な場合は、Istio の `ServiceEntry` で身元を定義。
-3. **Observability**: 通信エラーが発生した場合、アプリログではなく Envoy の `access log` や `istioctl analyze` で認可拒否（403）をデバッグ。
+**💡 SWE へのヒント**:
+この設定により、`client` が `DELETE /api/v1/data` を実行しようとしても、アプリに届く前に Envoy が `403 Forbidden` を返します。
 
 ---
 
-## トラブルシューティング：SWE のためのデバッグガイド
+## 6. デバッグガイド（SWE 向け実用テクニック）
 
-### 1. 接続が切れる (503 / 403)
+ZTA 環境でのトラブルシューティングは、従来のデバッグとは異なります。
 
-- **原因**: mTLS 設定の不一致、または認可ポリシーによるブロック。
-- **調査**:
+### 6.1 エラーの切り分け
 
-  ```bash
-  istioctl proxy-config secret <pod-name> # 証明書が来ているか
-  kubectl logs <pod-name> -c istio-proxy # Envoy のログを確認
-  ```
+| 症状 | 推定原因 | アクション |
+| :--- | :--- | :--- |
+| **403 Forbidden** | 認可ポリシー (AuthZ) の拒否 | `istioctl proxy-config authz` で有効なポリシーを確認 |
+| **503 Service Unavailable** | mTLS ハンドシェイク失敗 | 相手の Pod にサイドカーが注入されているか確認 |
+| **404 Not Found** | ルーティングミス | `istioctl proxy-config routes` でパス定義を確認 |
 
-### 2. サイドカーが起動しない
+### 6.2 ログの活用（Envoy Access Log）
 
-- **原因**: 必要なリソース（メモリ/CPU）が不足している、または名前空間のラベル忘れ。
-- **調査**: `kubectl describe pod <pod-name>` の `Events` を確認。
+アプリのログに何も出ていないのにエラーになる場合、Envoy のログが唯一の手がかりです。
+
+```bash
+# Envoy (サイドカー) のログをリアルタイムで監視
+kubectl logs <pod-name> -c istio-proxy -f
+```
+
+`RBAC: access denied` という文字列があれば、それは `AuthorizationPolicy` による拒否です。
 
 ---
+
+## まとめ：Zero Trust 時代のエンジニアリング
+
+1. **Trust no one**: 内部ネットワークの「暗黙の信頼」を完全に排除する。
+2. **Identity is the new perimeter**: IP アドレスではなく、暗号的な Identity (SPIFFE) を信頼の基点にする。
+3. **Observability**: セキュリティ拒否を「予期せぬエラー」ではなく「観測可能なイベント」として扱う。
 
 ## 片付け
 
@@ -251,7 +241,10 @@ ZTA 環境での開発における SWE の関わり方は以下の通りです�
 kind delete cluster --name zero-trust-workshop
 ```
 
+---
+
 ## 参考文献
 
 - [NIST SP 800-207: Zero Trust Architecture](https://csrc.nist.gov/publications/detail/sp/800-207/final)
 - [SPIFFE.io: Production-Ready Workload Identity](https://spiffe.io/)
+- [Istio Security Documentation](https://istio.io/latest/docs/concepts/security/)

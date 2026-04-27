@@ -1,4 +1,4 @@
-# Zero Trust Architecture Workshop: Implementing "Always Verify" with mTLS and Service Mesh
+# Zero Trust Architecture Workshop: A Deep Dive into "Always Verify" with mTLS and Service Mesh
 
 In this workshop, you will implement the core Zero Trust Architecture (ZTA) principle of "Never Trust, Always Verify" in a real system using **Istio Service Mesh** and **SPIRE/SPIFFE**.
 
@@ -6,25 +6,33 @@ In this workshop, you will implement the core Zero Trust Architecture (ZTA) prin
 
 ---
 
-## Why Should Software Engineers Learn Zero Trust?
+## 1. Why Should Software Engineers Learn Zero Trust?
 
-Traditional network perimeter security (e.g., Firewalls) suffers from a vulnerability where "lateral movement" becomes easy once an attacker gains internal access. In modern microservices and cloud-native environments, shifting to **Identity-based** security is essential for the following reasons:
+The days when "security is the infrastructure team's job" are over. In a modern microservices environment, software engineers (SWEs) must understand Zero Trust not just for defense, but to **"design more scalable and maintainable software."**
 
-1. **Dissolution of the Perimeter**: With remote work and cloud migration, a reliable "internal network" no longer exists.
-2. **Mitigation of Supply Chain Attacks**: Even if a trusted internal service is compromised, the damage must be contained within that specific service.
-3. **Reduction of Operational Overhead**: IP address-based management breaks in Kubernetes (K8s) environments where Pods are dynamically created and destroyed. Identity-based security allows for consistent policy application in dynamic environments.
+### 1.1 The End of IP Addresses (The Shift to Identity)
+
+In dynamic environments like Kubernetes, Pod IP addresses are ephemeral. A rule like "Allow traffic from IP `10.0.x.y`" breaks every time a Pod restarts.
+ZTA performs authorization based on **"Who are you? (Identity)"**. This effectively extends the concept of "Authentication and Authorization" from the API design layer down to the transport layer.
+
+### 1.2 Preventing "Lateral Movement"
+
+Traditional perimeter security (Firewalls) assumes "internal is safe," allowing an attacker who breaches the perimeter to move freely within the system (Lateral Movement).
+ZTA operates on the premise that **"the internal network is already compromised."** This is equivalent to applying the "Principle of Least Privilege" to inter-service communication.
+
+### 1.3 Decoupling Business Logic from Security
+
+The biggest benefit for SWEs is the ability to **"exclude encryption and mutual authentication logic from application code."** By utilizing a Service Mesh, you can focus on business logic while security is externalized (decoupled) as an "infrastructure concern."
 
 ---
 
-## Goals
+## 2. The Three Pillars of Zero Trust (Workshop Goals)
 
-Gain a practical understanding of Zero Trust Architecture and acquire the following skills:
+Through this workshop, you will understand these three technical concepts as part of a "working system":
 
-- Understanding the **Never Trust, Always Verify** principle.
-- Implementing encrypted inter-service communication and "mutual" identity verification using **mTLS (Mutual TLS)**.
-- Applying authentication and authorization policies without changing application code via **Istio Service Mesh**.
-- Building a dynamic, cryptographic identity system (SVID) using **SPIRE/SPIFFE**.
-- Designing security layers as an "infrastructure concern" within the context of **Clean Architecture**.
+1. **Identity**: Use **SPIFFE/SPIRE** to issue non-forgeable "Digital IDs (SVIDs)" to each microservice.
+2. **Encryption & Verification**: Use **mTLS** to encrypt communications while mutually verifying that "the other party is truly the service they claim to be."
+3. **Policy**: Use **Istio AuthorizationPolicy** to declaratively define "which service is allowed to access which path using which HTTP method."
 
 ```mermaid
 graph TB
@@ -39,18 +47,18 @@ graph TB
         EnvoyC --> |2. Verified Traffic| EnvoyS[Envoy Sidecar]
         EnvoyS --> |3. Plaintext| Server[Server Pod]
 
-        subgraph "Control Plane"
-            Istiod[Istiod<br/>Policy / Config]:::control
+        subgraph "Control Plane (Policy Manager)"
+            Istiod[Istiod<br/>Central Policy Manager]:::control
         end
 
-        subgraph "Identity Plane"
+        subgraph "Identity Plane (Identity Issuer)"
             SPIRE[SPIRE Server/Agent<br/>Identity Issuance]:::identity
         end
 
-        Istiod -.-> |Push Config| EnvoyC
-        Istiod -.-> |Push Config| EnvoyS
-        SPIRE -.-> |Issue SVID| EnvoyC
-        SPIRE -.-> |Issue SVID| EnvoyS
+        Istiod -.-> |Push Policy/Config| EnvoyC
+        Istiod -.-> |Push Policy/Config| EnvoyS
+        SPIRE -.-> |Issue SVID via Workload API| EnvoyC
+        SPIRE -.-> |Issue SVID via Workload API| EnvoyS
     end
 
     class EnvoyC,EnvoyS data;
@@ -58,148 +66,125 @@ graph TB
 
 ---
 
-## Architecture and Design Philosophy
+## 3. Impact on Software Design: Integration with Clean Architecture
 
-### 1. Perimeter Defense vs. Zero Trust
+Implementing ZTA removes security "clutter" from your application code.
 
-| Feature | Traditional Perimeter Defense (Castle-and-Moat) | Zero Trust (Always Verify) |
-| :--- | :--- | :--- |
-| **Trust Foundation** | Network Location (IP/Subnet) | Workload Identity (Identity/SPIFFE) |
-| **Communication Assumption** | Internal is assumed safe | Assume internal is also compromised |
-| **Encryption** | Perimeter only (HTTPS) | All paths (mTLS) |
-| **Authorization** | Coarse control (VLAN/FW) | Least Privilege (Method/Path level) |
+### 【Before】Traditional Code (Not Recommended)
 
-### 2. Integration with Clean Architecture (Separation of Concerns)
+You needed libraries to load TLS certificates and implement logic to check the sender's identity. This creates a tight coupling between business logic and a specific security implementation.
 
-The biggest advantage of ZTA for software engineers is the ability to **offload security logic from application code**.
+```go
+// Security logic mixed into the app, making testing and certificate updates difficult
+func handleRequest(w http.ResponseWriter, req *http.Request) {
+    cert := req.TLS.PeerCertificates[0]
+    if cert.Subject.CommonName != "trusted-client" { // Authorization inside code
+        http.Error(w, "forbidden", http.StatusForbidden)
+        return
+    }
+    // ... business logic ...
+}
+```
+
+### 【After】Zero Trust + Clean Architecture (Recommended)
+
+The app operates on **"Simple HTTP (Port 8080)."** Security is handled by the external Envoy Sidecar, and the app only receives "verified traffic."
 
 ```mermaid
 graph LR
-    subgraph "Application Logic (Inside)"
-        Domain[Domain]
+    subgraph "Application Container (Inside)"
+        Domain[Domain / Logic]
         Usecase[Usecase]
+        Server[HTTP Server<br/>Port: 8080<br/>Protocol: Plain HTTP]
     end
 
-    subgraph "Infrastructure Layer (Outside)"
+    subgraph "Envoy Sidecar (Outside)"
         direction TB
-        Envoy[Envoy Sidecar<br/>- mTLS Termination<br/>- AuthZ Policy<br/>- SPIRE Identity]
-        Framework[Framework / Server]
+        mTLS[mTLS Termination]
+        AuthZ[AuthZ Policy Check]
+        SVID[SPIRE Identity Store]
     end
 
-    Framework --> Usecase
+    Internet((Internet / Mesh)) --> |Encrypted mTLS| mTLS
+    mTLS --> AuthZ
+    AuthZ --> |Verified Plaintext| Server
+    Server --> Usecase
     Usecase --> Domain
-    Envoy -.-> |Intercepts| Framework
 ```
 
-- **Separation of Concerns**: Apps only need to listen on HTTP (8080). They don't need to manage SSL certificates or implement IP restriction logic. All of these are transparently handled by the Envoy Sidecar as an "infrastructure concern."
+- **SWE Perspective**: By offloading authorization logic to declarative YAML (Istio), unit testing becomes easier, and security policies can be changed without redeploying the application.
 
 ---
 
-## Environment Setup
+## 4. Environment Setup
 
-This workshop uses a local K8s cluster created with `kind` and the `istioctl` CLI.
+We use a local K8s cluster created with `kind` and standard Service Mesh tools.
 
-### Expected Directory Structure
-
-```text
-infra/assets/zero_trust/
-├── k8s/                        # Kubernetes Manifests
-│   ├── istio/                  # Istio / SPIRE Configurations
-│   └── services/               # Application Deployments
-├── src/                        # Go Applications (Clean Architecture)
-│   ├── client/
-│   └── server/
-└── Makefile
-```
-
-### ✅ Checklist
-
-- [ ] `kubectl`, `kind`, `helm`, and `istioctl` are installed.
+### ✅ Setup
 
 ```bash
-# Create cluster
+# 1. Create cluster
 kind create cluster --name zero-trust-workshop
 
-# Install Istio
+# 2. Install Istio
 istioctl install --set profile=demo -y
 
-# Enable sidecar injection (the first step in ZTA magic)
+# 3. Enable Sidecar Injection
+# This automatically injects an Envoy proxy into any Pod deployed hereafter
 kubectl label namespace default istio-injection=enabled
 ```
 
 ---
 
-## Workshop Steps
+## 5. Workshop Steps: Detailed Process
 
-### STEP 1: Stripping "Trust" (mTLS Strict Mode)
+### STEP 1: Dropping "Unconditional Trust" (STRICT Mode)
 
-By default, Istio operates in Permissive mode (allowing plaintext), but ZTA does not allow plaintext at all.
+By default, Istio accepts plaintext communication for compatibility (Permissive mode). The first step in Zero Trust is to eliminate this leniency.
 
 ```yaml
-# k8s/istio/peer-authentication.yaml
+# peer-authentication.yaml
 apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
   name: default
 spec:
   mtls:
-    mode: STRICT
+    mode: STRICT # 100% rejection of any communication that cannot prove its identity
 ```
 
 ```bash
-kubectl apply -f k8s/istio/peer-authentication.yaml
+kubectl apply -f peer-authentication.yaml
 ```
 
-**Verification**: Confirm that access from a Pod without a sidecar is rejected.
+**Why it matters**:
+Even if an attacker compromises a Pod without a sidecar within the cluster, STRICT mode ensures that communications to other critical services are rejected.
 
-### STEP 2: Proving Identity (SPIRE Integration)
+### STEP 2: Dynamic Identity Proof (How SPIRE Works)
 
-Assign a cryptographic identity (SPIFFE ID) to workloads instead of using IP addresses.
+Identity in ZTA is not a static API key. **SPIRE** issues "Digital IDs (SVIDs)" through the following process:
 
-1. **Deploy SPIRE**: Install SPIRE into the cluster using Helm. SPIRE provides a "Control Plane" for identity.
+1. **Workload Attestation**: When a process starts, the SPIRE Agent inspects kernel information (UID/GID, Namespace, ServiceAccount, etc.) to determine that "this process is definitely the `client` service."
+2. **SVID Issuance**: Once verification succeeds, a short-lived X.509 certificate is delivered to Envoy.
+3. **Automatic Rotation**: Certificates expire in hours, but SPIRE continuously updates them. This minimizes damage if a private key is ever leaked.
 
-    ```bash
-    # Add the SPIFFE Helm repository
-    helm repo add spiffe https://spiffe.github.io/helm-charts-hardened/
-    helm repo update
-
-    # Install SPIRE Server and Agent
-    helm install spire spiffe/spire --namespace spire-mgmt --create-namespace
-    ```
-
-2. **Configure Istio to use SPIRE**: Enable the Custom CA integration so that Istio trusts identities issued by SPIRE.
-
-    ```yaml
-    # k8s/istio/spire-config.yaml (Conceptual)
-    apiVersion: install.istio.io/v1alpha1
-    kind: IstioOperator
-    spec:
-      meshConfig:
-        trustDomain: cluster.local
-        caCertificates:
-        - pem: |
-            -----BEGIN CERTIFICATE-----
-            <SPIRE-ROOT-CA-CONTENT>
-            -----END CERTIFICATE-----
-    ```
-
-3. **Automatic SVID Issuance**: Once configured, the Envoy sidecar automatically communicates with the SPIRE Agent via the Workload API (using a Unix Domain Socket) to retrieve its **SVID (SPIFFE Verifiable Identity Document)**.
-
-**Verification**: Check the issued SPIFFE ID.
+**Verification Command**:
 
 ```bash
+# Verify the SPIFFE ID in the SVID held by Envoy
 istioctl proxy-config secret <pod-name> | grep spiffe
-# Output should contain: spiffe://cluster.local/ns/default/sa/server-sa
+# Example output: spiffe://cluster.local/ns/default/sa/client-sa
 ```
 
-**SPIFFE ID Example**: `spiffe://cluster.local/ns/default/sa/server-sa`
+### STEP 3: L7 Authorization (AuthorizationPolicy)
 
-### STEP 3: Applying Least Privilege (AuthorizationPolicy)
-
-Define "Who" can perform "What operation" on "Which resource."
+Verify not just "Who" but "What." Restricting HTTP paths and methods limits potential damage to a specific API.
 
 ```yaml
-# k8s/istio/authorization-policy.yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: limit-access
 spec:
   selector:
     matchLabels:
@@ -207,43 +192,48 @@ spec:
   rules:
   - from:
     - source:
-        principals: ["cluster.local/ns/default/sa/client-sa"] # Client's Identity
+        principals: ["cluster.local/ns/default/sa/client-sa"]
     to:
     - operation:
         methods: ["GET"]
-        paths: ["/api/v1/data"] # Minimal path access
+        paths: ["/api/v1/data"]
 ```
 
----
-
-## Development Workflow
-
-Here is how SWEs interact with development in a ZTA environment:
-
-1. **Local Dev**: Develop using plain HTTP locally.
-2. **Dependency**: If access to external APIs is needed, define their identities using Istio's `ServiceEntry`.
-3. **Observability**: If a communication error occurs, debug using Envoy's `access log` or `istioctl analyze` for authorization denials (403), rather than checking app logs.
+**💡 SWE Tip**:
+With this configuration, if `client` tries to execute `DELETE /api/v1/data`, Envoy will return a `403 Forbidden` before it ever reaches your application.
 
 ---
 
-## Troubleshooting: A Debugging Guide for SWEs
+## 6. Debugging Guide (Practical Techniques for SWEs)
 
-### 1. Connection Drops (503 / 403)
+Troubleshooting in a ZTA environment differs from traditional debugging.
 
-- **Cause**: mTLS configuration mismatch or block by an authorization policy.
-- **Investigation**:
+### 6.1 Isolating the Error
 
-  ```bash
-  istioctl proxy-config secret <pod-name> # Check if certificate is delivered
-  kubectl logs <pod-name> -c istio-proxy # Check Envoy logs
-  ```
+| Symptom | Probable Cause | Action |
+| :--- | :--- | :--- |
+| **403 Forbidden** | Rejected by an Authorization Policy (AuthZ) | Run `istioctl proxy-config authz` to see active policies |
+| **503 Service Unavailable** | mTLS handshake failure | Check if the target Pod has a sidecar injected |
+| **404 Not Found** | Routing error | Check path definitions with `istioctl proxy-config routes` |
 
-### 2. Sidecar Fails to Start
+### 6.2 Using Logs (Envoy Access Log)
 
-- **Cause**: Insufficient resources (Memory/CPU) or missing namespace label.
-- **Investigation**: Check `Events` via `kubectl describe pod <pod-name>`.
+When an error occurs but nothing shows up in the app logs, the Envoy log is your only clue.
+
+```bash
+# Monitor Envoy (sidecar) logs in real-time
+kubectl logs <pod-name> -c istio-proxy -f
+```
+
+If you see `RBAC: access denied`, it is a rejection by an `AuthorizationPolicy`.
 
 ---
+
+## Summary: Engineering in the Zero Trust Era
+
+1. **Trust no one**: Completely eliminate "implicit trust" in internal networks.
+2. **Identity is the new perimeter**: Use cryptographic Identity (SPIFFE) as the root of trust, not IP addresses.
+3. **Observability**: Treat security rejections as "observable events" rather than "unexpected errors."
 
 ## Cleanup
 
@@ -251,7 +241,10 @@ Here is how SWEs interact with development in a ZTA environment:
 kind delete cluster --name zero-trust-workshop
 ```
 
+---
+
 ## References
 
 - [NIST SP 800-207: Zero Trust Architecture](https://csrc.nist.gov/publications/detail/sp/800-207/final)
 - [SPIFFE.io: Production-Ready Workload Identity](https://spiffe.io/)
+- [Istio Security Documentation](https://istio.io/latest/docs/concepts/security/)

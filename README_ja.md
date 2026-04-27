@@ -59,6 +59,8 @@
   - Istio と SPIRE を活用し、ネットワーク境界に頼らない身元ベースのセキュリティ（mTLS/認可）を実装
 - [Webセキュリティ実習：XSS, CSRF, クリックジャッキングを体験する](./infra/web_security_ja.md)
   - 意図的に脆弱なアプリを用い、代表的な Web 攻撃の仕組みと対策（エスケープ、トークン等）を学習
+- [サプライチェーンセキュリティ実習：依存ライブラリとコンテナイメージの脆弱性管理](./infra/supply_chain_security_ja.md)
+  - govulncheck/Trivy で脆弱性検出、syft/grype で SBOM 生成、cosign でイメージ署名・検証を体験
 
 #### インフラ: 今後追加予定のコンテンツ
 
@@ -85,6 +87,8 @@
   - JWT Bearer Token 認証を Framework 層の横断的関心として追加
 - [SOLID principles (Goで学ぶ設計原則)](./software/solid_ja.md)
   - S/O/L/I/D を Go の実例と Clean Architecture の対応で理解
+- [セキュアコーディング Best Practices (Go)](./software/secure_coding_ja.md)
+  - SQL インジェクション、パストラバーサル、パスワードハッシュ、競合状態、情報漏洩防止など日常のコーディングで気をつけるべき作法を解説
 - [Go キャッシュパターン入門](./software/go_cache_patterns_en.md)
   - Go の代表的なキャッシュパターンを整理（TTL/LRU/Cache-Aside/Redis/Write-Through、英語）
 - [Succinct データ構造入門（Go視点）](./software/succinct_ja.md)
