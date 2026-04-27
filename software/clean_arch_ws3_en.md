@@ -234,10 +234,10 @@ type BoardRepository interface {
            └──────┬──────┘
                   │ depends on
                   ↓
-           ┌────────────────────────────────────┐
-           │         Domain Layer               │
+           ┌─────────────────────────────────────┐
+           │         Domain Layer                │
            │  Entity + Port Interface (abstract) │  ← Innermost
-           └────────────────────────────────────┘
+           └─────────────────────────────────────┘
                   ↑ implements
            ┌─────────────┐
            │   Infra     │  ← Outermost (DB/external APIs)
