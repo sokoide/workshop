@@ -8,15 +8,15 @@ type ListBoardsOutput struct {
 }
 
 type BoardDTO struct {
-	ID        int64     `json:"id"`
-	Slug      string    `json:"slug"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          int64     `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // Thread
 type ListThreadsInput struct {
-	BoardSlug string
+	BoardName string
 }
 
 type ListThreadsOutput struct {
@@ -24,7 +24,7 @@ type ListThreadsOutput struct {
 }
 
 type CreateThreadInput struct {
-	BoardSlug string
+	BoardName string
 	Title     string
 	Author    string
 	Body      string

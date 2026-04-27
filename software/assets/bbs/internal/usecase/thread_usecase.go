@@ -18,7 +18,7 @@ func NewListThreadsUseCase(boardRepo port.BoardRepository, threadRepo port.Threa
 }
 
 func (u *ListThreadsUseCase) Execute(ctx context.Context, in ListThreadsInput) (*ListThreadsOutput, error) {
-	board, err := u.boardRepo.FindBySlug(ctx, in.BoardSlug)
+	board, err := u.boardRepo.FindByName(ctx, in.BoardName)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func NewCreateThreadUseCase(boardRepo port.BoardRepository, threadRepo port.Thre
 }
 
 func (u *CreateThreadUseCase) Execute(ctx context.Context, in CreateThreadInput) (*CreateThreadOutput, error) {
-	board, err := u.boardRepo.FindBySlug(ctx, in.BoardSlug)
+	board, err := u.boardRepo.FindByName(ctx, in.BoardName)
 	if err != nil {
 		return nil, err
 	}

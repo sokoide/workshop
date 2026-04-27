@@ -119,12 +119,12 @@ func NewRouter(
 
     // No auth (GET — existing behavior preserved)
     mux.HandleFunc("GET /api/boards", boardHandler.ListBoards)
-    mux.HandleFunc("GET /api/boards/{slug}/threads", threadHandler.ListThreads)
+    mux.HandleFunc("GET /api/boards/{name}/threads", threadHandler.ListThreads)
     mux.HandleFunc("GET /api/threads/{threadID}/posts", postHandler.ListPosts)
 
     // Auth required (POST — apply middleware)
     auth := middleware.Auth(secret)
-    mux.HandleFunc("POST /api/boards/{slug}/threads", auth(threadHandler.CreateThread))
+    mux.HandleFunc("POST /api/boards/{name}/threads", auth(threadHandler.CreateThread))
     mux.HandleFunc("POST /api/threads/{threadID}/posts", auth(postHandler.CreatePost))
 
     // Logging middleware applies globally
@@ -219,10 +219,10 @@ For internal APIs or admin tools, just skip the middleware:
 
 ```go
 // Unauthenticated version
-mux.HandleFunc("POST /api/boards/{slug}/threads", threadHandler.CreateThread)
+mux.HandleFunc("POST /api/boards/{name}/threads", threadHandler.CreateThread)
 
 // Authenticated version (production)
-mux.HandleFunc("POST /api/boards/{slug}/threads", auth(threadHandler.CreateThread))
+mux.HandleFunc("POST /api/boards/{name}/threads", auth(threadHandler.CreateThread))
 ```
 
 The same UseCases and Handlers are reused.

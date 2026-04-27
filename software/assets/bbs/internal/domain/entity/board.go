@@ -7,30 +7,30 @@ import (
 )
 
 type Board struct {
-	ID        int64
-	Slug      string
-	Name      string
-	CreatedAt time.Time
+	ID          int64
+	Name        string
+	Description string
+	CreatedAt   time.Time
 }
 
-func NewBoard(slug, name string) (*Board, error) {
-	if slug == "" {
-		return nil, domain.ErrEmptyBoardSlug
-	}
+func NewBoard(name, description string) (*Board, error) {
 	if name == "" {
 		return nil, domain.ErrEmptyBoardName
 	}
+	if description == "" {
+		return nil, domain.ErrEmptyBoardDescription
+	}
 	return &Board{
-		Slug:      slug,
-		Name:      name,
-		CreatedAt: time.Now(),
+		Name:        name,
+		Description: description,
+		CreatedAt:   time.Now(),
 	}, nil
 }
 
-func (b *Board) Rename(name string) error {
-	if name == "" {
-		return domain.ErrEmptyBoardName
+func (b *Board) UpdateDescription(description string) error {
+	if description == "" {
+		return domain.ErrEmptyBoardDescription
 	}
-	b.Name = name
+	b.Description = description
 	return nil
 }

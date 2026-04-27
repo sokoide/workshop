@@ -23,10 +23,10 @@ func (u *ListBoardsUseCase) Execute(ctx context.Context) (*ListBoardsOutput, err
 	dtos := make([]BoardDTO, len(boards))
 	for i, b := range boards {
 		dtos[i] = BoardDTO{
-			ID:        b.ID,
-			Slug:      b.Slug,
-			Name:      b.Name,
-			CreatedAt: b.CreatedAt,
+			ID:          b.ID,
+			Name:        b.Name,
+			Description: b.Description,
+			CreatedAt:   b.CreatedAt,
 		}
 	}
 	return &ListBoardsOutput{Boards: dtos}, nil

@@ -22,10 +22,10 @@ func OpenDB(dsn string) (*sql.DB, error) {
 func migrate(db *sql.DB) error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS boards (
-			id         INTEGER PRIMARY KEY AUTOINCREMENT,
-			slug       TEXT NOT NULL UNIQUE,
-			name       TEXT NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT (datetime('now'))
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			name        TEXT NOT NULL UNIQUE,
+			description TEXT NOT NULL,
+			created_at  DATETIME NOT NULL DEFAULT (datetime('now'))
 		)`,
 		`CREATE TABLE IF NOT EXISTS threads (
 			id            INTEGER PRIMARY KEY AUTOINCREMENT,

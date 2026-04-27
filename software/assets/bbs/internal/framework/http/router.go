@@ -15,8 +15,8 @@ func NewRouter(
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/boards", boardHandler.ListBoards)
-	mux.HandleFunc("GET /api/boards/{slug}/threads", threadHandler.ListThreads)
-	mux.HandleFunc("POST /api/boards/{slug}/threads", threadHandler.CreateThread)
+	mux.HandleFunc("GET /api/boards/{name}/threads", threadHandler.ListThreads)
+	mux.HandleFunc("POST /api/boards/{name}/threads", threadHandler.CreateThread)
 	mux.HandleFunc("GET /api/threads/{threadID}/posts", postHandler.ListPosts)
 	mux.HandleFunc("POST /api/threads/{threadID}/posts", postHandler.CreatePost)
 

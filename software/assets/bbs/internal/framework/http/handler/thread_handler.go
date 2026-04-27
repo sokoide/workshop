@@ -19,13 +19,13 @@ func NewThreadHandler(listThreads *usecase.ListThreadsUseCase, createThread *use
 }
 
 func (h *ThreadHandler) ListThreads(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
-	if slug == "" {
-		writeError(w, http.StatusBadRequest, "board slug is required")
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "board name is required")
 		return
 	}
 
-	out, err := h.listThreads.Execute(r.Context(), usecase.ListThreadsInput{BoardSlug: slug})
+	out, err := h.listThreads.Execute(r.Context(), usecase.ListThreadsInput{BoardName: name})
 	if err != nil {
 		if errors.Is(err, domain.ErrBoardNotFound) {
 			writeError(w, http.StatusNotFound, err.Error())
@@ -44,9 +44,9 @@ type createThreadRequest struct {
 }
 
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
-	if slug == "" {
-		writeError(w, http.StatusBadRequest, "board slug is required")
+	name := r.PathValue("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "board name is required")
 		return
 	}
 
@@ -57,7 +57,7 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-		BoardSlug: slug,
+		BoardName: name,
 		Title:     req.Title,
 		Author:    req.Author,
 		Body:      req.Body,

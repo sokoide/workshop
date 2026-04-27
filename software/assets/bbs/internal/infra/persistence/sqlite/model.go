@@ -9,18 +9,18 @@ import (
 // DB models — separate from domain entities to avoid leaking persistence concerns.
 
 type BoardModel struct {
-	ID        int64
-	Slug      string
-	Name      string
-	CreatedAt time.Time
+	ID          int64
+	Name        string
+	Description string
+	CreatedAt   time.Time
 }
 
 func (m BoardModel) ToEntity() *entity.Board {
 	return &entity.Board{
-		ID:        m.ID,
-		Slug:      m.Slug,
-		Name:      m.Name,
-		CreatedAt: m.CreatedAt,
+		ID:          m.ID,
+		Name:        m.Name,
+		Description: m.Description,
+		CreatedAt:   m.CreatedAt,
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 
 type BoardRepository interface {
 	FindAll(ctx context.Context) ([]*entity.Board, error)
-	FindBySlug(ctx context.Context, slug string) (*entity.Board, error)
+	FindByName(ctx context.Context, name string) (*entity.Board, error)
 	Save(ctx context.Context, board *entity.Board) error
 }
 

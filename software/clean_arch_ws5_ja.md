@@ -33,7 +33,7 @@
 // domain/port/repository.go（変更不要 — 見るだけ）
 type BoardRepository interface {
     FindAll(ctx context.Context) ([]*entity.Board, error)
-    FindBySlug(ctx context.Context, slug string) (*entity.Board, error)
+    FindByName(ctx context.Context, name string) (*entity.Board, error)
     Save(ctx context.Context, board *entity.Board) error
 }
 
@@ -50,16 +50,16 @@ type BoardRepository struct {
     db *sql.DB
 }
 
-func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.Board, error) {
+func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     var m BoardModel
     err := r.db.QueryRowContext(ctx,
-        "SELECT id, slug, name, created_at FROM boards WHERE slug = ?", slug,  // SQLite の ? プレースホルダ
+        "SELECT id, name, name, created_at FROM boards WHERE name = ?", name,  // SQLite の ? プレースホルダ
     ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
     if err == sql.ErrNoRows {
         return nil, domain.ErrBoardNotFound  // DB エラー → ドメインエラー
     }
     if err != nil {
-        return nil, fmt.Errorf("query board by slug: %w", err)
+        return nil, fmt.Errorf("query board by name: %w", err)
     }
     return r.toEntity(&m), nil
 }
@@ -99,22 +99,22 @@ func NewBoardRepository(db *sql.DB) *BoardRepository {
     return &BoardRepository{db: db}
 }
 
-func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.Board, error) {
+func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     var m BoardModel
     err := r.db.QueryRowContext(ctx,
-        "SELECT id, slug, name, created_at FROM boards WHERE slug = $1", slug,  // PostgreSQL の $1 プレースホルダ
+        "SELECT id, name, name, created_at FROM boards WHERE name = $1", name,  // PostgreSQL の $1 プレースホルダ
     ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
     if err == sql.ErrNoRows {
         return nil, domain.ErrBoardNotFound
     }
     if err != nil {
-        return nil, fmt.Errorf("query board by slug: %w", err)
+        return nil, fmt.Errorf("query board by name: %w", err)
     }
     return r.toEntity(&m), nil
 }
 
 func (r *BoardRepository) FindAll(ctx context.Context) ([]*entity.Board, error) {
-    rows, err := r.db.QueryContext(ctx, "SELECT id, slug, name, created_at FROM boards ORDER BY id")
+    rows, err := r.db.QueryContext(ctx, "SELECT id, name, name, created_at FROM boards ORDER BY id")
     if err != nil {
         return nil, fmt.Errorf("list boards: %w", err)
     }
@@ -254,7 +254,7 @@ DB 移行を安全に行うための前提として、Infra Adapter が **DB エ
 
 ```go
 // OK: Infra Adapter 内で変換
-func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.Board, error) {
+func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     // ...
     if err == sql.ErrNoRows {
         return nil, domain.ErrBoardNotFound  // DB エラー → ドメインエラー
@@ -265,7 +265,7 @@ func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.
 ```go
 // NG: UseCase が DB エラーを知ってしまう
 func (u *CreateThreadUseCase) Execute(...) {
-    board, err := u.boardRepo.FindBySlug(ctx, slug)
+    board, err := u.boardRepo.FindByName(ctx, name)
     if err == sql.ErrNoRows {  // ← database/sql に依存！DB変更不可に
         // ...
     }

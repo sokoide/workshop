@@ -3,6 +3,85 @@
 In this workshop, you will migrate the BBS (2channel-style bulletin board) REST API to gRPC.
 You will modify **only the Framework layer**, confirming that Domain, UseCase, and Infra remain completely untouched.
 
+## BBS App Overview
+
+The BBS in this workshop is a simple 3-tier bulletin board: Boards → Threads → Posts.
+
+| Resource | Description |
+| -------- | ----------- |
+| **Board** | A bulletin board. Identified by `name` (e.g., `programming`) |
+| **Thread** | A thread. Belongs to a specific Board, identified by `threadID` (numeric) |
+| **Post** | A post (reply). Belongs to a specific Thread, with sequential numbering. The `sage` flag prevents the thread from floating to the top |
+
+### REST API List
+
+The current HTTP endpoints are these 5:
+
+| Method | Path | Description |
+| -------- | ---- | ----------- |
+| GET | `/api/boards` | List boards |
+| GET | `/api/boards/{name}/threads` | List threads |
+| POST | `/api/boards/{name}/threads` | Create thread |
+| GET | `/api/threads/{threadID}/posts` | List posts |
+| POST | `/api/threads/{threadID}/posts` | Create reply |
+
+### curl Usage Examples
+
+```bash
+# List boards
+curl localhost:8080/api/boards
+
+# List threads
+curl localhost:8080/api/boards/programming/threads
+
+# Create thread
+curl -X POST localhost:8080/api/boards/programming/threads \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Test","author":"anonymous","body":"First post"}'
+
+# List posts
+curl localhost:8080/api/threads/1/posts
+
+# Create reply (with sage)
+curl -X POST localhost:8080/api/threads/1/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"author":"Anonymous","body":"sage","sage":true}'
+```
+
+### Step-by-Step Example (Create Thread → Reply)
+
+```bash
+# 1. Check boards
+curl localhost:8080/api/boards
+# → {"boards":[{"id":1,"name":"programming","name":"Programming General","created_at":"2025-01-01T00:00:00Z"}]}
+
+# 2. Create a thread on the programming board
+curl -s -X POST localhost:8080/api/boards/programming/threads \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Go Thread","author":"gopher","body":"Go is great!"}' | jq .
+# → { "thread": { "id": 1, "title": "Go Thread", ... }, "post": { "id": 1, "number": 1, ... } }
+
+# 3. Post a reply (using the thread.id from step 2)
+curl -s -X POST localhost:8080/api/threads/1/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"author":"Anon","body":"Indeed"}' | jq .
+# → { "id": 2, "number": 2, "author": "Anon", "body": "Indeed", ... }
+
+# 4. Post a reply with sage
+curl -s -X POST localhost:8080/api/threads/1/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"author":"sage","body":"sage","sage":true}' | jq .
+# → { "id": 3, "number": 3, "sage": true, ... }
+
+# 5. Verify the posts list
+curl -s localhost:8080/api/threads/1/posts | jq .
+# → [ { "number": 1, "author": "gopher", "body": "Go is great!" },
+#     { "number": 2, "author": "Anon", "body": "Indeed" },
+#     { "number": 3, "author": "sage", "body": "sage", "sage": true } ]
+```
+
+---
+
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
@@ -41,13 +120,13 @@ Review the current Framework layer. Handlers follow the "input conversion → Us
 // framework/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP-specific input conversion
-    slug := r.PathValue("slug")
+    name := r.PathValue("name")
     var req createThreadRequest
     json.NewDecoder(r.Body).Decode(&req)
 
     // UseCase call (← protocol-independent)
     out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-        BoardSlug: slug, Title: req.Title, Author: req.Author, Body: req.Body,
+        BoardSlug: name, Title: req.Title, Author: req.Author, Body: req.Body,
     })
 
     // HTTP-specific output conversion
@@ -79,7 +158,7 @@ service BBSService {
 }
 
 message CreateThreadRequest {
-    string board_slug = 1;
+    string board_name = 1;
     string title = 2;
     string author = 3;
     string body = 4;
@@ -138,7 +217,7 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
 ```go
 // HTTP version
 out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-    BoardSlug: slug, Title: req.Title, Author: req.Author, Body: req.Body,
+    BoardSlug: name, Title: req.Title, Author: req.Author, Body: req.Body,
 })
 
 // gRPC version (identical!)
@@ -192,7 +271,7 @@ go build -o bbs ./cmd/bbs/
 # Test with gRPC client (using grpcurl)
 grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
 
-grpcurl -plaintext -d '{"board_slug":"program","title":"Go thread","author":"gopher","body":"Go is great!"}' \
+grpcurl -plaintext -d '{"board_name":"program","title":"Go thread","author":"gopher","body":"Go is great!"}' \
     localhost:9090 bbs.BBSService/CreateThread
 ```
 
@@ -203,7 +282,7 @@ grpcurl -plaintext -d '{"board_slug":"program","title":"Go thread","author":"gop
 ```go
 // Everything mixed into one function
 func CreateThread(w http.ResponseWriter, r *http.Request) {
-    slug := r.PathValue("slug")           // HTTP dependency
+    name := r.PathValue("name")           // HTTP dependency
     db, _ := sql.Open("sqlite3", "bbs.db") // DB dependency
     tx, _ := db.Begin()                    // Technical detail
     res, _ := tx.Exec("INSERT INTO ...")   // SQL

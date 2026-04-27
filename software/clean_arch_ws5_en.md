@@ -33,7 +33,7 @@ Verify that the current Infra implementation satisfies the Domain's Port Interfa
 // domain/port/repository.go (no changes — read only)
 type BoardRepository interface {
     FindAll(ctx context.Context) ([]*entity.Board, error)
-    FindBySlug(ctx context.Context, slug string) (*entity.Board, error)
+    FindByName(ctx context.Context, name string) (*entity.Board, error)
     Save(ctx context.Context, board *entity.Board) error
 }
 
@@ -50,10 +50,10 @@ type BoardRepository struct {
     db *sql.DB
 }
 
-func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.Board, error) {
+func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     var m BoardModel
     err := r.db.QueryRowContext(ctx,
-        "SELECT id, slug, name, created_at FROM boards WHERE slug = ?", slug,  // SQLite ? placeholder
+        "SELECT id, name, name, created_at FROM boards WHERE name = ?", name,  // SQLite ? placeholder
     ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
     if err == sql.ErrNoRows {
         return nil, domain.ErrBoardNotFound  // DB error → domain error
@@ -96,22 +96,22 @@ func NewBoardRepository(db *sql.DB) *BoardRepository {
     return &BoardRepository{db: db}
 }
 
-func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.Board, error) {
+func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     var m BoardModel
     err := r.db.QueryRowContext(ctx,
-        "SELECT id, slug, name, created_at FROM boards WHERE slug = $1", slug,  // PostgreSQL $1 placeholder
+        "SELECT id, name, name, created_at FROM boards WHERE name = $1", name,  // PostgreSQL $1 placeholder
     ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
     if err == sql.ErrNoRows {
         return nil, domain.ErrBoardNotFound
     }
     if err != nil {
-        return nil, fmt.Errorf("query board by slug: %w", err)
+        return nil, fmt.Errorf("query board by name: %w", err)
     }
     return r.toEntity(&m), nil
 }
 
 func (r *BoardRepository) FindAll(ctx context.Context) ([]*entity.Board, error) {
-    rows, err := r.db.QueryContext(ctx, "SELECT id, slug, name, created_at FROM boards ORDER BY id")
+    rows, err := r.db.QueryContext(ctx, "SELECT id, name, name, created_at FROM boards ORDER BY id")
     if err != nil {
         return nil, fmt.Errorf("list boards: %w", err)
     }
@@ -242,7 +242,7 @@ A prerequisite for safe DB migration is that Infra Adapters **convert DB errors 
 
 ```go
 // OK: Conversion inside Infra Adapter
-func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.Board, error) {
+func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     // ...
     if err == sql.ErrNoRows {
         return nil, domain.ErrBoardNotFound  // DB error → domain error
@@ -253,7 +253,7 @@ func (r *BoardRepository) FindBySlug(ctx context.Context, slug string) (*entity.
 ```go
 // NG: UseCase learns about DB errors
 func (u *CreateThreadUseCase) Execute(...) {
-    board, err := u.boardRepo.FindBySlug(ctx, slug)
+    board, err := u.boardRepo.FindByName(ctx, name)
     if err == sql.ErrNoRows {  // ← depends on database/sql! Cannot change DB
         // ...
     }

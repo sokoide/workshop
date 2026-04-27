@@ -3,6 +3,85 @@
 この実習では、BBS（2 ちゃんねる風掲示板）の REST API を gRPC に移行します。
 **Framework 層だけを変更**し、Domain・UseCase・Infra が一切変更不要であることを体験します。
 
+## BBS アプリの概要
+
+題材とする BBS は、掲示板（Board）→ スレッド（Thread）→ 投稿（Post）の 3 階層を持つシンプルな掲示板アプリです。
+
+| リソース | 説明 |
+| -------- | ---- |
+| **Board** | 掲示板。`name`（例: `programming`）で識別 |
+| **Thread** | スレッド。特定の Board に属し、`threadID`（数値）で識別 |
+| **Post** | 投稿（レス）。特定の Thread に属し、通し番号を持つ。`sage` フラグでスレッドを浮上させない |
+
+### REST API 一覧
+
+現在の HTTP エンドポイントは以下の 5 つです。
+
+| メソッド | パス | 内容 |
+| -------- | ---- | ---- |
+| GET | `/api/boards` | 掲示板一覧 |
+| GET | `/api/boards/{name}/threads` | スレッド一覧 |
+| POST | `/api/boards/{name}/threads` | スレッド作成 |
+| GET | `/api/threads/{threadID}/posts` | 投稿一覧 |
+| POST | `/api/threads/{threadID}/posts` | レス投稿 |
+
+### curl での使用例
+
+```bash
+# 掲示板一覧
+curl localhost:8080/api/boards
+
+# スレッド一覧
+curl localhost:8080/api/boards/programming/threads
+
+# スレッド作成
+curl -X POST localhost:8080/api/boards/programming/threads \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"テスト","author":"anonymous","body":"最初の投稿"}'
+
+# 投稿一覧
+curl localhost:8080/api/threads/1/posts
+
+# レス投稿（sage 付き）
+curl -X POST localhost:8080/api/threads/1/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"author":"名無し","body":"sage","sage":true}'
+```
+
+### 一連の操作例（スレ立て → レス）
+
+```bash
+# 1. 掲示板を確認
+curl localhost:8080/api/boards
+# → {"boards":[{"id":1,"name":"programming","name":"Programming General","created_at":"2025-01-01T00:00:00Z"}]}
+
+# 2. programming 板にスレッドを立てる
+curl -s -X POST localhost:8080/api/boards/programming/threads \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Go言語スレ","author":"gopher","body":"Go最高！"}' | jq .
+# → { "thread": { "id": 1, "title": "Go言語スレ", ... }, "post": { "id": 1, "number": 1, ... } }
+
+# 3. レスを投稿する（2 で返った thread.id を使う）
+curl -s -X POST localhost:8080/api/threads/1/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"author":"名無し","body":"確かに"}' | jq .
+# → { "id": 2, "number": 2, "author": "名無し", "body": "確かに", ... }
+
+# 4. sage 付きでレスを投稿
+curl -s -X POST localhost:8080/api/threads/1/posts \
+  -H 'Content-Type: application/json' \
+  -d '{"author":"sage","body":"sage","sage":true}' | jq .
+# → { "id": 3, "number": 3, "sage": true, ... }
+
+# 5. 投稿一覧で結果を確認
+curl -s localhost:8080/api/threads/1/posts | jq .
+# → [ { "number": 1, "author": "gopher", "body": "Go最高！" },
+#     { "number": 2, "author": "名無し", "body": "確かに" },
+#     { "number": 3, "author": "sage", "body": "sage", "sage": true } ]
+```
+
+---
+
 ## 前提知識
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
@@ -41,7 +120,7 @@ Framework 層の現状を確認します。Handler は「入力変換 → UseCas
 // internal/framework/http/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP 固有の入力変換
-    slug := r.PathValue("slug")
+    name := r.PathValue("name")
     var req createThreadRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
         writeError(w, http.StatusBadRequest, "invalid json")
@@ -50,7 +129,7 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
 
     // UseCase 呼び出し（← 通信方式に依存しない）
     out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-        BoardSlug: slug, Title: req.Title, Author: req.Author, Body: req.Body,
+        BoardSlug: name, Title: req.Title, Author: req.Author, Body: req.Body,
     })
 
     // HTTP 固有の出力変換
@@ -82,7 +161,7 @@ service BBSService {
 }
 
 message CreateThreadRequest {
-    string board_slug = 1;
+    string board_name = 1;
     string title = 2;
     string author = 3;
     string body = 4;
@@ -152,7 +231,7 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
 ```go
 // HTTP 版
 out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-    BoardSlug: slug, Title: req.Title, Author: req.Author, Body: req.Body,
+    BoardSlug: name, Title: req.Title, Author: req.Author, Body: req.Body,
 })
 
 // gRPC 版（全く同じ！）
@@ -215,7 +294,7 @@ go build -o bbs ./cmd/bbs/
 # reflection.Register を有効にしているため -plaintext だけでサービス一覧を表示可能
 grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
 
-grpcurl -plaintext -d '{"board_slug":"program","title":"Go言語スレ","author":"gopher","body":"Go最高！"}' \
+grpcurl -plaintext -d '{"board_name":"program","title":"Go言語スレ","author":"gopher","body":"Go最高！"}' \
     localhost:9090 bbs.BBSService/CreateThread
 ```
 
@@ -226,7 +305,7 @@ grpcurl -plaintext -d '{"board_slug":"program","title":"Go言語スレ","author"
 ```go
 // 全てが1関数に混在している例
 func CreateThread(w http.ResponseWriter, r *http.Request) {
-    slug := r.PathValue("slug")           // HTTP 依存
+    name := r.PathValue("name")           // HTTP 依存
     db, _ := sql.Open("sqlite3", "bbs.db") // DB 依存
     tx, _ := db.Begin()                    // 技術詳細
     res, _ := tx.Exec("INSERT INTO ...")   // SQL

@@ -108,7 +108,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 ```go
 // usecase/dto.go
 type CreateThreadInput struct {
-    BoardSlug string
+    BoardName string
     Title     string
     Author    string
     Body      string

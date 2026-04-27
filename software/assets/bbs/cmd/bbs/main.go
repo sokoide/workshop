@@ -7,9 +7,9 @@ import (
 	"os"
 
 	"github.com/sokoide/cleanarch1/internal/domain/entity"
-	"github.com/sokoide/cleanarch1/internal/infra/persistence/sqlite"
 	httpFramework "github.com/sokoide/cleanarch1/internal/framework/http"
 	"github.com/sokoide/cleanarch1/internal/framework/http/handler"
+	"github.com/sokoide/cleanarch1/internal/infra/persistence/sqlite"
 	"github.com/sokoide/cleanarch1/internal/usecase"
 )
 
@@ -68,19 +68,19 @@ func seedBoards(boardRepo *sqlite.BoardRepository) {
 		return
 	}
 
-	defaults := []struct{ slug, name string }{
-		{"program", "プログラマー"},
-		{"news", "ニュース速報"},
-		{"chat", "雑談"},
+	defaults := []struct{ name, description string }{
+		{"programming", "Programming General"},
+		{"news", "News & Current Events"},
+		{"chat", "Casual Chat"},
 	}
 	for _, d := range defaults {
-		b, err := entity.NewBoard(d.slug, d.name)
+		b, err := entity.NewBoard(d.name, d.description)
 		if err != nil {
-			slog.Warn("seed board skipped", "slug", d.slug, "error", err)
+			slog.Warn("seed board skipped", "name", d.name, "error", err)
 			continue
 		}
 		if err := boardRepo.Save(context.Background(), b); err != nil {
-			slog.Warn("seed board save failed", "slug", d.slug, "error", err)
+			slog.Warn("seed board save failed", "name", d.name, "error", err)
 		}
 	}
 	slog.Info("seeded default boards")

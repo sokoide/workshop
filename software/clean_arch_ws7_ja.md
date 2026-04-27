@@ -146,13 +146,13 @@ func NewRouter(
 
     // 認証なし（GET — 既存動作を維持）
     mux.HandleFunc("GET /api/boards", boardHandler.ListBoards)
-    mux.HandleFunc("GET /api/boards/{slug}/threads", threadHandler.ListThreads)
+    mux.HandleFunc("GET /api/boards/{name}/threads", threadHandler.ListThreads)
     mux.HandleFunc("GET /api/threads/{threadID}/posts", postHandler.ListPosts)
 
     // 認証あり（POST — ミドルウェアを適用）
     // auth() は http.Handler を返すため mux.Handle を使用
     auth := middleware.Auth(secret)
-    mux.Handle("POST /api/boards/{slug}/threads", auth(http.HandlerFunc(threadHandler.CreateThread)))
+    mux.Handle("POST /api/boards/{name}/threads", auth(http.HandlerFunc(threadHandler.CreateThread)))
     mux.Handle("POST /api/threads/{threadID}/posts", auth(http.HandlerFunc(postHandler.CreatePost)))
 
     // ロギングミドルウェアは全体に適用
@@ -296,10 +296,10 @@ UseCase、Domain、Infra は **一切変更不要** です。
 
 ```go
 // 認証なし版
-mux.HandleFunc("POST /api/boards/{slug}/threads", threadHandler.CreateThread)
+mux.HandleFunc("POST /api/boards/{name}/threads", threadHandler.CreateThread)
 
 // 認証あり版（本番用）
-mux.Handle("POST /api/boards/{slug}/threads", auth(http.HandlerFunc(threadHandler.CreateThread)))
+mux.Handle("POST /api/boards/{name}/threads", auth(http.HandlerFunc(threadHandler.CreateThread)))
 ```
 
 同じ UseCase・同じ Handler を使い回せます。
