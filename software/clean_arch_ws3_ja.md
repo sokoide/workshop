@@ -136,6 +136,138 @@ func (t *Thread) Bump(postedAt time.Time, sage bool) {
 
 ---
 
+## BBS プロジェクトの構造と依存関係
+
+### Domain Interface（Port）の一覧
+
+Clean Architecture の中核となる「抽象」がここにあります。
+
+| ファイル | Interface | 役割 |
+| :--- | :--- | :--- |
+| `internal/domain/port/repository.go` | `BoardRepository` | 掲示板の永続化 |
+| | `ThreadRepository` | スレッドの永続化 |
+| | `PostRepository` | 投稿の永続化 |
+| `internal/domain/port/transaction.go` | `TransactionManager` | トランザクション境界の制御 |
+
+```go
+// internal/domain/port/repository.go
+type BoardRepository interface {
+    FindAll(ctx context.Context) ([]*entity.Board, error)
+    FindByName(ctx context.Context, name string) (*entity.Board, error)
+    Save(ctx context.Context, board *entity.Board) error
+}
+```
+
+### 完全な依存関係図
+
+```text
+                   ┌─────────────────────────────────────────┐
+                   │  cmd/bbs/main.go (Composition Root)    │
+                   │  ─────────────────────────────────────  │
+                   │  func main() {                         │
+                   │      // 1. Infra を構築                  │
+                   │      boardRepo := sqlite.NewBoardRepo() │
+                   │      // 2. UseCase を構築                │
+                   │      listThreads := usecase.New(...)    │
+                   │         └── boardRepo を注入             │
+                   │      // 3. Framework を構築              │
+                   │      handler := NewHandler(listThreads)  │
+                   │         └── listThreads を注入           │
+                   │      // 4. サーバー起動                  │
+                   │      http.Serve(router)                 │
+                   │  }                                      │
+                   └─────────────────────────────────────────┘
+                              │
+                 ┌────────────┼────────────┐
+                 │            │            │
+                 ↓            ↓            ↓
+        ┌────────────┐  ┌────────────┐  ┌────────────┐
+        │   Infra    │  │  UseCase    │  │ Framework  │
+        │  Adapter   │  │   Layer     │  │   Layer    │
+        └──────┬─────┘  └──────┬─────┘  └──────┬─────┘
+               │               │               │
+               │               │               │
+┌──────────────┴──────────────────────────────┴─────────────────────────┐
+│                         INTERNAL/DOMAIN                             │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  internal/domain/entity/board.go, thread.go, post.go        │  │
+│  │  ─────────────────────────────────────────────────────────   │  │
+│  │  type Board struct { ID, Name, Description, CreatedAt }      │  │
+│  │  type Thread struct { ... }                                   │  │
+│  │  type Post struct { ... }                                     │  │
+│  │                                                             │  │
+│  │  // Domain Logic の例                                         │  │
+│  │  func (t *Thread) Bump(postedAt time.Time, sage bool) {      │  │
+│  │      t.PostCount++                                           │  │
+│  │      if !sage { t.LastPostedAt = postedAt }                 │  │
+│  │  }                                                          │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  internal/domain/port/repository.go  ← Domain Interface     │  │
+│  │  type BoardRepository interface { ... }                      │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+               ↑ implements
+┌──────────────┴─────────────┐
+│  internal/infra/persistence/ │
+│  sqlite/board_repo.go       │  ← Infra Adapter（具象実装）
+│  func (r *BoardRepository)  │     (Domain Interface を実装)
+│  FindByName(...) {           │
+│      SELECT ... WHERE name = ?│
+│  }                           │
+└──────────────────────────────┘
+```
+
+### 各レイヤーの依存方向
+
+```text
+           ┌─────────────┐
+           │  Framework  │  ← 最外側（HTTP/gRPC/CLI）
+           └──────┬──────┘
+                  │ depends on
+                  ↓
+           ┌─────────────┐
+           │   UseCase   │  ← アプリケーションロジック
+           └──────┬──────┘
+                  │ depends on
+                  ↓
+           ┌────────────────────────────────────┐
+           │         Domain Layer               │
+           │  Entity + Port Interface (抽象)    │  ← 最内側
+           └────────────────────────────────────┘
+                  ↑ implements
+           ┌─────────────┐
+           │   Infra     │  ← 最外側（DB/外部API）
+           │   Adapter   │     (Domain Interface を実装)
+           └─────────────┘
+```
+
+### キーポイント
+
+1. **UseCase は具象実装を知らない**: `sqlite.BoardRepository` ではなく `port.BoardRepository`（Interface）に依存
+2. **Infra は Domain Interface を実装する**: `internal/infra/persistence/sqlite/` が `internal/domain/port/` の Interface を実装
+3. **Framework と Infra は直接関係しない**: どちらも「最外側」だが、UseCase を介して間接的に繋がる
+4. **Composition Root（main.go）だけが全体を知っている**: どの Infra 実装を使うか、どの Framework を使うかをここで決定
+
+```go
+// UseCase は Interface に依存（具象を知らない）
+type ListThreadsUseCase struct {
+    boardRepo port.BoardRepository  // ← sqlite.* ではなく port.*
+}
+
+// Infra は Interface を実装
+type BoardRepository struct {
+    db *sql.DB
+}
+
+func (r *BoardRepository) FindByName(...) {  // ← Interface を実装
+    // SQLite 固有の SQL
+}
+```
+
+---
+
 ## 前提知識
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
