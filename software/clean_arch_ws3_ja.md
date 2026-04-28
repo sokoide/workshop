@@ -243,6 +243,53 @@ type BoardRepository interface {
            └─────────────┘
 ```
 
+### エラー境界の流れ
+
+Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換されます。
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ Infra Adapter Layer                                                │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ func (r *ThreadRepo) FindByID(...) {                         │  │
+│  │     err := db.QueryRow(...)                                  │  │
+│  │     if errors.Is(err, sql.ErrNoRows) {                       │  │
+│  │         return nil, domain.ErrThreadNotFound  // ← 変換     │  │
+│  │     }                                                        │  │
+│  │ }                                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │ returns domain error
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ UseCase Layer                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ func (u *CreatePostUseCase) Execute(...) {                  │  │
+│  │     thread, err := u.threadRepo.FindByID(...)               │  │
+│  │     // err は domain.ErrThreadNotFound などのドメインエラー  │  │
+│  │     return nil, err  // ← そのまま上位へ                    │  │
+│  │ }                                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │ returns domain error
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ Framework Layer (HTTP)                                              │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ if errors.Is(err, domain.ErrThreadNotFound) {                │  │
+│  │     writeError(w, http.StatusNotFound, err.Error())  // ← 変換│  │
+│  │ }                                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**重要なポイント**:
+- **Infra Adapter**: ドライバエラー（`sql.ErrNoRows`）をドメインエラー（`domain.ErrThreadNotFound`）に変換
+- **UseCase**: ドメインエラーをそのまま上位へ（技術詳細を知らない）
+- **Framework**: ドメインエラーをトランスポートエラー（HTTP 404, gRPC NotFound）に変換
+
+このように各レイヤーがエラー変換の責務を持つことで、上位のレイヤーは下位の技術詳細を知る必要がなくなります。
+
 ### キーポイント
 
 1. **UseCase は具象実装を知らない**: `sqlite.BoardRepository` ではなく `port.BoardRepository`（Interface）に依存
@@ -296,7 +343,7 @@ Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domai
 | ---- | ------ |
 | **Domain** | Entity（Board, Thread, Post）、Port Interface は通信プロトコルに依存しないため |
 | **UseCase** | `Execute(ctx, Input) (Output, error)` のシグネチャが不変。DTO もプロトコル非依存 |
-| **Infra** | Repository 実装（SQLクエリ）は通信方式と無関係 |
+| **Infra** | Repository 実装（SQLクエリ、エラー変換）は通信方式と無関係 |
 
 ### Step 1: 現在の HTTP Handler を確認する
 
@@ -405,7 +452,8 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
         return nil, status.Errorf(codes.NotFound, err.Error())
     }
     if err != nil {
-        return nil, status.Errorf(codes.Internal, err.Error())
+        // ドメインエラーでない未知のエラーは、詳細を隠蔽して Internal Server Error に
+        return nil, status.Errorf(codes.Internal, "internal server error")
     }
 
     return &pb.CreateThreadResponse{Thread: toProtoThread(out.Thread)}, nil

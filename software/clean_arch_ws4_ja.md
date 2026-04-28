@@ -174,6 +174,36 @@ func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
 }
 ```
 
+**3-4. ドライバエラーのドメインエラーへの変換**
+
+Infra Adapter は、データベースドライバからのエラーをドメインエラーに変換する**責務を持ちます**。これにより、UseCase 層はデータベースの詳細を知らなくて済みます。
+
+```go
+// infra/persistence/thread_repo.go
+import (
+    "database/sql"
+    "errors"
+    "yourproject/domain"
+)
+
+func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thread, error) {
+    var m ThreadModel
+    err := r.db.QueryRowContext(ctx, "SELECT ... FROM threads WHERE id = ?", id).Scan(
+        &m.ID, &m.BoardID, &m.Title, &m.PostCount, &m.OwnerOnly, &m.Owner, /* ... */,
+    )
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            // ドライバエラーをドメインエラーに変換
+            return nil, domain.ErrThreadNotFound
+        }
+        return nil, err
+    }
+    return r.toEntity(&m), nil
+}
+```
+
+**確認ポイント**: `sql.ErrNoRows` という技術的なエラーが、UseCase 層へ渡る前に `domain.ErrThreadNotFound` というドメインの概念に変換されています。UseCase は「SQL の結果が空だった」ことを知る必要がありません。
+
 ### Step 4: Framework 層 — 表示の追従
 
 エラーハンドリングに 1 case を追加します。

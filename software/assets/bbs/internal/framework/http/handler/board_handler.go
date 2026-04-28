@@ -17,7 +17,7 @@ func NewBoardHandler(listBoards *usecase.ListBoardsUseCase) *BoardHandler {
 func (h *BoardHandler) ListBoards(w http.ResponseWriter, r *http.Request) {
 	out, err := h.listBoards.Execute(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, out)

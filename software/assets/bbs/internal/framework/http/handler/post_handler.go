@@ -28,7 +28,7 @@ func (h *PostHandler) ListPosts(w http.ResponseWriter, r *http.Request) {
 
 	out, err := h.listPosts.Execute(r.Context(), usecase.ListPostsInput{ThreadID: threadID})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -66,7 +66,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, domain.ErrEmptyBody):
 			writeError(w, http.StatusBadRequest, err.Error())
 		default:
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, http.StatusInternalServerError, "internal server error")
 		}
 		return
 	}

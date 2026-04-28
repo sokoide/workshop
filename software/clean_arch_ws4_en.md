@@ -167,6 +167,36 @@ func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
 }
 ```
 
+**3-4. Convert driver errors to domain errors**
+
+Infra Adapter has the **responsibility of converting driver errors to domain errors**. This ensures the UseCase layer remains unaware of database details.
+
+```go
+// infra/persistence/sqlite/thread_repo.go
+import (
+    "database/sql"
+    "errors"
+    "yourproject/domain"
+)
+
+func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thread, error) {
+    var m ThreadModel
+    err := r.db.QueryRowContext(ctx, "SELECT ... FROM threads WHERE id = ?", id).Scan(
+        &m.ID, &m.BoardID, &m.Title, &m.OwnerOnly, &m.Owner, /* ... */,
+    )
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            // Convert driver error to domain error
+            return nil, domain.ErrThreadNotFound
+        }
+        return nil, err
+    }
+    return r.toEntity(&m), nil
+}
+```
+
+**Key observation**: The technical error `sql.ErrNoRows` is converted to the domain concept `domain.ErrThreadNotFound` before reaching the UseCase layer. The UseCase doesn't need to know "SQL returned no rows" — it only needs to know "thread not found."
+
 ### Step 4: Framework Layer — Display the Change
 
 Add one case to the error handling in `PostHandler`, and add the `owner_only` field to the thread creation request DTO.

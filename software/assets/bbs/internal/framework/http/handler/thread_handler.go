@@ -31,7 +31,7 @@ func (h *ThreadHandler) ListThreads(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -69,7 +69,7 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, domain.ErrEmptyTitle), errors.Is(err, domain.ErrEmptyBody):
 			writeError(w, http.StatusBadRequest, err.Error())
 		default:
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, http.StatusInternalServerError, "internal server error")
 		}
 		return
 	}

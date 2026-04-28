@@ -211,6 +211,52 @@ UseCase, Domain, and Framework require **zero changes**.
 
 ---
 
+## Handling Non-Notification Scenarios
+
+For testing or CLI versions where notifications are not needed, inject a NoOp (no-operation) implementation.
+
+```go
+// infra/notification/noop_gateway.go
+type NoOpGateway struct{}
+
+func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
+    return nil  // Does nothing
+}
+```
+
+```go
+// cmd/bbs/main.go — for scenarios where notification is not needed
+notifier := notification.NewNoOpGateway()
+createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
+```
+
+---
+
+## Testing Benefits
+
+```go
+// infra/notification/email_gateway.go (new file)
+type EmailGateway struct {
+    smtpHost string
+    from     string
+    to       string
+}
+
+func (g *EmailGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
+    // Send email via SMTP
+    return nil
+}
+```
+
+```go
+// cmd/bbs/main.go — swap (one line)
+notifier := notification.NewEmailGateway("smtp.example.com:587", "bbs@example.com", "admin@example.com")
+```
+
+UseCase, Domain, and Framework require **zero changes**.
+
+---
+
 ## Testing Benefits
 
 By mocking the notification, UseCase tests can verify behavior without sending actual Slack messages.

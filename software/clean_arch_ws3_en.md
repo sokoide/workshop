@@ -245,6 +245,53 @@ type BoardRepository interface {
            └─────────────┘
 ```
 
+### Error Boundary Flow
+
+In Clean Architecture, errors are also transformed as they cross layer boundaries.
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ Infra Adapter Layer                                                │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ func (r *ThreadRepo) FindByID(...) {                         │  │
+│  │     err := db.QueryRow(...)                                  │  │
+│  │     if errors.Is(err, sql.ErrNoRows) {                       │  │
+│  │         return nil, domain.ErrThreadNotFound  // ← Convert  │  │
+│  │     }                                                        │  │
+│  │ }                                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │ returns domain error
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ UseCase Layer                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ func (u *CreatePostUseCase) Execute(...) {                  │  │
+│  │     thread, err := u.threadRepo.FindByID(...)               │  │
+│  │     // err is domain.ErrThreadNotFound or other domain errs  │  │
+│  │     return nil, err  // ← Propagate as-is                   │  │
+│  │ }                                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │ returns domain error
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ Framework Layer (HTTP)                                              │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │ if errors.Is(err, domain.ErrThreadNotFound) {                │  │
+│  │     writeError(w, http.StatusNotFound, err.Error())  // ← Convert │  │
+│  │ }                                                            │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key points**:
+- **Infra Adapter**: Converts driver errors (e.g., `sql.ErrNoRows`) to domain errors (e.g., `domain.ErrThreadNotFound`)
+- **UseCase**: Propagates domain errors as-is (unaware of technical details)
+- **Framework**: Converts domain errors to transport errors (HTTP 404, gRPC NotFound)
+
+With each layer handling error conversion, upper layers don't need to know about lower-level technical details.
+
 ### Key Points
 
 1. **UseCase doesn't know concrete implementations**: Depends on `port.BoardRepository` (Interface), not `sqlite.BoardRepository` (concrete type)
@@ -298,7 +345,7 @@ The following layers require **zero modifications**:
 | ------- | -------- |
 | **Domain** | Entities (Board, Thread, Post), Port Interfaces do not depend on any communication protocol |
 | **UseCase** | `Execute(ctx, Input) (Output, error)` signature is unchanged. DTOs are protocol-agnostic |
-| **Infra** | Repository implementations (SQL queries) are unrelated to communication methods |
+| **Infra** | Repository implementations (SQL queries, error conversion) are unrelated to communication methods |
 
 ### Step 1: Review the Current HTTP Handler
 
@@ -393,7 +440,8 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
         return nil, status.Errorf(codes.NotFound, err.Error())
     }
     if err != nil {
-        return nil, status.Errorf(codes.Internal, err.Error())
+        // For non-domain errors, hide details and return generic message
+        return nil, status.Errorf(codes.Internal, "internal server error")
     }
 
     return &pb.CreateThreadResponse{Thread: toProtoThread(out)}, nil

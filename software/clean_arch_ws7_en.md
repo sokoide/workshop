@@ -184,6 +184,63 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
 
 ---
 
+## Using Authenticated Users in UseCase
+
+In practice, you often need the authenticated user ID in business logic. For example, WS4's "only thread owner can post" rule requires knowing who is posting.
+
+### Handler Side: Extract Claims from Context and Pass to Input DTO
+
+```go
+// internal/framework/http/handler/post_handler.go
+func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
+    // Extract authenticated user from Context
+    claims := middleware.GetClaims(r.Context())
+    if claims == nil {
+        writeError(w, http.StatusUnauthorized, "authentication required")
+        return
+    }
+
+    // Pass UserID to Input DTO (UseCase is unaware of HTTP or JWT)
+    out, err := h.createPost.Execute(r.Context(), usecase.CreatePostInput{
+        ThreadID: threadID,
+        Author:   claims.UserID,  // JWT sub field → used in business logic
+        Body:     req.Body,
+        Sage:     req.Sage,
+    })
+    // ...
+}
+```
+
+Add the helper function to the middleware:
+
+```go
+// framework/middleware/auth.go — add this function
+func GetClaims(ctx context.Context) *Claims {
+    if c, ok := ctx.Value(contextKey{}).(*Claims); ok {
+        return c
+    }
+    return nil
+}
+```
+
+### UseCase Side: Unaware of Authentication
+
+```go
+// usecase/post_usecase.go — unchanged
+func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
+    // Doesn't know where in.Author came from.
+    // Whether it came from JWT, test, or CLI is none of its business.
+    if !thread.CanPost(in.Author) {
+        return nil, domain.ErrNotThreadOwner
+    }
+    // ...
+}
+```
+
+This way, **authentication info conversion (JWT Claims → Input DTO) is the Handler's (Framework layer) responsibility**, and UseCase simply receives it as a string.
+
+---
+
 ## Resilient to Auth Method Changes
 
 Switching from JWT → API Key → OAuth requires only swapping the middleware.
