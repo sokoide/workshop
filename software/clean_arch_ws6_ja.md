@@ -75,18 +75,45 @@ func NewCreatePostUseCase(
 }
 
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
-    // ...既存の投稿ロジック（変更なし）
-
-    var out *CreatePostOutput
+    var (
+        out    *CreatePostOutput
+        thread *entity.Thread
+        post   *entity.Post
+    )
+    // ──────────────────────────────────────────────
+    // トランザクション境界: DB操作はすべて内部で実行
+    // ──────────────────────────────────────────────
     if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
-        // ...既存の保存処理（変更なし）
+        var err error
+        thread, err = u.threadRepo.FindByID(txCtx, in.ThreadID)
+        if err != nil {
+            return err
+        }
+        count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)
+        if err != nil {
+            return err
+        }
+        post, err = entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
+        if err != nil {
+            return err
+        }
+        if err := u.postRepo.Save(txCtx, post); err != nil {
+            return err
+        }
+        thread.Bump(post.CreatedAt, in.Sage)
+        if err := u.threadRepo.Save(txCtx, thread); err != nil {
+            return err
+        }
         out = &CreatePostOutput{Post: toPostDTO(post)}
         return nil
     }); err != nil {
         return nil, err
     }
 
-    // ↓ トランザクション外で実行（通知失敗で投稿を巻き戻さない）
+    // ──────────────────────────────────────────────
+    // トランザクション外: 通知
+    // 通知失敗で投稿を巻き戻さない設計判断
+    // ──────────────────────────────────────────────
     if err := u.notifier.NotifyNewPost(ctx, thread.Title, post.Author, post.Body); err != nil {
         slog.Warn("notification failed", "error", err)  // ログだけ出す、投稿は成功させる
     }

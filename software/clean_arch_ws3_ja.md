@@ -457,7 +457,10 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
         return nil, status.Errorf(codes.Internal, "internal server error")
     }
 
-    return &pb.CreateThreadResponse{Thread: toProtoThread(out.Thread)}, nil
+    return &pb.CreateThreadResponse{
+        Thread: toProtoThread(out.Thread),
+        Post:   toProtoPost(out.Post),
+    }, nil
 }
 ```
 

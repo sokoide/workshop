@@ -75,18 +75,45 @@ func NewCreatePostUseCase(
 }
 
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
-    // ...existing post logic (unchanged)
-
-    var out *CreatePostOutput
+    var (
+        out     *CreatePostOutput
+        thread  *entity.Thread
+        post    *entity.Post
+    )
+    // ──────────────────────────────────────────────
+    // Transaction boundary: all DB operations inside
+    // ──────────────────────────────────────────────
     if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
-        // ...existing save logic (unchanged)
+        var err error
+        thread, err = u.threadRepo.FindByID(txCtx, in.ThreadID)
+        if err != nil {
+            return err
+        }
+        count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)
+        if err != nil {
+            return err
+        }
+        post, err = entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
+        if err != nil {
+            return err
+        }
+        if err := u.postRepo.Save(txCtx, post); err != nil {
+            return err
+        }
+        thread.Bump(post.CreatedAt, in.Sage)
+        if err := u.threadRepo.Save(txCtx, thread); err != nil {
+            return err
+        }
         out = &CreatePostOutput{Post: toPostDTO(post)}
         return nil
     }); err != nil {
         return nil, err
     }
 
-    // ↓ Outside transaction — notification failure should not roll back the post
+    // ──────────────────────────────────────────────
+    // Outside transaction: notification
+    // Notification failure must NOT roll back the post
+    // ──────────────────────────────────────────────
     if err := u.notifier.NotifyNewPost(ctx, thread.Title, post.Author, post.Body); err != nil {
         slog.Warn("notification failed", "error", err)  // Log only, post still succeeds
     }

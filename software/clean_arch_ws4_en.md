@@ -22,7 +22,7 @@ Business rule additions propagate from inside to outside, but each layer's chang
 | Layer | Change | Role |
 | ------- | -------- | ------ |
 | **Domain** | Add `Thread.OwnerOnly` flag, `CanPost()` method, `ErrNotThreadOwner` error | Define the rule |
-| **UseCase** | Add one line: `thread.CanPost(in.Author)` call | Apply the rule |
+| **UseCase** | Add `thread.CanPost(in.Author)` call, set `thread.Owner = in.Author` on thread creation | Apply the rule, persist owner |
 | **Infra** | Add `owner_only` and `owner` columns to `threads` table, update read/write | Persist the change |
 | **Framework** | Add one case: `ErrNotThreadOwner → 403 Forbidden` | Display the change |
 
@@ -132,7 +132,7 @@ type TransactionManager interface {
 }
 ```
 
-In post creation, "Post save" and "Thread update (Bump)" must be atomic. To prevent a state where one succeeds and the other fails, the UseCase controls the transaction boundary.
+In post creation, the entire sequence — fetch thread, check permission, count existing posts, assign post number, save the post, and bump (update) the thread — must execute atomically. If any step fails, all changes must roll back. The UseCase controls this transaction boundary to prevent partial states (e.g., post saved but thread not bumped).
 
 **Key observation**: Transactions are not "technical details" but "application policies." The UseCase decides "this operation set should be atomic," and the Infra Adapter provides the concrete implementation (`BEGIN`/`COMMIT`/`ROLLBACK`).
 
@@ -304,7 +304,7 @@ func (t *Thread) CanPost(author string) bool {
 }
 ```
 
-UseCase, Infra, and Framework require **zero changes**. Callers don't know the internals of `CanPost()`, so they're unaffected.
+If invited users are managed within the `Thread` entity (e.g., an `InvitedUsers` field), only Domain changes are needed — UseCase, Infra, and Framework require **zero changes**. If invited users require a new data source (e.g., a separate table or external service), Infra and potentially UseCase would also need updates.
 
 ---
 
