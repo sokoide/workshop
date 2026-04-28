@@ -338,6 +338,6 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
     - Domain は「ルールとは何か」を知っている（`CanPost` の中身）
     - UseCase は「いつルールを適用するか」を知っている（呼び出しタイミング）
     - Framework は「ルール違反をどう表示するか」を知っている（403 Forbidden）
-    - Infra は「ルールに必要なデータをどう保存するか」を知っている（owner_only 列）
+    - Infra は「ルールに必要なデータをどう保存するか」を知っている（owner_only / owner 列）
 2. **内→外への波及**: ビジネスルールの変更は Domain から始まり、外側に波及するが、各層の変更は自身の責務に限定される。
 3. **変更の最小化**: 新しい要件「招待者も OK」が追加されても、招待ユーザーを Thread エンティティ内で管理すれば `CanPost()` の中身だけを変えれば済む。別データソースが必要な場合は Infra 層の変更も発生する。

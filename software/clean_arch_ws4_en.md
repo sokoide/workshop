@@ -340,6 +340,6 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
     - Domain knows "what the rule is" (`CanPost` implementation)
     - UseCase knows "when to apply the rule" (call timing)
     - Framework knows "how to display rule violations" (403 Forbidden)
-    - Infra knows "how to persist rule data" (owner_only column)
+    - Infra knows "how to persist rule data" (owner_only + owner columns)
 2. **Inside→Outside Propagation**: Business rule changes start in Domain and propagate outward, but each layer's changes are limited to its own responsibility.
 3. **Minimal Changes**: Adding "invited users also OK" only requires changing `CanPost()` internals, provided invited users are managed within the Thread entity.

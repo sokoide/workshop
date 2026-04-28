@@ -89,6 +89,9 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
         if err != nil {
             return err
         }
+        if thread == nil {
+            return domain.ErrThreadNotFound
+        }
         count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)
         if err != nil {
             return err
