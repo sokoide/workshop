@@ -23,7 +23,7 @@
 | ---- | --------- | ------ |
 | **Domain** | `Thread.OwnerOnly` フラグ追加、`CanPost()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
 | **UseCase** | `thread.CanPost(in.Author)` の呼び出しを1行追加、スレッド作成時に `Owner` を設定 | ルールの適用 |
-| **Infra** | `threads` テーブルに `owner_only` 列を追加、読み書きを対応 | 永続化の追従 |
+| **Infra** | `threads` テーブルに `owner_only` 列と `owner` 列を追加、読み書きを対応 | 永続化の追従 |
 | **Framework** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加、`createThreadRequest` に `owner_only` フィールドを追加 | 表示と入力の追従 |
 
 ### Step 1: Domain 層 — ルールの定義
@@ -223,7 +223,7 @@ import (
 
 func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thread, error) {
     var m ThreadModel
-    err := r.db.QueryRowContext(ctx, "SELECT ... FROM threads WHERE id = ?", id).Scan(
+    err := executor(ctx, r.db).QueryRowContext(ctx, "SELECT ... FROM threads WHERE id = ?", id).Scan(
         &m.ID, &m.BoardID, &m.Title, &m.PostCount, &m.OwnerOnly, &m.Owner, /* ... */,
     )
     if err != nil {
@@ -340,4 +340,4 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
     - Framework は「ルール違反をどう表示するか」を知っている（403 Forbidden）
     - Infra は「ルールに必要なデータをどう保存するか」を知っている（owner_only 列）
 2. **内→外への波及**: ビジネスルールの変更は Domain から始まり、外側に波及するが、各層の変更は自身の責務に限定される。
-3. **変更の最小化**: 新しい要件「招待者も OK」が追加されても、`CanPost()` の中身だけを変えれば済む。
+3. **変更の最小化**: 新しい要件「招待者も OK」が追加されても、招待ユーザーを Thread エンティティ内で管理すれば `CanPost()` の中身だけを変えれば済む。別データソースが必要な場合は Infra 層の変更も発生する。

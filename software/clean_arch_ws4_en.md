@@ -223,7 +223,7 @@ import (
 
 func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thread, error) {
     var m ThreadModel
-    err := r.db.QueryRowContext(ctx, "SELECT ... FROM threads WHERE id = ?", id).Scan(
+    err := executor(ctx, r.db).QueryRowContext(ctx, "SELECT ... FROM threads WHERE id = ?", id).Scan(
         &m.ID, &m.BoardID, &m.Title, &m.OwnerOnly, &m.Owner, /* ... */,
     )
     if err != nil {
@@ -342,4 +342,4 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
     - Framework knows "how to display rule violations" (403 Forbidden)
     - Infra knows "how to persist rule data" (owner_only column)
 2. **Inside→Outside Propagation**: Business rule changes start in Domain and propagate outward, but each layer's changes are limited to its own responsibility.
-3. **Minimal Changes**: Adding "invited users also OK" only requires changing `CanPost()` internals.
+3. **Minimal Changes**: Adding "invited users also OK" only requires changing `CanPost()` internals, provided invited users are managed within the Thread entity.
