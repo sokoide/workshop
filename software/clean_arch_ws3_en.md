@@ -164,18 +164,18 @@ type BoardRepository interface {
 
 ```text
                    ┌─────────────────────────────────────────┐
-                   │  cmd/bbs/main.go (Composition Root)    │
+                   │  cmd/bbs/main.go (Composition Root)     │
                    │  ─────────────────────────────────────  │
-                   │  func main() {                         │
-                   │      // 1. Build Infra                 │
+                   │  func main() {                          │
+                   │      // 1. Build Infra                  │
                    │      boardRepo := sqlite.NewBoardRepo() │
-                   │      // 2. Build UseCase               │
+                   │      // 2. Build UseCase                │
                    │      listThreads := usecase.New(...)    │
                    │         └── inject boardRepo            │
-                   │      // 3. Build Framework             │
-                   │      handler := NewHandler(listThreads)  │
+                   │      // 3. Build Framework              │
+                   │      handler := NewHandler(listThreads) │
                    │         └── inject listThreads          │
-                   │      // 4. Start server                │
+                   │      // 4. Start server                 │
                    │      http.Serve(router)                 │
                    │  }                                      │
                    └─────────────────────────────────────────┘
@@ -184,39 +184,39 @@ type BoardRepository interface {
                  │            │            │
                  ↓            ↓            ↓
         ┌────────────┐  ┌────────────┐  ┌────────────┐
-        │   Infra    │  │  UseCase    │  │ Framework  │
-        │  Adapter   │  │   Layer     │  │   Layer    │
+        │   Infra    │  │  UseCas    │  │ Framework  │
+        │  Adapter   │  │   Layer    │  │   Layer    │
         └──────┬─────┘  └──────┬─────┘  └──────┬─────┘
                │               │               │
                │               │               │
-┌──────────────┴──────────────────────────────┴─────────────────────────┐
-│                         INTERNAL/DOMAIN                             │
+┌──────────────┴───────────────┴───────────────┴─────────────────────┐
+│                         INTERNAL/DOMAIN                            │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/domain/entity/board.go, thread.go, post.go        │  │
+│  │  internal/domain/entity/board.go, thread.go, post.go         │  │
 │  │  ─────────────────────────────────────────────────────────   │  │
 │  │  type Board struct { ID, Name, Description, CreatedAt }      │  │
-│  │  type Thread struct { ... }                                   │  │
-│  │  type Post struct { ... }                                     │  │
-│  │                                                             │  │
+│  │  type Thread struct { ... }                                  │  │
+│  │  type Post struct { ... }                                    │  │
+│  │                                                              │  │
 │  │  // Domain Logic example                                     │  │
 │  │  func (t *Thread) Bump(postedAt time.Time, sage bool) {      │  │
 │  │      t.PostCount++                                           │  │
-│  │      if !sage { t.LastPostedAt = postedAt }                 │  │
-│  │  }                                                          │  │
+│  │      if !sage { t.LastPostedAt = postedAt }                  │  │
+│  │  }                                                           │  │
 │  └──────────────────────────────────────────────────────────────┘  │
-│                                                                     │
+│                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/domain/port/repository.go  ← Domain Interface     │  │
+│  │  internal/domain/port/repository.go  ← Domain Interface      │  │
 │  │  type BoardRepository interface { ... }                      │  │
 │  └──────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────────┘
                ↑ implements
-┌──────────────┴─────────────┐
+┌──────────────┴───────────────┐
 │  internal/infra/persistence/ │
-│  sqlite/board_repo.go       │  ← Infra Adapter (concrete impl)
-│  func (r *BoardRepository)  │     (implements Domain Interface)
+│  sqlite/board_repo.go        │  ← Infra Adapter (concrete impl)
+│  func (r *BoardRepository)   │     (implements Domain Interface)
 │  FindByName(...) {           │
-│      SELECT ... WHERE name = ?│
+│     SELECT ... WHERE name = ?│
 │  }                           │
 └──────────────────────────────┘
 ```
@@ -234,10 +234,10 @@ type BoardRepository interface {
            └──────┬──────┘
                   │ depends on
                   ↓
-           ┌────────────────────────────────────┐
-           │         Domain Layer               │
+           ┌─────────────────────────────────────┐
+           │         Domain Layer                │
            │  Entity + Port Interface (abstract) │  ← Innermost
-           └────────────────────────────────────┘
+           └─────────────────────────────────────┘
                   ↑ implements
            ┌─────────────┐
            │   Infra     │  ← Outermost (DB/external APIs)
@@ -325,8 +325,8 @@ You should understand the 4-layer structure:
 
 ```text
 Framework (HTTP/gRPC)  →  UseCase (Application logic)  →  Domain (Business rules)
-                                                         →  Port Interface (abstraction)
-                              ↑                                   ↑
+                                                       →  Port Interface (abstraction)
+                             ↑                                   ↑
                          Infra Adapter (DB) ─────────────────────┘  (DIP: concrete depends on abstract)
 ```
 

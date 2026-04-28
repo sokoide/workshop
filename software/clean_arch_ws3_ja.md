@@ -162,18 +162,18 @@ type BoardRepository interface {
 
 ```text
                    ┌─────────────────────────────────────────┐
-                   │  cmd/bbs/main.go (Composition Root)    │
+                   │  cmd/bbs/main.go (Composition Root)     │
                    │  ─────────────────────────────────────  │
-                   │  func main() {                         │
-                   │      // 1. Infra を構築                  │
+                   │  func main() {                          │
+                   │      // 1. Infra を構築                 │
                    │      boardRepo := sqlite.NewBoardRepo() │
-                   │      // 2. UseCase を構築                │
+                   │      // 2. UseCase を構築               │
                    │      listThreads := usecase.New(...)    │
-                   │         └── boardRepo を注入             │
-                   │      // 3. Framework を構築              │
-                   │      handler := NewHandler(listThreads)  │
-                   │         └── listThreads を注入           │
-                   │      // 4. サーバー起動                  │
+                   │         └── boardRepo を注入            │
+                   │      // 3. Framework を構築             │
+                   │      handler := NewHandler(listThreads) │
+                   │         └── listThreads を注入          │
+                   │      // 4. サーバー起動                 │
                    │      http.Serve(router)                 │
                    │  }                                      │
                    └─────────────────────────────────────────┘
@@ -182,39 +182,39 @@ type BoardRepository interface {
                  │            │            │
                  ↓            ↓            ↓
         ┌────────────┐  ┌────────────┐  ┌────────────┐
-        │   Infra    │  │  UseCase    │  │ Framework  │
-        │  Adapter   │  │   Layer     │  │   Layer    │
+        │   Infra    │  │  UseCase   │  │ Framework  │
+        │  Adapter   │  │   Layer    │  │   Layer    │
         └──────┬─────┘  └──────┬─────┘  └──────┬─────┘
                │               │               │
                │               │               │
-┌──────────────┴──────────────────────────────┴─────────────────────────┐
-│                         INTERNAL/DOMAIN                             │
+┌──────────────┴───────────────┴───────────────┴─────────────────────┐
+│                         INTERNAL/DOMAIN                            │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/domain/entity/board.go, thread.go, post.go        │  │
+│  │  internal/domain/entity/board.go, thread.go, post.go         │  │
 │  │  ─────────────────────────────────────────────────────────   │  │
 │  │  type Board struct { ID, Name, Description, CreatedAt }      │  │
-│  │  type Thread struct { ... }                                   │  │
-│  │  type Post struct { ... }                                     │  │
-│  │                                                             │  │
-│  │  // Domain Logic の例                                         │  │
+│  │  type Thread struct { ... }                                  │  │
+│  │  type Post struct { ... }                                    │  │
+│  │                                                              │  │
+│  │  // Domain Logic の例                                        │  │
 │  │  func (t *Thread) Bump(postedAt time.Time, sage bool) {      │  │
 │  │      t.PostCount++                                           │  │
-│  │      if !sage { t.LastPostedAt = postedAt }                 │  │
-│  │  }                                                          │  │
+│  │      if !sage { t.LastPostedAt = postedAt }                  │  │
+│  │  }                                                           │  │
 │  └──────────────────────────────────────────────────────────────┘  │
-│                                                                     │
+│                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/domain/port/repository.go  ← Domain Interface     │  │
+│  │  internal/domain/port/repository.go  ← Domain Interface      │  │
 │  │  type BoardRepository interface { ... }                      │  │
 │  └──────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────────┘
                ↑ implements
-┌──────────────┴─────────────┐
+┌──────────────┴───────────────┐
 │  internal/infra/persistence/ │
-│  sqlite/board_repo.go       │  ← Infra Adapter（具象実装）
-│  func (r *BoardRepository)  │     (Domain Interface を実装)
+│  sqlite/board_repo.go        │  ← Infra Adapter（具象実装）
+│  func (r *BoardRepository)   │     (Domain Interface を実装)
 │  FindByName(...) {           │
-│      SELECT ... WHERE name = ?│
+│     SELECT ... WHERE name = ?│
 │  }                           │
 └──────────────────────────────┘
 ```
@@ -323,8 +323,8 @@ func (r *BoardRepository) FindByName(...) {  // ← Interface を実装
 
 ```text
 Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domain (ビジネスルール)
-                                                         →  Port Interface (抽象)
-                              ↑                                   ↑
+                                                          →  Port Interface (抽象)
+                             ↑                                   ↑
                          Infra Adapter (DB) ─────────────────────┘  (DIP: 具象が抽象に依存)
 ```
 
