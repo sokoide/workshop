@@ -35,7 +35,10 @@ func (r *ThreadRepository) FindByBoardID(ctx context.Context, boardID int64) ([]
 		}
 		threads = append(threads, m.ToEntity())
 	}
-	return threads, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate threads: %w", err)
+	}
+	return threads, nil
 }
 
 func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thread, error) {

@@ -165,6 +165,35 @@ func (tm *TransactionManager) RunInTransaction(ctx context.Context, fn func(ctx 
 }
 ```
 
+**2-4. How Repositories Participate in Transactions**
+
+The TransactionManager stores `*sql.Tx` in the context via `context.WithValue`. Each repository extracts the transaction from the context using a helper:
+
+```go
+// infra/persistence/postgres/executor.go
+type txKey struct{}
+
+func executor(ctx context.Context, db *sql.DB) DBTX {
+    if tx, ok := ctx.Value(txKey{}).(*sql.Tx); ok {
+        return tx  // Inside transaction → use *sql.Tx
+    }
+    return db      // Outside transaction → use *sql.DB
+}
+```
+
+Repositories call `executor(ctx, db)` instead of using `db` directly:
+
+```go
+func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
+    err := executor(ctx, r.db).QueryRowContext(ctx,  // ← executor, not r.db
+        "SELECT ... WHERE name = $1", name,
+    ).Scan(...)
+    // ...
+}
+```
+
+When `RunInTransaction` wraps `ctx` with `*sql.Tx`, all repository calls within `fn(txCtx)` automatically participate in the same transaction. No repository code changes are needed.
+
 ### Step 3: Swap in Composition Root
 
 **Only a few lines in `cmd/bbs/main.go` change**.

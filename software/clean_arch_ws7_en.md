@@ -31,12 +31,14 @@ The following layers require **zero modifications**:
 Create JWT validation middleware in a new file.
 
 ```go
-// framework/middleware/auth.go (new file)
+// internal/framework/http/middleware/auth.go (new file)
 package middleware
 
 import (
     "context"
+    "encoding/json"
     "errors"
+    "log/slog"
     "net/http"
     "strings"
 
@@ -51,6 +53,14 @@ type Claims struct {
     Role   string `json:"role"`
 }
 
+// GetClaims extracts authenticated user info from context
+func GetClaims(ctx context.Context) *Claims {
+    if c, ok := ctx.Value(contextKey{}).(*Claims); ok {
+        return c
+    }
+    return nil
+}
+
 // Auth returns middleware that validates JWT Bearer Tokens
 func Auth(secret string) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
@@ -58,20 +68,20 @@ func Auth(secret string) func(http.Handler) http.Handler {
             // Extract token from Authorization header
             header := r.Header.Get("Authorization")
             if header == "" {
-                writeError(w, http.StatusUnauthorized, "missing authorization header")
+                writeAuthError(w, http.StatusUnauthorized, "missing authorization header")
                 return
             }
 
             token := strings.TrimPrefix(header, "Bearer ")
             if token == header {
-                writeError(w, http.StatusUnauthorized, "invalid authorization format")
+                writeAuthError(w, http.StatusUnauthorized, "invalid authorization format")
                 return
             }
 
             // Validate JWT
             claims, err := validateToken(token, secret)
             if err != nil {
-                writeError(w, http.StatusUnauthorized, "invalid token")
+                writeAuthError(w, http.StatusUnauthorized, "invalid token")
                 return
             }
 
@@ -93,13 +103,30 @@ func validateToken(tokenString string, secret string) (*Claims, error) {
         return nil, err
     }
 
-    if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-        return &Claims{
-            UserID: claims["sub"].(string),
-            Role:   claims["role"].(string),
-        }, nil
+    claims, ok := token.Claims.(jwt.MapClaims)
+    if !ok || !token.Valid {
+        return nil, errors.New("invalid token claims")
     }
-    return nil, errors.New("invalid token claims")
+
+    sub, ok := claims["sub"].(string)
+    if !ok {
+        return nil, errors.New("invalid token: missing or non-string sub claim")
+    }
+    role, ok := claims["role"].(string)
+    if !ok {
+        return nil, errors.New("invalid token: missing or non-string role claim")
+    }
+
+    return &Claims{UserID: sub, Role: role}, nil
+}
+
+// writeAuthError writes error responses within the auth middleware
+func writeAuthError(w http.ResponseWriter, status int, msg string) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    if err := json.NewEncoder(w).Encode(map[string]string{"error": msg}); err != nil {
+        slog.Error("json encode failed", "error", err)
+    }
 }
 ```
 
@@ -108,7 +135,7 @@ func validateToken(tokenString string, secret string) (*Claims, error) {
 Require authentication only for write (POST) endpoints. Read (GET) remains publicly accessible.
 
 ```go
-// framework/router.go (partial change)
+// internal/framework/http/router.go (partial change)
 func NewRouter(
     boardHandler *handler.BoardHandler,
     threadHandler *handler.ThreadHandler,
@@ -123,9 +150,10 @@ func NewRouter(
     mux.HandleFunc("GET /api/threads/{threadID}/posts", postHandler.ListPosts)
 
     // Auth required (POST — apply middleware)
+    // auth() returns http.Handler, so use mux.Handle with http.HandlerFunc wrapper
     auth := middleware.Auth(secret)
-    mux.HandleFunc("POST /api/boards/{name}/threads", auth(threadHandler.CreateThread))
-    mux.HandleFunc("POST /api/threads/{threadID}/posts", auth(postHandler.CreatePost))
+    mux.Handle("POST /api/boards/{name}/threads", auth(http.HandlerFunc(threadHandler.CreateThread)))
+    mux.Handle("POST /api/threads/{threadID}/posts", auth(http.HandlerFunc(postHandler.CreatePost)))
 
     // Logging middleware applies globally
     return middleware.Logging(mux)
@@ -211,17 +239,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-Add the helper function to the middleware:
-
-```go
-// framework/middleware/auth.go — add this function
-func GetClaims(ctx context.Context) *Claims {
-    if c, ok := ctx.Value(contextKey{}).(*Claims); ok {
-        return c
-    }
-    return nil
-}
-```
+After Step 1, `GetClaims` is already defined in the middleware package.
 
 ### UseCase Side: Unaware of Authentication
 

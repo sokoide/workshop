@@ -170,6 +170,35 @@ func (tm *TransactionManager) RunInTransaction(ctx context.Context, fn func(ctx 
 }
 ```
 
+**2-4. リポジトリがトランザクションに参加する仕組み**
+
+TransactionManager は `context.WithValue` で `*sql.Tx` を context に格納します。各リポジトリはヘルパー関数でトランザクションを取り出します:
+
+```go
+// infra/persistence/postgres/executor.go
+type txKey struct{}
+
+func executor(ctx context.Context, db *sql.DB) DBTX {
+    if tx, ok := ctx.Value(txKey{}).(*sql.Tx); ok {
+        return tx  // トランザクション内 → *sql.Tx を使用
+    }
+    return db      // トランザクション外 → *sql.DB を使用
+}
+```
+
+リポジトリは `r.db` を直接使わず `executor(ctx, r.db)` を呼び出します:
+
+```go
+func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
+    err := executor(ctx, r.db).QueryRowContext(ctx,  // ← r.db ではなく executor
+        "SELECT ... WHERE name = $1", name,
+    ).Scan(...)
+    // ...
+}
+```
+
+`RunInTransaction` が context に `*sql.Tx` を格納すると、`fn(txCtx)` 内の全リポジトリ呼び出しが自動的に同じトランザクションに参加します。リポジトリのコード変更は不要です。
+
 ### Step 3: Composition Root で差し替える
 
 **変更箇所は `cmd/bbs/main.go` の数行だけ**です。

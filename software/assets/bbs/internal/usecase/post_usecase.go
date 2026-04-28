@@ -40,26 +40,26 @@ func NewCreatePostUseCase(threadRepo port.ThreadRepository, postRepo port.PostRe
 }
 
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
-	thread, err := u.threadRepo.FindByID(ctx, in.ThreadID)
-	if err != nil {
-		return nil, err
-	}
-	if thread == nil {
-		return nil, domain.ErrThreadNotFound
-	}
-
-	count, err := u.postRepo.CountByThreadID(ctx, thread.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	post, err := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
-	if err != nil {
-		return nil, err
-	}
-
 	var out *CreatePostOutput
 	if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
+		thread, err := u.threadRepo.FindByID(txCtx, in.ThreadID)
+		if err != nil {
+			return err
+		}
+		if thread == nil {
+			return domain.ErrThreadNotFound
+		}
+
+		count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)
+		if err != nil {
+			return err
+		}
+
+		post, err := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
+		if err != nil {
+			return err
+		}
+
 		if err := u.postRepo.Save(txCtx, post); err != nil {
 			return err
 		}

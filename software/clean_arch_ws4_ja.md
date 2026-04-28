@@ -78,29 +78,27 @@ UseCase は「いつルールを適用するか」を知る層です。投稿処
 ```go
 // usecase/post_usecase.go
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
-    thread, err := u.threadRepo.FindByID(ctx, in.ThreadID)
-    if err != nil {
-        return nil, err
-    }
-
-    // ↓ この1行を追加するだけ
-    if !thread.CanPost(in.Author) {
-        return nil, domain.ErrNotThreadOwner
-    }
-
-    // ...以降のロジックは変更なし
-    count, err := u.postRepo.CountByThreadID(ctx, thread.ID)
-    if err != nil {
-        return nil, err
-    }
-    post, err := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
-    if err != nil {
-        return nil, err
-    }
-
-    // トランザクション内で Post 保存と Thread 更新をアトミックに実行
     var out *CreatePostOutput
     if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
+        thread, err := u.threadRepo.FindByID(txCtx, in.ThreadID)
+        if err != nil {
+            return err
+        }
+
+        // ↓ この1行を追加するだけ
+        if !thread.CanPost(in.Author) {
+            return domain.ErrNotThreadOwner
+        }
+
+        count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)
+        if err != nil {
+            return err
+        }
+        post, err := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
+        if err != nil {
+            return err
+        }
+
         if err := u.postRepo.Save(txCtx, post); err != nil {
             return err
         }
@@ -108,6 +106,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
         if err := u.threadRepo.Save(txCtx, thread); err != nil {
             return err
         }
+
         out = &CreatePostOutput{Post: toPostDTO(post)}
         return nil
     }); err != nil {

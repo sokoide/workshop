@@ -21,6 +21,8 @@ func OpenDB(dsn string) (*sql.DB, error) {
 
 func migrate(db *sql.DB) error {
 	queries := []string{
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_thread_number
+		 ON posts(thread_id, number)`,
 		`CREATE TABLE IF NOT EXISTS boards (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			name        TEXT NOT NULL UNIQUE,

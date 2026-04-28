@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
+	"github.com/sokoide/cleanarch1/internal/domain"
 	"github.com/sokoide/cleanarch1/internal/domain/entity"
 )
 
@@ -36,7 +38,10 @@ func (r *PostRepository) FindByThreadID(ctx context.Context, threadID int64) ([]
 		m.Sage = sage == 1
 		posts = append(posts, m.ToEntity())
 	}
-	return posts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate posts: %w", err)
+	}
+	return posts, nil
 }
 
 func (r *PostRepository) CountByThreadID(ctx context.Context, threadID int64) (int, error) {
@@ -61,6 +66,9 @@ func (r *PostRepository) Save(ctx context.Context, post *entity.Post) error {
 		post.ThreadID, post.Number, post.Author, post.Body, sage, post.CreatedAt,
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return domain.ErrDuplicatePostNumber
+		}
 		return fmt.Errorf("insert post: %w", err)
 	}
 	post.ID, _ = res.LastInsertId()

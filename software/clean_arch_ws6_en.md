@@ -106,10 +106,11 @@ Create a Slack gateway in a new directory.
 package notification
 
 import (
+    "bytes"
     "context"
+    "encoding/json"
     "fmt"
     "net/http"
-    "strings"
 )
 
 type SlackGateway struct {
@@ -125,11 +126,14 @@ func NewSlackGateway(webhookURL string) *SlackGateway {
 }
 
 func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
-    payload := fmt.Sprintf(
-        `{"text":"[%s] %s: %s"}`,
-        threadTitle, author, body,
-    )
-    req, err := http.NewRequestWithContext(ctx, "POST", g.webhookURL, strings.NewReader(payload))
+    payload := map[string]string{
+        "text": fmt.Sprintf("[%s] %s: %s", threadTitle, author, body),
+    }
+    jsonPayload, err := json.Marshal(payload)
+    if err != nil {
+        return fmt.Errorf("marshal slack payload: %w", err)
+    }
+    req, err := http.NewRequestWithContext(ctx, "POST", g.webhookURL, bytes.NewReader(jsonPayload))
     if err != nil {
         return fmt.Errorf("create slack request: %w", err)
     }
@@ -229,31 +233,6 @@ func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, bo
 notifier := notification.NewNoOpGateway()
 createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
 ```
-
----
-
-## Testing Benefits
-
-```go
-// infra/notification/email_gateway.go (new file)
-type EmailGateway struct {
-    smtpHost string
-    from     string
-    to       string
-}
-
-func (g *EmailGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
-    // Send email via SMTP
-    return nil
-}
-```
-
-```go
-// cmd/bbs/main.go — swap (one line)
-notifier := notification.NewEmailGateway("smtp.example.com:587", "bbs@example.com", "admin@example.com")
-```
-
-UseCase, Domain, and Framework require **zero changes**.
 
 ---
 

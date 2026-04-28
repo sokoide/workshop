@@ -106,10 +106,11 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 package notification
 
 import (
+    "bytes"
     "context"
+    "encoding/json"
     "fmt"
     "net/http"
-    "strings"
 )
 
 type SlackGateway struct {
@@ -125,11 +126,14 @@ func NewSlackGateway(webhookURL string) *SlackGateway {
 }
 
 func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
-    payload := fmt.Sprintf(
-        `{"text":"[%s] %s: %s"}`,
-        threadTitle, author, body,
-    )
-    req, err := http.NewRequestWithContext(ctx, "POST", g.webhookURL, strings.NewReader(payload))
+    payload := map[string]string{
+        "text": fmt.Sprintf("[%s] %s: %s", threadTitle, author, body),
+    }
+    jsonPayload, err := json.Marshal(payload)
+    if err != nil {
+        return fmt.Errorf("marshal slack payload: %w", err)
+    }
+    req, err := http.NewRequestWithContext(ctx, "POST", g.webhookURL, bytes.NewReader(jsonPayload))
     if err != nil {
         return fmt.Errorf("create slack request: %w", err)
     }

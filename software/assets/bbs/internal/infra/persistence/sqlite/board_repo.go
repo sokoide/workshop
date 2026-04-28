@@ -32,7 +32,10 @@ func (r *BoardRepository) FindAll(ctx context.Context) ([]*entity.Board, error) 
 		}
 		boards = append(boards, m.ToEntity())
 	}
-	return boards, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate boards: %w", err)
+	}
+	return boards, nil
 }
 
 func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
