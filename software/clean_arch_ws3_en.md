@@ -362,7 +362,7 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
 
     // UseCase call (← protocol-independent)
     out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-        BoardSlug: name, Title: req.Title, Author: req.Author, Body: req.Body,
+        BoardName: name, Title: req.Title, Author: req.Author, Body: req.Body,
     })
 
     // HTTP-specific output conversion
@@ -402,15 +402,26 @@ message CreateThreadRequest {
 
 message CreateThreadResponse {
     Thread thread = 1;
+    Post post = 2;
 }
 
 message Thread {
     int64 id = 1;
-    string title = 2;
-    string author = 3;
-    int32 response_count = 4;
+    int64 board_id = 2;
+    string title = 3;
+    int32 post_count = 4;
     string created_at = 5;
     string last_posted_at = 6;
+}
+
+message Post {
+    int64 id = 1;
+    int64 thread_id = 2;
+    int32 number = 3;
+    string author = 4;
+    string body = 5;
+    bool sage = 6;
+    string created_at = 7;
 }
 ```
 
@@ -422,15 +433,15 @@ Create a gRPC handler in a new file. Confirm that the **UseCase invocation is id
 // framework/grpc/bbs_server.go (new file)
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
-    createThread usecase.CreateThreadUseCase
-    listThreads  usecase.ListThreadsUseCase
+    createThread *usecase.CreateThreadUseCase
+    listThreads  *usecase.ListThreadsUseCase
     // ...
 }
 
 func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadRequest) (*pb.CreateThreadResponse, error) {
     // gRPC-specific input conversion (only this part differs)
     out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
-        BoardSlug: req.BoardSlug,
+        BoardName: req.BoardName,
         Title:     req.Title,
         Author:    req.Author,
         Body:      req.Body,
@@ -445,7 +456,7 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
         return nil, status.Errorf(codes.Internal, "internal server error")
     }
 
-    return &pb.CreateThreadResponse{Thread: toProtoThread(out)}, nil
+    return &pb.CreateThreadResponse{Thread: toProtoThread(out.Thread)}, nil
 }
 ```
 
@@ -454,12 +465,12 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
 ```go
 // HTTP version
 out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-    BoardSlug: name, Title: req.Title, Author: req.Author, Body: req.Body,
+    BoardName: name, Title: req.Title, Author: req.Author, Body: req.Body,
 })
 
 // gRPC version (identical!)
 out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
-    BoardSlug: req.BoardSlug, Title: req.Title, Author: req.Author, Body: req.Body,
+    BoardName: req.BoardName, Title: req.Title, Author: req.Author, Body: req.Body,
 })
 ```
 

@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/sokoide/cleanarch1/internal/domain"
@@ -44,7 +45,7 @@ func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.
 		`SELECT id, name, description, created_at FROM boards WHERE name = ?`, name,
 	).Scan(&m.ID, &m.Name, &m.Description, &m.CreatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrBoardNotFound
 		}
 		return nil, fmt.Errorf("query board by name: %w", err)
@@ -61,7 +62,11 @@ func (r *BoardRepository) Save(ctx context.Context, board *entity.Board) error {
 		if err != nil {
 			return fmt.Errorf("insert board: %w", err)
 		}
-		board.ID, _ = res.LastInsertId()
+		id, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("get last insert id: %w", err)
+		}
+		board.ID = id
 		return nil
 	}
 	_, err := executor(ctx, r.db).ExecContext(ctx,

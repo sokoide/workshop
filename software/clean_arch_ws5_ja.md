@@ -1,7 +1,7 @@
 # クリーンアーキテクチャ実習 (WS5): 永続化層の差し替え
 
 この実習では、BBS（2 ちゃんねる風掲示板）のデータベースを SQLite から PostgreSQL に移行します。
-**Infra 層だけを変更**し、Domain・UseCase・Framework が一切変更不要であることを体験します。
+**Infra Adapter 層と Composition Root の配線だけを変更**し、Domain・UseCase・Framework が一切変更不要であることを体験します。
 
 ## 前提知識
 
@@ -52,10 +52,10 @@ type BoardRepository struct {
 
 func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     var m BoardModel
-    err := r.db.QueryRowContext(ctx,
-        "SELECT id, name, name, created_at FROM boards WHERE name = ?", name,  // SQLite の ? プレースホルダ
-    ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
-    if err == sql.ErrNoRows {
+    err := executor(ctx, r.db).QueryRowContext(ctx,
+        "SELECT id, name, description, created_at FROM boards WHERE name = ?", name,  // SQLite の ? プレースホルダ
+    ).Scan(&m.ID, &m.Name, &m.Description, &m.CreatedAt)
+    if errors.Is(err, sql.ErrNoRows) {
         return nil, domain.ErrBoardNotFound  // DB エラー → ドメインエラー
     }
     if err != nil {
@@ -101,10 +101,10 @@ func NewBoardRepository(db *sql.DB) *BoardRepository {
 
 func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     var m BoardModel
-    err := r.db.QueryRowContext(ctx,
-        "SELECT id, name, name, created_at FROM boards WHERE name = $1", name,  // PostgreSQL の $1 プレースホルダ
-    ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
-    if err == sql.ErrNoRows {
+    err := executor(ctx, r.db).QueryRowContext(ctx,
+        "SELECT id, name, description, created_at FROM boards WHERE name = $1", name,  // PostgreSQL の $1 プレースホルダ
+    ).Scan(&m.ID, &m.Name, &m.Description, &m.CreatedAt)
+    if errors.Is(err, sql.ErrNoRows) {
         return nil, domain.ErrBoardNotFound
     }
     if err != nil {
@@ -114,7 +114,7 @@ func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.
 }
 
 func (r *BoardRepository) FindAll(ctx context.Context) ([]*entity.Board, error) {
-    rows, err := r.db.QueryContext(ctx, "SELECT id, name, name, created_at FROM boards ORDER BY id")
+    rows, err := executor(ctx, r.db).QueryContext(ctx, "SELECT id, name, description, created_at FROM boards ORDER BY id")
     if err != nil {
         return nil, fmt.Errorf("list boards: %w", err)
     }
@@ -135,7 +135,7 @@ type ThreadRepository struct {
 
 func (r *ThreadRepository) Save(ctx context.Context, thread *entity.Thread) error {
     // RETURNING で自動採番された ID を取得（PostgreSQL 固有）
-    err := r.db.QueryRowContext(ctx,
+    err := executor(ctx, r.db).QueryRowContext(ctx,
         `INSERT INTO threads (board_id, title, post_count, created_at, last_posted_at)
          VALUES ($1, $2, $3, $4, $5) RETURNING id`,
         thread.BoardID, thread.Title,
@@ -285,7 +285,7 @@ DB 移行を安全に行うための前提として、Infra Adapter が **DB エ
 // OK: Infra Adapter 内で変換
 func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     // ...
-    if err == sql.ErrNoRows {
+    if errors.Is(err, sql.ErrNoRows) {
         return nil, domain.ErrBoardNotFound  // DB エラー → ドメインエラー
     }
 }
@@ -295,7 +295,7 @@ func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.
 // NG: UseCase が DB エラーを知ってしまう
 func (u *CreateThreadUseCase) Execute(...) {
     board, err := u.boardRepo.FindByName(ctx, name)
-    if err == sql.ErrNoRows {  // ← database/sql に依存！DB変更不可に
+    if errors.Is(err, sql.ErrNoRows) {  // ← database/sql に依存！DB変更不可に
         // ...
     }
 }

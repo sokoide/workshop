@@ -197,11 +197,12 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"test","author":"gopher","body":"hello"}'
 
-# Generate a JWT (for testing)
-TOKEN=$(echo '{"sub":"user123","role":"member","exp":9999999999}' | \
-  base64 | tr -d '\n')
-# In practice, use jwt-cli or similar to generate a signed token:
-# jwt encode --secret "my-secret-key" --sub "user123" --role "member"
+# Generate a JWT (HMAC-SHA256 signed)
+# Install jwt-cli: go install github.com/matyer/jwt-cli@latest
+TOKEN=$(jwt encode --secret "my-secret-key" --sub "user123" --role "member")
+# Or use Go one-liner:
+# TOKEN=$(go run github.com/golang-jwt/jwt/v5/cmd/jwt@latest \
+#   --secret "my-secret-key" --claim sub:user123 --claim role:member)
 
 # POST with auth → success
 curl -X POST http://localhost:8080/api/boards/program/threads \
@@ -270,7 +271,7 @@ func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             key := r.Header.Get("X-API-Key")
             if !validKeys[key] {
-                writeError(w, http.StatusUnauthorized, "invalid API key")
+                writeAuthError(w, http.StatusUnauthorized, "invalid API key")
                 return
             }
             next.ServeHTTP(w, r)
@@ -297,7 +298,7 @@ For internal APIs or admin tools, just skip the middleware:
 mux.HandleFunc("POST /api/boards/{name}/threads", threadHandler.CreateThread)
 
 // Authenticated version (production)
-mux.HandleFunc("POST /api/boards/{name}/threads", auth(threadHandler.CreateThread))
+mux.Handle("POST /api/boards/{name}/threads", auth(http.HandlerFunc(threadHandler.CreateThread)))
 ```
 
 The same UseCases and Handlers are reused.

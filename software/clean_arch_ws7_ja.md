@@ -272,7 +272,7 @@ func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             key := r.Header.Get("X-API-Key")
             if !validKeys[key] {
-                writeError(w, http.StatusUnauthorized, "invalid API key")
+                writeAuthError(w, http.StatusUnauthorized, "invalid API key")
                 return
             }
             next.ServeHTTP(w, r)

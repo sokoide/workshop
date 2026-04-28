@@ -71,6 +71,10 @@ func (r *PostRepository) Save(ctx context.Context, post *entity.Post) error {
 		}
 		return fmt.Errorf("insert post: %w", err)
 	}
-	post.ID, _ = res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("get last insert id: %w", err)
+	}
+	post.ID = id
 	return nil
 }

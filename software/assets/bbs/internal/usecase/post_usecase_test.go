@@ -13,11 +13,14 @@ import (
 
 // --- Mocks ---
 
+type txCtxKey struct{}
+
 type mockThreadRepo struct {
-	thread  *entity.Thread
-	err     error
-	saveErr error
-	saved   *entity.Thread
+	thread   *entity.Thread
+	err      error
+	saveErr  error
+	saved    *entity.Thread
+	gotTxCtx bool
 }
 
 func (m *mockThreadRepo) FindByBoardID(ctx context.Context, boardID int64) ([]*entity.Thread, error) {
@@ -28,6 +31,7 @@ func (m *mockThreadRepo) FindByID(ctx context.Context, id int64) (*entity.Thread
 	if m.err != nil {
 		return nil, m.err
 	}
+	m.gotTxCtx = ctx.Value(txCtxKey{}) != nil
 	return m.thread, nil
 }
 
@@ -40,10 +44,11 @@ func (m *mockThreadRepo) Save(ctx context.Context, thread *entity.Thread) error 
 }
 
 type mockPostRepo struct {
-	count   int
+	count    int
 	countErr error
 	saveErr  error
-	saved   *entity.Post
+	saved    *entity.Post
+	gotTxCtx bool
 }
 
 func (m *mockPostRepo) FindByThreadID(ctx context.Context, threadID int64) ([]*entity.Post, error) {
@@ -51,6 +56,7 @@ func (m *mockPostRepo) FindByThreadID(ctx context.Context, threadID int64) ([]*e
 }
 
 func (m *mockPostRepo) CountByThreadID(ctx context.Context, threadID int64) (int, error) {
+	m.gotTxCtx = ctx.Value(txCtxKey{}) != nil
 	return m.count, m.countErr
 }
 
@@ -63,14 +69,13 @@ func (m *mockPostRepo) Save(ctx context.Context, post *entity.Post) error {
 }
 
 type mockTM struct {
-	committed bool
+	committed  bool
 	rolledBack bool
-	fn        func(ctx context.Context) error
 }
 
 func (m *mockTM) RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
-	m.fn = fn
-	err := fn(ctx)
+	txCtx := context.WithValue(ctx, txCtxKey{}, true)
+	err := fn(txCtx)
 	if err != nil {
 		m.rolledBack = true
 		return err
@@ -120,6 +125,38 @@ func TestCreatePost_Success(t *testing.T) {
 	}
 	if pRepo.saved.Number != 1 {
 		t.Errorf("post number = %d, want 1", pRepo.saved.Number)
+	}
+}
+
+func TestCreatePost_UsesTxCtx(t *testing.T) {
+	thread := &entity.Thread{
+		ID:           1,
+		BoardID:      1,
+		Title:        "test",
+		PostCount:    0,
+		CreatedAt:    time.Now(),
+		LastPostedAt: time.Now(),
+	}
+
+	tRepo := &mockThreadRepo{thread: thread}
+	pRepo := &mockPostRepo{count: 0}
+	tm := &mockTM{}
+
+	uc := NewCreatePostUseCase(tRepo, pRepo, tm)
+	_, err := uc.Execute(context.Background(), CreatePostInput{
+		ThreadID: 1,
+		Author:   "tester",
+		Body:     "hello",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !tRepo.gotTxCtx {
+		t.Error("FindByID should receive tx context from RunInTransaction")
+	}
+	if !pRepo.gotTxCtx {
+		t.Error("CountByThreadID should receive tx context from RunInTransaction")
 	}
 }
 

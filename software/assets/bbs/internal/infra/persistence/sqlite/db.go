@@ -21,8 +21,6 @@ func OpenDB(dsn string) (*sql.DB, error) {
 
 func migrate(db *sql.DB) error {
 	queries := []string{
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_thread_number
-		 ON posts(thread_id, number)`,
 		`CREATE TABLE IF NOT EXISTS boards (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			name        TEXT NOT NULL UNIQUE,
@@ -46,6 +44,8 @@ func migrate(db *sql.DB) error {
 			sage       INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT (datetime('now'))
 		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_thread_number
+		 ON posts(thread_id, number)`,
 	}
 	for _, q := range queries {
 		if _, err := db.Exec(q); err != nil {

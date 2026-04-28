@@ -363,7 +363,7 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
 
     // UseCase 呼び出し（← 通信方式に依存しない）
     out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-        BoardSlug: name, Title: req.Title, Author: req.Author, Body: req.Body,
+        BoardName: name, Title: req.Title, Author: req.Author, Body: req.Body,
     })
 
     // HTTP 固有の出力変換
@@ -442,7 +442,7 @@ type BBSServer struct {
 func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadRequest) (*pb.CreateThreadResponse, error) {
     // gRPC 固有の入力変換（ここだけが違う）
     out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
-        BoardSlug: req.BoardSlug,
+        BoardName: req.BoardName,
         Title:     req.Title,
         Author:    req.Author,
         Body:      req.Body,
@@ -466,12 +466,12 @@ func (s *BBSServer) CreateThread(ctx context.Context, req *pb.CreateThreadReques
 ```go
 // HTTP 版
 out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
-    BoardSlug: name, Title: req.Title, Author: req.Author, Body: req.Body,
+    BoardName: name, Title: req.Title, Author: req.Author, Body: req.Body,
 })
 
 // gRPC 版（全く同じ！）
 out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
-    BoardSlug: req.BoardSlug, Title: req.Title, Author: req.Author, Body: req.Body,
+    BoardName: req.BoardName, Title: req.Title, Author: req.Author, Body: req.Body,
 })
 ```
 

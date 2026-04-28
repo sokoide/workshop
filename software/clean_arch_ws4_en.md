@@ -23,7 +23,7 @@ Business rule additions propagate from inside to outside, but each layer's chang
 | ------- | -------- | ------ |
 | **Domain** | Add `Thread.OwnerOnly` flag, `CanPost()` method, `ErrNotThreadOwner` error | Define the rule |
 | **UseCase** | Add one line: `thread.CanPost(in.Author)` call | Apply the rule |
-| **Infra** | Add `owner_only` column to `threads` table, update read/write | Persist the change |
+| **Infra** | Add `owner_only` and `owner` columns to `threads` table, update read/write | Persist the change |
 | **Framework** | Add one case: `ErrNotThreadOwner → 403 Forbidden` | Display the change |
 
 ### Step 1: Domain Layer — Define the Rule
@@ -143,7 +143,7 @@ Add the `OwnerOnly` field to `CreateThreadInput` in `usecase/dto.go` so the Fram
 ```go
 // usecase/dto.go
 type CreateThreadInput struct {
-    BoardSlug string
+    BoardName string
     Title     string
     Author    string
     Body      string
@@ -173,18 +173,21 @@ Add a new column to the DB and update read/write operations. **Only SQL and mode
 
 ```sql
 ALTER TABLE threads ADD COLUMN owner_only BOOLEAN NOT NULL DEFAULT FALSE;
-UPDATE threads SET owner_only = FALSE;
+ALTER TABLE threads ADD COLUMN owner TEXT NOT NULL DEFAULT '';
+UPDATE threads SET owner_only = FALSE, owner = '';
 ```
 
 **3-2. Update DB model**
 
 ```go
-// infra/persistence/sqlite/model.go
+// infra/persistence/model.go
 type ThreadModel struct {
-    ID           int64  `db:"id"`
-    BoardID      int64  `db:"board_id"`
-    Title        string `db:"title"`
-    OwnerOnly    bool   `db:"owner_only"`  // Added
+    ID            int64  `db:"id"`
+    BoardID       int64  `db:"board_id"`
+    Title         string `db:"title"`
+    PostCount     int    `db:"post_count"`
+    OwnerOnly     bool   `db:"owner_only"`  // Added
+    Owner         string `db:"owner"`       // Added
     // ...
 }
 ```
@@ -192,14 +195,15 @@ type ThreadModel struct {
 **3-3. Update repository conversion**
 
 ```go
-// infra/persistence/sqlite/thread_repo.go
+// infra/persistence/thread_repo.go
 func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
     return &entity.Thread{
         ID:           m.ID,
         BoardID:      m.BoardID,
         Title:        m.Title,
+        PostCount:    m.PostCount,
         OwnerOnly:    m.OwnerOnly,  // Added
-        Owner:        m.Owner,       // Leverage existing field
+        Owner:        m.Owner,      // Added
         // ...
     }
 }

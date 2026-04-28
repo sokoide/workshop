@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/sokoide/cleanarch1/internal/domain"
@@ -48,7 +49,7 @@ func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thre
 		 FROM threads WHERE id = ?`, id,
 	).Scan(&m.ID, &m.BoardID, &m.Title, &m.PostCount, &m.CreatedAt, &m.LastPostedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrThreadNotFound
 		}
 		return nil, fmt.Errorf("query thread by id: %w", err)
@@ -66,7 +67,11 @@ func (r *ThreadRepository) Save(ctx context.Context, thread *entity.Thread) erro
 		if err != nil {
 			return fmt.Errorf("insert thread: %w", err)
 		}
-		thread.ID, _ = res.LastInsertId()
+		id, err := res.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("get last insert id: %w", err)
+		}
+		thread.ID = id
 		return nil
 	}
 	_, err := executor(ctx, r.db).ExecContext(ctx,

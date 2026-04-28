@@ -1,7 +1,7 @@
 # Clean Architecture Workshop (WS5): Swapping the Persistence Layer
 
 In this workshop, you will migrate the BBS (2channel-style bulletin board) database from SQLite to PostgreSQL.
-You will modify **only the Infra layer**, confirming that Domain, UseCase, and Framework remain completely untouched.
+You will modify **the Infra Adapter layer and Composition Root wiring**, confirming that Domain, UseCase, and Framework remain completely untouched.
 
 ## Prerequisites
 
@@ -52,10 +52,10 @@ type BoardRepository struct {
 
 func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     var m BoardModel
-    err := r.db.QueryRowContext(ctx,
-        "SELECT id, name, name, created_at FROM boards WHERE name = ?", name,  // SQLite ? placeholder
-    ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
-    if err == sql.ErrNoRows {
+    err := executor(ctx, r.db).QueryRowContext(ctx,
+        "SELECT id, name, description, created_at FROM boards WHERE name = ?", name,  // SQLite ? placeholder
+    ).Scan(&m.ID, &m.Name, &m.Description, &m.CreatedAt)
+    if errors.Is(err, sql.ErrNoRows) {
         return nil, domain.ErrBoardNotFound  // DB error → domain error
     }
     return r.toEntity(&m), nil
@@ -98,10 +98,10 @@ func NewBoardRepository(db *sql.DB) *BoardRepository {
 
 func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     var m BoardModel
-    err := r.db.QueryRowContext(ctx,
-        "SELECT id, name, name, created_at FROM boards WHERE name = $1", name,  // PostgreSQL $1 placeholder
-    ).Scan(&m.ID, &m.Slug, &m.Name, &m.CreatedAt)
-    if err == sql.ErrNoRows {
+    err := executor(ctx, r.db).QueryRowContext(ctx,
+        "SELECT id, name, description, created_at FROM boards WHERE name = $1", name,  // PostgreSQL $1 placeholder
+    ).Scan(&m.ID, &m.Name, &m.Description, &m.CreatedAt)
+    if errors.Is(err, sql.ErrNoRows) {
         return nil, domain.ErrBoardNotFound
     }
     if err != nil {
@@ -111,7 +111,7 @@ func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.
 }
 
 func (r *BoardRepository) FindAll(ctx context.Context) ([]*entity.Board, error) {
-    rows, err := r.db.QueryContext(ctx, "SELECT id, name, name, created_at FROM boards ORDER BY id")
+    rows, err := executor(ctx, r.db).QueryContext(ctx, "SELECT id, name, description, created_at FROM boards ORDER BY id")
     if err != nil {
         return nil, fmt.Errorf("list boards: %w", err)
     }
@@ -131,12 +131,13 @@ type ThreadRepository struct {
 }
 
 func (r *ThreadRepository) Save(ctx context.Context, thread *entity.Thread) error {
-    _, err := r.db.ExecContext(ctx,
-        `INSERT INTO threads (board_id, title, owner, post_count, created_at, last_posted_at)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,  // RETURNING = PostgreSQL-specific
-        thread.BoardID, thread.Title, thread.Owner,
+    // RETURNING retrieves the auto-generated ID (PostgreSQL-specific)
+    err := executor(ctx, r.db).QueryRowContext(ctx,
+        `INSERT INTO threads (board_id, title, post_count, created_at, last_posted_at)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        thread.BoardID, thread.Title,
         thread.PostCount, thread.CreatedAt, thread.LastPostedAt,
-    )
+    ).Scan(&thread.ID)
     return err
 }
 ```
@@ -209,7 +210,11 @@ func main() {
     // tm := sqlite.NewTransactionManager(db)
 
     // New: PostgreSQL (only this changes)
-    db, _ := sql.Open("pgx", os.Getenv("DATABASE_URL"))
+    db, err := sql.Open("pgx", os.Getenv("DATABASE_URL"))
+    if err != nil {
+        slog.Error("failed to open db", "error", err)
+        os.Exit(1)
+    }
     boardRepo := postgres.NewBoardRepository(db)
     threadRepo := postgres.NewThreadRepository(db)
     postRepo := postgres.NewPostRepository(db)
@@ -273,7 +278,7 @@ A prerequisite for safe DB migration is that Infra Adapters **convert DB errors 
 // OK: Conversion inside Infra Adapter
 func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.Board, error) {
     // ...
-    if err == sql.ErrNoRows {
+    if errors.Is(err, sql.ErrNoRows) {
         return nil, domain.ErrBoardNotFound  // DB error → domain error
     }
 }
@@ -283,7 +288,7 @@ func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.
 // NG: UseCase learns about DB errors
 func (u *CreateThreadUseCase) Execute(...) {
     board, err := u.boardRepo.FindByName(ctx, name)
-    if err == sql.ErrNoRows {  // ← depends on database/sql! Cannot change DB
+    if errors.Is(err, sql.ErrNoRows) {  // ← depends on database/sql! Cannot change DB
         // ...
     }
 }
