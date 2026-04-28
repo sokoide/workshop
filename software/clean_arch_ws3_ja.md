@@ -284,6 +284,7 @@ Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換�
 ```
 
 **重要なポイント**:
+
 - **Infra Adapter**: ドライバエラー（`sql.ErrNoRows`）をドメインエラー（`domain.ErrThreadNotFound`）に変換
 - **UseCase**: ドメインエラーをそのまま上位へ（技術詳細を知らない）
 - **Framework**: ドメインエラーをトランスポートエラー（HTTP 404, gRPC NotFound）に変換

@@ -97,11 +97,47 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
     if err != nil {
         return nil, err
     }
-    // ...
+
+    // トランザクション内で Post 保存と Thread 更新をアトミックに実行
+    var out *CreatePostOutput
+    if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
+        if err := u.postRepo.Save(txCtx, post); err != nil {
+            return err
+        }
+        thread.Bump(post.CreatedAt, in.Sage)
+        if err := u.threadRepo.Save(txCtx, thread); err != nil {
+            return err
+        }
+        out = &CreatePostOutput{Post: toPostDTO(post)}
+        return nil
+    }); err != nil {
+        return nil, err
+    }
+
+    return out, nil
 }
 ```
 
-**補足1: DTO にフラグを追加する**
+**2-1.1. トランザクション管理について**
+
+UseCase 層はトランザクション境界を制御する責務も持ちます。
+
+- **TransactionManager**: Domain Port として定義される（`port.TransactionManager`）
+- **Infra Adapter**: SQLite の `sql.Tx` などを使って具象実装
+- **UseCase**: 複数のリポジトリ操作を 1 つのトランザクションにまとめる
+
+```go
+// domain/port/transaction.go
+type TransactionManager interface {
+    RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+}
+```
+
+投稿処理では「Post の保存」と「Thread の更新（Bump）」をアトミックに行う必要があります。片方が成功して片方が失敗する状態を防ぐため、UseCase がトランザクション境界を制御します。
+
+**確認ポイント**: トランザクションは「技術的な詳細」ではなく「アプリケーションポリシー」です。UseCase が「この操作セットはアトミックであるべき」と判断し、Infra Adapter がその具体的な実装（`BEGIN`/`COMMIT`/`ROLLBACK`）を提供します。
+
+**2-2. DTO にフラグを追加する**
 
 `CreateThreadInput`（`usecase/dto.go`）に `OwnerOnly` フィールドを追加します。これにより Framework 層からフラグを渡せるようになります。
 
@@ -116,7 +152,7 @@ type CreateThreadInput struct {
 }
 ```
 
-**補足2: Owner はいつ設定されるか**
+**2-3. Owner はいつ設定されるか**
 
 `Owner`（スレ主 = 1 番目の投稿者）は、スレッド作成時の `CreateThreadUseCase` で設定します。
 

@@ -94,9 +94,48 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
         return nil, err
     }
     post, err := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
-    // ...
+    if err != nil {
+        return nil, err
+    }
+
+    // Execute Post save and Thread update atomically within transaction
+    var out *CreatePostOutput
+    if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
+        if err := u.postRepo.Save(txCtx, post); err != nil {
+            return err
+        }
+        thread.Bump(post.CreatedAt, in.Sage)
+        if err := u.threadRepo.Save(txCtx, thread); err != nil {
+            return err
+        }
+        out = &CreatePostOutput{Post: toPostDTO(post)}
+        return nil
+    }); err != nil {
+        return nil, err
+    }
+
+    return out, nil
 }
 ```
+
+**2-1.1. Transaction Management**
+
+The UseCase layer also has the responsibility of controlling transaction boundaries.
+
+- **TransactionManager**: Defined as a Domain Port (`port.TransactionManager`)
+- **Infra Adapter**: Implements concretely using SQLite's `sql.Tx`, etc.
+- **UseCase**: Groups multiple repository operations into a single transaction
+
+```go
+// domain/port/transaction.go
+type TransactionManager interface {
+    RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+}
+```
+
+In post creation, "Post save" and "Thread update (Bump)" must be atomic. To prevent a state where one succeeds and the other fails, the UseCase controls the transaction boundary.
+
+**Key observation**: Transactions are not "technical details" but "application policies." The UseCase decides "this operation set should be atomic," and the Infra Adapter provides the concrete implementation (`BEGIN`/`COMMIT`/`ROLLBACK`).
 
 **2-2. Add `OwnerOnly` to the DTO**
 

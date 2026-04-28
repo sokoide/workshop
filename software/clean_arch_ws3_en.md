@@ -286,6 +286,7 @@ In Clean Architecture, errors are also transformed as they cross layer boundarie
 ```
 
 **Key points**:
+
 - **Infra Adapter**: Converts driver errors (e.g., `sql.ErrNoRows`) to domain errors (e.g., `domain.ErrThreadNotFound`)
 - **UseCase**: Propagates domain errors as-is (unaware of technical details)
 - **Framework**: Converts domain errors to transport errors (HTTP 404, gRPC NotFound)
