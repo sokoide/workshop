@@ -32,6 +32,8 @@ Encapsulate the business rule in the Entity.
 
 **1-1. Add flag and validation method to Thread Entity**
 
+> **Note:** The current `Thread` struct does not have `OwnerOnly` or `Owner` fields. These are added in this step.
+
 ```go
 // domain/entity/thread.go
 type Thread struct {

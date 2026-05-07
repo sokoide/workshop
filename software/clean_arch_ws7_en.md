@@ -174,10 +174,13 @@ func main() {
     }
 
     // Pass secret to Router
-    router := framework.NewRouter(boardHandler, threadHandler, postHandler, secret)
+    router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler, secret)
 
-    log.Println("Server starting on :8080")
-    http.ListenAndServe(":8080", router)
+    slog.Info("server starting", "addr", ":8080")
+    if err := http.ListenAndServe(":8080", router); err != nil {
+        slog.Error("server failed", "error", err)
+        os.Exit(1)
+    }
 }
 ```
 

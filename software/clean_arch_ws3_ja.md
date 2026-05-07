@@ -53,7 +53,7 @@ curl -X POST localhost:8080/api/threads/1/posts \
 ```bash
 # 1. 掲示板を確認
 curl localhost:8080/api/boards
-# → {"boards":[{"id":1,"name":"programming","name":"Programming General","created_at":"2025-01-01T00:00:00Z"}]}
+# → {"boards":[{"id":1,"name":"programming","title":"Programming General","created_at":"2025-01-01T00:00:00Z"}]}
 
 # 2. programming 板にスレッドを立てる
 curl -s -X POST localhost:8080/api/boards/programming/threads \

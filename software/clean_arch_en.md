@@ -16,6 +16,7 @@ graph TD
 
     subgraph UseCaseLayer [UseCase]
         UC[UseCase]
+        OP[Output Port]
     end
 
     subgraph DomainLayer [Domain]
@@ -35,7 +36,8 @@ graph TD
     UC --> DomainLayer
     RI_Impl -- "implements" --> RI
     RI_Impl --> DB
-    UC --> Presenter
+    UC --> OP
+    Presenter -- "implements" --> OP
 ```
 
 ---
@@ -196,6 +198,24 @@ In the Go implementation example, `ctx context.Context` is passed through each l
 2. **Timeout Management:** It allows enforcing deadlines (e.g., "the whole request must finish within 5 seconds") across all operations, including database calls.
 
 3. **Tracing:** It carries request-scoped metadata like Request IDs, enabling you to trace a single request's journey through multiple layers and services in logs.
+
+**Cancellation implementation example:**
+
+The `context` cancellation signal propagates through the `Done()` channel. For long-running operations, check this channel periodically.
+
+```go
+func LongRunningProcess(ctx context.Context) error {
+    select {
+    case <-ctx.Done():
+        // Cancelled (including timeout)
+        return ctx.Err()
+    default:
+        // Continue processing
+    }
+    // ... heavy processing ...
+    return nil
+}
+```
 
 #### 💡 ctx vs. Arguments
 
