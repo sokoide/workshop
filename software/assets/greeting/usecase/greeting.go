@@ -4,10 +4,6 @@ import (
 	"workshop/greeting/domain"
 )
 
-type Greetinger interface {
-	Execute(id string) (string, error)
-}
-
 type GreetingUseCase struct {
 	Repo domain.UserRepository
 }

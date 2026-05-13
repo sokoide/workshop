@@ -6,7 +6,7 @@ import (
 )
 
 type GreetingHandler struct {
-	UC usecase.Greetinger
+	UC *usecase.GreetingUseCase
 }
 
 func (h *GreetingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
