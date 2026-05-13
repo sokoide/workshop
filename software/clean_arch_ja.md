@@ -16,6 +16,7 @@ graph TD
 
     subgraph UseCaseLayer [UseCase]
         UC[UseCase]
+        OP[Output Port]
     end
 
     subgraph DomainLayer [Domain]
@@ -35,7 +36,8 @@ graph TD
     UC --> DomainLayer
     RI_Impl -- "implements" --> RI
     RI_Impl --> DB
-    UC --> Presenter
+    UC --> OP
+    Presenter -- "implements" --> OP
 ```
 
 ---

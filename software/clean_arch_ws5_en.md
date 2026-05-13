@@ -221,14 +221,17 @@ func main() {
     tm := postgres.NewTransactionManager(db)
 
     // ↓ UseCase wiring is completely unchanged!
-    createThread := usecase.NewCreateThreadUseCase(boardRepo, threadRepo, postRepo, tm)
-    createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm)
     listBoards := usecase.NewListBoardsUseCase(boardRepo)
     listThreads := usecase.NewListThreadsUseCase(boardRepo, threadRepo)
+    createThread := usecase.NewCreateThreadUseCase(boardRepo, threadRepo, postRepo, tm)
     listPosts := usecase.NewListPostsUseCase(postRepo)
+    createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm)
 
     // Handler wiring is also unchanged
-    handler := framework.NewHandler(createThread, createPost, listBoards, listThreads, listPosts)
+    boardHandler := handler.NewBoardHandler(listBoards)
+    threadHandler := handler.NewThreadHandler(listThreads, createThread)
+    postHandler := handler.NewPostHandler(listPosts, createPost)
+    router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler)
     // ...
 }
 ```

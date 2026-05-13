@@ -53,7 +53,7 @@ curl -X POST localhost:8080/api/threads/1/posts \
 ```bash
 # 1. Check boards
 curl localhost:8080/api/boards
-# → {"boards":[{"id":1,"name":"programming","name":"Programming General","created_at":"2025-01-01T00:00:00Z"}]}
+# → {"boards":[{"id":1,"name":"programming","title":"Programming General","created_at":"2025-01-01T00:00:00Z"}]}
 
 # 2. Create a thread on the programming board
 curl -s -X POST localhost:8080/api/boards/programming/threads \
@@ -184,7 +184,7 @@ type BoardRepository interface {
                  │            │            │
                  ↓            ↓            ↓
         ┌────────────┐  ┌────────────┐  ┌────────────┐
-        │   Infra    │  │  UseCas    │  │ Framework  │
+        │   Infra    │  │  UseCase   │  │ Framework  │
         │  Adapter   │  │   Layer    │  │   Layer    │
         └──────┬─────┘  └──────┬─────┘  └──────┬─────┘
                │               │               │
@@ -502,11 +502,19 @@ func main() {
 
     // New: gRPC server startup (only this changes)
     grpcServer := grpc.NewServer()
+    reflection.Register(grpcServer)  // Required for grpcurl service listing
     bbsServer := framework.NewBBSServer(createThread, listThreads, ...)
     pb.RegisterBBSServiceServer(grpcServer, bbsServer)
 
-    lis, _ := net.Listen("tcp", ":9090")
-    grpcServer.Serve(lis)
+    lis, err := net.Listen("tcp", ":9090")
+    if err != nil {
+        slog.Error("failed to listen", "error", err)
+        os.Exit(1)
+    }
+    if err := grpcServer.Serve(lis); err != nil {
+        slog.Error("grpc server failed", "error", err)
+        os.Exit(1)
+    }
 }
 ```
 

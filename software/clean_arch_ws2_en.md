@@ -133,3 +133,5 @@ func main() {
 3. **Ports and Implementation Separation:**
     - The notification interface is an output port; Slack/Email implementations live in Infra Adapters Layer.
     - Details like Redis clients stay in the Framework Layer.
+
+> **Naming Note:** This workshop uses `NotificationService` for simplicity. WS6 introduces the same concept as `NotificationGateway` in `domain/port/notification.go` — the `Gateway` suffix is used for infra-facing output ports to distinguish them from domain services that contain business logic.
