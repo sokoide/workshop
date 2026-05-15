@@ -33,10 +33,10 @@ software/assets/greeting/
 |-------------|--------|---------|-------|-----------|
 | Domain      |   ✓    |    ✗    |   ✗   |     ✗     |
 | UseCase     |   ✓    |    ✓    |   ✗   |     ✗     |
-| Infra       |   ✓    |    ✓*   |   ✓   |     ✗     |
+| Infra       |   ✓    |    ✗    |   ✓   |     ✗     |
 | Framework   |   ✗    |    ✓    |   ✗   |     ✓     |
 
-✓ = Allowed | ✗ = Prohibited | ✓* = Via interface (Dependency Inversion Principle)
+✓ = Allowed | ✗ = Prohibited
 
 ---
 
@@ -111,6 +111,53 @@ Read `usecase/greeting_test.go` and check the following:
 Open `usecase/greeting.go` and try changing the greeting message (e.g., to Japanese: `こんにちは、[Name]さん！`).
 
 - **Key Point**: Observe that you don't need to touch any code in `infra` or `framework` for this change.
+
+### Step 4: [Exercise] Swap the Infrastructure
+
+This step lets you experience the greatest strength of Clean Architecture.
+
+1. Create a new file `slice.go` in `infra/` implementing a slice-based repository:
+
+```go
+package infra
+
+import "workshop/greeting/domain"
+
+type SliceUserRepo struct {
+	users []*domain.User
+}
+
+func NewSliceUserRepo() *SliceUserRepo {
+	return &SliceUserRepo{
+		users: []*domain.User{
+			{ID: "1", Name: "Alice"},
+			{ID: "2", Name: "Bob"},
+		},
+	}
+}
+
+func (r *SliceUserRepo) FindByID(id string) (*domain.User, error) {
+	for _, u := range r.users {
+		if u.ID == id {
+			return u, nil
+		}
+	}
+	return nil, domain.ErrUserNotFound
+}
+```
+
+1. Change one line in `main.go`:
+
+```go
+// Before
+repo := infra.NewMemoryUserRepo()
+// After
+repo := infra.NewSliceUserRepo()
+```
+
+1. Restart the server and verify it works the same way.
+
+- **Key Point**: You only touched `infra/` and `main.go`. `domain/`, `usecase/`, and `framework/` remain completely unchanged. This is the practical experience of "Dependency Inversion."
 
 ---
 
