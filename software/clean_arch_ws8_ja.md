@@ -20,12 +20,23 @@
 
 ```text
 software/assets/greeting/
-├── domain/       (Layer 1: 最内) ビジネスルール、Entity、Port(Interface)
+├── domain/       (Layer 1: 最内) ビジネスルール、Entity、Port(Interface)、Domain Error
 ├── usecase/      (Layer 2) ユースケース（シナリオ）
 ├── infra/        (Layer 3) インフラ詳細の実装（Adapter）
 ├── framework/    (Layer 4: 最外) HTTP Handler、外部ライブラリ
 └── main.go       (Composition Root) 全レイヤーの組み立て（依存注入）
 ```
+
+### 依存マトリクス
+
+| 依存元 ↓ → | Domain | UseCase | Infra | Framework |
+|------------|--------|---------|-------|-----------|
+| Domain     |   ✓    |    ✗    |   ✗   |     ✗     |
+| UseCase    |   ✓    |    ✓    |   ✗   |     ✗     |
+| Infra      |   ✓    |    ✓*   |   ✓   |     ✗     |
+| Framework  |   ✗    |    ✓    |   ✗   |     ✓     |
+
+✓ = 許可 | ✗ = 禁止 | ✓* = インターフェース経由（依存性逆転の原則）
 
 ---
 
@@ -35,8 +46,9 @@ software/assets/greeting/
 
 `domain/` には、このシステムにとって不変の知識を定義します。
 
-- `user.go`: 「ユーザー」という概念。
+- `user.go`: 「ユーザー」という概念（Entity）。
 - `repository.go`: 「ユーザーを取得する方法」という窓口（Port）。インターフェースで定義し、具体的なDB操作はここには書きません。
+- `errors.go`: ドメイン層で定義されたエラー型。**Infra層の技術的エラーをそのまま外に漏らさず、ドメインの意味を持つエラーに変換します。**
 
 ### 3-2. UseCase 層: シナリオの「手順」
 
@@ -49,12 +61,14 @@ software/assets/greeting/
 `infra/` には、Domain層で定義されたインターフェースの「中身」を実装します。
 
 - 今回は `MemoryUserRepo` としてメモリ上にデータを持ちますが、ここを MySQL や API に差し替えても、他のレイヤーを壊さずに済みます。
+- **エラーバウンダリ**: ユーザーが見つからない場合、技術的エラーではなくドメインエラー（`domain.ErrUserNotFound`）を返します。
 
 ### 3-4. Framework 層: 外部との「接点」
 
 `framework/` には、HTTPなどの通信プロトコルに関する処理を書きます。
 
 - リクエストから ID を取り出し、UseCase に渡し、結果をレスポンスとして返す役割に専念します。
+- **エラーの変換**: UseCase/Domain から返されたドメインエラーを HTTP ステータスコードに変換します（例: `ErrUserNotFound` → 404）。
 
 ---
 
@@ -74,6 +88,9 @@ go run main.go
 ```bash
 curl "http://localhost:8080?id=1"
 # 出力: Hello, Alice!
+
+curl "http://localhost:8080?id=999"
+# 出力: user not found (HTTP 404)
 ```
 
 ### ステップ 2: ユニットテストを実行する
@@ -81,10 +98,13 @@ curl "http://localhost:8080?id=1"
 Clean Architecture の利点は、外部環境（DBなど）をモックに差し替えて、ビジネスロジックだけを高速にテストできることです。
 
 ```bash
-go test ./usecase/...
+go test ./usecase/... -v
 ```
 
-`usecase/greeting_test.go` を読み、どうやってリポジトリを偽物（Mock）に差し替えているか確認してください。
+`usecase/greeting_test.go` を読み、以下の点を確認してください。
+
+- どうやってリポジトリを偽物（Mock）に差し替えているか
+- ユーザー不在時のエラーケースがどうテストされているか
 
 ### ステップ 3: 【演習】ビジネスルールを変更する
 
@@ -94,10 +114,31 @@ go test ./usecase/...
 
 ---
 
-## 5. まとめ
+## 5. 発展トピック: エラーとデータの境界
 
-1. **Domain は何にも依存しない**: ビジネスの核となる知識を独立させます。
+Clean Architecture では、レイヤー間のエラーとデータにも明確な境界があります。
+
+### エラーバウンダリ
+
+```text
+Infra層 → ドメインエラーに変換して返す（driver errorは外に漏らさない）
+UseCase層 → ドメインエラーをそのまま伝播
+Framework層 → ドメインエラーをHTTPステータスに変換（404, 500など）
+```
+
+この設計により、データベース固有のエラー（例: `sql.ErrNoRows`）がUseCaseやFrameworkに漏れることを防ぎます。
+
+### データバウンダリ（DTO）
+
+実務では、UseCaseの入出力を明示的な構造体（DTO: Data Transfer Object）で定義し、Entity（`domain.User`）とFrameworkのリクエスト/レスポンスを分離します。今回は最小構成のためプリミティブ型を使用していますが、システムが大きくなるにつれてDTOの導入が推奨されます。
+
+---
+
+## 6. まとめ
+
+1. **Domain は何にも依存しない**: ビジネスの核となる知識とエラーを独立させます。
 2. **UseCase は Port (Interface) を通じて会話する**: 実装（DB等）を知らなくてもロジックは完結できます。
-3. **依存性の注入 (DI)**: `main.go` で各パーツをカチッとはめ込むことで、全体が動くようになります。
+3. **エラーバウンダリを守る**: 技術的エラーはInfra層でドメインエラーに変換し、Framework層でHTTPステータスに変換します。
+4. **依存性の注入 (DI)**: `main.go` で各パーツをカチッとはめ込むことで、全体が動くようになります。
 
 これが、メンテナンス性が高く、テストが容易で、変化に強い「クリーン」な設計の第一歩です。

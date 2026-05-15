@@ -1,7 +1,9 @@
 package framework
 
 import (
+	"errors"
 	"net/http"
+	"workshop/greeting/domain"
 	"workshop/greeting/usecase"
 )
 
@@ -18,7 +20,11 @@ func (h *GreetingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.UC.Execute(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		if errors.Is(err, domain.ErrUserNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

@@ -1,7 +1,6 @@
 package infra
 
 import (
-	"errors"
 	"workshop/greeting/domain"
 )
 
@@ -24,7 +23,7 @@ func NewMemoryUserRepo() *MemoryUserRepo {
 func (r *MemoryUserRepo) FindByID(id string) (*domain.User, error) {
 	user, ok := r.users[id]
 	if !ok {
-		return nil, errors.New("user not found")
+		return nil, domain.ErrUserNotFound
 	}
 	return user, nil
 }

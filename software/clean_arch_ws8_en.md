@@ -20,12 +20,23 @@ Dependencies always point **from the outside in**.
 
 ```text
 software/assets/greeting/
-├── domain/       (Layer 1: Innermost) Business rules, Entities, Ports (Interfaces)
+├── domain/       (Layer 1: Innermost) Business rules, Entities, Ports (Interfaces), Domain Errors
 ├── usecase/      (Layer 2) Use cases (Scenarios)
 ├── infra/        (Layer 3) Infrastructure implementation details (Adapters)
 ├── framework/    (Layer 4: Outermost) HTTP Handlers, External libraries
 └── main.go       (Composition Root) Assembling all layers (Dependency Injection)
 ```
+
+### Dependency Matrix
+
+| From ↓ To → | Domain | UseCase | Infra | Framework |
+|-------------|--------|---------|-------|-----------|
+| Domain      |   ✓    |    ✗    |   ✗   |     ✗     |
+| UseCase     |   ✓    |    ✓    |   ✗   |     ✗     |
+| Infra       |   ✓    |    ✓*   |   ✓   |     ✗     |
+| Framework   |   ✗    |    ✓    |   ✗   |     ✓     |
+
+✓ = Allowed | ✗ = Prohibited | ✓* = Via interface (Dependency Inversion Principle)
 
 ---
 
@@ -35,8 +46,9 @@ software/assets/greeting/
 
 The `domain/` directory defines knowledge that is invariant to this system.
 
-- `user.go`: The concept of a "User."
+- `user.go`: The concept of a "User" (Entity).
 - `repository.go`: The "window" (Port) for how to retrieve a user. Defined as an interface; concrete database operations are not written here.
+- `errors.go`: Error types defined in the Domain layer. **Technical errors from the Infra layer are not leaked outward; instead, they are converted to semantically meaningful domain errors.**
 
 ### 3-2. UseCase Layer: The "Steps" of a Scenario
 
@@ -49,12 +61,14 @@ The `usecase/` directory contains business logic that defines "what to do and in
 The `infra/` directory implements the "contents" of the interfaces defined in the Domain layer.
 
 - This time we use `MemoryUserRepo` to hold data in memory, but you can swap this with MySQL or an external API without breaking other layers.
+- **Error Boundary**: When a user is not found, a domain error (`domain.ErrUserNotFound`) is returned instead of a technical error.
 
 ### 3-4. Framework Layer: "Contact Point" with the Outside
 
 The `framework/` directory handles communication protocols like HTTP.
 
 - It focuses solely on extracting the ID from the request, passing it to the UseCase, and returning the result as a response.
+- **Error Conversion**: Domain errors returned from UseCase/Domain are converted to HTTP status codes (e.g., `ErrUserNotFound` → 404).
 
 ---
 
@@ -74,6 +88,9 @@ Send a request from another terminal to verify the behavior:
 ```bash
 curl "http://localhost:8080?id=1"
 # Output: Hello, Alice!
+
+curl "http://localhost:8080?id=999"
+# Output: user not found (HTTP 404)
 ```
 
 ### Step 2: Run Unit Tests
@@ -81,10 +98,13 @@ curl "http://localhost:8080?id=1"
 A benefit of Clean Architecture is the ability to swap external environments (like DBs) with Mocks and test business logic at high speed.
 
 ```bash
-go test ./usecase/...
+go test ./usecase/... -v
 ```
 
-Read `usecase/greeting_test.go` to see how the repository is swapped with a fake (Mock).
+Read `usecase/greeting_test.go` and check the following:
+
+- How the repository is swapped with a fake (Mock)
+- How the error case for a missing user is tested
 
 ### Step 3: [Exercise] Change Business Rules
 
@@ -94,10 +114,31 @@ Open `usecase/greeting.go` and try changing the greeting message (e.g., to Japan
 
 ---
 
-## 5. Summary
+## 5. Advanced Topics: Error and Data Boundaries
 
-1. **Domain depends on nothing**: Isolate the core knowledge of the business.
+In Clean Architecture, there are clear boundaries for errors and data between layers.
+
+### Error Boundary
+
+```text
+Infra Layer     → Converts to domain errors before returning (does not leak driver errors)
+UseCase Layer   → Propagates domain errors as-is
+Framework Layer → Converts domain errors to HTTP statuses (404, 500, etc.)
+```
+
+This design prevents database-specific errors (e.g., `sql.ErrNoRows`) from leaking into the UseCase or Framework layers.
+
+### Data Boundary (DTO)
+
+In production, UseCase inputs and outputs are defined as explicit structs (DTOs: Data Transfer Objects), separating Entities (`domain.User`) from Framework request/response types. This minimal example uses primitive types, but DTO introduction is recommended as the system grows.
+
+---
+
+## 6. Summary
+
+1. **Domain depends on nothing**: Isolate the core knowledge and errors of the business.
 2. **UseCase talks through Ports (Interfaces)**: Logic can be completed without knowing implementation details (DB, etc.).
-3. **Dependency Injection (DI)**: By snapping each part together in `main.go`, the entire system becomes operational.
+3. **Respect Error Boundaries**: Technical errors are converted to domain errors in the Infra layer, then to HTTP statuses in the Framework layer.
+4. **Dependency Injection (DI)**: By snapping each part together in `main.go`, the entire system becomes operational.
 
 This is the first step toward a "Clean" design that is highly maintainable, easy to test, and resilient to change.
