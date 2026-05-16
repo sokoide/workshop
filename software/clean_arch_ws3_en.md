@@ -212,7 +212,7 @@ type BoardRepository interface {
 └────────────────────────────────────────────────────────────────────┘
                ↑ implements
 ┌──────────────┴───────────────┐
-│  internal/adapters/internal/adapters/infra/persistence/ │
+│  internal/adapters/infra/persistence/ │
 │  sqlite/board_repo.go        │  ← Infra Adapter (concrete impl)
 │  func (r *BoardRepository)   │     (implements Domain Interface)
 │  FindByName(...) {           │
@@ -299,7 +299,7 @@ With each layer handling error conversion, upper layers don't need to know about
 ### Key Points
 
 1. **UseCase doesn't know concrete implementations**: Depends on `port.BoardRepository` (Interface), not `sqlite.BoardRepository` (concrete type)
-2. **Infra implements Domain Interface**: `internal/adapters/internal/adapters/infra/persistence/sqlite/` implements interfaces from `internal/domain/port/`
+2. **Infra implements Domain Interface**: `internal/adapters/infra/persistence/sqlite/` implements interfaces from `internal/domain/port/`
 3. **Presentation and Infra Adapters are not directly related**: Both are part of the Adapters layer but split by direction, connected indirectly through UseCase
 4. **Only Composition Root (main.go) knows the whole picture**: Decides which Infra implementation and which Presentation to use
 

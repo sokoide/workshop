@@ -99,7 +99,7 @@ func (uc *CheckVeteranUseCase) Execute(ctx context.Context, id string) (bool, er
 `domain.UserRepository` インターフェースを満たす AD 用のリポジトリを作成します。
 
 ```go
-// internal/adapters/internal/adapters/infra/ad_user_repository.go
+// internal/adapters/infra/ad_user_repository.go
 package infra
 
 import (

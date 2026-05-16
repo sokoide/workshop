@@ -210,7 +210,7 @@ type BoardRepository interface {
 └────────────────────────────────────────────────────────────────────┘
                ↑ implements
 ┌──────────────┴───────────────┐
-│  internal/adapters/internal/adapters/infra/persistence/ │
+│  internal/adapters/infra/persistence/ │
 │  sqlite/board_repo.go        │  ← Infra Adapter（具象実装）
 │  func (r *BoardRepository)   │     (Domain Interface を実装)
 │  FindByName(...) {           │
@@ -297,7 +297,7 @@ Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換�
 ### キーポイント
 
 1. **UseCase は具象実装を知らない**: `sqlite.BoardRepository` ではなく `port.BoardRepository`（Interface）に依存
-2. **Infra は Domain Interface を実装する**: `internal/adapters/internal/adapters/infra/persistence/sqlite/` が `internal/domain/port/` の Interface を実装
+2. **Infra は Domain Interface を実装する**: `internal/adapters/infra/persistence/sqlite/` が `internal/domain/port/` の Interface を実装
 3. **Presentation と Infra Adapters は直接関係しない**: どちらも Adapters 層の一部だが方向が異なり、UseCase を介して間接的に繋がる
 4. **Composition Root（main.go）だけが全体を知っている**: どの Infra 実装を使うか、どの Presentation を使うかをここで決定
 
@@ -354,7 +354,7 @@ Presentation Adapters ──→ UseCases ──→ Domain
 Adapters (Presentation) 層の現状を確認します。Handler は「入力変換 → UseCase 呼び出し → 出力変換」の構造です。
 
 ```go
-// internal/adapters/internal/adapters/presentation/http/handler/thread_handler.go
+// internal/adapters/presentation/http/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP 固有の入力変換
     name := r.PathValue("name")
@@ -434,7 +434,7 @@ message Post {
 新しいファイルに gRPC 用のハンドラを作ります。**UseCase の呼び出し方が HTTP 版と同一**であることを確認してください。
 
 ```go
-// internal/adapters/internal/adapters/presentation/grpc/bbs_server.go（新規ファイル）
+// internal/adapters/presentation/grpc/bbs_server.go（新規ファイル）
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
     createThread *usecase.CreateThreadUseCase

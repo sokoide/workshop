@@ -29,7 +29,7 @@ software/assets/greeting/
 └── main.go       (Composition Root) Assembling all layers (Dependency Injection)
 ```
 
-> **Note:** `infra/` and `presentation/` are both part of the Adapters layer, split by direction (outbound vs inbound). In larger projects, they would typically live under `internal/adapters/internal/adapters/infra/` and `internal/adapters/internal/adapters/presentation/`.
+> **Note:** `infra/` and `presentation/` are both part of the Adapters layer, split by direction (outbound vs inbound). In larger projects, they would typically live under `internal/adapters/infra/` and `internal/adapters/presentation/`.
 
 ```text
 Presentation Adapters ---→ UseCases ---→ Domain

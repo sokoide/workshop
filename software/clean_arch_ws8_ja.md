@@ -29,7 +29,7 @@ software/assets/greeting/
 └── main.go       (Composition Root) 全レイヤーの組み立て（依存注入）
 ```
 
-> **補足:** `infra/` と `presentation/` はどちらも Adapters 層の一部であり、方向（出力側 vs 入力側）で分割されています。規模が大きくなるプロジェクトでは `internal/adapters/internal/adapters/infra/` と `internal/adapters/internal/adapters/presentation/` に配置するのが一般的です。
+> **補足:** `infra/` と `presentation/` はどちらも Adapters 層の一部であり、方向（出力側 vs 入力側）で分割されています。規模が大きくなるプロジェクトでは `internal/adapters/infra/` と `internal/adapters/presentation/` に配置するのが一般的です。
 
 ```text
 Presentation Adapters ---→ UseCases ---→ Domain

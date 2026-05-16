@@ -31,7 +31,7 @@
 新しいファイルに JWT 検証ミドルウェアを作ります。
 
 ```go
-// internal/adapters/internal/adapters/presentation/http/middleware/auth.go（新規ファイル）
+// internal/adapters/presentation/http/middleware/auth.go（新規ファイル）
 package middleware
 
 import (
@@ -135,7 +135,7 @@ func writeAuthError(w http.ResponseWriter, status int, msg string) {
 書き込み（POST）エンドポイントにだけ認証を要求します。読み取り（GET）は認証なしでアクセス可能です。
 
 ```go
-// internal/adapters/internal/adapters/presentation/http/router.go（一部変更）
+// internal/adapters/presentation/http/router.go（一部変更）
 func NewRouter(
     boardHandler *handler.BoardHandler,
     threadHandler *handler.ThreadHandler,
@@ -223,7 +223,7 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
 ### Handler 側: Context から Claims を取り出して Input DTO に渡す
 
 ```go
-// internal/adapters/internal/adapters/presentation/http/handler/post_handler.go
+// internal/adapters/presentation/http/handler/post_handler.go
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     // Context から認証済みユーザーを取り出す
     claims := middleware.GetClaims(r.Context())

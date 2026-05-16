@@ -244,7 +244,7 @@ func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thre
 エラーハンドリングに 1 case を追加します。
 
 ```go
-// internal/adapters/internal/adapters/presentation/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
+// internal/adapters/presentation/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     out, err := h.createPost.Execute(r.Context(), input)
     // ...既存のエラーハンドリング
@@ -258,7 +258,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 また、スレッド作成時のリクエスト DTO にも `owner_only` フィールドを追加します。
 
 ```go
-// internal/adapters/internal/adapters/presentation/http/handler/thread_handler.go
+// internal/adapters/presentation/http/handler/thread_handler.go
 type createThreadRequest struct {
     Title     string `json:"title"`
     Author    string `json:"author"`

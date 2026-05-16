@@ -262,7 +262,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 **4-2. Add `owner_only` to thread creation request**
 
 ```go
-// internal/adapters/internal/adapters/presentation/http/handler/thread_handler.go
+// internal/adapters/presentation/http/handler/thread_handler.go
 type createThreadRequest struct {
     Title     string `json:"title"`
     Author    string `json:"author"`

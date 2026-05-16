@@ -23,7 +23,7 @@ package domain
 
 import "context"
 
-type NotificationService interface {
+type NotificationGateway interface {
 	Send(ctx context.Context, message string) error
 }
 ```
@@ -133,5 +133,3 @@ func main() {
 3. **Ports and Implementation Separation:**
     - The notification interface is an output port; Slack/Email implementations live in Infra Adapters Layer.
     - Details like Redis clients stay in the Infra Adapters Layer.
-
-> **Naming Note:** This workshop uses `NotificationService` for simplicity. WS6 introduces the same concept as `NotificationGateway` in `domain/port/notification.go` — the `Gateway` suffix is used for infra-facing output ports to distinguish them from domain services that contain business logic.
