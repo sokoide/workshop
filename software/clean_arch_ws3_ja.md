@@ -161,22 +161,22 @@ type BoardRepository interface {
 ### 完全な依存関係図
 
 ```text
-                   ┌─────────────────────────────────────────┐
-                   │  cmd/bbs/main.go (Composition Root)     │
-                   │  ─────────────────────────────────────  │
-                   │  func main() {                          │
-                   │      // 1. Infra を構築                 │
-                   │      boardRepo := sqlite.NewBoardRepo() │
-                   │      // 2. UseCase を構築               │
-                   │      listThreads := usecase.New(...)    │
-                   │         └── boardRepo を注入            │
-                   │      // 3. Presentation を構築           │
-                   │      handler := NewHandler(listThreads) │
-                   │         └── listThreads を注入          │
-                   │      // 4. サーバー起動                 │
-                   │      http.Serve(router)                 │
-                   │  }                                      │
-                   └─────────────────────────────────────────┘
+                   ┌───────────────────────────────────────────┐
+                   │  cmd/bbs/main.go (Composition Root)       │
+                   │  ───────────────────────────────────────  │
+                   │  func main() {                            │
+                   │      // 1. Infra を構築                   │
+                   │      boardRepo := sqlite.NewBoardRepo()   │
+                   │      // 2. UseCase を構築                 │
+                   │      listThreads := usecase.New(...)      │
+                   │         └── boardRepo を注入              │
+                   │      // 3. Presentation を構築            │
+                   │      handler := NewHandler(listThreads)   │
+                   │         └── listThreads を注入            │
+                   │      // 4. サーバー起動                   │
+                   │      http.Serve(router)                   │
+                   │  }                                        │
+                   └───────────────────────────────────────────┘
                               │
                  ┌────────────┼────────────┐
                  │            │            │

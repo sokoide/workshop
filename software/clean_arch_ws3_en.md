@@ -163,22 +163,22 @@ type BoardRepository interface {
 ### Complete Dependency Diagram
 
 ```text
-                   ┌─────────────────────────────────────────┐
-                   │  cmd/bbs/main.go (Composition Root)     │
-                   │  ─────────────────────────────────────  │
-                   │  func main() {                          │
-                   │      // 1. Build Infra                  │
-                   │      boardRepo := sqlite.NewBoardRepo() │
-                   │      // 2. Build UseCase                │
-                   │      listThreads := usecase.New(...)    │
-                   │         └── inject boardRepo            │
-                   │      // 3. Build Presentation            │
-                   │      handler := NewHandler(listThreads) │
-                   │         └── inject listThreads          │
-                   │      // 4. Start server                 │
-                   │      http.Serve(router)                 │
-                   │  }                                      │
-                   └─────────────────────────────────────────┘
+                   ┌───────────────────────────────────────────┐
+                   │  cmd/bbs/main.go (Composition Root)       │
+                   │  ───────────────────────────────────────  │
+                   │  func main() {                            │
+                   │      // 1. Build Infra                    │
+                   │      boardRepo := sqlite.NewBoardRepo()   │
+                   │      // 2. Build UseCase                  │
+                   │      listThreads := usecase.New(...)      │
+                   │         └── inject boardRepo              │
+                   │      // 3. Build Presentation             │
+                   │      handler := NewHandler(listThreads)   │
+                   │         └── inject listThreads            │
+                   │      // 4. Start server                   │
+                   │      http.Serve(router)                   │
+                   │  }                                        │
+                   └───────────────────────────────────────────┘
                               │
                  ┌────────────┼────────────┐
                  │            │            │
