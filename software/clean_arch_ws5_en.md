@@ -1,7 +1,7 @@
 # Clean Architecture Workshop (WS5): Swapping the Persistence Layer
 
 In this workshop, you will migrate the BBS (2channel-style bulletin board) database from SQLite to PostgreSQL.
-You will modify **the Infra Adapter layer and Composition Root wiring**, confirming that Domain, UseCase, and Framework remain completely untouched.
+You will modify **the Infra Adapter layer and Composition Root wiring**, confirming that Domain, UseCase, and Presentation remain completely untouched.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ The following layers require **zero modifications**:
 | ------- | -------- |
 | **Domain** | Port Interfaces (`BoardRepository`, `ThreadRepository`, etc.) are abstract, so calls work identically regardless of SQLite or PostgreSQL |
 | **UseCase** | Depends on Repository **Interfaces**, so swapping concrete implementations has no impact |
-| **Framework** | Handlers call UseCases and know nothing about the DB type |
+| **Presentation** | Handlers call UseCases and know nothing about the DB type |
 
 ### Step 1: Review the Current SQLite Implementation
 
@@ -231,7 +231,7 @@ func main() {
     boardHandler := handler.NewBoardHandler(listBoards)
     threadHandler := handler.NewThreadHandler(listThreads, createThread)
     postHandler := handler.NewPostHandler(listPosts, createPost)
-    router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler)
+    router := httpPresentation.NewRouter(boardHandler, threadHandler, postHandler)
     // ...
 }
 ```
@@ -303,7 +303,7 @@ Without this conversion, UseCase depends on `database/sql`, making DB changes im
 
 ## Key Points
 
-1. **Localized Impact**: DB changes are confined to the Infra layer. Domain, UseCase, and Framework are untouched.
+1. **Localized Impact**: DB changes are confined to the Infra layer. Domain, UseCase, and Presentation are untouched.
 2. **Role of Interfaces**: UseCase depends on Port Interfaces (abstractions), not concrete implementations (SQLite/PostgreSQL). This enables swapping.
 3. **Composition Root Is the Single Source of Truth**: Only `main.go` knows "which DB to use." Each layer is unaware of what it's using.
 4. **Coexistence**: SQLite and PostgreSQL versions can coexist, switchable via environment variables or build tags.

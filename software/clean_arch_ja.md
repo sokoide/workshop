@@ -4,11 +4,11 @@
 
 ## レイヤー構造と依存関係
 
-依存関係は常に **内側（Domain）** に向かいます。外部入力（Framework）は UseCase を呼び出し、Infra Adapters はインターフェースを介して Domain に依存します。
+依存関係は常に **内側（Domain）** に向かいます。外部入力（Presentation）は UseCase を呼び出し、Infra Adapters はインターフェースを介して Domain に依存します。
 
 ```mermaid
 graph TD
-    subgraph FrameworkLayer [Framework]
+    subgraph PresentationLayer [Presentation]
         Web[Web / gRPC / CLI]
         Controller[Controller / Handler]
         Presenter[Presenter]
@@ -64,7 +64,7 @@ graph TD
 * **Repository Impl:** Domain 層のリポジトリインターフェースを実装します。データのマッピングやクエリ組み立て、DB エラーの変換を行います。
 * **Gateway Impl:** 外部 API クライアントなどの実装。
 
-## 4. Framework (フレームワーク層)
+## 4. Presentation (プレゼンテーション層)
 
 Web フレームワークや CLI など、最外周の I/O 層です。
 
@@ -134,6 +134,7 @@ package infra
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 // SQLMembershipRepository は、SQL データベースを使用したリポジトリの実装です。
@@ -150,7 +151,10 @@ func (r *SQLMembershipRepository) IsMember(ctx context.Context, userID, groupID 
 	var exists bool
 	query := "SELECT EXISTS(SELECT 1 FROM memberships WHERE user_id = ? AND group_id = ?)"
 	err := r.db.QueryRowContext(ctx, query, userID, groupID).Scan(&exists)
-	return exists, err
+	if err != nil {
+		return false, fmt.Errorf("query membership: %w", err) // ドライバエラーを変換
+	}
+	return exists, nil
 }
 ```
 

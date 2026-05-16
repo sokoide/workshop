@@ -1,7 +1,7 @@
 # クリーンアーキテクチャ実習 (WS3): 通信プロトコルの差し替え
 
 この実習では、BBS（2 ちゃんねる風掲示板）の REST API を gRPC に移行します。
-**Framework 層だけを変更**し、Domain・UseCase・Infra が一切変更不要であることを体験します。
+**Presentation 層だけを変更**し、Domain・UseCase・Infra が一切変更不要であることを体験します。
 
 ## BBS アプリの概要
 
@@ -170,7 +170,7 @@ type BoardRepository interface {
                    │      // 2. UseCase を構築               │
                    │      listThreads := usecase.New(...)    │
                    │         └── boardRepo を注入            │
-                   │      // 3. Framework を構築             │
+                   │      // 3. Presentation を構築           │
                    │      handler := NewHandler(listThreads) │
                    │         └── listThreads を注入          │
                    │      // 4. サーバー起動                 │
@@ -181,10 +181,10 @@ type BoardRepository interface {
                  ┌────────────┼────────────┐
                  │            │            │
                  ↓            ↓            ↓
-        ┌────────────┐  ┌────────────┐  ┌────────────┐
-        │   Infra    │  │  UseCase   │  │ Framework  │
-        │  Adapter   │  │   Layer    │  │   Layer    │
-        └──────┬─────┘  └──────┬─────┘  └──────┬─────┘
+        ┌────────────┐  ┌────────────┐  ┌─────────────┐
+        │   Infra    │  │  UseCase   │  │ Presentation│
+        │  Adapter   │  │   Layer    │  │    Layer    │
+        └──────┬─────┘  └──────┬─────┘  └──────┬──────┘
                │               │               │
                │               │               │
 ┌──────────────┴───────────────┴───────────────┴─────────────────────┐
@@ -223,7 +223,7 @@ type BoardRepository interface {
 
 ```text
            ┌─────────────┐
-           │  Framework  │  ← 最外側（HTTP/gRPC/CLI）
+           │ Presentation │  ← 最外側（HTTP/gRPC/CLI）
            └──────┬──────┘
                   │ depends on
                   ↓
@@ -274,7 +274,7 @@ Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換�
                                 │ returns domain error
                                 ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Framework Layer (HTTP)                                              │
+│ Presentation Layer (HTTP)                                              │
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │ if errors.Is(err, domain.ErrThreadNotFound) {                │  │
 │  │     writeError(w, http.StatusNotFound, err.Error())  // ← 変換│  │
@@ -287,7 +287,7 @@ Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換�
 
 - **Infra Adapter**: ドライバエラー（`sql.ErrNoRows`）をドメインエラー（`domain.ErrThreadNotFound`）に変換
 - **UseCase**: ドメインエラーをそのまま上位へ（技術詳細を知らない）
-- **Framework**: ドメインエラーをトランスポートエラー（HTTP 404, gRPC NotFound）に変換
+- **Presentation**: ドメインエラーをトランスポートエラー（HTTP 404, gRPC NotFound）に変換
 
 このように各レイヤーがエラー変換の責務を持つことで、上位のレイヤーは下位の技術詳細を知る必要がなくなります。
 
@@ -295,8 +295,8 @@ Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換�
 
 1. **UseCase は具象実装を知らない**: `sqlite.BoardRepository` ではなく `port.BoardRepository`（Interface）に依存
 2. **Infra は Domain Interface を実装する**: `internal/infra/persistence/sqlite/` が `internal/domain/port/` の Interface を実装
-3. **Framework と Infra は直接関係しない**: どちらも「最外側」だが、UseCase を介して間接的に繋がる
-4. **Composition Root（main.go）だけが全体を知っている**: どの Infra 実装を使うか、どの Framework を使うかをここで決定
+3. **Presentation と Infra は直接関係しない**: どちらも「最外側」だが、UseCase を介して間接的に繋がる
+4. **Composition Root（main.go）だけが全体を知っている**: どの Infra 実装を使うか、どの Presentation を使うかをここで決定
 
 ```go
 // UseCase は Interface に依存（具象を知らない）
@@ -322,7 +322,7 @@ func (r *BoardRepository) FindByName(...) {  // ← Interface を実装
 以下の 4 層構造を理解していることが前提です。
 
 ```text
-Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domain (ビジネスルール)
+Presentation (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domain (ビジネスルール)
                                                           →  Port Interface (抽象)
                              ↑                                   ↑
                          Infra Adapter (DB) ─────────────────────┘  (DIP: 具象が抽象に依存)
@@ -348,10 +348,10 @@ Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domai
 
 ### Step 1: 現在の HTTP Handler を確認する
 
-Framework 層の現状を確認します。Handler は「入力変換 → UseCase 呼び出し → 出力変換」の構造です。
+Presentation 層の現状を確認します。Handler は「入力変換 → UseCase 呼び出し → 出力変換」の構造です。
 
 ```go
-// internal/framework/http/handler/thread_handler.go
+// internal/presentation/http/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP 固有の入力変換
     name := r.PathValue("name")
@@ -431,7 +431,7 @@ message Post {
 新しいファイルに gRPC 用のハンドラを作ります。**UseCase の呼び出し方が HTTP 版と同一**であることを確認してください。
 
 ```go
-// internal/framework/grpc/bbs_server.go（新規ファイル）
+// internal/presentation/grpc/bbs_server.go（新規ファイル）
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
     createThread *usecase.CreateThreadUseCase
@@ -504,7 +504,7 @@ func main() {
     // 新: gRPC サーバー起動（ここだけ変更）
     grpcServer := grpc.NewServer()
     reflection.Register(grpcServer)  // grpcurl でサービス一覧を表示するために必要
-    bbsServer := framework.NewBBSServer(createThread, listThreads, ...)
+    bbsServer := presentation.NewBBSServer(createThread, listThreads, ...)
     pb.RegisterBBSServiceServer(grpcServer, bbsServer)
 
     lis, err := net.Listen("tcp", ":9090")
@@ -558,6 +558,6 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 
 ## この実習のポイント
 
-1. **影響範囲の局所化**: Framework 層だけで完結。UseCase の `Execute` 呼び出しは一切変わらない。
+1. **影響範囲の局所化**: Presentation 層だけで完結。UseCase の `Execute` 呼び出しは一切変わらない。
 2. **プロトコルの違いは「変換」の違い**: HTTP も gRPC も「入力を DTO に詰め替えて UseCase を呼ぶ」構造は同じ。
 3. **差し替えの容易さ**: 本番は gRPC、社内ツル用は HTTP、テスト用は CLI —— どれも UseCase を共有可能。

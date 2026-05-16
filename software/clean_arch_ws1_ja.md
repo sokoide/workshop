@@ -104,6 +104,7 @@ package infra
 
 import (
 	"context"
+	"fmt"
 
 	"your-project/domain"
 )
@@ -116,7 +117,7 @@ func (r *ADUserRepository) FindByID(ctx context.Context, id string) (*domain.Use
 	// LDAP クエリを発行して情報を取得
 	entry, err := r.ldapClient.Search(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ldap search user %s: %w", id, err) // ドライバエラーを変換
 	}
 	return &domain.User{
 		ID:       entry.UID,
@@ -156,4 +157,4 @@ func main() {
     - **核心となるビジネスロジック (Domain/UseCase) には 1 行も修正が入っていません。** これがクリーンアーキテクチャの真価です。
 3. **ポートと境界**:
     - `domain.UserRepository` は **出力ポート** であり、実装は Infra Adapters (インフラアダプター層) に置きます。
-    - `LDAPClient` や DB ドライバなどの詳細は Framework (フレームワーク層) に留め、Domain/UseCase に漏らしません。
+    - `LDAPClient` や DB ドライバなどの詳細は Infra Adapters (インフラアダプター層) に留め、Domain/UseCase に漏らしません。

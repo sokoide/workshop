@@ -1,7 +1,7 @@
 # クリーンアーキテクチャ実習 (WS5): 永続化層の差し替え
 
 この実習では、BBS（2 ちゃんねる風掲示板）のデータベースを SQLite から PostgreSQL に移行します。
-**Infra Adapter 層と Composition Root の配線だけを変更**し、Domain・UseCase・Framework が一切変更不要であることを体験します。
+**Infra Adapter 層と Composition Root の配線だけを変更**し、Domain・UseCase・Presentation が一切変更不要であることを体験します。
 
 ## 前提知識
 
@@ -23,7 +23,7 @@
 | ---- | ------ |
 | **Domain** | Port Interface（`BoardRepository`, `ThreadRepository` 等）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
 | **UseCase** | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし |
-| **Framework** | Handler は UseCase を呼ぶだけで、DB の種類を知らない |
+| **Presentation** | Handler は UseCase を呼ぶだけで、DB の種類を知らない |
 
 ### Step 1: 現在の SQLite 実装を確認する
 
@@ -235,7 +235,7 @@ func main() {
     boardHandler := handler.NewBoardHandler(listBoards)
     threadHandler := handler.NewThreadHandler(listThreads, createThread)
     postHandler := handler.NewPostHandler(listPosts, createPost)
-    router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler)
+    router := httpPresentation.NewRouter(boardHandler, threadHandler, postHandler)
     // ...
 }
 ```
@@ -307,7 +307,7 @@ func (u *CreateThreadUseCase) Execute(...) {
 
 ## この実習のポイント
 
-1. **影響範囲の局所化**: DB の変更は Infra 層だけで完結。Domain・UseCase・Framework は一切触らない。
+1. **影響範囲の局所化**: DB の変更は Infra 層だけで完結。Domain・UseCase・Presentation は一切触らない。
 2. **Interface の役割**: UseCase が依存しているのは Port Interface（抽象）であり、具象実装（SQLite/PostgreSQL）ではない。これが差し替えを可能にしている。
 3. **Composition Root が唯一の知識源**: 「どの DB を使うか」を知っているのは `main.go` だけ。各層は自分が何を使っているかを知らない。
 4. **並行稼働**: SQLite 版と PostgreSQL 版が同時に存在でき、環境変数やビルドタグで切り替え可能。

@@ -24,7 +24,8 @@ pb/
 .omc/
 .serena/
 **/.serena/
-conductor/archive
+conductor/
+.ai-handoff.md
 
 # Go
 # Binaries and build artifacts

@@ -4,11 +4,11 @@ A proposal for building loosely coupled software centered on business logic, ind
 
 ## Layer Structure and Dependencies
 
-Dependencies always point **inwards (towards the Domain)**. External inputs (Framework) call the UseCase, and Infra Adapters depend on the Domain through interfaces.
+Dependencies always point **inwards (towards the Domain)**. External inputs (Presentation) call the UseCase, and Infra Adapters depend on the Domain through interfaces.
 
 ```mermaid
 graph TD
-    subgraph FrameworkLayer [Framework]
+    subgraph PresentationLayer [Presentation]
         Web[Web / gRPC / CLI]
         Controller[Controller / Handler]
         Presenter[Presenter]
@@ -64,7 +64,7 @@ Specifically implements the interfaces (Ports) defined in the Domain layer and b
 * **Repository Impl:** Implements the interface defined in the Domain layer. Mapping and query construction live here.
 * **Gateway Impl:** Implementation of external API clients, etc.
 
-## 4. Framework Layer
+## 4. Presentation Layer
 
 The outermost I/O layer, such as Web frameworks or CLI.
 
@@ -134,6 +134,7 @@ package infra
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 // SQLMembershipRepository is a repository implementation using a SQL database.
@@ -150,7 +151,10 @@ func (r *SQLMembershipRepository) IsMember(ctx context.Context, userID, groupID 
 	var exists bool
 	query := "SELECT EXISTS(SELECT 1 FROM memberships WHERE user_id = ? AND group_id = ?)"
 	err := r.db.QueryRowContext(ctx, query, userID, groupID).Scan(&exists)
-	return exists, err
+	if err != nil {
+		return false, fmt.Errorf("query membership: %w", err) // Convert driver error
+	}
+	return exists, nil
 }
 ```
 
@@ -173,21 +177,24 @@ type MembershipChecker interface {
 ```
 
 ```go
-// Example usage in a Web handler
-func HandleCheckMembership(w http.ResponseWriter, r *http.Request) {
-	// 1. Create real DB instance (usually done at startup)
-	dbRepo := infra.NewSQLMembershipRepository(sqlDB)
+// Example usage in a Web handler (Composition Root injects useCase at startup)
+func HandleCheckMembership(w http.ResponseWriter, r *http.Request, useCase usecase.MembershipChecker) {
+	userID := r.URL.Query().Get("id")
+	groupID := r.URL.Query().Get("group")
 
-	// 2. Inject repository into the UseCase (Dependency Injection)
-	useCase := usecase.NewMembershipUseCase(dbRepo)
+	// Execute the UseCase
+	isMember, err := useCase.Execute(r.Context(), userID, groupID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// 3. Execute the UseCase
-	isMember, err := useCase.Execute(r.Context(), "user123", "groupA")
-
-	// 4. Return result as response
+	// Return result as response
 	json.NewEncoder(w).Encode(map[string]bool{"is_member": isMember})
 }
 ```
+
+> **Note**: DB instances and UseCase construction belong in the Composition Root (`main.go`), not inside handlers. The handler receives the UseCase as a dependency and is responsible only for request/response conversion.
 
 ### Role of context.Context
 

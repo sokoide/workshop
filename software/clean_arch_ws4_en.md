@@ -24,7 +24,7 @@ Business rule additions propagate from inside to outside, but each layer's chang
 | **Domain** | Add `Thread.OwnerOnly` flag, `CanPost()` method, `ErrNotThreadOwner` error | Define the rule |
 | **UseCase** | Add `thread.CanPost(in.Author)` call, set `thread.Owner = in.Author` on thread creation | Apply the rule, persist owner |
 | **Infra** | Add `owner_only` and `owner` columns to `threads` table, update read/write | Persist the change |
-| **Framework** | Add one case: `ErrNotThreadOwner → 403 Forbidden` | Display the change |
+| **Presentation** | Add one case: `ErrNotThreadOwner → 403 Forbidden` | Display the change |
 
 ### Step 1: Domain Layer — Define the Rule
 
@@ -140,7 +140,7 @@ In post creation, the entire sequence — fetch thread, check permission, count 
 
 **2-2. Add `OwnerOnly` to the DTO**
 
-Add the `OwnerOnly` field to `CreateThreadInput` in `usecase/dto.go` so the Framework layer can pass the flag.
+Add the `OwnerOnly` field to `CreateThreadInput` in `usecase/dto.go` so the Presentation layer can pass the flag.
 
 ```go
 // usecase/dto.go
@@ -163,7 +163,7 @@ thread, err := entity.NewThread(board.ID, in.Title)
 if err != nil {
     return nil, err
 }
-thread.OwnerOnly = in.OwnerOnly  // Flag from Framework
+thread.OwnerOnly = in.OwnerOnly  // Flag from Presentation
 thread.Owner = in.Author         // Record first post author as owner
 ```
 
@@ -241,14 +241,14 @@ func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thre
 
 **Key observation**: The technical error `sql.ErrNoRows` is converted to the domain concept `domain.ErrThreadNotFound` before reaching the UseCase layer. The UseCase doesn't need to know "SQL returned no rows" — it only needs to know "thread not found."
 
-### Step 4: Framework Layer — Display the Change
+### Step 4: Presentation Layer — Display the Change
 
 Add one case to the error handling in `PostHandler`, and add the `owner_only` field to the thread creation request DTO.
 
 **4-1. Error handling for PostHandler**
 
 ```go
-// framework/handler/post_handler.go — error handling in CreatePost
+// presentation/handler/post_handler.go — error handling in CreatePost
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     out, err := h.createPost.Execute(r.Context(), input)
     // ...existing error handling
@@ -262,7 +262,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 **4-2. Add `owner_only` to thread creation request**
 
 ```go
-// internal/framework/http/handler/thread_handler.go
+// internal/presentation/http/handler/thread_handler.go
 type createThreadRequest struct {
     Title     string `json:"title"`
     Author    string `json:"author"`
@@ -306,7 +306,7 @@ func (t *Thread) CanPost(author string) bool {
 }
 ```
 
-If invited users are managed within the `Thread` entity (e.g., an `InvitedUsers` field), only Domain changes are needed — UseCase, Infra, and Framework require **zero changes**. If invited users require a new data source (e.g., a separate table or external service), Infra and potentially UseCase would also need updates.
+If invited users are managed within the `Thread` entity (e.g., an `InvitedUsers` field), only Domain changes are needed — UseCase, Infra, and Presentation require **zero changes**. If invited users require a new data source (e.g., a separate table or external service), Infra and potentially UseCase would also need updates.
 
 ---
 
@@ -341,7 +341,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 1. **Clear Rule Location**:
     - Domain knows "what the rule is" (`CanPost` implementation)
     - UseCase knows "when to apply the rule" (call timing)
-    - Framework knows "how to display rule violations" (403 Forbidden)
+    - Presentation knows "how to display rule violations" (403 Forbidden)
     - Infra knows "how to persist rule data" (owner_only + owner columns)
 2. **Inside→Outside Propagation**: Business rule changes start in Domain and propagate outward, but each layer's changes are limited to its own responsibility.
 3. **Minimal Changes**: Adding "invited users also OK" only requires changing `CanPost()` internals, provided invited users are managed within the Thread entity.

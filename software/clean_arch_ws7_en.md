@@ -1,7 +1,7 @@
 # Clean Architecture Workshop (WS7): Adding Authentication
 
 In this workshop, you will add JWT Bearer Token authentication to the BBS (2channel-style bulletin board).
-You will experience the **cross-cutting concern pattern** — adding authentication in the Framework layer — without modifying any inner layers (Domain, UseCase, Infra).
+You will experience the **cross-cutting concern pattern** — adding authentication in the Presentation layer — without modifying any inner layers (Domain, UseCase, Infra).
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ This workshop uses the [BBS project](./assets/bbs/) as the subject code.
 ## Workshop Scenario
 
 Add a requirement that posting requires JWT authentication.
-Authentication is a **cross-cutting concern** of the Framework layer, implemented as middleware.
+Authentication is a **cross-cutting concern** of the Presentation layer, implemented as middleware.
 
 ---
 
@@ -22,7 +22,7 @@ The following layers require **zero modifications**:
 
 | Layer | Reason |
 | ------- | -------- |
-| **Domain** | Entities and Ports don't know "who" is operating. Authentication is a Framework responsibility |
+| **Domain** | Entities and Ports don't know "who" is operating. Authentication is a Presentation responsibility |
 | **UseCase** | `Execute(ctx, Input)` signature is unchanged. If authenticated user info is needed, just add a field to the Input DTO |
 | **Infra** | DB access is unrelated to authentication |
 
@@ -31,7 +31,7 @@ The following layers require **zero modifications**:
 Create JWT validation middleware in a new file.
 
 ```go
-// internal/framework/http/middleware/auth.go (new file)
+// internal/presentation/http/middleware/auth.go (new file)
 package middleware
 
 import (
@@ -135,7 +135,7 @@ func writeAuthError(w http.ResponseWriter, status int, msg string) {
 Require authentication only for write (POST) endpoints. Read (GET) remains publicly accessible.
 
 ```go
-// internal/framework/http/router.go (partial change)
+// internal/presentation/http/router.go (partial change)
 func NewRouter(
     boardHandler *handler.BoardHandler,
     threadHandler *handler.ThreadHandler,
@@ -174,7 +174,7 @@ func main() {
     }
 
     // Pass secret to Router
-    router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler, secret)
+    router := httpPresentation.NewRouter(boardHandler, threadHandler, postHandler, secret)
 
     slog.Info("server starting", "addr", ":8080")
     if err := http.ListenAndServe(":8080", router); err != nil {
@@ -223,7 +223,7 @@ In practice, you often need the authenticated user ID in business logic. For exa
 ### Handler Side: Extract Claims from Context and Pass to Input DTO
 
 ```go
-// internal/framework/http/handler/post_handler.go
+// internal/presentation/http/handler/post_handler.go
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     // Extract authenticated user from Context
     claims := middleware.GetClaims(r.Context())
@@ -259,7 +259,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 }
 ```
 
-This way, **authentication info conversion (JWT Claims → Input DTO) is the Handler's (Framework layer) responsibility**, and UseCase simply receives it as a string.
+This way, **authentication info conversion (JWT Claims → Input DTO) is the Handler's (Presentation layer) responsibility**, and UseCase simply receives it as a string.
 
 ---
 
@@ -268,7 +268,7 @@ This way, **authentication info conversion (JWT Claims → Input DTO) is the Han
 Switching from JWT → API Key → OAuth requires only swapping the middleware.
 
 ```go
-// framework/middleware/apikey.go (alternative auth method)
+// presentation/middleware/apikey.go (alternative auth method)
 func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -333,7 +333,7 @@ In this case:
 
 ## Key Points
 
-1. **Cross-Cutting Concern Separation**: Authentication is implemented as Framework layer middleware, never mixing with business logic (UseCase).
+1. **Cross-Cutting Concern Separation**: Authentication is implemented as Presentation layer middleware, never mixing with business logic (UseCase).
 2. **Inner Layers Unchanged**: Domain, UseCase, and Infra don't know authentication exists. `Execute(ctx, Input)` signature is unchanged.
 3. **Auth Method Swap**: JWT → API Key → OAuth changes require only middleware replacement. UseCase is untouched.
 4. **Selective Application**: Granular control like "reads are unauthenticated, writes require auth" is handled entirely in the Router.

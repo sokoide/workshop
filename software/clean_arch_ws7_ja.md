@@ -1,7 +1,7 @@
 # クリーンアーキテクチャ実習 (WS7): 認証の追加
 
 この実習では、BBS（2 ちゃんねる風掲示板）に JWT Bearer Token 認証を追加します。
-**Framework 層に横断的関心を追加するパターン**を体験し、内側の層（Domain・UseCase・Infra）を一切変更しないことを確認します。
+**Presentation 層に横断的関心を追加するパターン**を体験し、内側の層（Domain・UseCase・Infra）を一切変更しないことを確認します。
 
 ## 前提知識
 
@@ -10,7 +10,7 @@
 ## 実習のシナリオ
 
 「投稿時に JWT で認証を要求する」という要件に対応します。
-認証は Framework 層の **横断的関心事（Cross-Cutting Concern）** であり、ミドルウェアとして実装します。
+認証は Presentation 層の **横断的関心事（Cross-Cutting Concern）** であり、ミドルウェアとして実装します。
 
 ---
 
@@ -22,7 +22,7 @@
 
 | 層 | 理由 |
 | ---- | ------ |
-| **Domain** | Entity と Port は「誰が」操作しているかを知らない。認証は Framework の責務 |
+| **Domain** | Entity と Port は「誰が」操作しているかを知らない。認証は Presentation の責務 |
 | **UseCase** | `Execute(ctx, Input)` のシグネチャ不変。認証済みユーザーが必要なら Input DTO にフィールドを追加するだけで対応可能 |
 | **Infra** | DB アクセスは認証とは無関係 |
 
@@ -31,7 +31,7 @@
 新しいファイルに JWT 検証ミドルウェアを作ります。
 
 ```go
-// internal/framework/http/middleware/auth.go（新規ファイル）
+// internal/presentation/http/middleware/auth.go（新規ファイル）
 package middleware
 
 import (
@@ -135,7 +135,7 @@ func writeAuthError(w http.ResponseWriter, status int, msg string) {
 書き込み（POST）エンドポイントにだけ認証を要求します。読み取り（GET）は認証なしでアクセス可能です。
 
 ```go
-// internal/framework/http/router.go（一部変更）
+// internal/presentation/http/router.go（一部変更）
 func NewRouter(
     boardHandler *handler.BoardHandler,
     threadHandler *handler.ThreadHandler,
@@ -174,7 +174,7 @@ func main() {
     }
 
     // Router に secret を渡す
-    router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler, secret)
+    router := httpPresentation.NewRouter(boardHandler, threadHandler, postHandler, secret)
 
     slog.Info("server starting", "addr", ":8080")
     if err := http.ListenAndServe(":8080", router); err != nil {
@@ -223,7 +223,7 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
 ### Handler 側: Context から Claims を取り出して Input DTO に渡す
 
 ```go
-// internal/framework/http/handler/post_handler.go
+// internal/presentation/http/handler/post_handler.go
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     // Context から認証済みユーザーを取り出す
     claims := middleware.GetClaims(r.Context())
@@ -257,7 +257,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 }
 ```
 
-このように、**認証情報の変換（JWT Claims → Input DTO）は Handler（Framework 層）の責務**であり、UseCase は単なる文字列として受け取るだけです。
+このように、**認証情報の変換（JWT Claims → Input DTO）は Handler（Presentation 層）の責務**であり、UseCase は単なる文字列として受け取るだけです。
 
 ---
 
@@ -266,7 +266,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 JWT → API Key → OAuth に認証方式を変更する場合、ミドルウェアを差し替えるだけです。
 
 ```go
-// framework/middleware/apikey.go（別の認証方式）
+// presentation/middleware/apikey.go（別の認証方式）
 func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -331,7 +331,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 ## この実習のポイント
 
-1. **横断的関心事の分離**: 認証は Framework 層のミドルウェアとして実装し、ビジネスロジック（UseCase）に混ざらない。
+1. **横断的関心事の分離**: 認証は Presentation 層のミドルウェアとして実装し、ビジネスロジック（UseCase）に混ざらない。
 2. **内側の層は不変**: Domain・UseCase・Infra は認証の存在を知らない。`Execute(ctx, Input)` のシグネチャは変わらない。
 3. **認証方式の差し替え**: JWT → API Key → OAuth への変更は、ミドルウェアの差し替えだけで完了。UseCase は変更不要。
 4. **選択的適用**: 読み取りは認証なし、書き込みは認証あり、という粒度の制御が Router で完結する。

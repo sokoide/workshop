@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/sokoide/cleanarch1/internal/domain/entity"
-	httpFramework "github.com/sokoide/cleanarch1/internal/framework/http"
-	"github.com/sokoide/cleanarch1/internal/framework/http/handler"
+	httpPresentation "github.com/sokoide/cleanarch1/internal/presentation/http"
+	"github.com/sokoide/cleanarch1/internal/presentation/http/handler"
 	"github.com/sokoide/cleanarch1/internal/infra/persistence/sqlite"
 	"github.com/sokoide/cleanarch1/internal/usecase"
 )
@@ -39,7 +39,7 @@ func main() {
 	listPosts := usecase.NewListPostsUseCase(postRepo)
 	createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm)
 
-	// Framework - Handler
+	// Presentation - Handler
 	boardHandler := handler.NewBoardHandler(listBoards)
 	threadHandler := handler.NewThreadHandler(listThreads, createThread)
 	postHandler := handler.NewPostHandler(listPosts, createPost)
@@ -48,7 +48,7 @@ func main() {
 	seedBoards(boardRepo)
 
 	// Router
-	router := httpFramework.NewRouter(boardHandler, threadHandler, postHandler)
+	router := httpPresentation.NewRouter(boardHandler, threadHandler, postHandler)
 
 	addr := ":8080"
 	slog.Info("server starting", "addr", addr)

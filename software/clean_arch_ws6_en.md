@@ -23,7 +23,7 @@ This is a classic example of the new Port/Adapter pattern.
 | **Domain** | Define `port.NotificationGateway` interface (new file) | Abstract definition of "notification is needed" |
 | **UseCase** | Inject `NotificationGateway` into `CreatePostUseCase`, call after successful post | Control notification timing |
 | **Infra** | Create `infra/notification/slack_gateway.go` (new file) | Concrete Slack API implementation |
-| **Framework** | **No changes** | — |
+| **Presentation** | **No changes** | — |
 | **Entity** | **No changes** | — |
 
 ### Step 1: Domain Layer — Define a New Port
@@ -241,7 +241,7 @@ func (g *EmailGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 notifier := notification.NewEmailGateway("smtp.example.com:587", "bbs@example.com", "admin@example.com")
 ```
 
-UseCase, Domain, and Framework require **zero changes**.
+UseCase, Domain, and Presentation require **zero changes**.
 
 ---
 

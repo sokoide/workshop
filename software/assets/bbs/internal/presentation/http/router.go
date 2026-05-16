@@ -3,8 +3,8 @@ package http
 import (
 	"net/http"
 
-	"github.com/sokoide/cleanarch1/internal/framework/http/handler"
-	"github.com/sokoide/cleanarch1/internal/framework/http/middleware"
+	"github.com/sokoide/cleanarch1/internal/presentation/http/handler"
+	"github.com/sokoide/cleanarch1/internal/presentation/http/middleware"
 )
 
 func NewRouter(

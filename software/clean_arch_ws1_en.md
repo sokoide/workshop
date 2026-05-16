@@ -104,6 +104,7 @@ package infra
 
 import (
 	"context"
+	"fmt"
 
 	"your-project/domain"
 )
@@ -116,7 +117,7 @@ func (r *ADUserRepository) FindByID(ctx context.Context, id string) (*domain.Use
 	// Issue LDAP query to retrieve info
 	entry, err := r.ldapClient.Search(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ldap search user %s: %w", id, err) // Convert driver error
 	}
 	return &domain.User{
 		ID:       entry.UID,
@@ -156,4 +157,4 @@ func main() {
     - **The core business logic (Domain/UseCase) remains untouched with zero lines of modification.** This is the true value of Clean Architecture.
 3. **Ports and Boundaries:**
     - `domain.UserRepository` is an **output port**; implementations live in Infra Adapters Layer.
-    - Details like `LDAPClient` or DB drivers stay in the Framework Layer and never leak into Domain/UseCase.
+    - Details like `LDAPClient` or DB drivers stay in the Infra Adapters Layer and never leak into Domain/UseCase.

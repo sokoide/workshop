@@ -24,7 +24,7 @@
 | **Domain** | `Thread.OwnerOnly` フラグ追加、`CanPost()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
 | **UseCase** | `thread.CanPost(in.Author)` の呼び出しを1行追加、スレッド作成時に `Owner` を設定 | ルールの適用 |
 | **Infra** | `threads` テーブルに `owner_only` 列と `owner` 列を追加、読み書きを対応 | 永続化の追従 |
-| **Framework** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加、`createThreadRequest` に `owner_only` フィールドを追加 | 表示と入力の追従 |
+| **Presentation** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加、`createThreadRequest` に `owner_only` フィールドを追加 | 表示と入力の追従 |
 
 ### Step 1: Domain 層 — ルールの定義
 
@@ -138,7 +138,7 @@ type TransactionManager interface {
 
 **2-2. DTO にフラグを追加する**
 
-`CreateThreadInput`（`usecase/dto.go`）に `OwnerOnly` フィールドを追加します。これにより Framework 層からフラグを渡せるようになります。
+`CreateThreadInput`（`usecase/dto.go`）に `OwnerOnly` フィールドを追加します。これにより Presentation 層からフラグを渡せるようになります。
 
 ```go
 // usecase/dto.go
@@ -161,7 +161,7 @@ thread, err := entity.NewThread(board.ID, in.Title)
 if err != nil {
     return nil, err
 }
-thread.OwnerOnly = in.OwnerOnly  // Framework から渡されたフラグ
+thread.OwnerOnly = in.OwnerOnly  // Presentation から渡されたフラグ
 thread.Owner = in.Author         // 1番目の投稿者をスレ主として記録
 ```
 
@@ -239,12 +239,12 @@ func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thre
 
 **確認ポイント**: `sql.ErrNoRows` という技術的なエラーが、UseCase 層へ渡る前に `domain.ErrThreadNotFound` というドメインの概念に変換されています。UseCase は「SQL の結果が空だった」ことを知る必要がありません。
 
-### Step 4: Framework 層 — 表示の追従
+### Step 4: Presentation 層 — 表示の追従
 
 エラーハンドリングに 1 case を追加します。
 
 ```go
-// internal/framework/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
+// internal/presentation/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     out, err := h.createPost.Execute(r.Context(), input)
     // ...既存のエラーハンドリング
@@ -258,7 +258,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 また、スレッド作成時のリクエスト DTO にも `owner_only` フィールドを追加します。
 
 ```go
-// internal/framework/http/handler/thread_handler.go
+// internal/presentation/http/handler/thread_handler.go
 type createThreadRequest struct {
     Title     string `json:"title"`
     Author    string `json:"author"`
@@ -302,7 +302,7 @@ func (t *Thread) CanPost(author string) bool {
 }
 ```
 
-招待ユーザーを `Thread` エンティティ内で管理する場合（例: `InvitedUsers` フィールド）、Domain の変更だけで済み、UseCase・Infra・Framework は **一切変更不要** です。ただし、招待ユーザーの管理に別テーブルや外部サービスが必要な場合は、Infra や UseCase の変更も発生します。
+招待ユーザーを `Thread` エンティティ内で管理する場合（例: `InvitedUsers` フィールド）、Domain の変更だけで済み、UseCase・Infra・Presentation は **一切変更不要** です。ただし、招待ユーザーの管理に別テーブルや外部サービスが必要な場合は、Infra や UseCase の変更も発生します。
 
 ---
 
@@ -337,7 +337,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 1. **ルールの居場所が明確**:
     - Domain は「ルールとは何か」を知っている（`CanPost` の中身）
     - UseCase は「いつルールを適用するか」を知っている（呼び出しタイミング）
-    - Framework は「ルール違反をどう表示するか」を知っている（403 Forbidden）
+    - Presentation は「ルール違反をどう表示するか」を知っている（403 Forbidden）
     - Infra は「ルールに必要なデータをどう保存するか」を知っている（owner_only / owner 列）
 2. **内→外への波及**: ビジネスルールの変更は Domain から始まり、外側に波及するが、各層の変更は自身の責務に限定される。
 3. **変更の最小化**: 新しい要件「招待者も OK」が追加されても、招待ユーザーを Thread エンティティ内で管理すれば `CanPost()` の中身だけを変えれば済む。別データソースが必要な場合は Infra 層の変更も発生する。

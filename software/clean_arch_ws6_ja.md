@@ -23,7 +23,7 @@
 | **Domain** | `port.NotificationGateway` interface を新規定義 | 「通知が必要である」という抽象の定義 |
 | **UseCase** | `CreatePostUseCase` に `NotificationGateway` を注入、投稿成功後に呼び出し | 通知のタイミング制御 |
 | **Infra** | `infra/notification/slack_gateway.go` を新規作成 | Slack API の具体実装 |
-| **Framework** | **変更なし** | — |
+| **Presentation** | **変更なし** | — |
 | **Entity** | **変更なし** | — |
 
 ### Step 1: Domain 層 — 新しい Port の定義
@@ -241,7 +241,7 @@ func (g *EmailGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 notifier := notification.NewEmailGateway("smtp.example.com:587", "bbs@example.com", "admin@example.com")
 ```
 
-UseCase、Domain、Framework は **一切変更不要** です。
+UseCase、Domain、Presentation は **一切変更不要** です。
 
 ---
 

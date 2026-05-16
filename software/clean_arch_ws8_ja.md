@@ -23,20 +23,20 @@ software/assets/greeting/
 ├── domain/       (Layer 1: 最内) ビジネスルール、Entity、Port(Interface)、Domain Error
 ├── usecase/      (Layer 2) ユースケース（シナリオ）
 ├── infra/        (Layer 3) インフラ詳細の実装（Adapter）
-├── framework/    (Layer 4: 最外) HTTP Handler、外部ライブラリ
+├── presentation/    (Layer 4: 最外) HTTP Handler、外部ライブラリ
 └── main.go       (Composition Root) 全レイヤーの組み立て（依存注入）
 ```
 
 ### 依存マトリクス
 
-| 依存元 ↓ → | Domain | UseCase | Infra | Framework |
-|------------|--------|---------|-------|-----------|
-| Domain     |   ✓    |    ✗    |   ✗   |     ✗     |
-| UseCase    |   ✓    |    ✓    |   ✗   |     ✗     |
-| Infra      |   ✓    |    ✗    |   ✓   |     ✗     |
-| Framework  |   ✗    |    ✓    |   ✗   |     ✓     |
+| 依存元 ↓ → | Domain | UseCase | Infra | Presentation |
+|------------|--------|---------|-------|--------------|
+| Domain     |   ✓    |    ✗    |   ✗   |     ✗        |
+| UseCase    |   ✓    |    ✓    |   ✗   |     ✗        |
+| Infra      |   ✓    |    ✓    |   ✓   |     ✗        |
+| Presentation|   ~    |    ✓    |   ✗   |     ✓        |
 
-✓ = 許可 | ✗ = 禁止
+✓ = 許可 | ✗ = 禁止 | ~ = シリアライズ目的のみ許可（ドメインメソッドをワークフロー判断に使用してはならない）
 
 ---
 
@@ -63,9 +63,9 @@ software/assets/greeting/
 - 今回は `MemoryUserRepo` としてメモリ上にデータを持ちますが、ここを MySQL や API に差し替えても、他のレイヤーを壊さずに済みます。
 - **エラーバウンダリ**: ユーザーが見つからない場合、技術的エラーではなくドメインエラー（`domain.ErrUserNotFound`）を返します。
 
-### 3-4. Framework 層: 外部との「接点」
+### 3-4. Presentation 層: 外部との「接点」
 
-`framework/` には、HTTP などの通信プロトコルに関する処理を書きます。
+`presentation/` には、HTTP などの通信プロトコルに関する処理を書きます。
 
 - リクエストから ID を取り出し、UseCase に渡し、結果をレスポンスとして返す役割に専念します。
 - **エラーの変換**: UseCase/Domain から返されたドメインエラーを HTTP ステータスコードに変換します（例: `ErrUserNotFound` → 404）。
@@ -110,7 +110,7 @@ go test ./usecase/... -v
 
 `usecase/greeting.go` を開き、挨拶文を日本語（`こんにちは、[Name]さん！`）に変更してみてください。
 
-- **ポイント**: この変更の際、`infra` や `framework` のコードに触れる必要がないことを確認してください。
+- **ポイント**: この変更の際、`infra` や `presentation` のコードに触れる必要がないことを確認してください。
 
 ### ステップ 4: 【演習】インフラを差し替える
 
@@ -157,7 +157,7 @@ repo := infra.NewSliceUserRepo()
 
 1. サーバーを再起動し、同じように動くことを確認します。
 
-- **ポイント**: この変更で触れたのは `infra/` と `main.go` だけです。`domain/`、`usecase/`、`framework/` は一切変更なしに動作します。これが「依存性の逆転」の実感です。
+- **ポイント**: この変更で触れたのは `infra/` と `main.go` だけです。`domain/`、`usecase/`、`presentation/` は一切変更なしに動作します。これが「依存性の逆転」の実感です。
 
 ---
 
@@ -170,14 +170,14 @@ Clean Architecture では、レイヤー間のエラーとデータにも明確�
 ```text
 Infra層 → ドメインエラーに変換して返す（driver errorは外に漏らさない）
 UseCase層 → ドメインエラーをそのまま伝播
-Framework層 → ドメインエラーをHTTPステータスに変換（404, 500など）
+Presentation層 → ドメインエラーをHTTPステータスに変換（404, 500など）
 ```
 
-この設計により、データベース固有のエラー（例: `sql.ErrNoRows`）が UseCase や Framework に漏れることを防ぎます。
+この設計により、データベース固有のエラー（例: `sql.ErrNoRows`）が UseCase や Presentation に漏れることを防ぎます。
 
 ### データバウンダリ（DTO）
 
-実務では、UseCase の入出力を明示的な構造体（DTO: Data Transfer Object）で定義し、Entity（`domain.User`）と Framework のリクエスト/レスポンスを分離します。今回は最小構成のためプリミティブ型を使用していますが、システムが大きくなるにつれて DTO の導入が推奨されます。
+実務では、UseCase の入出力を明示的な構造体（DTO: Data Transfer Object）で定義し、Entity（`domain.User`）と Presentation のリクエスト/レスポンスを分離します。今回は最小構成のためプリミティブ型を使用していますが、システムが大きくなるにつれて DTO の導入が推奨されます。
 
 ---
 
@@ -185,7 +185,7 @@ Framework層 → ドメインエラーをHTTPステータスに変換（404, 500
 
 1. **Domain は何にも依存しない**: ビジネスの核となる知識とエラーを独立させます。
 2. **UseCase は Port (Interface) を通じて会話する**: 実装（DB 等）を知らなくてもロジックは完結できます。
-3. **エラーバウンダリを守る**: 技術的エラーは Infra 層でドメインエラーに変換し、Framework 層で HTTP ステータスに変換します。
+3. **エラーバウンダリを守る**: 技術的エラーは Infra 層でドメインエラーに変換し、Presentation 層で HTTP ステータスに変換します。
 4. **依存性の注入 (DI)**: `main.go` で各パーツをカチッとはめ込むことで、全体が動くようになります。
 
 これが、メンテナンス性が高く、テストが容易で、変化に強い「クリーン」な設計の第一歩です。

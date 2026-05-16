@@ -28,7 +28,7 @@ All Go projects in this repository follow Clean Architecture principles with dep
 
 ```text
 ┌─────────────────────────────────────────┐
-│  Framework Layer (Web/gRPC/CLI)         │
+│  Presentation Layer (Web/gRPC/CLI)      │
 │  - Controllers, Handlers, Presenters    │
 └──────────────┬──────────────────────────┘
                │ depends on
@@ -58,7 +58,7 @@ All Go projects in this repository follow Clean Architecture principles with dep
 - **Domain Layer**: Pure Go with zero external dependencies. Contains entities, domain services, and repository interfaces.
 - **UseCase Layer**: Orchestrates business logic using Domain interfaces. Unaware of external implementation details.
 - **Infra Adapters Layer**: Concrete implementations of Domain interfaces (PostgreSQL, Redis, RabbitMQ, HTTP clients).
-- **Framework Layer**: Entry points (CLI, HTTP handlers) that depend on UseCase interfaces.
+- **Presentation Layer**: Entry points (CLI, HTTP handlers) that depend on UseCase interfaces.
 - **Dependency Injection**: main.go wires all dependencies together.
 
 **Directory Pattern per Project:**

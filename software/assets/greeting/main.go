@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"workshop/greeting/framework"
+	"workshop/greeting/presentation"
 	"workshop/greeting/infra"
 	"workshop/greeting/usecase"
 )
@@ -12,7 +12,7 @@ func main() {
 	// 1. Dependency Injection (Composition Root)
 	repo := infra.NewMemoryUserRepo()
 	uc := &usecase.GreetingUseCase{Repo: repo}
-	handler := &framework.GreetingHandler{UC: uc}
+	handler := &presentation.GreetingHandler{UC: uc}
 
 	// 2. Start Server
 	port := ":8080"

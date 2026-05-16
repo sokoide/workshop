@@ -1,7 +1,7 @@
 # Clean Architecture Workshop (WS3): Swapping Communication Protocols
 
 In this workshop, you will migrate the BBS (2channel-style bulletin board) REST API to gRPC.
-You will modify **only the Framework layer**, confirming that Domain, UseCase, and Infra remain completely untouched.
+You will modify **only the Presentation layer**, confirming that Domain, UseCase, and Infra remain completely untouched.
 
 ## BBS App Overview
 
@@ -172,7 +172,7 @@ type BoardRepository interface {
                    │      // 2. Build UseCase                │
                    │      listThreads := usecase.New(...)    │
                    │         └── inject boardRepo            │
-                   │      // 3. Build Framework              │
+                   │      // 3. Build Presentation            │
                    │      handler := NewHandler(listThreads) │
                    │         └── inject listThreads          │
                    │      // 4. Start server                 │
@@ -183,10 +183,10 @@ type BoardRepository interface {
                  ┌────────────┼────────────┐
                  │            │            │
                  ↓            ↓            ↓
-        ┌────────────┐  ┌────────────┐  ┌────────────┐
-        │   Infra    │  │  UseCase   │  │ Framework  │
-        │  Adapter   │  │   Layer    │  │   Layer    │
-        └──────┬─────┘  └──────┬─────┘  └──────┬─────┘
+        ┌────────────┐  ┌────────────┐  ┌─────────────┐
+        │   Infra    │  │  UseCase   │  │ Presentation│
+        │  Adapter   │  │   Layer    │  │    Layer    │
+        └──────┬─────┘  └──────┬─────┘  └──────┬──────┘
                │               │               │
                │               │               │
 ┌──────────────┴───────────────┴───────────────┴─────────────────────┐
@@ -225,7 +225,7 @@ type BoardRepository interface {
 
 ```text
            ┌─────────────┐
-           │  Framework  │  ← Outermost (HTTP/gRPC/CLI)
+           │ Presentation │  ← Outermost (HTTP/gRPC/CLI)
            └──────┬──────┘
                   │ depends on
                   ↓
@@ -276,7 +276,7 @@ In Clean Architecture, errors are also transformed as they cross layer boundarie
                                 │ returns domain error
                                 ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│ Framework Layer (HTTP)                                              │
+│ Presentation Layer (HTTP)                                              │
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │ if errors.Is(err, domain.ErrThreadNotFound) {                │  │
 │  │     writeError(w, http.StatusNotFound, err.Error())  // ← Convert │  │
@@ -289,7 +289,7 @@ In Clean Architecture, errors are also transformed as they cross layer boundarie
 
 - **Infra Adapter**: Converts driver errors (e.g., `sql.ErrNoRows`) to domain errors (e.g., `domain.ErrThreadNotFound`)
 - **UseCase**: Propagates domain errors as-is (unaware of technical details)
-- **Framework**: Converts domain errors to transport errors (HTTP 404, gRPC NotFound)
+- **Presentation**: Converts domain errors to transport errors (HTTP 404, gRPC NotFound)
 
 With each layer handling error conversion, upper layers don't need to know about lower-level technical details.
 
@@ -297,8 +297,8 @@ With each layer handling error conversion, upper layers don't need to know about
 
 1. **UseCase doesn't know concrete implementations**: Depends on `port.BoardRepository` (Interface), not `sqlite.BoardRepository` (concrete type)
 2. **Infra implements Domain Interface**: `internal/infra/persistence/sqlite/` implements interfaces from `internal/domain/port/`
-3. **Framework and Infra are not directly related**: Both are "outermost" layers, connected indirectly through UseCase
-4. **Only Composition Root (main.go) knows the whole picture**: Decides which Infra implementation and which Framework to use
+3. **Presentation and Infra are not directly related**: Both are "outermost" layers, connected indirectly through UseCase
+4. **Only Composition Root (main.go) knows the whole picture**: Decides which Infra implementation and which Presentation to use
 
 ```go
 // UseCase depends on Interface (not concrete)
@@ -324,7 +324,7 @@ This workshop uses the [BBS project](./assets/bbs/) as the subject code.
 You should understand the 4-layer structure:
 
 ```text
-Framework (HTTP/gRPC)  →  UseCase (Application logic)  →  Domain (Business rules)
+Presentation (HTTP/gRPC)  →  UseCase (Application logic)  →  Domain (Business rules)
                                                        →  Port Interface (abstraction)
                              ↑                                   ↑
                          Infra Adapter (DB) ─────────────────────┘  (DIP: concrete depends on abstract)
@@ -350,10 +350,10 @@ The following layers require **zero modifications**:
 
 ### Step 1: Review the Current HTTP Handler
 
-Review the current Framework layer. Handlers follow the "input conversion → UseCase call → output conversion" pattern.
+Review the current Presentation layer. Handlers follow the "input conversion → UseCase call → output conversion" pattern.
 
 ```go
-// framework/handler/thread_handler.go
+// presentation/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP-specific input conversion
     name := r.PathValue("name")
@@ -430,7 +430,7 @@ message Post {
 Create a gRPC handler in a new file. Confirm that the **UseCase invocation is identical to the HTTP version**.
 
 ```go
-// framework/grpc/bbs_server.go (new file)
+// presentation/grpc/bbs_server.go (new file)
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
     createThread *usecase.CreateThreadUseCase
@@ -497,13 +497,13 @@ func main() {
     // ...
 
     // Old: HTTP server startup
-    // handler := framework.NewThreadHandler(createThread, listThreads)
+    // handler := presentation.NewThreadHandler(createThread, listThreads)
     // http.ListenAndServe(":8080", router)
 
     // New: gRPC server startup (only this changes)
     grpcServer := grpc.NewServer()
     reflection.Register(grpcServer)  // Required for grpcurl service listing
-    bbsServer := framework.NewBBSServer(createThread, listThreads, ...)
+    bbsServer := presentation.NewBBSServer(createThread, listThreads, ...)
     pb.RegisterBBSServiceServer(grpcServer, bbsServer)
 
     lis, err := net.Listen("tcp", ":9090")
@@ -556,6 +556,6 @@ In this case, switching to gRPC requires **rewriting the entire function**.
 
 ## Key Points
 
-1. **Localized Impact**: Only the Framework layer changes. UseCase's `Execute` call remains untouched.
+1. **Localized Impact**: Only the Presentation layer changes. UseCase's `Execute` call remains untouched.
 2. **Protocol Differences Are "Conversion" Differences**: Both HTTP and gRPC follow the same "convert input to DTO → call UseCase" structure.
 3. **Easy Swapping**: Production uses gRPC, internal tools use HTTP, tests use CLI — all sharing the same UseCases.
