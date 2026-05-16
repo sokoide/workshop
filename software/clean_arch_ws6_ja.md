@@ -31,7 +31,7 @@
 「どう通知するか」ではなく「通知を送るという機能」を抽象として定義します。
 
 ```go
-// domain/port/notification.go（新規ファイル）
+// internal/domain/port/notification.go（新規ファイル）
 package port
 
 import "context"
@@ -50,7 +50,7 @@ type NotificationGateway interface {
 `CreatePostUseCase` に通知ゲートウェイを注入し、投稿成功後に呼び出します。
 
 ```go
-// usecase/post_usecase.go（既存ファイルを一部変更）
+// internal/usecase/post_usecase.go（既存ファイルを一部変更）
 // ※ `"log/slog"` を import に追加してください
 type CreatePostUseCase struct {
     threadRepo port.ThreadRepository
@@ -132,7 +132,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 新しいディレクトリに Slack 用の Gateway を作ります。
 
 ```go
-// infra/notification/slack_gateway.go（新規ファイル）
+// internal/adapters/infra/notification/slack_gateway.go（新規ファイル）
 package notification
 
 import (
@@ -223,7 +223,7 @@ curl -X POST http://localhost:8080/api/threads/1/posts \
 Slack → Email に変更する場合、Composition Root だけの変更で済みます。
 
 ```go
-// infra/notification/email_gateway.go（新規ファイル）
+// internal/adapters/infra/notification/email_gateway.go（新規ファイル）
 type EmailGateway struct {
     smtpHost string
     from     string
@@ -250,7 +250,7 @@ UseCase、Domain、Presentation は **一切変更不要** です。
 テストや CLI 版など、通知が不要な場面では NoOp（何もしない）実装を注入します。
 
 ```go
-// infra/notification/noop_gateway.go
+// internal/adapters/infra/notification/noop_gateway.go
 type NoOpGateway struct{}
 
 func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
@@ -271,7 +271,7 @@ createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
 通知をモックすることで、UseCase のテストで実際の Slack にメッセージを飛ばさずに検証できます。
 
 ```go
-// usecase/create_post_test.go
+// internal/usecase/create_post_test.go
 type mockNotifier struct {
     called bool
     thread string

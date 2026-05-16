@@ -18,7 +18,7 @@
 ユーザーの属性と、勤続年数を計算する知識を持たせます。
 
 ```go
-// domain/user.go
+// internal/domain/user.go
 package domain
 
 import "time"
@@ -45,7 +45,7 @@ func (u *User) GetTenureYears() int {
 「ベテランとは何か？」という判定基準は、Entity 自身よりも「サービス」として定義するのが適切です。
 
 ```go
-// domain/veteran_service.go
+// internal/domain/veteran_service.go
 package domain
 
 type VeteranService struct{}
@@ -61,13 +61,13 @@ func (s VeteranService) IsVeteran(user *User) bool {
 Domain オブジェクトを組み合わせてユースケースを実現します。
 
 ```go
-// usecase/check_veteran.go
+// internal/usecase/check_veteran.go
 package usecase
 
 import (
 	"context"
 
-	"your-project/domain"
+	"your-project/internal/domain"
 )
 
 type CheckVeteranUseCase struct {
@@ -99,14 +99,14 @@ func (uc *CheckVeteranUseCase) Execute(ctx context.Context, id string) (bool, er
 `domain.UserRepository` インターフェースを満たす AD 用のリポジトリを作成します。
 
 ```go
-// infra/ad_user_repository.go
+// internal/adapters/internal/adapters/infra/ad_user_repository.go
 package infra
 
 import (
 	"context"
 	"fmt"
 
-	"your-project/domain"
+	"your-project/internal/domain"
 )
 
 type ADUserRepository struct {
@@ -133,7 +133,7 @@ func (r *ADUserRepository) FindByID(ctx context.Context, id string) (*domain.Use
 
 ```go
 func main() {
-	// 旧: sqlRepo := infra.NewSQLUserRepository(db)
+	// 旧: sqlRepo := persistence.NewSQLUserRepository(db)
 	// 新:
 	adRepo := infra.NewADUserRepository(ldapClient)
 

@@ -18,7 +18,7 @@ Encapsulate the business knowledge of "Veteran Determination" within the Domain 
 Give the User attributes and the knowledge to calculate years of service.
 
 ```go
-// domain/user.go
+// internal/domain/user.go
 package domain
 
 import "time"
@@ -45,7 +45,7 @@ func (u *User) GetTenureYears() int {
 Criteria like "What defines a veteran?" are better defined as a "Service" rather than within the Entity itself.
 
 ```go
-// domain/veteran_service.go
+// internal/domain/veteran_service.go
 package domain
 
 type VeteranService struct{}
@@ -61,13 +61,13 @@ func (s VeteranService) IsVeteran(user *User) bool {
 Combine Domain objects to realize the use case.
 
 ```go
-// usecase/check_veteran.go
+// internal/usecase/check_veteran.go
 package usecase
 
 import (
 	"context"
 
-	"your-project/domain"
+	"your-project/internal/domain"
 )
 
 type CheckVeteranUseCase struct {
@@ -99,14 +99,14 @@ Due to a sudden policy change, user information is now retrieved from Active Dir
 Create an AD repository that satisfies the `domain.UserRepository` interface.
 
 ```go
-// infra/ad_user_repository.go
+// internal/adapters/infra/ad_user_repository.go
 package infra
 
 import (
 	"context"
 	"fmt"
 
-	"your-project/domain"
+	"your-project/internal/domain"
 )
 
 type ADUserRepository struct {

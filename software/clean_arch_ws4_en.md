@@ -35,7 +35,7 @@ Encapsulate the business rule in the Entity.
 > **Note:** The current `Thread` struct does not have `OwnerOnly` or `Owner` fields. These are added in this step.
 
 ```go
-// domain/entity/thread.go
+// internal/domain/entity/thread.go
 type Thread struct {
     ID           int64
     BoardID      int64
@@ -62,7 +62,7 @@ func (t *Thread) CanPost(author string) bool {
 **1-2. Add domain error**
 
 ```go
-// domain/error.go
+// internal/domain/error.go
 var (
     ErrBoardNotFound  = errors.New("board not found")
     ErrThreadNotFound = errors.New("thread not found")
@@ -78,7 +78,7 @@ The UseCase layer knows "when to apply the rule." Add **one line** to the post c
 **2-1. Add the rule check to CreatePostUseCase**
 
 ```go
-// usecase/post_usecase.go
+// internal/usecase/post_usecase.go
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
     var out *CreatePostOutput
     if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
@@ -128,7 +128,7 @@ The UseCase layer also has the responsibility of controlling transaction boundar
 - **UseCase**: Groups multiple repository operations into a single transaction
 
 ```go
-// domain/port/transaction.go
+// internal/domain/port/transaction.go
 type TransactionManager interface {
     RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
@@ -143,7 +143,7 @@ In post creation, the entire sequence — fetch thread, check permission, count 
 Add the `OwnerOnly` field to `CreateThreadInput` in `usecase/dto.go` so the Presentation layer can pass the flag.
 
 ```go
-// usecase/dto.go
+// internal/usecase/dto.go
 type CreateThreadInput struct {
     BoardName string
     Title     string
@@ -158,7 +158,7 @@ type CreateThreadInput struct {
 `Owner` (thread owner = first post author) is set during thread creation in `CreateThreadUseCase`.
 
 ```go
-// usecase/thread_usecase.go (inside CreateThreadUseCase.Execute)
+// internal/usecase/thread_usecase.go (inside CreateThreadUseCase.Execute)
 thread, err := entity.NewThread(board.ID, in.Title)
 if err != nil {
     return nil, err
@@ -182,7 +182,7 @@ UPDATE threads SET owner_only = FALSE, owner = '';
 **3-2. Update DB model**
 
 ```go
-// infra/persistence/model.go
+// internal/adapters/infra/persistence/model.go
 type ThreadModel struct {
     ID            int64  `db:"id"`
     BoardID       int64  `db:"board_id"`
@@ -197,7 +197,7 @@ type ThreadModel struct {
 **3-3. Update repository conversion**
 
 ```go
-// infra/persistence/thread_repo.go
+// internal/adapters/infra/persistence/thread_repo.go
 func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
     return &entity.Thread{
         ID:           m.ID,
@@ -216,7 +216,7 @@ func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
 Infra Adapter has the **responsibility of converting driver errors to domain errors**. This ensures the UseCase layer remains unaware of database details.
 
 ```go
-// infra/persistence/sqlite/thread_repo.go
+// internal/adapters/infra/persistence/sqlite/thread_repo.go
 import (
     "database/sql"
     "errors"
@@ -248,7 +248,7 @@ Add one case to the error handling in `PostHandler`, and add the `owner_only` fi
 **4-1. Error handling for PostHandler**
 
 ```go
-// presentation/handler/post_handler.go — error handling in CreatePost
+// internal/adapters/presentation/handler/post_handler.go — error handling in CreatePost
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     out, err := h.createPost.Execute(r.Context(), input)
     // ...existing error handling
@@ -262,7 +262,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 **4-2. Add `owner_only` to thread creation request**
 
 ```go
-// internal/presentation/http/handler/thread_handler.go
+// internal/adapters/internal/adapters/presentation/http/handler/thread_handler.go
 type createThreadRequest struct {
     Title     string `json:"title"`
     Author    string `json:"author"`

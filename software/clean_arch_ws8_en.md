@@ -1,10 +1,12 @@
 # Clean Architecture Essentials: Understanding the Core with a Minimum Example (WS8)
 
-In this workshop, you will experience the design philosophy of Clean Architecture (4-layer) and its "resilience to change" through a "User Greeting App" consisting of only about 100 lines of code.
+In this workshop, you will experience the design philosophy of Clean Architecture (3-layer variant: Adapters / UseCases / Domain) and its "resilience to change" through a "User Greeting App" consisting of only about 100 lines of code.
 
 ## 1. Overview
 
 The essence of Clean Architecture lies in **"Control of Dependencies."** The goal is to point dependencies inward so that business rules (Domain) are not contaminated by external concerns (databases, web frameworks, etc.).
+
+This variant uses three conceptual layers. The **Adapters** layer is split into **Presentation Adapters** (inbound/driving) and **Infrastructure Adapters** (outbound/driven) to prevent monolithic growth and clarify the side-effect boundary.
 
 ### App Features
 
@@ -20,23 +22,34 @@ Dependencies always point **from the outside in**.
 
 ```text
 software/assets/greeting/
-├── domain/       (Layer 1: Innermost) Business rules, Entities, Ports (Interfaces), Domain Errors
-├── usecase/      (Layer 2) Use cases (Scenarios)
-├── infra/        (Layer 3) Infrastructure implementation details (Adapters)
-├── presentation/ (Layer 4: Outermost) HTTP Handlers, External libraries
+├── internal/domain/       (Layer 1: Innermost) Business rules, Entities, Ports (Interfaces), Domain Errors
+├── internal/usecase/      (Layer 2) Use cases — orchestration only, application DTOs, UseCase Ports
+├── internal/adapters/infra/        (Layer 3: Adapters — Infrastructure) Infrastructure implementation details
+├── internal/adapters/presentation/ (Layer 3: Adapters — Presentation) HTTP Handlers, external libraries
 └── main.go       (Composition Root) Assembling all layers (Dependency Injection)
+```
+
+> **Note:** `infra/` and `presentation/` are both part of the Adapters layer, split by direction (outbound vs inbound). In larger projects, they would typically live under `internal/adapters/internal/adapters/infra/` and `internal/adapters/internal/adapters/presentation/`.
+
+```text
+Presentation Adapters ---→ UseCases ---→ Domain
+                             ↑              ↑
+                             +--------------+-- Infrastructure Adapters
+        implements ports owned by UseCases or Domain
 ```
 
 ### Dependency Matrix
 
-| From ↓ To → | Domain | UseCase | Infra | Presentation |
-|-------------|--------|---------|-------|--------------|
-| Domain      |   ✓    |    ✗    |   ✗   |     ✗        |
-| UseCase     |   ✓    |    ✓    |   ✗   |     ✗        |
-| Infra       |   ✓    |    ✓    |   ✓   |     ✗        |
-| Presentation|   ~    |    ✓    |   ✗   |     ✓        |
+| From / To                 | Domain  | UseCases | Adapters |
+| ------------------------- | ------- | -------- | -------- |
+| Domain                    | yes     | no       | no       |
+| UseCases                  | yes     | yes      | no       |
+| Adapters (Presentation)   | limited | yes      | self     |
+| Adapters (Infrastructure) | yes     | yes      | self     |
+| Composition Root          | yes     | yes      | yes      |
 
-✓ = Allowed | ✗ = Prohibited | ~ = Allowed for serialization only (must not invoke domain methods for workflow decisions)
+- `Presentation → Domain` is `limited`: Presentation MAY read Domain values returned by UseCases for serialization, but MUST NOT invoke Domain behavior directly for workflow decisions.
+- Presentation Adapters and Infrastructure Adapters are in the same conceptual layer but must not depend on each other directly.
 
 ---
 
@@ -50,20 +63,21 @@ The `domain/` directory defines knowledge that is invariant to this system.
 - `repository.go`: The "window" (Port) for how to retrieve a user. Defined as an interface; concrete database operations are not written here.
 - `errors.go`: Error types defined in the Domain layer. **Technical errors from the Infra layer are not leaked outward; instead, they are converted to semantically meaningful domain errors.**
 
-### 3-2. UseCase Layer: The "Steps" of a Scenario
+### 3-2. UseCases Layer: The "Steps" of a Scenario
 
 The `usecase/` directory contains business logic that defines "what to do and in what order."
 
 - `GreetingUseCase` assembles the greeting string through the `UserRepository` "window" without knowing where the data comes from.
+- UseCase depends only on Domain. It is unaware of concrete Adapter implementations.
 
-### 3-3. Infra Adapter Layer: Technical "Details"
+### 3-3. Infrastructure Adapters: Technical "Details" (Outbound)
 
 The `infra/` directory implements the "contents" of the interfaces defined in the Domain layer.
 
 - This time we use `MemoryUserRepo` to hold data in memory, but you can swap this with MySQL or an external API without breaking other layers.
 - **Error Boundary**: When a user is not found, a domain error (`domain.ErrUserNotFound`) is returned instead of a technical error.
 
-### 3-4. Presentation Layer: "Contact Point" with the Outside
+### 3-4. Presentation Adapters: "Contact Point" with the Outside (Inbound)
 
 The `presentation/` directory handles communication protocols like HTTP.
 
@@ -98,7 +112,7 @@ curl "http://localhost:8080?id=999"
 A benefit of Clean Architecture is the ability to swap external environments (like DBs) with Mocks and test business logic at high speed.
 
 ```bash
-go test ./usecase/... -v
+go test ./internal/usecase/... -v
 ```
 
 Read `usecase/greeting_test.go` and check the following:
@@ -157,7 +171,7 @@ repo := infra.NewSliceUserRepo()
 
 1. Restart the server and verify it works the same way.
 
-- **Key Point**: You only touched `infra/` and `main.go`. `domain/`, `usecase/`, and `presentation/` remain completely unchanged. This is the practical experience of "Dependency Inversion."
+- **Key Point**: You only touched the Infrastructure Adapter (`infra/`) and the Composition Root (`main.go`). `domain/`, `usecase/`, and `presentation/` remain completely unchanged. This is the practical experience of "Dependency Inversion."
 
 ---
 
@@ -168,12 +182,12 @@ In Clean Architecture, there are clear boundaries for errors and data between la
 ### Error Boundary
 
 ```text
-Infra Layer     → Converts to domain errors before returning (does not leak driver errors)
-UseCase Layer   → Propagates domain errors as-is
-Presentation Layer → Converts domain errors to HTTP statuses (404, 500, etc.)
+Infrastructure Adapters → Converts driver errors to domain errors before returning
+UseCases Layer           → Propagates domain errors as-is
+Presentation Adapters    → Converts domain errors to HTTP statuses (404, 500, etc.)
 ```
 
-This design prevents database-specific errors (e.g., `sql.ErrNoRows`) from leaking into the UseCase or Presentation layers.
+This design prevents database-specific errors (e.g., `sql.ErrNoRows`) from leaking into the UseCases or Presentation layers.
 
 ### Data Boundary (DTO)
 
@@ -184,8 +198,9 @@ In production, UseCase inputs and outputs are defined as explicit structs (DTOs:
 ## 6. Summary
 
 1. **Domain depends on nothing**: Isolate the core knowledge and errors of the business.
-2. **UseCase talks through Ports (Interfaces)**: Logic can be completed without knowing implementation details (DB, etc.).
-3. **Respect Error Boundaries**: Technical errors are converted to domain errors in the Infra layer, then to HTTP statuses in the Presentation layer.
-4. **Dependency Injection (DI)**: By snapping each part together in `main.go`, the entire system becomes operational.
+2. **UseCases talk through Ports (Interfaces)**: Logic can be completed without knowing implementation details (DB, etc.).
+3. **Respect Error Boundaries**: Technical errors are converted to domain errors in the Infrastructure Adapters, then to HTTP statuses in the Presentation Adapters.
+4. **Adapters = side-effect boundary**: All I/O and external integrations are confined to the Adapters layer.
+5. **Dependency Injection (DI)**: By snapping each part together in `main.go`, the entire system becomes operational.
 
 This is the first step toward a "Clean" design that is highly maintainable, easy to test, and resilient to change.

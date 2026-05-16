@@ -31,7 +31,7 @@
 新しいファイルに JWT 検証ミドルウェアを作ります。
 
 ```go
-// internal/presentation/http/middleware/auth.go（新規ファイル）
+// internal/adapters/internal/adapters/presentation/http/middleware/auth.go（新規ファイル）
 package middleware
 
 import (
@@ -135,7 +135,7 @@ func writeAuthError(w http.ResponseWriter, status int, msg string) {
 書き込み（POST）エンドポイントにだけ認証を要求します。読み取り（GET）は認証なしでアクセス可能です。
 
 ```go
-// internal/presentation/http/router.go（一部変更）
+// internal/adapters/internal/adapters/presentation/http/router.go（一部変更）
 func NewRouter(
     boardHandler *handler.BoardHandler,
     threadHandler *handler.ThreadHandler,
@@ -223,7 +223,7 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
 ### Handler 側: Context から Claims を取り出して Input DTO に渡す
 
 ```go
-// internal/presentation/http/handler/post_handler.go
+// internal/adapters/internal/adapters/presentation/http/handler/post_handler.go
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     // Context から認証済みユーザーを取り出す
     claims := middleware.GetClaims(r.Context())
@@ -246,7 +246,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 ### UseCase 側: 認証の存在を知らない
 
 ```go
-// usecase/post_usecase.go — 変更なし
+// internal/usecase/post_usecase.go — 変更なし
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
     // in.Author に誰が入っているかは知らない。
     // JWT から来たのか、テストから来たのか、CLI から来たのかは関知しない。
@@ -266,7 +266,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 JWT → API Key → OAuth に認証方式を変更する場合、ミドルウェアを差し替えるだけです。
 
 ```go
-// presentation/middleware/apikey.go（別の認証方式）
+// internal/adapters/presentation/middleware/apikey.go（別の認証方式）
 func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

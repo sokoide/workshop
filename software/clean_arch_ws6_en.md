@@ -31,7 +31,7 @@ This is a classic example of the new Port/Adapter pattern.
 Define the "notification functionality" as an abstraction, not "how to notify."
 
 ```go
-// domain/port/notification.go (new file)
+// internal/domain/port/notification.go (new file)
 package port
 
 import "context"
@@ -50,7 +50,7 @@ type NotificationGateway interface {
 Inject the notification gateway into `CreatePostUseCase` and call it after successful post creation.
 
 ```go
-// usecase/post_usecase.go (modify existing file)
+// internal/usecase/post_usecase.go (modify existing file)
 // NOTE: Add `"log/slog"` to the import list
 type CreatePostUseCase struct {
     threadRepo port.ThreadRepository
@@ -132,7 +132,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 Create a Slack gateway in a new directory.
 
 ```go
-// infra/notification/slack_gateway.go (new file)
+// internal/adapters/infra/notification/slack_gateway.go (new file)
 package notification
 
 import (
@@ -223,7 +223,7 @@ curl -X POST http://localhost:8080/api/threads/1/posts \
 Switching from Slack to Email requires only a Composition Root change.
 
 ```go
-// infra/notification/email_gateway.go (new file)
+// internal/adapters/infra/notification/email_gateway.go (new file)
 type EmailGateway struct {
     smtpHost string
     from     string
@@ -250,7 +250,7 @@ UseCase, Domain, and Presentation require **zero changes**.
 For testing or CLI versions where notifications are not needed, inject a NoOp (no-operation) implementation.
 
 ```go
-// infra/notification/noop_gateway.go
+// internal/adapters/infra/notification/noop_gateway.go
 type NoOpGateway struct{}
 
 func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
@@ -271,7 +271,7 @@ createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
 By mocking the notification, UseCase tests can verify behavior without sending actual Slack messages.
 
 ```go
-// usecase/create_post_test.go
+// internal/usecase/create_post_test.go
 type mockNotifier struct {
     called bool
     thread string

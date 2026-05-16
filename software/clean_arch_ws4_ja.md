@@ -35,7 +35,7 @@
 > **注意**: 現在の `Thread` 構造体には `OwnerOnly` と `Owner` フィールドは存在しません。このステップで新規に追加します。
 
 ```go
-// domain/entity/thread.go
+// internal/domain/entity/thread.go
 type Thread struct {
     ID           int64
     BoardID      int64
@@ -62,7 +62,7 @@ func (t *Thread) CanPost(author string) bool {
 **1-2. ドメインエラーを追加する**
 
 ```go
-// domain/error.go
+// internal/domain/error.go
 var (
     ErrBoardNotFound  = errors.New("board not found")
     ErrThreadNotFound = errors.New("thread not found")
@@ -76,7 +76,7 @@ var (
 UseCase は「いつルールを適用するか」を知る層です。投稿処理の中に **1行** を追加します。
 
 ```go
-// usecase/post_usecase.go
+// internal/usecase/post_usecase.go
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
     var out *CreatePostOutput
     if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
@@ -126,7 +126,7 @@ UseCase 層はトランザクション境界を制御する責務も持ちます
 - **UseCase**: 複数のリポジトリ操作を 1 つのトランザクションにまとめる
 
 ```go
-// domain/port/transaction.go
+// internal/domain/port/transaction.go
 type TransactionManager interface {
     RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
@@ -141,7 +141,7 @@ type TransactionManager interface {
 `CreateThreadInput`（`usecase/dto.go`）に `OwnerOnly` フィールドを追加します。これにより Presentation 層からフラグを渡せるようになります。
 
 ```go
-// usecase/dto.go
+// internal/usecase/dto.go
 type CreateThreadInput struct {
     BoardName string
     Title     string
@@ -156,7 +156,7 @@ type CreateThreadInput struct {
 `Owner`（スレ主 = 1 番目の投稿者）は、スレッド作成時の `CreateThreadUseCase` で設定します。
 
 ```go
-// usecase/thread_usecase.go（CreateThreadUseCase.Execute 内）
+// internal/usecase/thread_usecase.go（CreateThreadUseCase.Execute 内）
 thread, err := entity.NewThread(board.ID, in.Title)
 if err != nil {
     return nil, err
@@ -180,7 +180,7 @@ UPDATE threads SET owner_only = FALSE, owner = '';
 **3-2. DB モデルの更新**
 
 ```go
-// infra/persistence/model.go
+// internal/adapters/infra/persistence/model.go
 type ThreadModel struct {
     ID            int64  `db:"id"`
     BoardID       int64  `db:"board_id"`
@@ -195,7 +195,7 @@ type ThreadModel struct {
 **3-3. リポジトリの変換ロジック更新**
 
 ```go
-// infra/persistence/thread_repo.go
+// internal/adapters/infra/persistence/thread_repo.go
 func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
     return &entity.Thread{
         ID:           m.ID,
@@ -214,7 +214,7 @@ func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
 Infra Adapter は、データベースドライバからのエラーをドメインエラーに変換する**責務を持ちます**。これにより、UseCase 層はデータベースの詳細を知らなくて済みます。
 
 ```go
-// infra/persistence/thread_repo.go
+// internal/adapters/infra/persistence/thread_repo.go
 import (
     "database/sql"
     "errors"
@@ -244,7 +244,7 @@ func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thre
 エラーハンドリングに 1 case を追加します。
 
 ```go
-// internal/presentation/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
+// internal/adapters/internal/adapters/presentation/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     out, err := h.createPost.Execute(r.Context(), input)
     // ...既存のエラーハンドリング
@@ -258,7 +258,7 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 また、スレッド作成時のリクエスト DTO にも `owner_only` フィールドを追加します。
 
 ```go
-// internal/presentation/http/handler/thread_handler.go
+// internal/adapters/internal/adapters/presentation/http/handler/thread_handler.go
 type createThreadRequest struct {
     Title     string `json:"title"`
     Author    string `json:"author"`

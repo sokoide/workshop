@@ -18,7 +18,7 @@ WS1 に続き、さらに実践的なシナリオを通じて、副作用の制�
 「どう送るか」ではなく「通知を送るという機能」を定義します。
 
 ```go
-// domain/notification.go
+// internal/domain/notification.go
 package domain
 
 import "context"
@@ -33,7 +33,7 @@ type NotificationService interface {
 UseCase は、通知が Email なのか Slack なのかを気にしません。
 
 ```go
-// usecase/approve_membership.go
+// internal/usecase/approve_membership.go
 package usecase
 
 import "context"
@@ -49,7 +49,7 @@ func (uc *ApproveUseCase) Execute(ctx context.Context, userID string) error {
 最初は Email 実装を使いますが、後で Slack 実装を作成し、DI (Dependency Injection) で差し替えるだけです。
 
 ```go
-// infra/slack_notifier.go (後から追加)
+// internal/adapters/infra/slack_notifier.go (後から追加)
 package infra
 
 import "context"
@@ -75,13 +75,13 @@ func (n *SlackNotifier) Send(ctx context.Context, msg string) error {
 元の `SQLUserRepository` をラップする、新しい Infra 実装を作ります。
 
 ```go
-// infra/cached_user_repository.go
+// internal/adapters/infra/cached_user_repository.go
 package infra
 
 import (
 	"context"
 
-	"your-project/domain"
+	"your-project/internal/domain"
 	"github.com/redis/go-redis/v9"
 )
 

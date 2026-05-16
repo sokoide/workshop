@@ -4,7 +4,7 @@ Go + SQLite で実装した 2 ちゃんねる風掲示板です。Clean Architec
 
 ## 特徴
 
-- **Clean Architecture 4層構成**: ドメインロジックを外部の関心事（HTTP, DB）から完全に分離。
+- **Clean Architecture 3層バリアント**: ドメインロジックを外部の関心事（HTTP, DB）から完全に分離。Adapters 層を Presentation（入力）と Infrastructure（出力）に整理。
 - **SQLite 永続化**: 単一バイナリで動作可能。
 - **スレッド・レス機能**: 板一覧、スレッド作成、レス投稿、age/sage 機能。
 - **トランザクション管理**: スレッド作成やレス投稿時の整合性を保証。
@@ -88,28 +88,30 @@ curl -X POST http://localhost:8080/api/threads/1/posts \
 
 ```mermaid
 graph TB
-    subgraph Framework["Framework Layer (HTTP)"]
-        Router["router.go<br/>ルーティング"]
-        Handler["handler/*.go<br/>HTTPハンドラ"]
-        MW["middleware/<br/>ログ・共通処理"]
+    subgraph AdaptersLayer [Adapters]
+        subgraph Presentation["Presentation Adapters (HTTP)"]
+            Router["router.go<br/>ルーティング"]
+            Handler["handler/*.go<br/>HTTPハンドラ"]
+            MW["middleware/<br/>ログ・共通処理"]
+        end
+
+        subgraph Infra["Infrastructure Adapters (Persistence)"]
+            SQLite["SQLite DB"]
+            Repo["*_repo.go<br/>具象Repository"]
+            TM["transaction.go<br/>具象TransactionManager"]
+            Model["model.go<br/>DBモデル定義"]
+        end
     end
 
-    subgraph UseCase["UseCase Layer (Application)"]
+    subgraph UseCaseLayer ["UseCases"]
         UC["List/Create UseCases"]
         DTO["dto.go<br/>入出力データ構造"]
     end
 
-    subgraph Domain["Domain Layer (Business Logic)"]
+    subgraph DomainLayer ["Domain"]
         Entity["entity/*.go<br/>板・スレ・レス"]
         Port["port/*.go<br/>Repository/Transaction<br/>(Interface)"]
         Err["error.go<br/>ドメインエラー"]
-    end
-
-    subgraph Infra["Infra Layer (Persistence)"]
-        SQLite["SQLite DB"]
-        Repo["*_repo.go<br/>具象Repository"]
-        TM["transaction.go<br/>具象TransactionManager"]
-        Model["model.go<br/>DBモデル定義"]
     end
 
     Client["Client (curl / browser)"] -->|HTTP| MW --> Router --> Handler
@@ -123,15 +125,16 @@ graph TB
     Main -.->|DI| UC
     Main -.->|DI| Repo
 
-    style Framework fill:#e8f5e9
-    style UseCase fill:#fff3e0
-    style Domain fill:#fce4ec
+    style AdaptersLayer fill:#f5f5f5
+    style Presentation fill:#e8f5e9
+    style UseCaseLayer fill:#fff3e0
+    style DomainLayer fill:#fce4ec
     style Infra fill:#e3f2fd
 ```
 
 ## 各レイヤーの詳細
 
-### 1. Domain Layer (依存関係なし)
+### 1. Domain 層 (依存関係なし)
 
 ビジネスルールの中核です。
 
@@ -139,26 +142,26 @@ graph TB
 - **Port**: リポジトリやトランザクションのインターフェース。
 - **Error**: アプリケーション全体で共有されるドメイン例外。
 
-### 2. UseCase Layer (Domain にのみ依存)
+### 2. UseCases 層 (Domain にのみ依存)
 
 アプリケーション固有のビジネスシナリオを調整（オーケストレーション）します。
 
 - `CreateThreadUseCase` など、複数のエンティティやリポジトリを組み合わせて一連の処理を実行。
 - `dto.go` で定義された DTO を使用してデータの受け渡しを行い、他レイヤーとの結合を疎にします。
 
-### 3. Infra Layer (Domain, 外部ライブラリに依存)
+### 3. Adapters 層 (UseCases, Domain, 外部ライブラリに依存)
 
-外部システム（DB）との接続を担います。
+外部システムやユーザーとの境界を担います。
 
-- **Repository**: SQL を発行し、エンティティと DB モデル（`Model`）の変換を行います。
-- **TransactionManager**: 技術的な詳細（`sql.Tx` など）をドメイン層に漏らさずにトランザクション制御を提供。
-
-### 4. Framework Layer (UseCase にのみ依存)
-
-外部世界（HTTP）との接点です。
+#### Presentation Adapters (HTTP)
 
 - **Handler**: HTTP リクエストをパースして UseCase を呼び出し、結果を JSON として返却。
 - **Router**: URL パスとハンドラの紐付け。
+
+#### Infrastructure Adapters (Persistence)
+
+- **Repository**: SQL を発行し、エンティティと DB モデル（`Model`）の変換を行います。
+- **TransactionManager**: 技術的な詳細（`sql.Tx` など）をドメイン層に漏らさずにトランザクション制御を提供。
 
 ## なぜ Clean Architecture がメンテナンス性に優れるのか
 
@@ -183,7 +186,7 @@ Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domai
 
 「REST API を gRPC に移行したい」という状況を考えます。
 
-#### 変更が必要な層: Framework Layer のみ
+#### 変更が必要な層: Adapters 層 (Presentation) のみ
 
 | 変更対象 | 変更内容 |
 | ---------- | --------- |

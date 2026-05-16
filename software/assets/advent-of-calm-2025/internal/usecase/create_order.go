@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/entity"
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/repository"
+	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/domain/entity"
+	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/domain/repository"
 )
 
 type CreateOrderInput struct {

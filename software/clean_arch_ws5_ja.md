@@ -30,7 +30,7 @@
 現在の Infra 実装が Domain の Port Interface を満たしていることを確認します。
 
 ```go
-// domain/port/repository.go（変更不要 — 見るだけ）
+// internal/domain/port/repository.go（変更不要 — 見るだけ）
 type BoardRepository interface {
     FindAll(ctx context.Context) ([]*entity.Board, error)
     FindByName(ctx context.Context, name string) (*entity.Board, error)
@@ -45,7 +45,7 @@ type ThreadRepository interface {
 ```
 
 ```go
-// infra/persistence/sqlite/board_repo.go（現在の実装 — 確認のみ）
+// internal/adapters/infra/persistence/sqlite/board_repo.go（現在の実装 — 確認のみ）
 type BoardRepository struct {
     db *sql.DB
 }
@@ -72,7 +72,7 @@ func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.
 新しいディレクトリに PostgreSQL 実装を作ります。**既存の SQLite ファイルは残したまま**新しい実装を追加します。
 
 ```text
-infra/persistence/
+internal/adapters/infra/persistence/
 ├── sqlite/              # 既存（そのまま残す）
 │   ├── board_repo.go
 │   ├── thread_repo.go
@@ -88,7 +88,7 @@ infra/persistence/
 **2-1. PostgreSQL 用 Board リポジトリ**
 
 ```go
-// infra/persistence/postgres/board_repo.go（新規ファイル）
+// internal/adapters/infra/persistence/postgres/board_repo.go（新規ファイル）
 package postgres
 
 type BoardRepository struct {
@@ -126,7 +126,7 @@ func (r *BoardRepository) FindAll(ctx context.Context) ([]*entity.Board, error) 
 **2-2. PostgreSQL 用 Thread リポジトリ**
 
 ```go
-// infra/persistence/postgres/thread_repo.go（新規ファイル）
+// internal/adapters/infra/persistence/postgres/thread_repo.go（新規ファイル）
 package postgres
 
 type ThreadRepository struct {
@@ -148,7 +148,7 @@ func (r *ThreadRepository) Save(ctx context.Context, thread *entity.Thread) erro
 **2-3. PostgreSQL 用 TransactionManager**
 
 ```go
-// infra/persistence/postgres/transaction.go（新規ファイル）
+// internal/adapters/infra/persistence/postgres/transaction.go（新規ファイル）
 package postgres
 
 type TransactionManager struct {
@@ -175,7 +175,7 @@ func (tm *TransactionManager) RunInTransaction(ctx context.Context, fn func(ctx 
 TransactionManager は `context.WithValue` で `*sql.Tx` を context に格納します。各リポジトリはヘルパー関数でトランザクションを取り出します:
 
 ```go
-// infra/persistence/postgres/executor.go
+// internal/adapters/infra/persistence/postgres/executor.go
 type txKey struct{}
 
 func executor(ctx context.Context, db *sql.DB) DBTX {

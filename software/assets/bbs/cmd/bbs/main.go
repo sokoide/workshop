@@ -7,9 +7,9 @@ import (
 	"os"
 
 	"github.com/sokoide/cleanarch1/internal/domain/entity"
-	httpPresentation "github.com/sokoide/cleanarch1/internal/presentation/http"
-	"github.com/sokoide/cleanarch1/internal/presentation/http/handler"
-	"github.com/sokoide/cleanarch1/internal/infra/persistence/sqlite"
+	httpPresentation "github.com/sokoide/cleanarch1/internal/adapters/presentation/http"
+	"github.com/sokoide/cleanarch1/internal/adapters/presentation/http/handler"
+	"github.com/sokoide/cleanarch1/internal/adapters/infra/persistence/sqlite"
 	"github.com/sokoide/cleanarch1/internal/usecase"
 )
 

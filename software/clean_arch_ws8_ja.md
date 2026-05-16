@@ -1,10 +1,12 @@
 # クリーンアーキテクチャの極意: 最小構成で本質を理解する (WS8)
 
-この実習では、わずか 100 行程度の「ユーザー挨拶アプリ」を通じて、クリーンアーキテクチャ（4 レイヤー）の設計思想と「変更への強さ」を体験します。
+この実習では、わずか 100 行程度の「ユーザー挨拶アプリ」を通じて、クリーンアーキテクチャ（3 層バリアント: Adapters / UseCases / Domain）の設計思想と「変更への強さ」を体験します。
 
 ## 1. 概要
 
 クリーンアーキテクチャの本質は**「依存性の制御」**にあります。ビジネスルール（ドメイン）が外部の都合（データベース、Web フレームワークなど）に汚染されないように、依存関係を内側に向けることがゴールです。
+
+このバリアントは 3 つの概念層を用います。**Adapters** 層は単一レイヤーの巨大化を防ぎ、副作用の境界を明確にするため、**Presentation Adapters**（入力/駆動側）と **Infrastructure Adapters**（出力/被駆動側）に分割しています。
 
 ### 本アプリの機能
 
@@ -20,23 +22,34 @@
 
 ```text
 software/assets/greeting/
-├── domain/       (Layer 1: 最内) ビジネスルール、Entity、Port(Interface)、Domain Error
-├── usecase/      (Layer 2) ユースケース（シナリオ）
-├── infra/        (Layer 3) インフラ詳細の実装（Adapter）
-├── presentation/    (Layer 4: 最外) HTTP Handler、外部ライブラリ
+├── internal/domain/       (Layer 1: 最内) ビジネスルール、Entity、Port(Interface)、Domain Error
+├── internal/usecase/      (Layer 2) ユースケース（シナリオ）— オーケストレーションのみ、アプリケーション DTO、UseCase Port
+├── internal/adapters/infra/        (Layer 3: Adapters — Infrastructure) インフラ詳細の実装
+├── internal/adapters/presentation/ (Layer 3: Adapters — Presentation) HTTP Handler、外部ライブラリ
 └── main.go       (Composition Root) 全レイヤーの組み立て（依存注入）
+```
+
+> **補足:** `infra/` と `presentation/` はどちらも Adapters 層の一部であり、方向（出力側 vs 入力側）で分割されています。規模が大きくなるプロジェクトでは `internal/adapters/internal/adapters/infra/` と `internal/adapters/internal/adapters/presentation/` に配置するのが一般的です。
+
+```text
+Presentation Adapters ---→ UseCases ---→ Domain
+                             ↑              ↑
+                             +--------------+-- Infrastructure Adapters
+        implements ports owned by UseCases or Domain
 ```
 
 ### 依存マトリクス
 
-| 依存元 ↓ → | Domain | UseCase | Infra | Presentation |
-|------------|--------|---------|-------|--------------|
-| Domain     |   ✓    |    ✗    |   ✗   |     ✗        |
-| UseCase    |   ✓    |    ✓    |   ✗   |     ✗        |
-| Infra      |   ✓    |    ✓    |   ✓   |     ✗        |
-| Presentation|   ~    |    ✓    |   ✗   |     ✓        |
+| 依存元 ↓ →                         | Domain | UseCases | Adapters |
+|:----------------------------------:|:------:|:--------:|:--------:|
+| Domain                             | yes    | no       | no       |
+| UseCases                           | yes    | yes      | no       |
+| Adapters（Presentation）           | limited| yes      | self     |
+| Adapters（Infrastructure）         | yes    | yes      | self     |
+| Composition Root                   | yes    | yes      | yes      |
 
-✓ = 許可 | ✗ = 禁止 | ~ = シリアライズ目的のみ許可（ドメインメソッドをワークフロー判断に使用してはならない）
+- `Presentation → Domain` は `limited`: Presentation は UseCases から返された Domain の値をシリアライズのために **読み取ってもよい** が、ワークフローの判断のために Domain の振る舞いを **直接呼び出してはならない**。
+- Presentation Adapters と Infrastructure Adapters は同じ概念層にありますが、互いに直接依存してはなりません。
 
 ---
 
@@ -48,22 +61,23 @@ software/assets/greeting/
 
 - `user.go`: 「ユーザー」という概念（Entity）。
 - `repository.go`: 「ユーザーを取得する方法」という窓口（Port）。インターフェースで定義し、具体的な DB 操作はここには書きません。
-- `errors.go`: ドメイン層で定義されたエラー型。**Infra層の技術的エラーをそのまま外に漏らさず、ドメインの意味を持つエラーに変換します。**
+- `errors.go`: ドメイン層で定義されたエラー型。**Infra 層の技術的エラーをそのまま外に漏らさず、ドメインの意味を持つエラーに変換します。**
 
-### 3-2. UseCase 層: シナリオの「手順」
+### 3-2. UseCases 層: シナリオの「手順」
 
 `usecase/` には、「どういう順番で何をするか」というビジネスロジックを書きます。
 
 - `GreetingUseCase` は `UserRepository` という「窓口」を通じ、データがどこから来るかを知らずに挨拶文を組み立てます。
+- UseCase は Domain にのみ依存し、具象 Adapter の実装を知りません。
 
-### 3-3. Infra Adapter 層: 技術的な「詳細」
+### 3-3. Infrastructure Adapters 層: 技術的な「詳細」（出力側）
 
 `infra/` には、Domain 層で定義されたインターフェースの「中身」を実装します。
 
 - 今回は `MemoryUserRepo` としてメモリ上にデータを持ちますが、ここを MySQL や API に差し替えても、他のレイヤーを壊さずに済みます。
 - **エラーバウンダリ**: ユーザーが見つからない場合、技術的エラーではなくドメインエラー（`domain.ErrUserNotFound`）を返します。
 
-### 3-4. Presentation 層: 外部との「接点」
+### 3-4. Presentation Adapters 層: 外部との「接点」（入力側）
 
 `presentation/` には、HTTP などの通信プロトコルに関する処理を書きます。
 
@@ -98,7 +112,7 @@ curl "http://localhost:8080?id=999"
 Clean Architecture の利点は、外部環境（DB など）をモックに差し替えて、ビジネスロジックだけを高速にテストできることです。
 
 ```bash
-go test ./usecase/... -v
+go test ./internal/usecase/... -v
 ```
 
 `usecase/greeting_test.go` を読み、以下の点を確認してください。
@@ -157,7 +171,7 @@ repo := infra.NewSliceUserRepo()
 
 1. サーバーを再起動し、同じように動くことを確認します。
 
-- **ポイント**: この変更で触れたのは `infra/` と `main.go` だけです。`domain/`、`usecase/`、`presentation/` は一切変更なしに動作します。これが「依存性の逆転」の実感です。
+- **ポイント**: この変更で触れたのは Infrastructure Adapter（`infra/`）と Composition Root（`main.go`）だけです。`domain/`、`usecase/`、`presentation/` は一切変更なしに動作します。これが「依存性の逆転」の実感です。
 
 ---
 
@@ -168,12 +182,12 @@ Clean Architecture では、レイヤー間のエラーとデータにも明確�
 ### エラーバウンダリ
 
 ```text
-Infra層 → ドメインエラーに変換して返す（driver errorは外に漏らさない）
-UseCase層 → ドメインエラーをそのまま伝播
-Presentation層 → ドメインエラーをHTTPステータスに変換（404, 500など）
+Infrastructure Adapters → ドライバエラーをドメインエラーに変換して返す
+UseCases 層              → ドメインエラーをそのまま伝播
+Presentation Adapters    → ドメインエラーを HTTP ステータスに変換（404, 500 など）
 ```
 
-この設計により、データベース固有のエラー（例: `sql.ErrNoRows`）が UseCase や Presentation に漏れることを防ぎます。
+この設計により、データベース固有のエラー（例: `sql.ErrNoRows`）が UseCases や Presentation に漏れることを防ぎます。
 
 ### データバウンダリ（DTO）
 
@@ -184,8 +198,9 @@ Presentation層 → ドメインエラーをHTTPステータスに変換（404, 
 ## 6. まとめ
 
 1. **Domain は何にも依存しない**: ビジネスの核となる知識とエラーを独立させます。
-2. **UseCase は Port (Interface) を通じて会話する**: 実装（DB 等）を知らなくてもロジックは完結できます。
-3. **エラーバウンダリを守る**: 技術的エラーは Infra 層でドメインエラーに変換し、Presentation 層で HTTP ステータスに変換します。
-4. **依存性の注入 (DI)**: `main.go` で各パーツをカチッとはめ込むことで、全体が動くようになります。
+2. **UseCases は Port (Interface) を通じて会話する**: 実装（DB 等）を知らなくてもロジックは完結できます。
+3. **エラーバウンダリを守る**: 技術的エラーは Infrastructure Adapters でドメインエラーに変換し、Presentation Adapters で HTTP ステータスに変換します。
+4. **Adapters = 副作用の境界**: すべての I/O と外部統合は Adapters 層に閉じ込めます。
+5. **依存性の注入 (DI)**: `main.go` で各パーツをカチッとはめ込むことで、全体が動くようになります。
 
 これが、メンテナンス性が高く、テストが容易で、変化に強い「クリーン」な設計の第一歩です。

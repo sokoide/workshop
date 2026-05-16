@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/domain/entity"
+	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/domain/entity"
 )
 
 type OrderRepository interface {

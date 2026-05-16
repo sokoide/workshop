@@ -210,7 +210,7 @@ type BoardRepository interface {
 └────────────────────────────────────────────────────────────────────┘
                ↑ implements
 ┌──────────────┴───────────────┐
-│  internal/infra/persistence/ │
+│  internal/adapters/internal/adapters/infra/persistence/ │
 │  sqlite/board_repo.go        │  ← Infra Adapter（具象実装）
 │  func (r *BoardRepository)   │     (Domain Interface を実装)
 │  FindByName(...) {           │
@@ -222,11 +222,17 @@ type BoardRepository interface {
 ### 各レイヤーの依存方向
 
 ```text
-           ┌─────────────┐
-           │ Presentation │  ← 最外側（HTTP/gRPC/CLI）
-           └──────┬──────┘
-                  │ depends on
-                  ↓
+           ┌─────────────────────────────────────┐
+           │         Adapters 層                 │
+           │  ┌────────────┐ ┌────────────────┐  │
+           │  │Presentation│ │ Infrastructure │  │
+           │  │ (入力側)   │ │  (出力側)      │  │
+           │  │HTTP/gRPC/  │ │  DB/外部API    │  │
+           │  │  CLI       │ │                │  │
+           │  └──────┬─────┘ └────────────────┘  │
+           └─────────┼───────────────────────────┘
+                     │ depends on
+                     ↓
            ┌─────────────┐
            │   UseCase   │  ← アプリケーションロジック
            └──────┬──────┘
@@ -237,10 +243,7 @@ type BoardRepository interface {
            │  Entity + Port Interface (抽象)    │  ← 最内側
            └────────────────────────────────────┘
                   ↑ implements
-           ┌─────────────┐
-           │   Infra     │  ← 最外側（DB/外部API）
-           │   Adapter   │     (Domain Interface を実装)
-           └─────────────┘
+           Infrastructure Adapters（Domain/UseCase Port を実装）
 ```
 
 ### エラー境界の流れ
@@ -294,8 +297,8 @@ Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換�
 ### キーポイント
 
 1. **UseCase は具象実装を知らない**: `sqlite.BoardRepository` ではなく `port.BoardRepository`（Interface）に依存
-2. **Infra は Domain Interface を実装する**: `internal/infra/persistence/sqlite/` が `internal/domain/port/` の Interface を実装
-3. **Presentation と Infra は直接関係しない**: どちらも「最外側」だが、UseCase を介して間接的に繋がる
+2. **Infra は Domain Interface を実装する**: `internal/adapters/internal/adapters/infra/persistence/sqlite/` が `internal/domain/port/` の Interface を実装
+3. **Presentation と Infra Adapters は直接関係しない**: どちらも Adapters 層の一部だが方向が異なり、UseCase を介して間接的に繋がる
 4. **Composition Root（main.go）だけが全体を知っている**: どの Infra 実装を使うか、どの Presentation を使うかをここで決定
 
 ```go
@@ -319,13 +322,13 @@ func (r *BoardRepository) FindByName(...) {  // ← Interface を実装
 ## 前提知識
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
-以下の 4 層構造を理解していることが前提です。
+以下の 3 層バリアント（Adapters / UseCases / Domain）を理解していることが前提です。
 
 ```text
-Presentation (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domain (ビジネスルール)
-                                                          →  Port Interface (抽象)
-                             ↑                                   ↑
-                         Infra Adapter (DB) ─────────────────────┘  (DIP: 具象が抽象に依存)
+Presentation Adapters ──→ UseCases ──→ Domain
+                            ↑              ↑
+                        Infrastructure Adapters
+        implements ports owned by UseCases or Domain
 ```
 
 ## 実習のシナリオ
@@ -348,10 +351,10 @@ Presentation (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Do
 
 ### Step 1: 現在の HTTP Handler を確認する
 
-Presentation 層の現状を確認します。Handler は「入力変換 → UseCase 呼び出し → 出力変換」の構造です。
+Adapters (Presentation) 層の現状を確認します。Handler は「入力変換 → UseCase 呼び出し → 出力変換」の構造です。
 
 ```go
-// internal/presentation/http/handler/thread_handler.go
+// internal/adapters/internal/adapters/presentation/http/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP 固有の入力変換
     name := r.PathValue("name")
@@ -431,7 +434,7 @@ message Post {
 新しいファイルに gRPC 用のハンドラを作ります。**UseCase の呼び出し方が HTTP 版と同一**であることを確認してください。
 
 ```go
-// internal/presentation/grpc/bbs_server.go（新規ファイル）
+// internal/adapters/internal/adapters/presentation/grpc/bbs_server.go（新規ファイル）
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
     createThread *usecase.CreateThreadUseCase

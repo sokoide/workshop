@@ -18,7 +18,7 @@ Consider a use case: "Send a notification when membership is approved."
 Define the "notification functionality" rather than "how to send it."
 
 ```go
-// domain/notification.go
+// internal/domain/notification.go
 package domain
 
 import "context"
@@ -33,7 +33,7 @@ type NotificationService interface {
 The UseCase does not care whether the notification is Email or Slack.
 
 ```go
-// usecase/approve_membership.go
+// internal/usecase/approve_membership.go
 package usecase
 
 import "context"
@@ -49,7 +49,7 @@ func (uc *ApproveUseCase) Execute(ctx context.Context, userID string) error {
 Initially, use an Email implementation, but later create a Slack implementation and swap it via Dependency Injection (DI).
 
 ```go
-// infra/slack_notifier.go (Added later)
+// internal/adapters/infra/slack_notifier.go (Added later)
 package infra
 
 import "context"
@@ -75,13 +75,13 @@ Address the requirement: "Speed up user information retrieval. However, do not c
 Create a new Infra implementation that wraps the original `SQLUserRepository`.
 
 ```go
-// infra/cached_user_repository.go
+// internal/adapters/infra/cached_user_repository.go
 package infra
 
 import (
 	"context"
 
-	"your-project/domain"
+	"your-project/internal/domain"
 	"github.com/redis/go-redis/v9"
 )
 

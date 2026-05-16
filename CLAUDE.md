@@ -8,7 +8,7 @@ This is a collection of hands-on technical workshops covering infrastructure and
 
 **Primary Language:** Go 1.25.5
 **Documentation:** Bilingual (English/Japanese)
-**Architecture Pattern:** Clean Architecture (4-layer structure)
+**Architecture Pattern:** Clean Architecture (3-layer variant: Adapters / UseCases / Domain)
 
 ## Repository Structure
 
@@ -22,55 +22,60 @@ This is a collection of hands-on technical workshops covering infrastructure and
 └── Makefile            # Repository-level markdown formatting
 ```text
 
-## Clean Architecture (4-Layer Structure)
+## Clean Architecture (3-Layer Variant: Adapters / UseCases / Domain)
 
 All Go projects in this repository follow Clean Architecture principles with dependencies pointing inward:
 
 ```text
-┌─────────────────────────────────────────┐
-│  Presentation Layer (Web/gRPC/CLI)      │
-│  - Controllers, Handlers, Presenters    │
-└──────────────┬──────────────────────────┘
-               │ depends on
-┌──────────────▼──────────────────────────┐
-│  UseCase Layer                          │
-│  - Application logic, orchestration     │
-└──────────────┬──────────────────────────┘
-               │ depends on
-┌──────────────▼──────────────────────────┐
-│  Domain Layer                           │
-│  - Entities, Domain Services            │
-│  - Repository Interfaces (Ports)        │
-│  - NO external dependencies             │
-└─────────────────────────────────────────┘
-
-┌─────────────────────────────────────────┐
-│  Infra Adapters Layer                   │
-│  - Implements Domain interfaces         │
-│  - Database, External APIs, MQ          │
-└──────────────▲──────────────────────────┘
-               │ implements
-    Domain Interfaces (Ports)
-```text
+┌─────────────────────────────────────────────────────┐
+│  Adapters Layer (side-effect boundary)              │
+│  ┌──────────────────────┐ ┌───────────────────────┐ │
+│  │ Presentation Adapters│ │ Infrastructure        │ │
+│  │ (Inbound/Driving)    │ │ Adapters (Outbound/   │ │
+│  │ - HTTP/gRPC/CLI      │ │  Driven)              │ │
+│  │ - Controllers,       │ │ - Repository impls    │ │
+│  │   Handlers,          │ │ - DB, External APIs,  │ │
+│  │   Presenters         │ │   MQ, SDKs            │ │
+│  └──────────┬───────────┘ └───────────────────────┘ │
+└─────────────┼───────────────────────────────────────┘
+              │ depends on
+┌─────────────▼───────────────────────────────────────┐
+│  UseCases Layer                                     │
+│  - Application logic, orchestration                 │
+│  - Input/output DTOs, UseCase-owned ports           │
+└─────────────┬───────────────────────────────────────┘
+              │ depends on
+┌─────────────▼───────────────────────────────────────┐
+│  Domain Layer                                       │
+│  - Entities, Value Objects, Domain Services         │
+│  - Domain Errors, Domain-owned Ports                │
+│  - NO external dependencies                         │
+└─────────────────────────────────────────────────────┘
+```
 
 **Key Principles:**
 
-- **Domain Layer**: Pure Go with zero external dependencies. Contains entities, domain services, and repository interfaces.
-- **UseCase Layer**: Orchestrates business logic using Domain interfaces. Unaware of external implementation details.
-- **Infra Adapters Layer**: Concrete implementations of Domain interfaces (PostgreSQL, Redis, RabbitMQ, HTTP clients).
-- **Presentation Layer**: Entry points (CLI, HTTP handlers) that depend on UseCase interfaces.
+- **Domain Layer**: Pure Go with zero external dependencies. Contains entities, domain services, domain errors, and domain-owned ports.
+- **UseCases Layer**: Orchestration only. Coordinates Domain objects and boundary interfaces. Defines input/output DTOs and UseCase-owned ports. Unaware of external implementation details.
+- **Adapters Layer = side-effect boundary**: All I/O, external integrations, and framework interactions confined here.
+  - **Presentation Adapters (Inbound)**: HTTP/gRPC/CLI handlers, controllers, presenters, request/response mapping.
+  - **Infrastructure Adapters (Outbound)**: Repository implementations, external API gateways, DB models, error conversion.
 - **Dependency Injection**: main.go wires all dependencies together.
 
 **Directory Pattern per Project:**
 
 ```text
 project/
-├── domain/         # Business entities and interfaces (no external deps)
-├── usecase/        # Application logic orchestration
-├── infra/          # External system implementations
-├── cmd/            # CLI entry points (if applicable)
-└── main.go         # Dependency injection
-```text
+├── internal/
+│   ├── domain/                        # Entities, value objects, domain services, domain errors
+│   ├── usecase/                       # Interactors, input/output DTOs, usecase-owned ports
+│   ├── adapters/
+│   │   ├── presentation/http/         # HTTP handlers/controllers/presenters
+│   │   └── infra/persistence/         # Repository implementations, DB models
+│   └── (presentation|infra)/          # Simplified layout for small projects
+├── cmd/app/main.go                    # Composition root
+└── main.go                            # Simplified entry point (small projects)
+```
 
 ## Development Commands
 

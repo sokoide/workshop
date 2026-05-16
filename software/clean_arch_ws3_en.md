@@ -212,7 +212,7 @@ type BoardRepository interface {
 └────────────────────────────────────────────────────────────────────┘
                ↑ implements
 ┌──────────────┴───────────────┐
-│  internal/infra/persistence/ │
+│  internal/adapters/internal/adapters/infra/persistence/ │
 │  sqlite/board_repo.go        │  ← Infra Adapter (concrete impl)
 │  func (r *BoardRepository)   │     (implements Domain Interface)
 │  FindByName(...) {           │
@@ -224,25 +224,28 @@ type BoardRepository interface {
 ### Dependency Direction by Layer
 
 ```text
-           ┌─────────────┐
-           │ Presentation │  ← Outermost (HTTP/gRPC/CLI)
-           └──────┬──────┘
-                  │ depends on
-                  ↓
+           ┌─────────────────────────────────────┐
+           │         Adapters Layer              │
+           │  ┌────────────┐ ┌────────────────┐  │
+           │  │Presentation│ │ Infrastructure │  │
+           │  │ (Inbound)  │ │  (Outbound)    │  │
+           │  │HTTP/gRPC/  │ │  DB/External   │  │
+           │  │  CLI       │ │    APIs        │  │
+           │  └──────┬─────┘ └────────────────┘  │
+           └─────────┼───────────────────────────┘
+                     │ depends on
+                     ↓
            ┌─────────────┐
            │   UseCase   │  ← Application logic
            └──────┬──────┘
                   │ depends on
                   ↓
-           ┌─────────────────────────────────────┐
-           │         Domain Layer                │
-           │  Entity + Port Interface (abstract) │  ← Innermost
-           └─────────────────────────────────────┘
+           ┌────────────────────────────────────┐
+           │         Domain Layer               │
+           │  Entity + Port Interface (抽象)    │  ← Innermost
+           └────────────────────────────────────┘
                   ↑ implements
-           ┌─────────────┐
-           │   Infra     │  ← Outermost (DB/external APIs)
-           │   Adapter   │     (implements Domain Interface)
-           └─────────────┘
+           Infrastructure Adapters (implement Domain/UseCase Ports)
 ```
 
 ### Error Boundary Flow
@@ -296,8 +299,8 @@ With each layer handling error conversion, upper layers don't need to know about
 ### Key Points
 
 1. **UseCase doesn't know concrete implementations**: Depends on `port.BoardRepository` (Interface), not `sqlite.BoardRepository` (concrete type)
-2. **Infra implements Domain Interface**: `internal/infra/persistence/sqlite/` implements interfaces from `internal/domain/port/`
-3. **Presentation and Infra are not directly related**: Both are "outermost" layers, connected indirectly through UseCase
+2. **Infra implements Domain Interface**: `internal/adapters/internal/adapters/infra/persistence/sqlite/` implements interfaces from `internal/domain/port/`
+3. **Presentation and Infra Adapters are not directly related**: Both are part of the Adapters layer but split by direction, connected indirectly through UseCase
 4. **Only Composition Root (main.go) knows the whole picture**: Decides which Infra implementation and which Presentation to use
 
 ```go
@@ -321,13 +324,13 @@ func (r *BoardRepository) FindByName(...) {  // ← implements Interface
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
-You should understand the 4-layer structure:
+You should understand the 3-layer variant (Adapters / UseCases / Domain):
 
 ```text
-Presentation (HTTP/gRPC)  →  UseCase (Application logic)  →  Domain (Business rules)
-                                                       →  Port Interface (abstraction)
-                             ↑                                   ↑
-                         Infra Adapter (DB) ─────────────────────┘  (DIP: concrete depends on abstract)
+Presentation Adapters ──→ UseCases ──→ Domain
+                            ↑              ↑
+                        Infrastructure Adapters
+        implements ports owned by UseCases or Domain
 ```
 
 ## Workshop Scenario
@@ -353,7 +356,7 @@ The following layers require **zero modifications**:
 Review the current Presentation layer. Handlers follow the "input conversion → UseCase call → output conversion" pattern.
 
 ```go
-// presentation/handler/thread_handler.go
+// internal/adapters/presentation/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP-specific input conversion
     name := r.PathValue("name")
@@ -430,7 +433,7 @@ message Post {
 Create a gRPC handler in a new file. Confirm that the **UseCase invocation is identical to the HTTP version**.
 
 ```go
-// presentation/grpc/bbs_server.go (new file)
+// internal/adapters/presentation/grpc/bbs_server.go (new file)
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
     createThread *usecase.CreateThreadUseCase

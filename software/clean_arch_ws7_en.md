@@ -31,7 +31,7 @@ The following layers require **zero modifications**:
 Create JWT validation middleware in a new file.
 
 ```go
-// internal/presentation/http/middleware/auth.go (new file)
+// internal/adapters/internal/adapters/presentation/http/middleware/auth.go (new file)
 package middleware
 
 import (
@@ -135,7 +135,7 @@ func writeAuthError(w http.ResponseWriter, status int, msg string) {
 Require authentication only for write (POST) endpoints. Read (GET) remains publicly accessible.
 
 ```go
-// internal/presentation/http/router.go (partial change)
+// internal/adapters/internal/adapters/presentation/http/router.go (partial change)
 func NewRouter(
     boardHandler *handler.BoardHandler,
     threadHandler *handler.ThreadHandler,
@@ -223,7 +223,7 @@ In practice, you often need the authenticated user ID in business logic. For exa
 ### Handler Side: Extract Claims from Context and Pass to Input DTO
 
 ```go
-// internal/presentation/http/handler/post_handler.go
+// internal/adapters/internal/adapters/presentation/http/handler/post_handler.go
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     // Extract authenticated user from Context
     claims := middleware.GetClaims(r.Context())
@@ -248,7 +248,7 @@ After Step 1, `GetClaims` is already defined in the middleware package.
 ### UseCase Side: Unaware of Authentication
 
 ```go
-// usecase/post_usecase.go — unchanged
+// internal/usecase/post_usecase.go — unchanged
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
     // Doesn't know where in.Author came from.
     // Whether it came from JWT, test, or CLI is none of its business.
@@ -268,7 +268,7 @@ This way, **authentication info conversion (JWT Claims → Input DTO) is the Han
 Switching from JWT → API Key → OAuth requires only swapping the middleware.
 
 ```go
-// presentation/middleware/apikey.go (alternative auth method)
+// internal/adapters/presentation/middleware/apikey.go (alternative auth method)
 func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
