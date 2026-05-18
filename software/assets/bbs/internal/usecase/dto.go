@@ -28,6 +28,7 @@ type CreateThreadInput struct {
 	Title     string
 	Author    string
 	Body      string
+	OwnerOnly bool
 }
 
 type CreateThreadOutput struct {

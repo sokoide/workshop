@@ -130,7 +130,15 @@ Adapters that connect UseCases or Domain-owned ports to external systems.
 | Adapters (Infrastructure) | yes     | yes      | self     |
 | Composition Root          | yes     | yes      | yes      |
 
-* `Presentation → Domain` is `cond.` (conditional): Presentation MAY read Domain values returned by UseCases for serialization (pragmatic mode), but MUST NOT invoke Domain behavior directly for workflow decisions. Strict DTO mapping is the default; pragmatic mode requires all conditions in the Boundary Simplification Checklist to be met.
+* `Presentation → Domain` is `cond.` (conditional): Presentation MAY read Domain values returned by UseCases for serialization (pragmatic mode). This is only permissible if the **Boundary Simplification Checklist** below is fully satisfied.
+
+#### Boundary Simplification Checklist
+1. **Read-Only**: The operation is a "Query" and does not involve any data modification (Command).
+2. **Structure-Only**: The Presentation layer treats the Entity as a plain data structure and **MUST NOT invoke any methods (behavior)**.
+3. **No Secrets**: The Entity does not contain sensitive information (e.g., password hashes) that should not be exposed to the Presentation layer.
+4. **Consistency**: The risk of Entity field changes directly affecting API specifications (e.g., JSON keys) is acceptable.
+
+For modification operations (Create/Update/Delete), always use dedicated Input DTOs to protect invariants and perform input validation.
 * Presentation Adapters and Infrastructure Adapters are in the same conceptual layer but must not depend on each other directly.
 
 ---

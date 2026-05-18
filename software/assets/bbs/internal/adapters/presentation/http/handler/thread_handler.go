@@ -38,9 +38,10 @@ func (h *ThreadHandler) ListThreads(w http.ResponseWriter, r *http.Request) {
 }
 
 type createThreadRequest struct {
-	Title  string `json:"title"`
-	Author string `json:"author"`
-	Body   string `json:"body"`
+	Title     string `json:"title"`
+	Author    string `json:"author"`
+	Body      string `json:"body"`
+	OwnerOnly bool   `json:"owner_only"`
 }
 
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +62,7 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		Title:     req.Title,
 		Author:    req.Author,
 		Body:      req.Body,
+		OwnerOnly: req.OwnerOnly,
 	})
 	if err != nil {
 		switch {

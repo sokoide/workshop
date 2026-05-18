@@ -130,7 +130,15 @@ UseCases または Domain が所有するポートを外部システムに接続
 | Adapters（Infrastructure） |   yes   |    yes   |   self   |
 |      Composition Root      |   yes   |    yes   |    yes   |
 
-* `Presentation → Domain` は `cond.` (conditional): Presentation は UseCases から返された Domain の値をシリアライズのために **読み取ってもよい**（pragmatic モード）が、ワークフローの判断のために Domain の振る舞いを **直接呼び出してはならない**。デフォルトは厳密な DTO マッピング。pragmatic モードを適用するには、Boundary Simplification Checklist の全条件を満たす必要がある。
+* `Presentation → Domain` は `cond.` (conditional): Presentation は UseCases から返された Domain の値をシリアライズのために **読み取ってもよい**（pragmatic モード）。ただし、これは以下の **Boundary Simplification Checklist** をすべて満たす場合に限られる。
+
+#### Boundary Simplification Checklist
+1. **Read-Only**: 対象の操作が「参照 (Query)」であり、データの更新 (Command) を伴わない。
+2. **Structure-Only**: Presentation 層は Entity を単なるデータ構造体として扱い、**いかなるメソッド（振る舞い）も呼び出さない**。
+3. **No Secrets**: Entity に Presentation に公開してはならない秘密情報（パスワードハッシュ等）が含まれていない。
+4. **Consistency**: Entity のフィールド変更が Presentation の API 仕様（JSON キー名等）に直接影響を与えるリスクを許容できる。
+
+更新操作（Create/Update/Delete）では、不変条件の保護と入力バリデーションのために、常に専用の Input DTO を使用してください。
 * Presentation Adapters と Infrastructure Adapters は同じ概念層にありますが、互いに直接依存してはなりません。
 
 ---

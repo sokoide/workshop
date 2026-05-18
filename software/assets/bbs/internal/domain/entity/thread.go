@@ -18,14 +18,18 @@ type Thread struct {
 	LastPostedAt time.Time
 }
 
-func NewThread(boardID int64, title string) (*Thread, error) {
+func NewThread(boardID int64, title string, owner string) (*Thread, error) {
 	if title == "" {
 		return nil, domain.ErrEmptyTitle
+	}
+	if owner == "" {
+		return nil, errors.New("owner must not be empty")
 	}
 	now := time.Now()
 	return &Thread{
 		BoardID:      boardID,
 		Title:        title,
+		Owner:        owner,
 		PostCount:    0,
 		CreatedAt:    now,
 		LastPostedAt: now,

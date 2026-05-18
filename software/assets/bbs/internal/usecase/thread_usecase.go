@@ -66,11 +66,15 @@ func (u *CreateThreadUseCase) Execute(ctx context.Context, in CreateThreadInput)
 		return nil, domain.ErrBoardNotFound
 	}
 
-	thread, err := entity.NewThread(board.ID, in.Title)
+	thread, err := entity.NewThread(board.ID, in.Title, in.Author)
 	if err != nil {
 		return nil, err
 	}
-	thread.Owner = in.Author
+	if in.OwnerOnly {
+		if err := thread.EnableOwnerOnlyMode(in.Author); err != nil {
+			return nil, err
+		}
+	}
 
 	post, err := entity.NewPost(thread.ID, 1, in.Author, in.Body, false)
 	if err != nil {
