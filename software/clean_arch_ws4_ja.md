@@ -55,6 +55,16 @@ func (t *Thread) CanPost(author string) bool {
     }
     return t.Owner == author
 }
+
+// 追加: スレ主限定モードの設定をカプセル化（不変条件を保護）
+func (t *Thread) EnableOwnerOnlyMode(owner string) error {
+    if owner == "" {
+        return errors.New("owner must not be empty when owner-only mode is enabled")
+    }
+    t.OwnerOnly = true
+    t.Owner = owner
+    return nil
+}
 ```
 
 **確認ポイント**: 判定ロジックは `CanPost()` に **1箇所だけ** 存在します。DB も HTTP も知りません。
@@ -117,7 +127,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 }
 ```
 
-**2-1.1. トランザクション管理について**
+**2-2. トランザクション管理について**
 
 UseCase 層はトランザクション境界を制御する責務も持ちます。
 
@@ -136,7 +146,7 @@ type TransactionManager interface {
 
 **確認ポイント**: トランザクションは「技術的な詳細」ではなく「アプリケーションポリシー」です。UseCase が「この操作セットはアトミックであるべき」と判断し、Infra Adapter がその具体的な実装（`BEGIN`/`COMMIT`/`ROLLBACK`）を提供します。
 
-**2-2. DTO にフラグを追加する**
+**2-3. DTO にフラグを追加する**
 
 `CreateThreadInput`（`usecase/dto.go`）に `OwnerOnly` フィールドを追加します。これにより Presentation 層からフラグを渡せるようになります。
 
@@ -151,7 +161,7 @@ type CreateThreadInput struct {
 }
 ```
 
-**2-3. Owner はいつ設定されるか**
+**2-4. Owner はいつ設定されるか**
 
 `Owner`（スレ主 = 1 番目の投稿者）は、スレッド作成時の `CreateThreadUseCase` で設定します。
 
@@ -161,8 +171,11 @@ thread, err := entity.NewThread(board.ID, in.Title)
 if err != nil {
     return nil, err
 }
-thread.OwnerOnly = in.OwnerOnly  // Presentation から渡されたフラグ
-thread.Owner = in.Author         // 1番目の投稿者をスレ主として記録
+if in.OwnerOnly {
+    if err := thread.EnableOwnerOnlyMode(in.Author); err != nil {
+        return nil, err  // 不変条件を保護: Owner は空であってはならない
+    }
+}
 ```
 
 ### Step 3: Infra 層 — 永続化の追従

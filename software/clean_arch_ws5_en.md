@@ -132,13 +132,18 @@ type ThreadRepository struct {
 
 func (r *ThreadRepository) Save(ctx context.Context, thread *entity.Thread) error {
     // RETURNING retrieves the auto-generated ID (PostgreSQL-specific)
+    var id int64
     err := executor(ctx, r.db).QueryRowContext(ctx,
         `INSERT INTO threads (board_id, title, post_count, created_at, last_posted_at)
          VALUES ($1, $2, $3, $4, $5) RETURNING id`,
         thread.BoardID, thread.Title,
         thread.PostCount, thread.CreatedAt, thread.LastPostedAt,
-    ).Scan(&thread.ID)
-    return err
+    ).Scan(&id)
+    if err != nil {
+        return fmt.Errorf("insert thread: %w", err)
+    }
+    thread.ID = id  // Set auto-generated ID on entity
+    return nil
 }
 ```
 

@@ -10,11 +10,11 @@ import (
 )
 
 type ThreadHandler struct {
-	listThreads  *usecase.ListThreadsUseCase
-	createThread *usecase.CreateThreadUseCase
+	listThreads  usecase.ListThreadsInputPort
+	createThread usecase.CreateThreadInputPort
 }
 
-func NewThreadHandler(listThreads *usecase.ListThreadsUseCase, createThread *usecase.CreateThreadUseCase) *ThreadHandler {
+func NewThreadHandler(listThreads usecase.ListThreadsInputPort, createThread usecase.CreateThreadInputPort) *ThreadHandler {
 	return &ThreadHandler{listThreads: listThreads, createThread: createThread}
 }
 

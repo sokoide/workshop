@@ -433,12 +433,33 @@ message Post {
 
 新しいファイルに gRPC 用のハンドラを作ります。**UseCase の呼び出し方が HTTP 版と同一**であることを確認してください。
 
+まず、UseCases 層に Input Port interface を定義します（まだ定義されていない場合）:
+
+```go
+// internal/usecase/port.go
+package usecase
+
+import "context"
+
+type ThreadCreator interface {
+    Execute(ctx context.Context, in CreateThreadInput) (*CreateThreadOutput, error)
+}
+
+type ThreadLister interface {
+    Execute(ctx context.Context, in ListThreadsInput) (*ListThreadsOutput, error)
+}
+
+// 他の UseCase についても同様に interface を定義
+```
+
+次に、これらの interface に依存する gRPC Handler を実装します:
+
 ```go
 // internal/adapters/presentation/grpc/bbs_server.go（新規ファイル）
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
-    createThread *usecase.CreateThreadUseCase
-    listThreads  *usecase.ListThreadsUseCase
+    createThread usecase.ThreadCreator  // ← interface（Input Port）
+    listThreads  usecase.ThreadLister   // ← interface（Input Port）
     // ...
 }
 
@@ -507,7 +528,7 @@ func main() {
     // 新: gRPC サーバー起動（ここだけ変更）
     grpcServer := grpc.NewServer()
     reflection.Register(grpcServer)  // grpcurl でサービス一覧を表示するために必要
-    bbsServer := presentation.NewBBSServer(createThread, listThreads, ...)
+    bbsServer := presentation.NewBBSServer(createThread, listThreads, ...)  // 具象型は interface を満たす
     pb.RegisterBBSServiceServer(grpcServer, bbsServer)
 
     lis, err := net.Listen("tcp", ":9090")
@@ -563,4 +584,4 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 
 1. **影響範囲の局所化**: Presentation 層だけで完結。UseCase の `Execute` 呼び出しは一切変わらない。
 2. **プロトコルの違いは「変換」の違い**: HTTP も gRPC も「入力を DTO に詰め替えて UseCase を呼ぶ」構造は同じ。
-3. **差し替えの容易さ**: 本番は gRPC、社内ツル用は HTTP、テスト用は CLI —— どれも UseCase を共有可能。
+3. **差し替えの容易さ**: 本番は gRPC、社内ツール用は HTTP、テスト用は CLI —— どれも UseCase を共有可能。

@@ -20,30 +20,30 @@
 
 | 層 | 変更内容 | 役割 |
 | ---- | --------- | ------ |
-| **Domain** | `port.NotificationGateway` interface を新規定義 | 「通知が必要である」という抽象の定義 |
-| **UseCase** | `CreatePostUseCase` に `NotificationGateway` を注入、投稿成功後に呼び出し | 通知のタイミング制御 |
+| **Domain** | **変更なし** | — |
+| **UseCase** | `port.NotificationGateway` interface を新規定義、`CreatePostUseCase` に注入、投稿成功後に呼び出し | 「通知が必要である」という抽象の定義 + 通知のタイミング制御 |
 | **Infra** | `infra/notification/slack_gateway.go` を新規作成 | Slack API の具体実装 |
 | **Presentation** | **変更なし** | — |
 | **Entity** | **変更なし** | — |
 
-### Step 1: Domain 層 — 新しい Port の定義
+### Step 1: UseCases 層 — 新しい Port の定義
 
-「どう通知するか」ではなく「通知を送るという機能」を抽象として定義します。
+「どう通知するか」ではなく「通知を送るという機能」を抽象として定義します。通知はアプリケーションワークフローに必要な道具であるため、ポートは UseCases 層に所属します。
 
 ```go
-// internal/domain/port/notification.go（新規ファイル）
+// internal/usecase/port/notification.go（新規ファイル）
 package port
 
 import "context"
 
 // NotificationGateway は、通知送信の抽象インターフェースです。
-// Slack、Email、LINE など、具体的な通知手段は Domain 層では知りません。
+// Slack、Email、LINE など、具体的な通知手段は UseCase 層では知りません。
 type NotificationGateway interface {
     NotifyNewPost(ctx context.Context, threadTitle string, postAuthor string, postBody string) error
 }
 ```
 
-**確認ポイント**: この interface には Slack という言葉が一切出てきません。Domain は「何を通知するか」を決め、「どう通知するか」は Infra に任せます。
+**確認ポイント**: この interface には Slack という言葉が一切出てきません。UseCase は「何を通知するか」を決め、「どう通知するか」は Infra に任せます。
 
 ### Step 2: UseCase 層 — 通知の呼び出し
 
@@ -328,7 +328,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 1. **新規 Port/Adapter パターン**: 新機能は新しい Port（interface）を定義し、対応する Adapter を増やすことで追加できる。既存コードへの影響は最小限。
 2. **責務の明確化**:
-    - Domain は「何を通知するか」を定義（`NotificationGateway` のシグネチャ）
+    - UseCase は「何を通知するか」を定義（`NotificationGateway` のシグネチャ）— 通知はコアドメイン言語の一部ではなくアプリケーションワークフローの道具であるため、UseCase Port に分類される
     - UseCase は「いつ通知するか」を決定（投稿成功後）
     - Infra は「どう通知するか」を実装（Slack Webhook / Email SMTP）
 3. **テスト容易性**: interface によって通知をモックでき、外部サービスに依存しないテストが書ける。

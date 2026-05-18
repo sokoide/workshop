@@ -8,6 +8,10 @@ import (
 	"github.com/sokoide/cleanarch1/internal/domain/port"
 )
 
+type ListPostsInputPort interface {
+	Execute(ctx context.Context, in ListPostsInput) (*ListPostsOutput, error)
+}
+
 type ListPostsUseCase struct {
 	postRepo port.PostRepository
 }
@@ -29,6 +33,10 @@ func (u *ListPostsUseCase) Execute(ctx context.Context, in ListPostsInput) (*Lis
 	return &ListPostsOutput{Posts: dtos}, nil
 }
 
+type CreatePostInputPort interface {
+	Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error)
+}
+
 type CreatePostUseCase struct {
 	threadRepo port.ThreadRepository
 	postRepo   port.PostRepository
@@ -48,6 +56,10 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 		}
 		if thread == nil {
 			return domain.ErrThreadNotFound
+		}
+
+		if !thread.CanPost(in.Author) {
+			return domain.ErrNotThreadOwner
 		}
 
 		count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)

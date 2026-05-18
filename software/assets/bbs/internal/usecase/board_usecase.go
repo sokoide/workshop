@@ -6,6 +6,10 @@ import (
 	"github.com/sokoide/cleanarch1/internal/domain/port"
 )
 
+type ListBoardsInputPort interface {
+	Execute(ctx context.Context) (*ListBoardsOutput, error)
+}
+
 type ListBoardsUseCase struct {
 	boardRepo port.BoardRepository
 }

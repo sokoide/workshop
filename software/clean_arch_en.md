@@ -21,7 +21,6 @@ graph TD
         subgraph PresentationAdapters [Presentation Adapters - Inbound]
             Web[Web / gRPC / CLI]
             Controller[Controller / Handler]
-            Presenter[Presenter]
         end
         subgraph InfraAdapters [Infrastructure Adapters - Outbound]
             RI_Impl[Repository Impl]
@@ -32,7 +31,7 @@ graph TD
 
     subgraph UseCaseLayer [UseCases]
         UC[UseCase]
-        UC_Port[UseCase Port]
+        UC_Port[UseCase Input Port]
     end
 
     subgraph DomainLayer [Domain]
@@ -44,17 +43,14 @@ graph TD
 
     %% Inbound dependencies
     Web --> Controller
-    Controller --> UC
+    Controller --> UC_Port
+    UC_Port -.-> UC
     UC --> DomainLayer
 
     %% Outbound dependencies
     RI_Impl -- "implements" --> RI
     RI_Impl --> DB
     GW_Impl --> DB
-
-    %% UseCase ports
-    UC --> UC_Port
-    Presenter -- "implements" --> UC_Port
 ```
 
 ---
@@ -130,11 +126,11 @@ Adapters that connect UseCases or Domain-owned ports to external systems.
 | ------------------------- | ------- | -------- | -------- |
 | Domain                    | yes     | no       | no       |
 | UseCases                  | yes     | yes      | no       |
-| Adapters (Presentation)   | limited | yes      | self     |
+| Adapters (Presentation)   | cond.   | yes      | self     |
 | Adapters (Infrastructure) | yes     | yes      | self     |
 | Composition Root          | yes     | yes      | yes      |
 
-* `Presentation → Domain` is `limited`: Presentation MAY read Domain values returned by UseCases for serialization, but MUST NOT invoke Domain behavior directly for workflow decisions.
+* `Presentation → Domain` is `cond.` (conditional): Presentation MAY read Domain values returned by UseCases for serialization (pragmatic mode), but MUST NOT invoke Domain behavior directly for workflow decisions. Strict DTO mapping is the default; pragmatic mode requires all conditions in the Boundary Simplification Checklist to be met.
 * Presentation Adapters and Infrastructure Adapters are in the same conceptual layer but must not depend on each other directly.
 
 ---
@@ -306,7 +302,7 @@ func LongRunningProcess(ctx context.Context) error {
 
 * **Use ctx for:** **Cross-cutting (supplementary) information** such as `Request ID` or `Auth Tokens`. These are not core to the business logic but are necessary for logging, authorization at the infra layer, or distributed tracing.
 
-**Do not smuggle resources in context:** Do not hide `sql.Tx`, DB handles, request objects, or SDK clients inside `context.Context` to cross architectural boundaries. Use explicit function parameters or dependency injection instead.
+**Do not smuggle resources in context:** Do not hide `sql.Tx`, DB handles, request objects, or SDK clients inside `context.Context` to cross architectural boundaries. Use explicit function parameters or dependency injection instead. The one exception: Infrastructure Adapters MAY propagate transaction handles internally via `context.WithValue` (e.g., to share `*sql.Tx` across repository calls within a transaction), but UseCases and Domain MUST NOT read those values from context.
 
 ---
 

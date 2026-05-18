@@ -8,7 +8,7 @@ import (
 )
 
 type GreetingHandler struct {
-	UC *usecase.GreetingUseCase
+	UC usecase.GreetingUseCasePort
 }
 
 func (h *GreetingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

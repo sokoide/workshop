@@ -70,12 +70,16 @@ import (
 	"your-project/internal/domain"
 )
 
-type CheckVeteranUseCase struct {
-	repo       domain.UserRepository
-	veteranSvc domain.VeteranService
+type VeteranChecker interface {
+	IsVeteran(user *User) bool
 }
 
-func NewCheckVeteranUseCase(repo domain.UserRepository, veteranSvc domain.VeteranService) *CheckVeteranUseCase {
+type CheckVeteranUseCase struct {
+	repo       domain.UserRepository
+	veteranSvc domain.VeteranChecker
+}
+
+func NewCheckVeteranUseCase(repo domain.UserRepository, veteranSvc domain.VeteranChecker) *CheckVeteranUseCase {
 	return &CheckVeteranUseCase{repo: repo, veteranSvc: veteranSvc}
 }
 

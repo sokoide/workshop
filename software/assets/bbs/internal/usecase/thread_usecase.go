@@ -8,6 +8,10 @@ import (
 	"github.com/sokoide/cleanarch1/internal/domain/port"
 )
 
+type ListThreadsInputPort interface {
+	Execute(ctx context.Context, in ListThreadsInput) (*ListThreadsOutput, error)
+}
+
 type ListThreadsUseCase struct {
 	boardRepo  port.BoardRepository
 	threadRepo port.ThreadRepository
@@ -38,6 +42,10 @@ func (u *ListThreadsUseCase) Execute(ctx context.Context, in ListThreadsInput) (
 	return &ListThreadsOutput{Threads: dtos}, nil
 }
 
+type CreateThreadInputPort interface {
+	Execute(ctx context.Context, in CreateThreadInput) (*CreateThreadOutput, error)
+}
+
 type CreateThreadUseCase struct {
 	boardRepo  port.BoardRepository
 	threadRepo port.ThreadRepository
@@ -62,8 +70,9 @@ func (u *CreateThreadUseCase) Execute(ctx context.Context, in CreateThreadInput)
 	if err != nil {
 		return nil, err
 	}
+	thread.Owner = in.Author
 
-	post, err := entity.NewPost(0, 1, in.Author, in.Body, false)
+	post, err := entity.NewPost(thread.ID, 1, in.Author, in.Body, false)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +89,6 @@ func (u *CreateThreadUseCase) Execute(ctx context.Context, in CreateThreadInput)
 			return err
 		}
 
-		thread.PostCount = 1
-		thread.LastPostedAt = post.CreatedAt
 		if err := u.threadRepo.Save(txCtx, thread); err != nil {
 			return err
 		}
@@ -103,6 +110,8 @@ func toThreadDTO(t *entity.Thread) ThreadDTO {
 		ID:           t.ID,
 		BoardID:      t.BoardID,
 		Title:        t.Title,
+		Owner:        t.Owner,
+		OwnerOnly:    t.OwnerOnly,
 		PostCount:    t.PostCount,
 		CreatedAt:    t.CreatedAt,
 		LastPostedAt: t.LastPostedAt,

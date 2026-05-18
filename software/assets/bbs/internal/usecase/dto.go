@@ -39,6 +39,8 @@ type ThreadDTO struct {
 	ID           int64     `json:"id"`
 	BoardID      int64     `json:"board_id"`
 	Title        string    `json:"title"`
+	Owner        string    `json:"owner"`
+	OwnerOnly    bool      `json:"owner_only"`
 	PostCount    int       `json:"post_count"`
 	CreatedAt    time.Time `json:"created_at"`
 	LastPostedAt time.Time `json:"last_posted_at"`

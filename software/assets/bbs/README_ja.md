@@ -40,11 +40,11 @@ BBS_DB=:memory: ./bbs
 サーバーは `localhost:8080` で待機します。
 初回起動時、以下の板が自動的に作成されます。
 
-| slug    | name         |
-| ------- | ------------ |
-| program | プログラマー |
-| news    | ニュース速報 |
-| chat    | 雑談         |
+| name        | description          |
+| ----------- | -------------------- |
+| programming | Programming General  |
+| news        | News & Current Events|
+| chat        | Casual Chat          |
 
 ## API 仕様
 
@@ -104,21 +104,23 @@ graph TB
     end
 
     subgraph UseCaseLayer ["UseCases"]
-        UC["List/Create UseCases"]
+        UC["*_usecase.go<br/>List/Create UseCases"]
         DTO["dto.go<br/>入出力データ構造"]
+        UCPort["Input Port interfaces<br/>(各UseCaseファイル内)"]
     end
 
     subgraph DomainLayer ["Domain"]
         Entity["entity/*.go<br/>板・スレ・レス"]
-        Port["port/*.go<br/>Repository/Transaction<br/>(Interface)"]
+        DPort["port/*.go<br/>Domain Port (Repository)"]
         Err["error.go<br/>ドメインエラー"]
     end
 
     Client["Client (curl / browser)"] -->|HTTP| MW --> Router --> Handler
     Handler -->|Execute| UC
-    UC -->|Interface| Port
-    Port -.->|Implementation| Repo
-    Port -.->|Implementation| TM
+    UC -->|Interface| UCPort
+    UC -->|Interface| DPort
+    UCPort -.->|Implementation| TM
+    DPort -.->|Implementation| Repo
     Repo --> Model --> SQLite
     
     Main["cmd/bbs/main.go<br/>Composition Root"] -.->|DI| Handler
@@ -277,7 +279,7 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 
 | 層 | 変更内容 | 役割 |
 | ---- | --------- | ------ |
-| **Domain** | `Thread.Owner` フィールド追加、`CanPost()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
+| **Domain** | `Thread.Owner` フィールド追加、`CanPost()` / `EnableOwnerOnlyMode()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
 | **UseCase** | `thread.CanPost(in.Author)` の呼び出し1行を追加 | ルールの適用 |
 | **Infra** | `threads` テーブルに `owner` 列を追加、読み書きを対応 | 永続化の追従 |
 | **Framework** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加 | 表示の追従 |
@@ -288,12 +290,26 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 // entity/thread.go
 type Thread struct {
     // ...existing fields
-    Owner string  // 追加: スレ主
+    Owner     string // 追加: スレ主
+    OwnerOnly bool   // 追加: スレ主限定モード
 }
 
 // ビジネスルールをカプセル化
 func (t *Thread) CanPost(author string) bool {
+    if !t.OwnerOnly {
+        return true
+    }
     return t.Owner == author
+}
+
+// 追加: スレ主限定モードの設定をカプセル化（不変条件を保護）
+func (t *Thread) EnableOwnerOnlyMode(owner string) error {
+    if owner == "" {
+        return errors.New("owner must not be empty when owner-only mode is enabled")
+    }
+    t.OwnerOnly = true
+    t.Owner = owner
+    return nil
 }
 ```
 
@@ -425,22 +441,24 @@ boardRepo := postgres.NewBoardRepository(db)
 
 | 層 | 変更内容 | 役割 |
 | ---- | --------- | ------ |
-| **Domain** | `port.NotificationGateway` interface を新規定義 | 「通知が必要である」という抽象の定義 |
+| **UseCase** | `port.NotificationGateway` interface を新規定義 | 「通知が必要である」という抽象の定義。通知はアプリケーションワークフローの道具であるため、UseCase Port として定義します。 |
 | **UseCase** | `CreatePostUseCase` に `NotificationGateway` を注入、投稿成功後に呼び出し | 通知のタイミング制御 |
 | **Infra** | `infra/notification/slack_gateway.go` を新規作成 | Slack API の具体実装 |
 | **Framework** | 変更なし | — |
 
-**Domain — 新しい Port:**
+**UseCase — 新しい Port:**
 
 ```go
-// port/notification.go（新規ファイル）
+// internal/usecase/port/notification.go（新規ファイル）
+package port
+
 type NotificationGateway interface {
     NotifyNewPost(ctx context.Context, threadTitle string, postAuthor string, postBody string) error
 }
 ```
 
 `NotificationGateway` は「通知手段」を抽象化します。
-Slack なのか Email なのか LINE なのか、Domain は知りません。
+Slack なのか Email なのか LINE なのか、UseCase は知りません（Domain は通知の存在自体を知りません）。
 
 **UseCase — 通知の呼び出し（2行追加）:**
 
@@ -713,8 +731,11 @@ Framework Test: モック UseCase → 403 が返る                     （DBも
 ├── cmd/bbs/            # エントリポイント (Composition Root)
 ├── internal/
 │   ├── domain/         # ドメイン層 (Entity, Port, Error)
-│   ├── usecase/        # ユースケース層 (Interactors, DTO)
-│   ├── infra/          # インフラ層 (Persistence/SQLite)
-│   └── framework/      # フレームワーク層 (HTTP Handler, Router, Middleware)
+│   ├── usecase/        # ユースケース層 (Interactors, DTO, Input Port)
+│   └── adapters/       # アダプタ層
+│       ├── presentation/   # Presentation Adapters (HTTP Handler, Router, Middleware)
+│       │   └── http/
+│       └── infra/          # Infrastructure Adapters (Persistence/SQLite)
+│           └── persistence/sqlite/
 └── bbs.db              # デフォルトのデータベースファイル
 ```

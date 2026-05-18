@@ -28,6 +28,8 @@ type ThreadModel struct {
 	ID           int64
 	BoardID      int64
 	Title        string
+	Owner        string
+	OwnerOnly    bool
 	PostCount    int
 	CreatedAt    time.Time
 	LastPostedAt time.Time
@@ -38,6 +40,8 @@ func (m ThreadModel) ToEntity() *entity.Thread {
 		ID:           m.ID,
 		BoardID:      m.BoardID,
 		Title:        m.Title,
+		Owner:        m.Owner,
+		OwnerOnly:    m.OwnerOnly,
 		PostCount:    m.PostCount,
 		CreatedAt:    m.CreatedAt,
 		LastPostedAt: m.LastPostedAt,

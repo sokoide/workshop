@@ -20,30 +20,30 @@ This is a classic example of the new Port/Adapter pattern.
 
 | Layer | Change | Role |
 | ------- | -------- | ------ |
-| **Domain** | Define `port.NotificationGateway` interface (new file) | Abstract definition of "notification is needed" |
-| **UseCase** | Inject `NotificationGateway` into `CreatePostUseCase`, call after successful post | Control notification timing |
+| **Domain** | **No changes** | — |
+| **UseCase** | Define `port.NotificationGateway` interface (new file), inject into `CreatePostUseCase`, call after successful post | Abstract definition of "notification is needed" + control notification timing |
 | **Infra** | Create `infra/notification/slack_gateway.go` (new file) | Concrete Slack API implementation |
 | **Presentation** | **No changes** | — |
 | **Entity** | **No changes** | — |
 
-### Step 1: Domain Layer — Define a New Port
+### Step 1: UseCases Layer — Define a New Port
 
-Define the "notification functionality" as an abstraction, not "how to notify."
+Define the "notification functionality" as an abstraction, not "how to notify." Notification is a tool needed by the application workflow, so the port belongs to the UseCases layer.
 
 ```go
-// internal/domain/port/notification.go (new file)
+// internal/usecase/port/notification.go (new file)
 package port
 
 import "context"
 
 // NotificationGateway is the abstract interface for sending notifications.
-// Slack, Email, LINE — the Domain layer doesn't know the specific notification method.
+// Slack, Email, LINE — the UseCase layer doesn't know the specific notification method.
 type NotificationGateway interface {
     NotifyNewPost(ctx context.Context, threadTitle string, postAuthor string, postBody string) error
 }
 ```
 
-**Key observation**: The word "Slack" never appears in this interface. Domain decides "what to notify" and leaves "how to notify" to Infra.
+**Key observation**: The word "Slack" never appears in this interface. The UseCase decides "what to notify" and leaves "how to notify" to Infra.
 
 ### Step 2: UseCase Layer — Invoke Notification
 
@@ -328,7 +328,7 @@ In this case:
 
 1. **New Port/Adapter Pattern**: New features are added by defining a new Port (interface) and adding a corresponding Adapter. Existing code is minimally affected.
 2. **Clear Responsibility Separation**:
-    - Domain defines "what to notify" (`NotificationGateway` signature)
+    - UseCase defines "what to notify" (`NotificationGateway` signature) — this is a UseCase Port because notification is an application workflow tool, not part of the core domain language
     - UseCase decides "when to notify" (after successful post)
     - Infra implements "how to notify" (Slack Webhook / Email SMTP)
 3. **Testability**: Interfaces enable notification mocking, allowing tests independent of external services.

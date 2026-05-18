@@ -11,11 +11,11 @@ import (
 )
 
 type PostHandler struct {
-	listPosts  *usecase.ListPostsUseCase
-	createPost *usecase.CreatePostUseCase
+	listPosts  usecase.ListPostsInputPort
+	createPost usecase.CreatePostInputPort
 }
 
-func NewPostHandler(listPosts *usecase.ListPostsUseCase, createPost *usecase.CreatePostUseCase) *PostHandler {
+func NewPostHandler(listPosts usecase.ListPostsInputPort, createPost usecase.CreatePostInputPort) *PostHandler {
 	return &PostHandler{listPosts: listPosts, createPost: createPost}
 }
 
@@ -63,6 +63,8 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, domain.ErrThreadNotFound):
 			writeError(w, http.StatusNotFound, err.Error())
+		case errors.Is(err, domain.ErrNotThreadOwner):
+			writeError(w, http.StatusForbidden, err.Error())
 		case errors.Is(err, domain.ErrEmptyBody):
 			writeError(w, http.StatusBadRequest, err.Error())
 		default:

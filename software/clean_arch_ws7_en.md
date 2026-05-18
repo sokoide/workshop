@@ -47,10 +47,11 @@ import (
 
 type contextKey struct{}
 
-// Claims holds user info extracted from the JWT
+// Claims holds user info extracted from the JWT.
+// Fields are populated manually from jwt.MapClaims (not via JSON unmarshaling).
 type Claims struct {
-    UserID string `json:"sub"`
-    Role   string `json:"role"`
+    UserID string
+    Role   string
 }
 
 // GetClaims extracts authenticated user info from context

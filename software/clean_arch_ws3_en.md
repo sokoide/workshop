@@ -356,12 +356,15 @@ The following layers require **zero modifications**:
 Review the current Presentation layer. Handlers follow the "input conversion → UseCase call → output conversion" pattern.
 
 ```go
-// internal/adapters/presentation/handler/thread_handler.go
+// internal/adapters/presentation/http/handler/thread_handler.go
 func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
     // HTTP-specific input conversion
     name := r.PathValue("name")
     var req createThreadRequest
-    json.NewDecoder(r.Body).Decode(&req)
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        writeError(w, http.StatusBadRequest, "invalid json")
+        return
+    }
 
     // UseCase call (← protocol-independent)
     out, err := h.createThread.Execute(r.Context(), usecase.CreateThreadInput{
@@ -432,12 +435,33 @@ message Post {
 
 Create a gRPC handler in a new file. Confirm that the **UseCase invocation is identical to the HTTP version**.
 
+First, define the Input Port interfaces in the UseCases layer (if not already defined):
+
+```go
+// internal/usecase/port.go
+package usecase
+
+import "context"
+
+type ThreadCreator interface {
+    Execute(ctx context.Context, in CreateThreadInput) (*CreateThreadOutput, error)
+}
+
+type ThreadLister interface {
+    Execute(ctx context.Context, in ListThreadsInput) (*ListThreadsOutput, error)
+}
+
+// Define similar interfaces for other UseCases as needed
+```
+
+Then implement the gRPC handler depending on these interfaces:
+
 ```go
 // internal/adapters/presentation/grpc/bbs_server.go (new file)
 type BBSServer struct {
     pb.UnimplementedBBSServiceServer
-    createThread *usecase.CreateThreadUseCase
-    listThreads  *usecase.ListThreadsUseCase
+    createThread usecase.ThreadCreator  // ← interface (Input Port)
+    listThreads  usecase.ThreadLister   // ← interface (Input Port)
     // ...
 }
 
@@ -506,7 +530,7 @@ func main() {
     // New: gRPC server startup (only this changes)
     grpcServer := grpc.NewServer()
     reflection.Register(grpcServer)  // Required for grpcurl service listing
-    bbsServer := presentation.NewBBSServer(createThread, listThreads, ...)
+    bbsServer := presentation.NewBBSServer(createThread, listThreads, ...)  // concrete types satisfy interfaces
     pb.RegisterBBSServiceServer(grpcServer, bbsServer)
 
     lis, err := net.Listen("tcp", ":9090")

@@ -10,4 +10,5 @@ var (
 	ErrEmptyTitle            = errors.New("thread title must not be empty")
 	ErrEmptyBoardName        = errors.New("board name must not be empty")
 	ErrEmptyBoardDescription = errors.New("board description must not be empty")
+	ErrNotThreadOwner        = errors.New("only thread owner can post")
 )

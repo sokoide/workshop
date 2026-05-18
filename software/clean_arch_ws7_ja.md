@@ -47,10 +47,11 @@ import (
 
 type contextKey struct{}
 
-// Claims は JWT から抽出するユーザー情報です
+// Claims は JWT から抽出するユーザー情報です。
+// フィールドは jwt.MapClaims から手動でマッピングされます（JSON unmarshal によるものではありません）。
 type Claims struct {
-    UserID string `json:"sub"`
-    Role   string `json:"role"`
+    UserID string
+    Role   string
 }
 
 // GetClaims は context から認証済みユーザー情報を取り出します

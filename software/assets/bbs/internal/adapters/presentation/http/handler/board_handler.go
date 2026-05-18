@@ -7,10 +7,10 @@ import (
 )
 
 type BoardHandler struct {
-	listBoards *usecase.ListBoardsUseCase
+	listBoards usecase.ListBoardsInputPort
 }
 
-func NewBoardHandler(listBoards *usecase.ListBoardsUseCase) *BoardHandler {
+func NewBoardHandler(listBoards usecase.ListBoardsInputPort) *BoardHandler {
 	return &BoardHandler{listBoards: listBoards}
 }
 

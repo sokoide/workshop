@@ -21,7 +21,6 @@ graph TD
         subgraph PresentationAdapters [Presentation Adapters - 入力側]
             Web[Web / gRPC / CLI]
             Controller[Controller / Handler]
-            Presenter[Presenter]
         end
         subgraph InfraAdapters [Infrastructure Adapters - 出力側]
             RI_Impl[Repository Impl]
@@ -32,7 +31,7 @@ graph TD
 
     subgraph UseCaseLayer [UseCases]
         UC[UseCase]
-        UC_Port[UseCase Port]
+        UC_Port[UseCase Input Port]
     end
 
     subgraph DomainLayer [Domain]
@@ -44,17 +43,14 @@ graph TD
 
     %% 入力側の依存
     Web --> Controller
-    Controller --> UC
+    Controller --> UC_Port
+    UC_Port -.-> UC
     UC --> DomainLayer
 
     %% 出力側の依存
     RI_Impl -- "implements" --> RI
     RI_Impl --> DB
     GW_Impl --> DB
-
-    %% UseCase ポート
-    UC --> UC_Port
-    Presenter -- "implements" --> UC_Port
 ```
 
 ---
@@ -130,11 +126,11 @@ UseCases または Domain が所有するポートを外部システムに接続
 |:--------------------------:|:-------:|:--------:|:--------:|
 |           Domain           |   yes   |    no    |    no    |
 |          UseCases          |   yes   |    yes   |    no    |
-|  Adapters（Presentation）  | limited |    yes   |   self   |
+|  Adapters（Presentation）  |  cond.  |    yes   |   self   |
 | Adapters（Infrastructure） |   yes   |    yes   |   self   |
 |      Composition Root      |   yes   |    yes   |    yes   |
 
-* `Presentation → Domain` は `limited`: Presentation は UseCases から返された Domain の値をシリアライズのために **読み取ってもよい** が、ワークフローの判断のために Domain の振る舞いを **直接呼び出してはならない**。
+* `Presentation → Domain` は `cond.` (conditional): Presentation は UseCases から返された Domain の値をシリアライズのために **読み取ってもよい**（pragmatic モード）が、ワークフローの判断のために Domain の振る舞いを **直接呼び出してはならない**。デフォルトは厳密な DTO マッピング。pragmatic モードを適用するには、Boundary Simplification Checklist の全条件を満たす必要がある。
 * Presentation Adapters と Infrastructure Adapters は同じ概念層にありますが、互いに直接依存してはなりません。
 
 ---
@@ -303,7 +299,7 @@ func LongRunningProcess(ctx context.Context) error {
 * **引数で渡すもの:** `userID` や `groupID` などの **ビジネスロジックに不可欠なデータ** です。型安全性を保ち、関数の依存関係を明確にするために、明示的に引数として渡します。
 * **ctx に含めるもの:** `Request ID` や `認証トークン` などの **横断的（付加的）な情報** です。ビジネスロジックの本質ではないが、ログ出力やインフラ層での認可などに必要な情報を運びます。
 
-**context でのリソースの密輸禁止:** `sql.Tx`、DB ハンドル、リクエストオブジェクト、SDK クライアントなどを `context.Context` に隠してアーキテクチャ境界を越えてはなりません。明示的な関数パラメータや依存注入を使用してください。
+**context でのリソースの密輸禁止:** `sql.Tx`、DB ハンドル、リクエストオブジェクト、SDK クライアントなどを `context.Context` に隠してアーキテクチャ境界を越えてはなりません。明示的な関数パラメータや依存注入を使用してください。唯一の例外: Infrastructure Adapters は内部で `context.WithValue` を使ってトランザクションハンドルを伝播しても構いません（例: 同一トランザクション内で `*sql.Tx` をリポジトリ間で共有）。ただし、UseCases と Domain は context からこれらの値を読み取ってはなりません。
 
 ---
 

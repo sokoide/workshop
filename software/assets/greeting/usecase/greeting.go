@@ -4,6 +4,10 @@ import (
 	"workshop/greeting/domain"
 )
 
+type GreetingUseCasePort interface {
+	Execute(id string) (string, error)
+}
+
 type GreetingUseCase struct {
 	Repo domain.UserRepository
 }

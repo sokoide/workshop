@@ -307,3 +307,68 @@ func TestCreatePost_PostNumberSequence(t *testing.T) {
 
 // Verify port.TransactionManager compliance
 var _ port.TransactionManager = (*mockTM)(nil)
+
+func TestCreatePost_OwnerOnlyRejected(t *testing.T) {
+	thread := &entity.Thread{
+		ID:           1,
+		BoardID:      1,
+		Title:        "test",
+		Owner:        "alice",
+		OwnerOnly:    true,
+		PostCount:    0,
+		CreatedAt:    time.Now(),
+		LastPostedAt: time.Now(),
+	}
+
+	tRepo := &mockThreadRepo{thread: thread}
+	pRepo := &mockPostRepo{count: 0}
+	tm := &mockTM{}
+
+	uc := NewCreatePostUseCase(tRepo, pRepo, tm)
+	_, err := uc.Execute(context.Background(), CreatePostInput{
+		ThreadID: 1,
+		Author:   "bob",
+		Body:     "hello",
+	})
+
+	if !errors.Is(err, domain.ErrNotThreadOwner) {
+		t.Errorf("error = %v, want ErrNotThreadOwner", err)
+	}
+	if !tm.rolledBack {
+		t.Error("transaction should be rolled back")
+	}
+}
+
+func TestCreatePost_OwnerOnlyAllowed(t *testing.T) {
+	thread := &entity.Thread{
+		ID:           1,
+		BoardID:      1,
+		Title:        "test",
+		Owner:        "alice",
+		OwnerOnly:    true,
+		PostCount:    0,
+		CreatedAt:    time.Now(),
+		LastPostedAt: time.Now(),
+	}
+
+	tRepo := &mockThreadRepo{thread: thread}
+	pRepo := &mockPostRepo{count: 0}
+	tm := &mockTM{}
+
+	uc := NewCreatePostUseCase(tRepo, pRepo, tm)
+	out, err := uc.Execute(context.Background(), CreatePostInput{
+		ThreadID: 1,
+		Author:   "alice",
+		Body:     "hello",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out == nil {
+		t.Fatal("expected output")
+	}
+	if !tm.committed {
+		t.Error("transaction should be committed")
+	}
+}

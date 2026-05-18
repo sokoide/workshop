@@ -55,6 +55,16 @@ func (t *Thread) CanPost(author string) bool {
     }
     return t.Owner == author
 }
+
+// Added: Encapsulated owner-only mode setup to protect invariants
+func (t *Thread) EnableOwnerOnlyMode(owner string) error {
+    if owner == "" {
+        return errors.New("owner must not be empty when owner-only mode is enabled")
+    }
+    t.OwnerOnly = true
+    t.Owner = owner
+    return nil
+}
 ```
 
 **Key observation**: The validation logic exists in **one place only**: `CanPost()`. It knows nothing about DB or HTTP.
@@ -119,7 +129,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 }
 ```
 
-**2-1.1. Transaction Management**
+**2-2. Transaction Management**
 
 The UseCase layer also has the responsibility of controlling transaction boundaries.
 
@@ -138,7 +148,7 @@ In post creation, the entire sequence — fetch thread, check permission, count 
 
 **Key observation**: Transactions are not "technical details" but "application policies." The UseCase decides "this operation set should be atomic," and the Infra Adapter provides the concrete implementation (`BEGIN`/`COMMIT`/`ROLLBACK`).
 
-**2-2. Add `OwnerOnly` to the DTO**
+**2-3. Add `OwnerOnly` to the DTO**
 
 Add the `OwnerOnly` field to `CreateThreadInput` in `usecase/dto.go` so the Presentation layer can pass the flag.
 
@@ -153,7 +163,7 @@ type CreateThreadInput struct {
 }
 ```
 
-**2-3. Set Owner and OwnerOnly in CreateThreadUseCase**
+**2-4. Set Owner and OwnerOnly in CreateThreadUseCase**
 
 `Owner` (thread owner = first post author) is set during thread creation in `CreateThreadUseCase`.
 
@@ -163,8 +173,11 @@ thread, err := entity.NewThread(board.ID, in.Title)
 if err != nil {
     return nil, err
 }
-thread.OwnerOnly = in.OwnerOnly  // Flag from Presentation
-thread.Owner = in.Author         // Record first post author as owner
+if in.OwnerOnly {
+    if err := thread.EnableOwnerOnlyMode(in.Author); err != nil {
+        return nil, err  // Protects invariant: Owner must not be empty
+    }
+}
 ```
 
 ### Step 3: Infra Layer — Persist the Change
