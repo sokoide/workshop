@@ -133,12 +133,12 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 
 The UseCase layer also has the responsibility of controlling transaction boundaries.
 
-- **TransactionManager**: Defined as a Domain Port (`port.TransactionManager`)
+- **TransactionManager**: Defined as a UseCase Port (`usecase.TransactionManager`)
 - **Infra Adapter**: Implements concretely using SQLite's `sql.Tx`, etc.
 - **UseCase**: Groups multiple repository operations into a single transaction
 
 ```go
-// internal/domain/port/transaction.go
+// internal/usecase/transaction.go
 type TransactionManager interface {
     RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }

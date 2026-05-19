@@ -8,7 +8,7 @@ import (
 
 type txKey struct{}
 
-// TransactionManager implements port.TransactionManager using sql.Tx.
+// TransactionManager implements usecase.TransactionManager using sql.Tx.
 type TransactionManager struct {
 	db *sql.DB
 }

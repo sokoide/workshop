@@ -131,12 +131,12 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 
 UseCase 層はトランザクション境界を制御する責務も持ちます。
 
-- **TransactionManager**: Domain Port として定義される（`port.TransactionManager`）
+- **TransactionManager**: UseCase Port として定義される（`usecase.TransactionManager`）
 - **Infra Adapter**: SQLite の `sql.Tx` などを使って具象実装
 - **UseCase**: 複数のリポジトリ操作を 1 つのトランザクションにまとめる
 
 ```go
-// internal/domain/port/transaction.go
+// internal/usecase/transaction.go
 type TransactionManager interface {
     RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }

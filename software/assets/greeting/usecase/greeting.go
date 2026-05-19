@@ -1,19 +1,21 @@
 package usecase
 
 import (
+	"context"
+
 	"workshop/greeting/domain"
 )
 
 type GreetingUseCasePort interface {
-	Execute(id string) (string, error)
+	Execute(ctx context.Context, id string) (string, error)
 }
 
 type GreetingUseCase struct {
 	Repo domain.UserRepository
 }
 
-func (u *GreetingUseCase) Execute(id string) (string, error) {
-	user, err := u.Repo.FindByID(id)
+func (u *GreetingUseCase) Execute(ctx context.Context, id string) (string, error) {
+	user, err := u.Repo.FindByID(ctx, id)
 	if err != nil {
 		return "", err
 	}

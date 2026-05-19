@@ -50,10 +50,10 @@ type CreateThreadUseCase struct {
 	boardRepo  port.BoardRepository
 	threadRepo port.ThreadRepository
 	postRepo   port.PostRepository
-	tm         port.TransactionManager
+	tm         TransactionManager
 }
 
-func NewCreateThreadUseCase(boardRepo port.BoardRepository, threadRepo port.ThreadRepository, postRepo port.PostRepository, tm port.TransactionManager) *CreateThreadUseCase {
+func NewCreateThreadUseCase(boardRepo port.BoardRepository, threadRepo port.ThreadRepository, postRepo port.PostRepository, tm TransactionManager) *CreateThreadUseCase {
 	return &CreateThreadUseCase{boardRepo: boardRepo, threadRepo: threadRepo, postRepo: postRepo, tm: tm}
 }
 

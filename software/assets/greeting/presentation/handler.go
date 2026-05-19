@@ -18,7 +18,7 @@ func (h *GreetingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.UC.Execute(id)
+	msg, err := h.UC.Execute(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)

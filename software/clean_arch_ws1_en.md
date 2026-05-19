@@ -70,16 +70,12 @@ import (
 	"your-project/internal/domain"
 )
 
-type VeteranChecker interface {
-	IsVeteran(user *User) bool
-}
-
 type CheckVeteranUseCase struct {
 	repo       domain.UserRepository
-	veteranSvc domain.VeteranChecker
+	veteranSvc domain.VeteranService
 }
 
-func NewCheckVeteranUseCase(repo domain.UserRepository, veteranSvc domain.VeteranChecker) *CheckVeteranUseCase {
+func NewCheckVeteranUseCase(repo domain.UserRepository, veteranSvc domain.VeteranService) *CheckVeteranUseCase {
 	return &CheckVeteranUseCase{repo: repo, veteranSvc: veteranSvc}
 }
 
@@ -91,6 +87,8 @@ func (uc *CheckVeteranUseCase) Execute(ctx context.Context, id string) (bool, er
 	return uc.veteranSvc.IsVeteran(user), nil
 }
 ```
+
+> **Note on interface design:** The UseCase depends on the concrete `domain.VeteranService` directly rather than defining a separate `VeteranChecker` interface. This is a **simplicity vs. decoupling trade-off**: since `VeteranService` is a pure Domain Service with no external dependencies, the risk of it gaining unwanted side effects is low, and an extra interface layer adds ceremony without practical benefit. The downside is that if `VeteranService`'s method signature changes, the UseCase must also change. For Domain Services that may later acquire external dependencies (e.g., a lookup service that might call an API), defining an interface upfront is the safer choice.
 
 ---
 

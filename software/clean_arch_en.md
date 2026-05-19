@@ -62,7 +62,9 @@ graph TD
 | Entities                    | Domain                                                    |
 | Use Cases                   | UseCases                                                  |
 | Interface Adapters          | Adapters (Presentation + Infrastructure)                  |
-| Frameworks & Drivers        | Concrete mechanisms used by Adapters and Composition Root |
+| Frameworks & Drivers        | Concrete mechanisms used by Adapters and Composition Root (main.go) |
+
+> **Note:** In this 3-layer variant, the traditional "Frameworks & Drivers" layer is absorbed into Adapters and Composition Root. Web frameworks, routing libraries, and DB drivers are treated as implementation details within the Adapters layer, not as a separate architectural layer. The Composition Root (`main.go`) wires everything together but contains no business logic.
 
 | Hexagonal Architecture          | This Variant's Placement |
 | ------------------------------- | ------------------------ |
@@ -86,6 +88,7 @@ The heart of the application, representing the business rules themselves.
 * **Domain Error:** Errors defined in domain vocabulary.
 * **Domain Port (Interface):** Repository and other ports only when the abstraction is part of the domain language.
 * **No external dependencies:** No DB, HTTP, ORM, SDK, web framework, or generated transport types.
+* **Note on `context.Context`:** Domain interfaces in Go commonly accept `context.Context` as the first parameter for cancellation and deadline propagation. This is a **pragmatic exception** to the "no external dependencies" rule, justified specifically because `context.Context` carries cancellation and deadline signals — a Go runtime concern, not a business dependency. The exception does not extend to other standard library packages (e.g., `net/http`, `database/sql`). Domain MUST NOT read custom values from context — that responsibility belongs to Infrastructure Adapters.
 
 ### 2. UseCases Layer
 
@@ -265,7 +268,9 @@ func HandleCheckMembership(w http.ResponseWriter, r *http.Request, useCase useca
 	// Execute the UseCase
 	isMember, err := useCase.Execute(r.Context(), userID, groupID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Do NOT leak internal error details to the client.
+		// Log the error and return a generic message.
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
@@ -320,9 +325,16 @@ func LongRunningProcess(ctx context.Context) error {
   * *Examples:* `UserRepository.FindByID` (essential for re-constituting entities).
   * *Heuristic:* "Would the domain model be incomplete or unable to enforce its invariants without this capability?"
 * **UseCase Port:** When the abstraction is a "Tool" required to complete an application-specific procedure.
-  * *Examples:* `NotificationGateway.SendWelcomeEmail` (a side-effect of a workflow), `IdentityGateway.IsMember` (authorization check against external provider).
+  * *Examples:* `NotificationGateway.SendWelcomeEmail` (a side-effect of a workflow), `IdentityGateway.IsMember` (authorization check against external provider), `TransactionManager.RunInTransaction` (application-level transaction boundary).
   * *Heuristic:* "Is this a requirement of the application workflow rather than the core business logic itself?"
+* **Repository ports — Domain or UseCase?** Repository interfaces (e.g., `BoardRepository`, `ThreadRepository`) may live in the Domain layer when their operations express core domain language (e.g., "find an entity by ID" is essential for reconstituting aggregates). In contrast, `TransactionManager` controls application-level transaction boundaries — an orchestration concern, not a domain concept — and belongs in the UseCase layer. The distinction: *if removing the interface would break the domain model's ability to enforce invariants, it's a Domain Port; otherwise, it's a UseCase Port.*
 * Concrete implementations live in **Infrastructure Adapters** regardless of which inner layer owns the interface.
+
+### Input Port Interface Policy
+
+Input Ports (UseCase interfaces called by Presentation Adapters) should be defined **when the UseCase is consumed by multiple Presentation types** (e.g., HTTP + gRPC + CLI) or when you want to explicitly decouple the handler from the concrete UseCase struct for testing. For single-protocol applications, defining an interface for every UseCase adds unnecessary boilerplate — the Presentation can depend on the concrete UseCase struct directly, and Go's structural typing still allows swapping when needed.
+
+**Guideline:** Define Input Port interfaces where they add value (multi-protocol support, test isolation). Do not create them by default for every UseCase. The BBS project in this repository defines Input Ports (`CreatePostInputPort`, etc.) because WS3 adds gRPC alongside HTTP — making them a justified multi-protocol pattern.
 
 ## Ports and Repository Boundary
 
@@ -351,11 +363,39 @@ func LongRunningProcess(ctx context.Context) error {
 * Transport DTOs, ORM records, or generated API models are reused as Domain objects.
 * Presentation and Infrastructure Adapters are merged in a way that makes their responsibilities hard to find.
 
+### Domain Events
+
+Domain Events are a common Clean Architecture pattern for decoupling side effects from UseCase orchestration. When a significant business event occurs (e.g., `PostCreated`), the Domain or UseCase layer publishes an event, and Infrastructure Adapters subscribe to perform side effects (notifications, audit logs, cache invalidation). This avoids the UseCase needing to know about every downstream consumer.
+
+```go
+// internal/usecase/event.go
+type DomainEvent interface {
+    EventName() string
+}
+
+type PostCreatedEvent struct {
+    BoardID  int64
+    ThreadID int64
+    PostID   int
+}
+
+func (PostCreatedEvent) EventName() string { return "PostCreated" }
+
+type EventPublisher interface {
+    Publish(ctx context.Context, event DomainEvent) error
+}
+```
+
+The UseCase publishes the event after the transaction completes, and the Composition Root wires subscribers (e.g., SlackNotifier) to the EventPublisher. This keeps the UseCase focused on orchestration while side effects are handled asynchronously.
+
+> **Caution:** Publishing after commit risks event loss if the publish call fails. For production systems, consider a **Transactional Outbox** — store the event in the same DB transaction, then relay it asynchronously — to guarantee at-least-once delivery.
+
 ### Go Implementation Notes
 
 * **SQL placeholders:** Drivers differ (`?`, `$1`, etc.). Choose what matches your driver.
 * **Initialisms:** In Go, initialisms like `SQL` are typically all-caps.
 * **Context values:** Use typed keys and avoid storing business data in `context`.
+* **DI frameworks:** For larger projects, consider using DI frameworks like [Google Wire](https://github.com/google/wire) or [Uber Fx](https://github.com/uber-go/fx) to manage dependency wiring automatically. However, start with manual DI in `main.go` — it's explicit, debuggable, and sufficient for most projects in this repository.
 
 ## Typical Directory Layout (Go)
 

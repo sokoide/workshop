@@ -62,7 +62,9 @@ graph TD
 |            Entities           |                           Domain                          |
 |           Use Cases           |                          UseCases                         |
 |       Interface Adapters      |         Adapters（Presentation + Infrastructure）         |
-|      Frameworks & Drivers     | Adapters と Composition Root が使用する具体的なメカニズム |
+|      Frameworks & Drivers     | Adapters と Composition Root（main.go）が使用する具体的なメカニズム |
+
+> **補足:** この 3 層バリアントでは、従来の「Frameworks & Drivers」層は Adapters と Composition Root に吸収されています。Web フレームワーク、ルーティングライブラリ、DB ドライバーは Adapters 層内の実装詳細として扱われ、独立したアーキテクチャ層とはなりません。Composition Root（`main.go`）はすべての配線を行いますが、ビジネスロジックは一切含みません。
 
 | Hexagonal Architecture            | このバリアントでの位置づけ |
 | --------------------------------- | -------------------------- |
@@ -86,6 +88,7 @@ graph TD
 * **Domain Error:** ドメイン語彙で定義されたエラー。
 * **Domain Port（Interface）:** 抽象がドメイン言語の一部である場合にのみ、リポジトリ等のポートを定義。
 * **外部依存なし:** DB、HTTP、ORM、SDK、Web フレームワーク、生成されたトランスポート型への依存なし。
+* **`context.Context` に関する注記:** Go の Domain インターフェースでは、キャンセルやデッドライン伝搬のために `context.Context` を第一引数に取ることが一般的です。これは「外部依存なし」ルールに対する **プラグマティックな例外** ですが、その正当化根拠は `context.Context` がキャンセル・デッドラインシグナルという Go ランタイムの関心事を運ぶことに限定されます。この例外は他の標準ライブラリパッケージ（例: `net/http`, `database/sql`）には及びません。Domain は context からカスタム値を読み取ってはなりません — その責務は Infrastructure Adapters にあります。
 
 ### 2. UseCases（ユースケース層）
 
@@ -265,7 +268,9 @@ func HandleCheckMembership(w http.ResponseWriter, r *http.Request, useCase useca
 	// UseCase を実行
 	isMember, err := useCase.Execute(r.Context(), userID, groupID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// 内部エラーの詳細をクライアントに漏らさない
+		// エラーをログに記録し、汎用メッセージを返す
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
@@ -317,9 +322,16 @@ func LongRunningProcess(ctx context.Context) error {
   * *例:* `UserRepository.FindByID`（エンティティの再構成に不可欠）。
   * *判断基準:* 「この能力なしではドメインモデルが不完全か、不変条件を強制できないか？」
 * **UseCase Port:** 抽象がアプリケーション固有の手順を完了するための「道具」である場合。
-  * *例:* `NotificationGateway.SendWelcomeEmail`（ワークフローの副作用）、`IdentityGateway.IsMember`（外部プロバイダに対する認可チェック）。
+  * *例:* `NotificationGateway.SendWelcomeEmail`（ワークフローの副作用）、`IdentityGateway.IsMember`（外部プロバイダに対する認可チェック）、`TransactionManager.RunInTransaction`（アプリケーションレベルのトランザクション境界）。
   * *判断基準:* 「これはコアビジネスロジックではなく、アプリケーションワークフロー要件か？」
+* **Repository Port — Domain か UseCase か？** Repository インターフェース（例: `BoardRepository`, `ThreadRepository`）は、その操作がコアドメイン言語を表現する場合（例: 「エンティティを ID で見つける」は集約の再構成に不可欠）、Domain 層に置いても構いません。対照的に、`TransactionManager` はアプリケーションレベルのトランザクション境界を制御するものであり、オーケストレーションの関心事であってドメイン概念ではないため、UseCase 層に属します。判断基準: *インターフェースを除去したとき、ドメインモデルが不変条件を強制できなくなるなら Domain Port。そうでなければ UseCase Port。*
 * 具象実装は、どの内側レイヤーがインターフェースを所有していても **Infrastructure Adapters** に置きます。
+
+### Input Port インターフェースの方針
+
+Input Port（Presentation Adapters から呼ばれる UseCase のインターフェース）は、**UseCase が複数の Presentation 種別（HTTP + gRPC + CLI など）から利用される場合**、またはテスト容易性のための明示的な分離が必要な場合に定義します。単一プロトコルのアプリケーションでは、すべての UseCase にインターフェースを定義することは不要なボイラープレートとなります。Go の構造的型付けにより、Presentation が具象 UseCase 構造体に直接依存していても、必要に応じて差し替えは可能です。
+
+**ガイドライン:** Input Port インターフェースは価値を生む場所（マルチプロトコル対応、テスト分離）でのみ定義してください。デフォルトで全 UseCase に作成する必要はありません。このリポジトリの BBS プロジェクトでは、WS3 で HTTP に加えて gRPC が追加されるため、Input Port（`CreatePostInputPort` 等）の定義は正当化されるマルチプロトコルパターンです。
 
 ## ポート設計とリポジトリ境界
 
@@ -348,11 +360,39 @@ func LongRunningProcess(ctx context.Context) error {
 * トランスポート DTO、ORM レコード、生成された API モデルが Domain オブジェクトとして再利用されている。
 * Presentation と Infrastructure Adapters がマージされ、それぞれの責務が見つけにくくなっている。
 
+### ドメインイベント（Domain Events）
+
+ドメインイベントは、UseCase のオーケストレーションから副作用を分離するための一般的な Clean Architecture パターンです。重要なビジネスイベント（例: `PostCreated`）が発生した際、Domain または UseCase 層がイベントを発行し、Infrastructure Adapters が購読して副作用（通知、監査ログ、キャッシュ無効化）を実行します。これにより UseCase がすべての下流コンシューマを知る必要がなくなります。
+
+```go
+// internal/usecase/event.go
+type DomainEvent interface {
+    EventName() string
+}
+
+type PostCreatedEvent struct {
+    BoardID  int64
+    ThreadID int64
+    PostID   int
+}
+
+func (PostCreatedEvent) EventName() string { return "PostCreated" }
+
+type EventPublisher interface {
+    Publish(ctx context.Context, event DomainEvent) error
+}
+```
+
+UseCase はトランザクション完了後にイベントを発行し、Composition Root が購読者（例: SlackNotifier）を EventPublisher に配線します。これにより UseCase はオーケストレーションに集中し、副作用は非同期に処理されます。
+
+> **注意:** コミット後の発行では、publish 呼び出しが失敗した場合にイベントがロストするリスクがあります。本番システムでは **Transactional Outbox** の利用を検討してください — 同一 DB トランザクション内でイベントを保存し、非同期で中継することで、at-least-once 配信を保証します。
+
 ### Go 実装の補足
 
 * **SQL プレースホルダ:** ドライバによって `?` や `$1` のように異なります。実装環境に合わせて選択します。
 * **命名:** Go では `SQL` のようなイニシャリズムは大文字にまとめるのが慣例です。
 * **コンテキスト:** `context` の値は型付きキーで管理し、ビジネスデータは入れません。
+* **DI フレームワーク:** 大規模プロジェクトでは、[Google Wire](https://github.com/google/wire) や [Uber Fx](https://github.com/uber-go/fx) などの DI フレームワークの利用を検討してください。ただし、まずは `main.go` での手動 DI から始めることを推奨します — 明示的でデバッグしやすく、このリポジトリのほとんどのプロジェクトでは十分です。
 
 ## 典型的なディレクトリレイアウト（Go）
 

@@ -1,6 +1,8 @@
 package infra
 
 import (
+	"context"
+
 	"workshop/greeting/domain"
 )
 
@@ -20,7 +22,7 @@ func NewMemoryUserRepo() *MemoryUserRepo {
 	}
 }
 
-func (r *MemoryUserRepo) FindByID(id string) (*domain.User, error) {
+func (r *MemoryUserRepo) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	user, ok := r.users[id]
 	if !ok {
 		return nil, domain.ErrUserNotFound

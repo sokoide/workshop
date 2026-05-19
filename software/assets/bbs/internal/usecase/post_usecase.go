@@ -40,10 +40,10 @@ type CreatePostInputPort interface {
 type CreatePostUseCase struct {
 	threadRepo port.ThreadRepository
 	postRepo   port.PostRepository
-	tm         port.TransactionManager
+	tm         TransactionManager
 }
 
-func NewCreatePostUseCase(threadRepo port.ThreadRepository, postRepo port.PostRepository, tm port.TransactionManager) *CreatePostUseCase {
+func NewCreatePostUseCase(threadRepo port.ThreadRepository, postRepo port.PostRepository, tm TransactionManager) *CreatePostUseCase {
 	return &CreatePostUseCase{threadRepo: threadRepo, postRepo: postRepo, tm: tm}
 }
 

@@ -1,5 +1,7 @@
 package domain
 
+import "context"
+
 type UserRepository interface {
-	FindByID(id string) (*User, error)
+	FindByID(ctx context.Context, id string) (*User, error)
 }

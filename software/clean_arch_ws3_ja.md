@@ -374,6 +374,11 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
         writeError(w, http.StatusNotFound, err.Error())
         return
     }
+    if err != nil {
+        // ドメインエラーでない未知のエラーは、詳細を隠蔽して Internal Server Error に
+        writeError(w, http.StatusInternalServerError, "internal server error")
+        return
+    }
     writeJSON(w, http.StatusCreated, out)
 }
 ```
@@ -388,6 +393,8 @@ gRPC 用の型定義を作ります。これは新規ファイルであり、既
 // api/proto/bbs.proto
 syntax = "proto3";
 package bbs;
+
+import "google/protobuf/timestamp.proto";
 
 service BBSService {
     rpc ListBoards(ListBoardsRequest) returns (ListBoardsResponse);
@@ -414,8 +421,8 @@ message Thread {
     int64 board_id = 2;
     string title = 3;
     int32 post_count = 4;
-    string created_at = 5;
-    string last_posted_at = 6;
+    google.protobuf.Timestamp created_at = 5;
+    google.protobuf.Timestamp last_posted_at = 6;
 }
 
 message Post {
@@ -425,7 +432,7 @@ message Post {
     string author = 4;
     string body = 5;
     bool sage = 6;
-    string created_at = 7;
+    google.protobuf.Timestamp created_at = 7;
 }
 ```
 

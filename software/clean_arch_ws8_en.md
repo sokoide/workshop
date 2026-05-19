@@ -135,7 +135,11 @@ This step lets you experience the greatest strength of Clean Architecture.
 ```go
 package infra
 
-import "workshop/greeting/domain"
+import (
+	"context"
+
+	"workshop/greeting/domain"
+)
 
 type SliceUserRepo struct {
 	users []*domain.User
@@ -150,7 +154,7 @@ func NewSliceUserRepo() *SliceUserRepo {
 	}
 }
 
-func (r *SliceUserRepo) FindByID(id string) (*domain.User, error) {
+func (r *SliceUserRepo) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	for _, u := range r.users {
 		if u.ID == id {
 			return u, nil

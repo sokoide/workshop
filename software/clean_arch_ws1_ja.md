@@ -70,16 +70,12 @@ import (
 	"your-project/internal/domain"
 )
 
-type VeteranChecker interface {
-	IsVeteran(user *User) bool
-}
-
 type CheckVeteranUseCase struct {
 	repo       domain.UserRepository
-	veteranSvc domain.VeteranChecker
+	veteranSvc domain.VeteranService
 }
 
-func NewCheckVeteranUseCase(repo domain.UserRepository, veteranSvc domain.VeteranChecker) *CheckVeteranUseCase {
+func NewCheckVeteranUseCase(repo domain.UserRepository, veteranSvc domain.VeteranService) *CheckVeteranUseCase {
 	return &CheckVeteranUseCase{repo: repo, veteranSvc: veteranSvc}
 }
 
@@ -91,6 +87,8 @@ func (uc *CheckVeteranUseCase) Execute(ctx context.Context, id string) (bool, er
 	return uc.veteranSvc.IsVeteran(user), nil
 }
 ```
+
+> **インターフェース設計の補足:** UseCase は `VeteranChecker` インターフェースを介さず、`domain.VeteranService` という具象型に直接依存しています。これは **シンプルさと疎結合のトレードオフ** です。`VeteranService` は外部依存のない純粋な Domain Service であり、将来不当な副作用を獲得するリスクが低いため、余分なインターフェース層は実益のない儀式（ceremony）になります。デメリットは、`VeteranService` のメソッドシグネチャが変更された場合、UseCase も変更が必要になることです。後に外部依存を獲得する可能性のある Domain Service（例: API を呼び出す可能性があるルックアップサービス）では、最初からインターフェースを定義する方が安全な選択です。
 
 ---
 
