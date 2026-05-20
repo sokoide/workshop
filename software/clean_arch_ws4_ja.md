@@ -222,6 +222,11 @@ func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
 }
 ```
 
+> **エンティティの再構成に関する補足（ベア構造体リテラルの許容）:**  
+> ドメイン層のルールとして、不変条件を守るために UseCases 層などで `&entity.Thread{}` のように直接エンティティ構造体を生成・初期化することは避けるべきです（バリデーションを通過させるため）。  
+> 一方で、DBから取得した既存データに基づいてエンティティの状態を復元する「再構成（Reconstruction）」を行う Infra Adapters 層においては、例外的にベア構造体リテラルを使用して直接フィールドをマッピングすることが認められます。
+
+
 **3-4. ドライバエラーのドメインエラーへの変換**
 
 Infra Adapter は、データベースドライバからのエラーをドメインエラーに変換する**責務を持ちます**。これにより、UseCase 層はデータベースの詳細を知らなくて済みます。
@@ -231,7 +236,7 @@ Infra Adapter は、データベースドライバからのエラーをドメイ
 import (
     "database/sql"
     "errors"
-    "yourproject/domain"
+    "your-project/internal/domain"
 )
 
 func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thread, error) {

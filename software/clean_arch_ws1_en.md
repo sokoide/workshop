@@ -129,6 +129,11 @@ func (r *ADUserRepository) FindByID(ctx context.Context, id string) (*domain.Use
 }
 ```
 
+> **Note on Entity Reconstruction (Allowing Bare Struct Literals):**  
+> In Clean Architecture, creating entities directly with bare struct literals (like `&domain.User{}`) is generally restricted in layers like UseCases to protect domain invariants (which should be enforced by constructors like `NewUser`).  
+> However, in Infrastructure Adapters, when restoring existing entities from a database or external service ("Reconstruction"), it is exceptionally allowed to use bare struct literals to reconstruct the state without re-triggering new entity validation.
+
+
 ### 2-2. Switching via Dependency Injection (DI)
 
 Simply swap the concrete class being injected in the main process (entry point).

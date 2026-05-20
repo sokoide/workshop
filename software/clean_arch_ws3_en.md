@@ -140,16 +140,27 @@ Note: The first post in a new thread is always a bump, so new threads appear at 
 
 ## BBS Project Structure and Dependencies
 
-### Domain Interface (Port) List
+### Interface (Port) List and Placement Criteria
 
-The "abstractions" at the core of Clean Architecture are defined here.
+The "abstractions" (Ports) at the core of Clean Architecture are categorized based on their dependency on domain invariants:
+- **Domain Ports**: Placed in the Domain layer if removing the interface would break the domain model's ability to enforce invariants (e.g., aggregate reconstitution).
+- **UseCase Ports**: Placed in the UseCase layer if the concern is application orchestration (e.g., transaction boundary control) rather than core domain rules.
+
+#### Domain Ports (Domain Layer)
+Essential for aggregate reconstitution and business invariant enforcement.
 
 | File | Interface | Purpose |
 | :--- | :--- | :--- |
-| `internal/domain/port/repository.go` | `BoardRepository` | Board persistence |
-| | `ThreadRepository` | Thread persistence |
-| | `PostRepository` | Post persistence |
-| `internal/domain/port/transaction.go` | `TransactionManager` | Transaction boundary control |
+| `internal/domain/port/repository.go` | `BoardRepository` | Board persistence (reconstitutes Domain entities) |
+| | `ThreadRepository` | Thread persistence (reconstitutes Domain entities) |
+| | `PostRepository` | Post persistence (reconstitutes Domain entities) |
+
+#### UseCase Ports (UseCase Layer)
+Handles application-level orchestration that is independent of core business logic rules.
+
+| File | Interface | Purpose |
+| :--- | :--- | :--- |
+| `internal/usecase/transaction.go` | `TransactionManager` | Transaction boundary control |
 
 ```go
 // internal/domain/port/repository.go

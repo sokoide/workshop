@@ -80,6 +80,7 @@ package infra
 
 import (
 	"context"
+	"log/slog"
 
 	"your-project/internal/domain"
 	"github.com/redis/go-redis/v9"
@@ -99,7 +100,9 @@ func (r *CachedUserRepository) FindByID(ctx context.Context, id string) (*domain
 	// 2. なければ本物のDBに聞きに行く
 	user, err := r.origin.FindByID(ctx, id)
 	if err == nil {
-		_ = r.saveToCache(user) // 次のために保存
+		if cacheErr := r.saveToCache(user); cacheErr != nil {
+			slog.Warn("failed to save user to cache", "error", cacheErr) // キャッシュ保存の失敗はログ出力に留め、メイン処理は続行
+		}
 	}
 	return user, err
 }
