@@ -3,7 +3,7 @@
 This workshop extends the environment from [vlan_en.md](./vlan_en.md).
 We will learn how Kubernetes `Service (Type: LoadBalancer)` and `MetalLB` manipulate packets behind the scenes by reproducing the behavior using standard Linux features.
 
-> **💡 Glossary**: Please refer to [LoadBalancer](glossary.md#network), [iptables](glossary.md#network), or [VIP](glossary.md#network) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [LoadBalancer](glossary_en.md#network), [iptables](glossary_en.md#network), or [VIP](glossary_en.md#network) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

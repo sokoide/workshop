@@ -4,7 +4,7 @@
 
 この実習では、Redis のデータ構造を活用して、API や Web サービスの過負荷を防ぐ「レート制限（Rate Limiting）」システムを構築します。
 
-> **💡 用語集**: この実習で登場する[Rate Limiting](glossary.md#network)や[Token Bucket](glossary.md#network)、[Sliding Window](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[Rate Limiting](glossary_ja.md#network)や[Token Bucket](glossary_ja.md#network)、[Sliding Window](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## 実装コード
 

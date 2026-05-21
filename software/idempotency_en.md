@@ -4,7 +4,7 @@
 
 In this workshop, you will learn the "Idempotency" pattern to safely retry operations when network failures or timeouts occur in distributed systems.
 
-> **💡 Glossary**: For technical terms such as [Idempotency](glossary.md#software), [Retry](glossary.md#software), and [Dead Letter Queue](glossary.md#software), please refer to the [Glossary](glossary.md).
+> **💡 Glossary**: For technical terms such as [Idempotency](../infra/glossary_en.md#software), [Retry](../infra/glossary_en.md#software), and [Dead Letter Queue](../infra/glossary_en.md#software), please refer to the [Glossary](../infra/glossary_en.md).
 
 ## Implementation Code
 

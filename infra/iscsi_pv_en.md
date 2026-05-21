@@ -2,7 +2,7 @@
 
 In this workshop, you will learn how to build **iSCSI**, a traditional block storage protocol, and use it as a PersistentVolume in a Kubernetes cluster.
 
-> **💡 Glossary**: Please refer to [iSCSI](glossary.md#storage), [PersistentVolume](glossary.md#storage), or [LUN](glossary.md#storage) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [iSCSI](glossary_en.md#storage), [PersistentVolume](glossary_en.md#storage), or [LUN](glossary_en.md#storage) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

@@ -3,7 +3,7 @@
 この実習は、[vlan_ja.md](./vlan_ja.md) の環境を拡張して行います。
 Kubernetes の `Service (Type: LoadBalancer)` や `MetalLB` が、裏側でどのようにパケットを操作しているかを、Linux の基本機能だけで再現して学びます。
 
-> **💡 用語集**: この実習で登場する[LoadBalancer](glossary.md#network)や[iptables](glossary.md#network)、[VIP](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[LoadBalancer](glossary_ja.md#network)や[iptables](glossary_ja.md#network)、[VIP](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

@@ -2,7 +2,7 @@
 
 In this workshop, you will combine Go and C to **build a TCP/IP protocol stack from the ground up**. By implementing the "packet generation and decomposition" that OS kernels usually hide, you will understand network principles not as abstract concepts, but as concrete data structures.
 
-> **💡 Glossary**: Please refer to [Raw Socket](glossary.md#protocol) or [Encapsulation](glossary.md#protocol) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [Raw Socket](glossary_en.md#protocol) or [Encapsulation](glossary_en.md#protocol) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ---
 

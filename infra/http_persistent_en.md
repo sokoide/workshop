@@ -4,7 +4,7 @@
 
 In this workshop, you will learn about **connection reuse and streaming**, which are the foundations of modern web applications. You will understand how connections are optimized from HTTP/1.1 to the latest HTTP/3 through hands-on exercises.
 
-> **💡 Glossary**: Please refer to [Keep-Alive](glossary.md#protocol), [Multiplexing](glossary.md#protocol), or [HoL Blocking](glossary.md#protocol) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [Keep-Alive](glossary_en.md#protocol), [Multiplexing](glossary_en.md#protocol), or [HoL Blocking](glossary_en.md#protocol) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goals
 

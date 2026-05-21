@@ -2,7 +2,7 @@
 
 この実習では、クラウドネイティブなエッジルーターである **Traefik** を使用して、Kubernetes Ingress コントローラーの背後にある仕組み（L7 ルーティング、ロードバランシング、サービスディスカバリ）を学びます。
 
-> **💡 用語集**: この実習で登場する[Reverse Proxy](glossary.md#network)や[Ingress](glossary.md#architecture)、[Service Discovery](glossary.md#architecture)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[Reverse Proxy](glossary_ja.md#network)や[Ingress](glossary_ja.md#architecture)、[Service Discovery](glossary_ja.md#architecture)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

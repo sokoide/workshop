@@ -2,7 +2,7 @@
 
 この実習では、Redis の強力なデータ構造である **Sorted Sets (ZSET)** を使用して、数百万人のユーザーにも対応可能な「リアルタイム・ゲームランキングシステム」を構築します。
 
-> **💡 用語集**: この実習で登場する[Sorted Set (ZSET)](glossary.md#cache)や[Sets](glossary.md#cache)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[Sorted Set (ZSET)](glossary_ja.md#cache)や[Sets](glossary_ja.md#cache)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

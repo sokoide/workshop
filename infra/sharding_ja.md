@@ -2,7 +2,7 @@
 
 このガイドは、分散システムにおける実践的なシャーディング設計を、次の実システムと結びつけて整理します。
 
-> **💡 用語集**: この実習で登場する[Sharding](glossary.md#architecture)や[Consistent Hashing](glossary.md#architecture)、[Fan-out](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[Sharding](glossary_ja.md#architecture)や[Consistent Hashing](glossary_ja.md#architecture)、[Fan-out](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 - **Elasticsearch** におけるインデックス/データ分割
 - **Cortex** におけるハッシュリングベースの時系列シャーディング

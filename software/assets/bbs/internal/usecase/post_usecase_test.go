@@ -8,7 +8,6 @@ import (
 
 	"github.com/sokoide/cleanarch1/internal/domain"
 	"github.com/sokoide/cleanarch1/internal/domain/entity"
-	"github.com/sokoide/cleanarch1/internal/domain/port"
 )
 
 // --- Mocks ---
@@ -305,8 +304,8 @@ func TestCreatePost_PostNumberSequence(t *testing.T) {
 	}
 }
 
-// Verify port.TransactionManager compliance
-var _ port.TransactionManager = (*mockTM)(nil)
+// Verify TransactionManager compliance
+var _ TransactionManager = (*mockTM)(nil)
 
 func TestCreatePost_OwnerOnlyRejected(t *testing.T) {
 	thread := &entity.Thread{

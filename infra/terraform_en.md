@@ -2,7 +2,7 @@
 
 In this workshop, you will learn the fundamentals of **Terraform**, an Infrastructure as Code (IaC) tool, and ultimately automate the deployment of a practical DNS server environment using container technology.
 
-> **💡 Glossary**: Please refer to [IaC](glossary.md#architecture), [Terraform](glossary.md#architecture), or [Provider](glossary.md#architecture) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [IaC](glossary_en.md#architecture), [Terraform](glossary_en.md#architecture), or [Provider](glossary_en.md#architecture) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

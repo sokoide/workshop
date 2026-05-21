@@ -2,7 +2,7 @@
 
 In this workshop, you will walk through an end-to-end OAuth2 flow using **Keycloak (Authorization Server)** and a **Go client app / Go REST API (Resource Server)**. The Go client app will obtain an access token and use it to call the API.
 
-> **💡 Glossary**: For technical terms such as [OAuth2](glossary.md#oauth2), [Access Token](glossary.md#access-token), and [Resource Server](glossary.md#resource-server) that appear in this workshop, please refer to the [Glossary](glossary.md).
+> **💡 Glossary**: For technical terms such as [OAuth2](glossary_en.md#oauth2), [Access Token](glossary_en.md#access-token), and [Resource Server](glossary_en.md#resource-server) that appear in this workshop, please refer to the [Glossary](glossary_en.md).
 
 ## Goals
 

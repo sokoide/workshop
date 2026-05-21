@@ -2,7 +2,7 @@
 
 In this workshop, you will learn the mechanics behind Kubernetes Ingress Controllers (L7 routing, load balancing, service discovery) using **Traefik**, a cloud-native edge router.
 
-> **💡 Glossary**: Please refer to [Reverse Proxy](glossary.md#network), [Ingress](glossary.md#architecture), or [Service Discovery](glossary.md#architecture) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [Reverse Proxy](glossary_en.md#network), [Ingress](glossary_en.md#architecture), or [Service Discovery](glossary_en.md#architecture) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

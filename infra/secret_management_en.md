@@ -2,7 +2,7 @@
 
 In this workshop, you will build a secure secret management system using **HashiCorp Vault** and **Go**, learning how to manage sensitive data without hardcoding it.
 
-> **💡 Glossary**: Please refer to [Secret Management](glossary.md#security), [Vault](glossary.md#security), or [KV Engine](glossary.md#security) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [Secret Management](glossary_en.md#security), [Vault](glossary_en.md#security), or [KV Engine](glossary_en.md#security) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

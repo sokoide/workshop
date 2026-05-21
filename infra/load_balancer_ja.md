@@ -5,7 +5,7 @@
 
 この実習では、Linux の `iptables` と `ipvs`（IP Virtual Server）を使用して、Kubernetes や HAProxy の背後で動作するロードバランサの仕組みを理解します。
 
-> **💡 用語集**: この実習で登場する[Load Balancer](glossary.md#network)や[DNAT](glossary.md#network)、[Round Robin](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[Load Balancer](glossary_ja.md#network)や[DNAT](glossary_ja.md#network)、[Round Robin](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

@@ -108,6 +108,9 @@ func (r *CachedUserRepository) FindByID(ctx context.Context, id string) (*domain
 }
 ```
 
+> **💡 Educational Note on Logging (Trade-offs for Simplicity):**  
+> For simplicity, this workshop code directly calls the standard library `log/slog` to record cache warnings. In production-grade systems, it is highly recommended to define a logging interface and inject it via Dependency Injection (DI) to improve testability and decouple code from specific logging libraries, or handle logging as a cross-cutting concern using middleware or decorators.
+
 ### 2-2. Configuration Change in DI Container
 
 In `main.go`, "wrap" the real repository with the caching repository before passing it to the UseCase.

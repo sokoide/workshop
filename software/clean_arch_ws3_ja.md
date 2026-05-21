@@ -141,9 +141,10 @@ func (t *Thread) Bump(postedAt time.Time, sage bool) {
 ### Interface（Port）の一覧と配置基準
 
 Clean Architecture の中核となる「抽象」（Port）の一覧です。
-インターフェースを除去したとき、ドメインモデルが不変条件（ビジネスルール）を強制できなくなるものは **Domain Port**（Domain 層帰属）とし、そうでないものは **UseCase Port**（UseCase 層帰属）とします（P1配置基準）。
+インターフェースを除去したとき、ドメインモデルが不変条件（ビジネスルール）を強制できなくなるものは **Domain Port**（Domain 層帰属）とし、そうでないものは **UseCase Port**（UseCase 層帰属）とします（P1 配置基準）。
 
 #### Domain Port（Domain 層帰属）
+
 これらはドメインモデルの不変条件の強制や、エンティティ・集約の再構成に不可欠なため、Domain 層に定義します。
 
 | ファイル | Interface | 役割 |
@@ -153,6 +154,7 @@ Clean Architecture の中核となる「抽象」（Port）の一覧です。
 | | `PostRepository` | 投稿の永続化（ドメインエンティティの再構成） |
 
 #### UseCase Port（UseCase 層帰属）
+
 トランザクション境界の制御は、ビジネスルールそのものではなく、ユースケースのオーケストレーション（アプリケーション制御）の関心事であるため、UseCase 層に定義します。
 
 | ファイル | Interface | 役割 |

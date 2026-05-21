@@ -2,7 +2,7 @@
 
 このワークショップでは、OpenSSL を使用して独自の認証局 (CA) を構築し、サーバー証明書を発行・検証するプロセスを通じて、TLS/SSL および証明書チェーンの仕組みを学びます。
 
-> **💡 用語集**: この実習で登場する専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 
@@ -99,7 +99,15 @@ DNS.1 = server.workshop.local
 DNS.2 = localhost
 EOF
 
-# 2.4 CA による署名
+# 2.4 dynamic_conf.yaml の作成
+cat <<EOF > dynamic_conf.yaml
+tls:
+  certificates:
+    - certFile: /certs/server.crt
+      keyFile: /certs/server.key
+EOF
+
+# 2.5 CA による署名
 openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial \
   -out server.crt -days 365 -sha256 -extfile server.ext
 ```

@@ -2,7 +2,7 @@
 
 このワークショップでは、Linux の標準機能である **namespaces** と **cgroups** を手動で操作し、コンテナがどのように構築・制限されているかを学びます。最終的に、Go 言語を使用して独自のコンテナランタイムを作成します。
 
-> **💡 用語集**: この実習で登場する[namespaces](glossary.md#container)や[cgroups](glossary.md#container)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[namespaces](glossary_ja.md#container)や[cgroups](glossary_ja.md#container)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

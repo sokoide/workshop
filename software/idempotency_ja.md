@@ -4,7 +4,7 @@
 
 この実習では、分散システムにおいてネットワーク障害やタイムアウトが発生した際に安全に再試行を行うための「冪等性（Idempotency）」パターンを学びます。
 
-> **💡 用語集**: この実習で登場する[冪等性](glossary.md#software)や[再試行](glossary.md#software)、[デッドレターキュー](glossary.md#software)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[冪等性](../infra/glossary_ja.md#software)や[再試行](../infra/glossary_ja.md#software)、[デッドレターキュー](../infra/glossary_ja.md#software)などの専門用語は [用語集](../infra/glossary_ja.md) を参照してください。
 
 ## 実装コード
 

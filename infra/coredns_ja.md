@@ -2,7 +2,7 @@
 
 ソフトウェアエンジニア向けに、DNS の基本的な仕組み（権威サーバー、フォワーディング、委譲）を、**CoreDNS** を使って実際に構築しながら学びます。
 
-> **💡 用語集**: この実習で登場する[権威 DNS サーバー](glossary.md#network)や[フォワーディング](glossary.md#network)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[権威 DNS サーバー](glossary_ja.md#network)や[フォワーディング](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

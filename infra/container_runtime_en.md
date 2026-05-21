@@ -2,7 +2,7 @@
 
 In this workshop, you will learn how containers are built and restricted by manually manipulating Linux's standard features: **namespaces** and **cgroups**. Finally, you will create your own container runtime using the Go language.
 
-> **💡 Glossary**: Please refer to [namespaces](glossary.md#container) and [cgroups](glossary.md#container) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [namespaces](glossary_en.md#container) and [cgroups](glossary_en.md#container) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

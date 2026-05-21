@@ -2,7 +2,7 @@
 
 In this workshop, you will learn how to implement advanced traffic control (retries, timeouts, circuit breaking) without changing application code, using **Envoy Proxy**, the de facto standard data plane for modern service meshes.
 
-> **💡 Glossary**: Please refer to [Sidecar pattern](glossary.md#architecture) or [L7 Traffic Control](glossary.md#network) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [Sidecar pattern](glossary_en.md#architecture) or [L7 Traffic Control](glossary_en.md#network) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

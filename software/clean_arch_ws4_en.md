@@ -228,7 +228,6 @@ func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
 > As a domain rule, creating or initializing entity structures directly using bare struct literals (such as `&entity.Thread{}`) in layers like UseCases should be avoided to protect domain invariants (ensuring they pass validation).  
 > On the other hand, in the Infra Adapters layer, which restores the entity state based on existing data retrieved from the database ("Reconstruction"), it is exceptionally acceptable to use bare struct literals to map fields directly.
 
-
 **3-4. Convert driver errors to domain errors**
 
 Infra Adapter has the **responsibility of converting driver errors to domain errors**. This ensures the UseCase layer remains unaware of database details.

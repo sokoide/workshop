@@ -2,7 +2,7 @@
 
 この実習では、AWS S3 互換のオブジェクトストレージサーバーである **MinIO** を構築し、Go アプリケーションからファイルのアップロード、ダウンロード、および署名付き URL（Presigned URL）を使用したセキュアなファイル共有の実装方法を学びます。
 
-> **💡 用語集**: この実習で登場する[Object Storage](glossary.md#storage)や[Bucket](glossary.md#storage)、[Presigned URL](glossary.md#security)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[Object Storage](glossary_ja.md#storage)や[Bucket](glossary_ja.md#storage)、[Presigned URL](glossary_ja.md#security)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

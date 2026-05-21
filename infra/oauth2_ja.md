@@ -2,7 +2,7 @@
 
 この実習では、**Keycloak（Authorization Server）** と **Go 製 Client アプリ / REST API（Resource Server）** を使い、SWE が OAuth2 の実運用フローを手を動かして学びます。Go Client アプリでアクセストークン取得から API 呼び出しまでを一通り検証します。
 
-> **💡 用語集**: この実習で登場する[OAuth2](glossary.md#oauth2)や[Access Token](glossary.md#access-token)、[Resource Server](glossary.md#resource-server)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[OAuth2](glossary_ja.md#oauth2)や[Access Token](glossary_ja.md#access-token)、[Resource Server](glossary_ja.md#resource-server)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

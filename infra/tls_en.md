@@ -2,7 +2,7 @@
 
 In this workshop, you will learn how TLS/SSL and certificate chains work by building your own Certificate Authority (CA) and issuing/verifying server certificates using OpenSSL.
 
-> **💡 Glossary**: Please refer to [TLS/SSL](glossary.md#security) or [CA](glossary.md#security) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [TLS/SSL](glossary_en.md#security) or [CA](glossary_en.md#security) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 
@@ -99,7 +99,15 @@ DNS.1 = server.workshop.local
 DNS.2 = localhost
 EOF
 
-# 2.4 Sign the certificate with the CA
+# 2.4 Create dynamic_conf.yaml
+cat <<EOF > dynamic_conf.yaml
+tls:
+  certificates:
+    - certFile: /certs/server.crt
+      keyFile: /certs/server.key
+EOF
+
+# 2.5 Sign the certificate with the CA
 openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial \
   -out server.crt -days 365 -sha256 -extfile server.ext
 ```

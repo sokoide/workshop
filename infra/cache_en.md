@@ -2,7 +2,7 @@
 
 In this workshop, you will build a "Real-time Game Leaderboard System" capable of handling millions of users using Redis's powerful data structure, **Sorted Sets (ZSET)**.
 
-> **💡 Glossary**: Please refer to the [Sorted Set (ZSET)](glossary.md#cache) or [Sets](glossary.md#cache) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to the [Sorted Set (ZSET)](glossary_en.md#cache) or [Sets](glossary_en.md#cache) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

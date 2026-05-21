@@ -2,7 +2,7 @@
 
 This guide explains practical sharding design for distributed systems and connects theory to production systems:
 
-> **💡 Glossary**: Please refer to [Sharding](glossary.md#architecture), [Consistent Hashing](glossary.md#architecture), or [Fan-out](glossary.md#network) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [Sharding](glossary_en.md#architecture), [Consistent Hashing](glossary_en.md#architecture), or [Fan-out](glossary_en.md#network) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 - **Elasticsearch** for index/data sharding
 - **Cortex** for time-series ingestion/query sharding with a hash ring

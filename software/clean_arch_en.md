@@ -57,12 +57,12 @@ graph TD
 
 ## Mapping to Original Architectures
 
-| Original Clean Architecture | This Variant's Placement                                  |
-| --------------------------- | --------------------------------------------------------- |
-| Entities                    | Domain                                                    |
-| Use Cases                   | UseCases                                                  |
-| Interface Adapters          | Adapters (Presentation + Infrastructure)                  |
-| Frameworks & Drivers        | Concrete mechanisms used by Adapters and Composition Root (main.go) |
+| Original Clean Architecture | This Variant's Placement |
+| :--- | :--- |
+| Entities | Domain |
+| Use Cases | UseCases |
+| Interface Adapters | Adapters (Presentation + Infrastructure) |
+| Frameworks & Drivers | Concrete mechanisms used by Adapters and Composition Root (main.go) |
 
 > **Note:** In this 3-layer variant, the traditional "Frameworks & Drivers" layer is absorbed into Adapters and Composition Root. Web frameworks, routing libraries, and DB drivers are treated as implementation details within the Adapters layer, not as a separate architectural layer. The Composition Root (`main.go`) wires everything together but contains no business logic.
 
@@ -135,13 +135,15 @@ Adapters that connect UseCases or Domain-owned ports to external systems.
 
 * `Presentation → Domain` is `cond.` (conditional): Presentation MAY read Domain values returned by UseCases for serialization (pragmatic mode). This is only permissible if the **Boundary Simplification Checklist** below is fully satisfied.
 
-#### Boundary Simplification Checklist
+### Boundary Simplification Checklist
+
 1. **Read-Only**: The operation is a "Query" and does not involve any data modification (Command).
 2. **Structure-Only**: The Presentation layer treats the Entity as a plain data structure and **MUST NOT invoke any methods (behavior)**.
 3. **No Secrets**: The Entity does not contain sensitive information (e.g., password hashes) that should not be exposed to the Presentation layer.
 4. **Consistency**: The risk of Entity field changes directly affecting API specifications (e.g., JSON keys) is acceptable.
 
 For modification operations (Create/Update/Delete), always use dedicated Input DTOs to protect invariants and perform input validation.
+
 * Presentation Adapters and Infrastructure Adapters are in the same conceptual layer but must not depend on each other directly.
 
 ---

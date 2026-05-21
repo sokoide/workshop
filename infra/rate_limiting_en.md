@@ -4,7 +4,7 @@
 
 In this workshop, you will build a "Rate Limiting" system to prevent overload of APIs and Web services using Redis data structures.
 
-> **💡 Glossary**: For technical terms such as [Rate Limiting](glossary.md#network), [Token Bucket](glossary.md#network), and [Sliding Window](glossary.md#network), please refer to the [Glossary](glossary.md).
+> **💡 Glossary**: For technical terms such as [Rate Limiting](glossary_en.md#network), [Token Bucket](glossary_en.md#network), and [Sliding Window](glossary_en.md#network), please refer to the [Glossary](glossary_en.md).
 
 ## Implementation Code
 

@@ -2,7 +2,7 @@
 
 In this workshop, you will build a system that flexibly filters and processes real-time trade data using the powerful **Topic Exchange** feature of **RabbitMQ**.
 
-> **💡 Glossary**: Please refer to the [Pub/Sub Pattern](glossary.md#mq) or [Wildcard Matching](glossary.md#mq) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to the [Pub/Sub Pattern](glossary_en.md#mq) or [Wildcard Matching](glossary_en.md#mq) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

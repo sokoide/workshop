@@ -2,7 +2,7 @@
 
 このワークショップでは、Infrastructure as Code (IaC) ツールである **Terraform** の基礎を学び、最終的にコンテナ技術と組み合わせて実践的な DNS サーバー環境を自動構築します。
 
-> **💡 用語集**: この実習で登場する[IaC](glossary.md#architecture)や[Terraform](glossary.md#architecture)、[Provider](glossary.md#architecture)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[IaC](glossary_ja.md#architecture)や[Terraform](glossary_ja.md#architecture)、[Provider](glossary_ja.md#architecture)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

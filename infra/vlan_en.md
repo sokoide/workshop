@@ -2,7 +2,7 @@
 
 This is a hands-on workshop for software engineers to build a simulated physical network environment using container technology (Podman) and Linux network features (macvlan, VLAN, iptables).
 
-> **💡 Glossary**: Please refer to the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

@@ -2,7 +2,7 @@
 
 In this workshop, you will build an AWS S3-compatible object storage server using **MinIO** and learn how to implement file upload, download, and secure file sharing using Presigned URLs from a Go application.
 
-> **💡 Glossary**: Please refer to [Object Storage](glossary.md#storage), [Bucket](glossary.md#storage), or [Presigned URL](glossary.md#security) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [Object Storage](glossary_en.md#storage), [Bucket](glossary_en.md#storage), or [Presigned URL](glossary_en.md#security) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

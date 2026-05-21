@@ -2,7 +2,7 @@
 
 この実習では、**HashiCorp Vault** と **Go** を使用して、API キー、データベース認証情報、その他のセンシティブデータをソースコードにハードコードすることなく安全に管理するシステムを構築します。
 
-> **💡 用語集**: この実習で登場する[Secret Management](glossary.md#security)や[Vault](glossary.md#security)、[KV Engine](glossary.md#security)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[Secret Management](glossary_ja.md#security)や[Vault](glossary_ja.md#security)、[KV Engine](glossary_ja.md#security)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

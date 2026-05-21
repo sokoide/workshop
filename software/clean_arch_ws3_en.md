@@ -143,10 +143,12 @@ Note: The first post in a new thread is always a bump, so new threads appear at 
 ### Interface (Port) List and Placement Criteria
 
 The "abstractions" (Ports) at the core of Clean Architecture are categorized based on their dependency on domain invariants:
+
 - **Domain Ports**: Placed in the Domain layer if removing the interface would break the domain model's ability to enforce invariants (e.g., aggregate reconstitution).
 - **UseCase Ports**: Placed in the UseCase layer if the concern is application orchestration (e.g., transaction boundary control) rather than core domain rules.
 
 #### Domain Ports (Domain Layer)
+
 Essential for aggregate reconstitution and business invariant enforcement.
 
 | File | Interface | Purpose |
@@ -156,6 +158,7 @@ Essential for aggregate reconstitution and business invariant enforcement.
 | | `PostRepository` | Post persistence (reconstitutes Domain entities) |
 
 #### UseCase Ports (UseCase Layer)
+
 Handles application-level orchestration that is independent of core business logic rules.
 
 | File | Interface | Purpose |

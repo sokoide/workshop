@@ -2,7 +2,7 @@
 
 このワークショップでは、伝統的なブロックストレージプロトコルである **iSCSI** を構築し、それを Kubernetes クラスタの永続ボリューム（PersistentVolume）として利用する一連の流れを学びます。
 
-> **💡 用語集**: この実習で登場する[iSCSI](glossary.md#storage)や[PersistentVolume](glossary.md#storage)、[LUN](glossary.md#storage)などの専門用語は [用語集](glossary.md) を参照してください。
+> **💡 用語集**: この実習で登場する[iSCSI](glossary_ja.md#storage)や[PersistentVolume](glossary_ja.md#storage)、[LUN](glossary_ja.md#storage)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ## ゴール
 

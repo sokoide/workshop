@@ -2,7 +2,7 @@
 
 This workshop is for software engineers to learn the basic mechanisms of DNS (Authoritative Servers, Forwarding, Delegation) by actually building them using **CoreDNS**.
 
-> **💡 Glossary**: Please refer to [Authoritative DNS Server](glossary.md#network) or [Forwarding](glossary.md#network) in the [Glossary](glossary.md) for technical terms used in this workshop.
+> **💡 Glossary**: Please refer to [Authoritative DNS Server](glossary_en.md#network) or [Forwarding](glossary_en.md#network) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
 ## Goal
 

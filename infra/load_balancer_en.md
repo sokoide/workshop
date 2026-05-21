@@ -5,7 +5,7 @@
 
 In this workshop, you will learn how load balancers work behind systems like Kubernetes or HAProxy by using Linux `iptables` and `ipvs` (IP Virtual Server).
 
-> **💡 Glossary**: For technical terms such as [Load Balancer](glossary.md#network), [DNAT](glossary.md#network), and [Round Robin](glossary.md#network), please refer to the [Glossary](glossary.md).
+> **💡 Glossary**: For technical terms such as [Load Balancer](glossary_en.md#network), [DNAT](glossary_en.md#network), and [Round Robin](glossary_en.md#network), please refer to the [Glossary](glossary_en.md).
 
 ## Goal
 

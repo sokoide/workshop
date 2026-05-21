@@ -57,12 +57,12 @@ graph TD
 
 ## オリジナルアーキテクチャとの対応
 
-| オリジナル Clean Architecture |                 このバリアントでの位置づけ                |
-|:-----------------------------:|:---------------------------------------------------------:|
-|            Entities           |                           Domain                          |
-|           Use Cases           |                          UseCases                         |
-|       Interface Adapters      |         Adapters（Presentation + Infrastructure）         |
-|      Frameworks & Drivers     | Adapters と Composition Root（main.go）が使用する具体的なメカニズム |
+| オリジナル Clean Architecture | このバリアントでの位置づけ |
+| :--- | :--- |
+| Entities | Domain |
+| Use Cases | UseCases |
+| Interface Adapters | Adapters（Presentation + Infrastructure） |
+| Frameworks & Drivers | Adapters と Composition Root（main.go）が使用する具体的なメカニズム |
 
 > **補足:** この 3 層バリアントでは、従来の「Frameworks & Drivers」層は Adapters と Composition Root に吸収されています。Web フレームワーク、ルーティングライブラリ、DB ドライバーは Adapters 層内の実装詳細として扱われ、独立したアーキテクチャ層とはなりません。Composition Root（`main.go`）はすべての配線を行いますが、ビジネスロジックは一切含みません。
 
@@ -135,13 +135,15 @@ UseCases または Domain が所有するポートを外部システムに接続
 
 * `Presentation → Domain` は `cond.` (conditional): Presentation は UseCases から返された Domain の値をシリアライズのために **読み取ってもよい**（pragmatic モード）。ただし、これは以下の **Boundary Simplification Checklist** をすべて満たす場合に限られる。
 
-#### Boundary Simplification Checklist
+### Boundary Simplification Checklist
+
 1. **Read-Only**: 対象の操作が「参照 (Query)」であり、データの更新 (Command) を伴わない。
 2. **Structure-Only**: Presentation 層は Entity を単なるデータ構造体として扱い、**いかなるメソッド（振る舞い）も呼び出さない**。
 3. **No Secrets**: Entity に Presentation に公開してはならない秘密情報（パスワードハッシュ等）が含まれていない。
 4. **Consistency**: Entity のフィールド変更が Presentation の API 仕様（JSON キー名等）に直接影響を与えるリスクを許容できる。
 
 更新操作（Create/Update/Delete）では、不変条件の保護と入力バリデーションのために、常に専用の Input DTO を使用してください。
+
 * Presentation Adapters と Infrastructure Adapters は同じ概念層にありますが、互いに直接依存してはなりません。
 
 ---
