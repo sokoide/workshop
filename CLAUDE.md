@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a collection of hands-on technical workshops covering infrastructure and software architecture topics. The repository serves as educational material with practical, executable examples.
 
-**Primary Language:** Go 1.25.5
+**Primary Language:** Go 1.26.2
 **Documentation:** Bilingual (English/Japanese)
 **Architecture Pattern:** Clean Architecture (3-layer variant: Adapters / UseCases / Domain)
+
+See [Architecture Guide](software/clean_arch.md) for details.
 
 ## Repository Structure
 
@@ -18,49 +20,9 @@ This is a collection of hands-on technical workshops covering infrastructure and
 ├── software/           # Software architecture workshops
 │   ├── advent-of-calm-2025/    # Clean Architecture reference implementation
 │   └── go_cache_patterns/      # Caching pattern examples (5 patterns)
-├── conductor/          # Project management workflows and guidelines
 └── Makefile            # Repository-level markdown formatting
 ```text
 
-## Clean Architecture (3-Layer Variant: Adapters / UseCases / Domain)
-
-All Go projects in this repository follow Clean Architecture principles with dependencies pointing inward:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│  Adapters Layer (side-effect boundary)              │
-│  ┌──────────────────────┐ ┌───────────────────────┐ │
-│  │ Presentation Adapters│ │ Infrastructure        │ │
-│  │ (Inbound/Driving)    │ │ Adapters (Outbound/   │ │
-│  │ - HTTP/gRPC/CLI      │ │  Driven)              │ │
-│  │ - Controllers,       │ │ - Repository impls    │ │
-│  │   Handlers,          │ │ - DB, External APIs,  │ │
-│  │   Presenters         │ │   MQ, SDKs            │ │
-│  └──────────┬───────────┘ └───────────────────────┘ │
-└─────────────┼───────────────────────────────────────┘
-              │ depends on
-┌─────────────▼───────────────────────────────────────┐
-│  UseCases Layer                                     │
-│  - Application logic, orchestration                 │
-│  - Input/output DTOs, UseCase-owned ports           │
-└─────────────┬───────────────────────────────────────┘
-              │ depends on
-┌─────────────▼───────────────────────────────────────┐
-│  Domain Layer                                       │
-│  - Entities, Value Objects, Domain Services         │
-│  - Domain Errors, Domain-owned Ports                │
-│  - NO external dependencies                         │
-└─────────────────────────────────────────────────────┘
-```
-
-**Key Principles:**
-
-- **Domain Layer**: Pure Go with zero external dependencies. Contains entities, domain services, domain errors, and domain-owned ports.
-- **UseCases Layer**: Orchestration only. Coordinates Domain objects and boundary interfaces. Defines input/output DTOs and UseCase-owned ports. Unaware of external implementation details.
-- **Adapters Layer = side-effect boundary**: All I/O, external integrations, and framework interactions confined here.
-  - **Presentation Adapters (Inbound)**: HTTP/gRPC/CLI handlers, controllers, presenters, request/response mapping.
-  - **Infrastructure Adapters (Outbound)**: Repository implementations, external API gateways, DB models, error conversion.
-- **Dependency Injection**: main.go wires all dependencies together.
 
 **Directory Pattern per Project:**
 
@@ -155,8 +117,6 @@ func TestFeature(t *testing.T) {
 - **Error Handling:** Explicit error checking, never ignore errors
 
 ## Project Management Workflow
-
-The `/conductor/` directory contains structured development workflows for project-based work:
 
 - **TDD (Test-Driven Development):** Red → Green → Refactor cycle
 - **High Coverage:** Target >80% code coverage

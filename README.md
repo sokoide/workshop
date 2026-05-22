@@ -7,7 +7,12 @@
 
 ---
 
-This repository contains hands-on materials for various technical topics.
+This repository provides hands-on technical workshops covering infrastructure and software architecture topics.
+
+**Primary Language:** Go 1.26.2
+**Architecture Pattern:** [Clean Architecture (3-Layer Variant)](./software/clean_arch.md)
+
+---
 
 ## Contents
 
