@@ -558,9 +558,9 @@ curl -v http://localhost:8080/sse
 
 ---
 
-## Clean Architecture との関連
+## クリーンアーキテクチャとの関連
 
-Clean Architecture において、通信プロトコルは最外周の「詳細 (Framework & Drivers)」に属します。ビジネスロジック（Usecase/Domain）は、その下のレイヤーである「アダプター (Interface Adapters / Infrastructure)」を通じて、プロトコルの詳細から隔離されています。
+クリーンアーキテクチャにおいて、通信プロトコルは最外周の「詳細 (Framework & Drivers)」に属します。ビジネスロジック（Usecase/Domain）は、その下のレイヤーである「アダプター (Interface Adapters / Infrastructure)」を通じて、プロトコルの詳細から隔離されています。
 
 ```mermaid
 graph LR
@@ -596,7 +596,7 @@ graph LR
 3. **送信フロー**: Infra アダプターは Domain ポートを実装し、gRPC SDK 等を使って実際の通信を行います。
 
 **設計パターン：BFF (Backend For Frontend) による中継**
-実務では、ブラウザフロントエンドに直接 gRPC streaming を刺すのは難易度が高いケースがあります。その場合、**BFF が gRPC でバックエンドと通信し、フロントには WebSocket や SSE で情報を中継する** 構成が Clean Architecture 的にも整合性が高く、広く採用されています。
+実務では、ブラウザフロントエンドに直接 gRPC streaming を刺すのは難易度が高いケースがあります。その場合、**BFF が gRPC でバックエンドと通信し、フロントには WebSocket や SSE で情報を中継する** 構成がクリーンアーキテクチャ的にも整合性が高く、広く採用されています。
 
 ---
 

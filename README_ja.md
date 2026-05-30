@@ -69,8 +69,8 @@
 
 ### ソフトウェア・アーキテクチャ関連
 
-- [クリーンアーキテクチャ (4 レイヤー構成)](./software/clean_arch_ja.md)
-  - Domain/UseCase/Infra/Framework の依存関係と責務を図解で解説
+- [クリーンアーキテクチャ（3層バリアント: Adapters / UseCases / Domain）](./software/clean_arch_ja.md)
+  - Domain/UseCase/Adapters の依存関係と責務を図解で解説
 - [クリーンアーキテクチャ実習 (WS1): 変更に強い設計を学ぶ](./software/clean_arch_ws1_ja.md)
   - Entity・Domain Service の実装と、DB から AD へのインフラ差し替えを体験
 - [クリーンアーキテクチャ実習 (WS2): 拡張と最適化](./software/clean_arch_ws2_ja.md)

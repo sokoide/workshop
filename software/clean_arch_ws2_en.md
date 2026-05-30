@@ -140,3 +140,18 @@ func main() {
 3. **Ports and Implementation Separation:**
     - The notification interface is a UseCase-owned output port; Slack/Email implementations live in Infra Adapters Layer.
     - Details like Redis clients stay in the Infra Adapters Layer.
+
+---
+
+## Comprehension Check
+
+Try answering these questions yourself.
+
+### Question 1: Limits of the Decorator Pattern
+`CachedUserRepository` uses a simple strategy: "return from cache if available, otherwise query the DB." If you changed to a "Write-Behind" strategy where "when cache TTL expires, asynchronously update the DB," how would the `CachedUserRepository` implementation change? Would this change affect the UseCase layer?
+
+### Question 2: Notification Failures
+If `NotificationGateway.Send` returns an error, what should the UseCase do? Should "notification failure = use case failure," or should "notifications be best-effort, and the use case should continue"? What criteria would you use to decide?
+
+### Question 3: Cache and Consistency
+When using `CachedUserRepository`, even if the DB data is updated, the cache may remain stale. To address this problem, which layer should implement the countermeasure according to Clean Architecture, and what kind of measures would be appropriate?

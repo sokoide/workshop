@@ -39,7 +39,7 @@
 
 ## アーキテクチャ
 
-Clean Architecture に従い、S3 操作の詳細は `infra` 層に隠蔽します。アプリ（Usecase）は「ファイルを保存する」という抽象的なインターフェースのみを知っています。
+クリーンアーキテクチャに従い、S3 操作の詳細は `infra` 層に隠蔽します。アプリ（Usecase）は「ファイルを保存する」という抽象的なインターフェースのみを知っています。
 
 ```mermaid
 graph TB
@@ -170,7 +170,7 @@ go run main.go share sample.jpg
 
 ---
 
-## Clean Architecture のポイント
+## クリーンアーキテクチャのポイント
 
 ### 依存関係の逆転
 

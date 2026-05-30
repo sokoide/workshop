@@ -125,7 +125,7 @@ func (n MailNotifier) SendOrderCreated(ctx context.Context, to, body string) err
 責務を分離すると、計算ロジックだけのテスト、通知だけの差し替えが可能になります。
 税ルール変更（10% -> 12%、軽減税率条件変更など）は `OrderPricer` 実装だけを直せばよく、`MailNotifier` は変更不要です。
 
-### Clean Architecture で見る S
+### クリーンアーキテクチャで見る S
 
 * **Domain:** 金額計算のルール（Entity/Domain Service）
 * **UseCase:** 注文作成の手順（計算 -> 保存 -> 通知）
@@ -190,7 +190,7 @@ func Checkout(ctx context.Context, pm PaymentMethod, amount int) error {
 
 新しい支払い方法は `PaymentMethod` 実装を追加するだけで対応できます。
 
-Clean Architecture 的には、`PaymentMethod` は UseCase 側の Port として置き、`CardPayment` などは Infra Adapter として追加します。既存 UseCase を編集せずに拡張できます。
+クリーンアーキテクチャ的には、`PaymentMethod` は UseCase 側の Port として置き、`CardPayment` などは Infra Adapter として追加します。既存 UseCase を編集せずに拡張できます。
 
 ---
 
@@ -238,7 +238,7 @@ func Checkout(ctx context.Context, gw PaymentGateway, amount int) error {
 
 `Checkout` は `error` を処理する前提で書かれています。`PanicGateway` に差し替えると前提が崩れ、同じ `PaymentGateway` でも安全に置換できません。これが L 違反です。
 
-Clean Architecture 的には、同じ Output Port を実装する全 Adapter が同じ契約（戻り値、エラー意味、タイムアウト方針）を守る必要があります。
+クリーンアーキテクチャ的には、同じ Output Port を実装する全 Adapter が同じ契約（戻り値、エラー意味、タイムアウト方針）を守る必要があります。
 
 ---
 
@@ -279,7 +279,7 @@ type UserCreator interface {
 
 読み取り専用ユースケースは `UserFinder` のみを要求し、依存を最小化できます。
 
-Clean Architecture では Input Port も UseCase ごとに細かく分けると分かりやすくなります。例: `CreateUserUseCase`, `GetUserUseCase`。
+クリーンアーキテクチャでは Input Port も UseCase ごとに細かく分けると分かりやすくなります。例: `CreateUserUseCase`, `GetUserUseCase`。
 
 ---
 
@@ -314,7 +314,7 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, sku string, qty int) 
 
 `infra` 側で `InventoryGateway` を実装すれば、UseCase は外部技術の詳細を知らずに済みます。
 
-Clean Architecture の依存方向（外 -> 内）を守ると、ビジネスルールは技術変更の影響を受けにくくなります。
+クリーンアーキテクチャの依存方向（外 -> 内）を守ると、ビジネスルールは技術変更の影響を受けにくくなります。
 
 ---
 

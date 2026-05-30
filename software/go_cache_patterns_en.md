@@ -15,6 +15,8 @@
 
 ## Understanding Cache Systems and Cache Tools
 
+> **Document Structure**: This document first explains fundamental cache concepts and strategies, then proceeds to Go implementation examples.
+
 ### Fundamentals
 
 #### What Is Cache?

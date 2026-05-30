@@ -78,6 +78,12 @@ infra/assets/oauth2/
 
 ## Preparation
 
+### Prerequisites
+
+- [ ] Confirmed Podman is installed via `podman version`
+- [ ] Confirmed `podman compose` or `podman-compose` plugin is available (verify with `podman compose version`)
+- [ ] Confirmed Go 1.22 or later is installed via `go version`
+
 ### 1. Start Keycloak (Podman)
 
 ```bash

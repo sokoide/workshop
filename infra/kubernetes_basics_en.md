@@ -2,6 +2,8 @@
 
 This workshop covers Kubernetes (K8s) from basic concepts to production-ready configurations through hands-on exercises. We aim to understand K8s not just as an infrastructure tool, but as a **"Platform for running distributed systems."**
 
+> **⚠️ Time Estimate**: This workshop is comprehensive and we recommend **splitting it into multiple sessions** (approximately 30-45 minutes per section).
+>
 > **💡 Glossary**: For technical terms like [Pod](glossary_en.md#kubernetes), [Deployment](glossary_en.md#kubernetes), and [Service](glossary_en.md#kubernetes) used in this workshop, refer to the [Glossary](glossary_en.md).
 
 ---

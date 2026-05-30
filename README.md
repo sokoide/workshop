@@ -74,8 +74,8 @@ This repository provides hands-on technical workshops covering infrastructure an
 
 ### Software Architecture
 
-- [Clean Architecture (4-Layer Structure)](./software/clean_arch_en.md)
-  - Visual explanation of dependencies and responsibilities across Domain/UseCase/Infra/Framework.
+- [Clean Architecture (3-Layer Variant: Adapters / UseCases / Domain)](./software/clean_arch_en.md)
+  - Visual explanation of dependencies and responsibilities across Domain/UseCase/Adapters.
 - [Clean Architecture Workshop (WS1): Learning Design Resilient to Change](./software/clean_arch_ws1_en.md)
   - Hands-on implementation of Entity/Domain Service and swapping infrastructure from DB to AD.
 - [Clean Architecture Workshop (WS2): Extension and Optimization](./software/clean_arch_ws2_en.md)

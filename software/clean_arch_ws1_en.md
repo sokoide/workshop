@@ -166,3 +166,18 @@ func main() {
 3. **Ports and Boundaries:**
     - `domain.UserRepository` is an **output port**; implementations live in Infra Adapters Layer.
     - Details like `LDAPClient` or DB drivers stay in the Infra Adapters Layer and never leak into Domain/UseCase.
+
+---
+
+## Comprehension Check
+
+Try answering these questions yourself. There isn't always one correct answer, but the goal is to be able to explain your reasoning.
+
+### Question 1: Interface for Domain Service
+`VeteranService` is used as a concrete type rather than an interface. Why didn't we create an interface for it? Conversely, in what situations **must** we create an interface?
+
+### Question 2: Impact Scope of Changes
+If "the definition of a veteran changed from 5 years to 3 years," which layer would need to be modified? Conversely, which layer would require **zero** changes?
+
+### Question 3: Risks of Bare Struct Literals
+`ADUserRepository.FindByID` uses a bare struct literal like `&domain.User{...}`. To protect domain invariants (e.g., ID must not be empty), what kind of design could be added?

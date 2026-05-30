@@ -5,80 +5,9 @@
 
 ## BBS アプリの概要
 
-題材とする BBS は、掲示板（Board）→ スレッド（Thread）→ 投稿（Post）の 3 階層を持つシンプルな掲示板アプリです。
+題材とする BBS は、掲示板（Board）→ スレッド（Thread）→ 投稿（Post）の 3 階層を持つシンプルな掲示板アプリです。REST API の詳細や操作方法は [BBS README](../assets/bbs/README_ja.md) を参照してください。
 
-| リソース | 説明 |
-| -------- | ---- |
-| **Board** | 掲示板。`name`（例: `programming`）で識別 |
-| **Thread** | スレッド。特定の Board に属し、`threadID`（数値）で識別 |
-| **Post** | 投稿（レス）。特定の Thread に属し、通し番号を持つ。`sage` フラグでスレッドを浮上させない |
-
-### REST API 一覧
-
-現在の HTTP エンドポイントは以下の 5 つです。
-
-| メソッド | パス | 内容 |
-| -------- | ---- | ---- |
-| GET | `/api/boards` | 掲示板一覧 |
-| GET | `/api/boards/{name}/threads` | スレッド一覧 |
-| POST | `/api/boards/{name}/threads` | スレッド作成 |
-| GET | `/api/threads/{threadID}/posts` | 投稿一覧 |
-| POST | `/api/threads/{threadID}/posts` | レス投稿 |
-
-### curl での使用例
-
-```bash
-# 掲示板一覧
-curl localhost:8080/api/boards
-
-# スレッド一覧
-curl localhost:8080/api/boards/programming/threads
-
-# スレッド作成
-curl -X POST localhost:8080/api/boards/programming/threads \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"テスト","author":"anonymous","body":"最初の投稿"}'
-
-# 投稿一覧
-curl localhost:8080/api/threads/1/posts
-
-# レス投稿（sage 付き）
-curl -X POST localhost:8080/api/threads/1/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"author":"名無し","body":"sage","sage":true}'
-```
-
-### 一連の操作例（スレ立て → レス）
-
-```bash
-# 1. 掲示板を確認
-curl localhost:8080/api/boards
-# → {"boards":[{"id":1,"name":"programming","title":"Programming General","created_at":"2025-01-01T00:00:00Z"}]}
-
-# 2. programming 板にスレッドを立てる
-curl -s -X POST localhost:8080/api/boards/programming/threads \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Go言語スレ","author":"gopher","body":"Go最高！"}' | jq .
-# → { "thread": { "id": 1, "title": "Go言語スレ", ... }, "post": { "id": 1, "number": 1, ... } }
-
-# 3. レスを投稿する（2 で返った thread.id を使う）
-curl -s -X POST localhost:8080/api/threads/1/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"author":"名無し","body":"確かに"}' | jq .
-# → { "id": 2, "number": 2, "author": "名無し", "body": "確かに", ... }
-
-# 4. sage 付きでレスを投稿
-curl -s -X POST localhost:8080/api/threads/1/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"author":"sage","body":"sage","sage":true}' | jq .
-# → { "id": 3, "number": 3, "sage": true, ... }
-
-# 5. 投稿一覧で結果を確認
-curl -s localhost:8080/api/threads/1/posts | jq .
-# → [ { "number": 1, "author": "gopher", "body": "Go最高！" },
-#     { "number": 2, "author": "名無し", "body": "確かに" },
-#     { "number": 3, "author": "sage", "body": "sage", "sage": true } ]
-```
+> **本実習の焦点:** 既存の REST API を **gRPC** に移行します。**Presentation 層（HTTP Handler / Router）だけを変更**し、Domain・UseCase・Infra 層が一切変更不要であることを体験します。
 
 ### sage と age について
 
@@ -140,7 +69,7 @@ func (t *Thread) Bump(postedAt time.Time, sage bool) {
 
 ### Interface（Port）の一覧と配置基準
 
-Clean Architecture の中核となる「抽象」（Port）の一覧です。
+クリーンアーキテクチャの中核となる「抽象」（Port）の一覧です。
 インターフェースを除去したとき、ドメインモデルが不変条件（ビジネスルール）を強制できなくなるものは **Domain Port**（Domain 層帰属）とし、そうでないものは **UseCase Port**（UseCase 層帰属）とします（P1 配置基準）。
 
 #### Domain Port（Domain 層帰属）
@@ -604,3 +533,18 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 1. **影響範囲の局所化**: Presentation 層だけで完結。UseCase の `Execute` 呼び出しは一切変わらない。
 2. **プロトコルの違いは「変換」の違い**: HTTP も gRPC も「入力を DTO に詰め替えて UseCase を呼ぶ」構造は同じ。
 3. **差し替えの容易さ**: 本番は gRPC、社内ツール用は HTTP、テスト用は CLI —— どれも UseCase を共有可能。
+
+---
+
+## 理解度チェック
+
+以下の問いに自分で答えてみてください。
+
+### 問 1: Protobuf と Domain 層
+.proto ファイルから生成された Go の struct（例：`pb.Post`）を、Domain 層のエンティティとして直接使用するとどのような問題が生じますか？クリーンアーキテクチャ的には、どの層でどのように変換すべきですか？
+
+### 問 2: エラーハンドリングの違い
+HTTP では `404 Not Found` を返すのが自然ですが、gRPC では `status.NotFound` を使います。エラーの変換はどの層で行うべきでしょうか？もし UseCase 層で「HTTP 用」「gRPC 用」の分岐を書くと、どのような問題が起きますか？
+
+### 問 3: トランザクション境界
+`CreateThreadUseCase` は「スレッド作成」と「最初の投稿」を同じトランザクションで行います。このトランザクション制御はどの層に属するべきですか？もし Presentation 層（HTTP Handler）でトランザクションを開始・終了すると、クリーンアーキテクチャのどの原則に違反しますか？

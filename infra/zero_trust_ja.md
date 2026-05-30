@@ -66,7 +66,7 @@ graph TB
 
 ---
 
-## 3. ソフトウェア設計への影響：Clean Architecture との統合
+## 3. ソフトウェア設計への影響：クリーンアーキテクチャとの統合
 
 ZTA を導入すると、アプリケーションコードからセキュリティの「汚れ」が消えます。
 
@@ -86,7 +86,7 @@ func handleRequest(w http.ResponseWriter, req *http.Request) {
 }
 ```
 
-### 【After】Zero Trust + Clean Architecture（推奨）
+### 【After】Zero Trust + クリーンアーキテクチャ（推奨）
 
 アプリは **「単純な HTTP (Port 8080)」** で動作します。セキュリティは外部の Envoy Sidecar が担当し、アプリは「検証済みのトラフィック」のみを受け取ります。
 

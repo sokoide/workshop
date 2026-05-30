@@ -5,80 +5,9 @@ You will modify **only the Presentation layer**, confirming that Domain, UseCase
 
 ## BBS App Overview
 
-The BBS in this workshop is a simple 3-tier bulletin board: Boards → Threads → Posts.
+The BBS in this workshop is a simple 3-tier bulletin board: Boards → Threads → Posts. For detailed REST API specifications and usage examples, refer to the [BBS README](../assets/bbs/README.md).
 
-| Resource | Description |
-| -------- | ----------- |
-| **Board** | A bulletin board. Identified by `name` (e.g., `programming`) |
-| **Thread** | A thread. Belongs to a specific Board, identified by `threadID` (numeric) |
-| **Post** | A post (reply). Belongs to a specific Thread, with sequential numbering. The `sage` flag prevents the thread from floating to the top |
-
-### REST API List
-
-The current HTTP endpoints are these 5:
-
-| Method | Path | Description |
-| -------- | ---- | ----------- |
-| GET | `/api/boards` | List boards |
-| GET | `/api/boards/{name}/threads` | List threads |
-| POST | `/api/boards/{name}/threads` | Create thread |
-| GET | `/api/threads/{threadID}/posts` | List posts |
-| POST | `/api/threads/{threadID}/posts` | Create reply |
-
-### curl Usage Examples
-
-```bash
-# List boards
-curl localhost:8080/api/boards
-
-# List threads
-curl localhost:8080/api/boards/programming/threads
-
-# Create thread
-curl -X POST localhost:8080/api/boards/programming/threads \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Test","author":"anonymous","body":"First post"}'
-
-# List posts
-curl localhost:8080/api/threads/1/posts
-
-# Create reply (with sage)
-curl -X POST localhost:8080/api/threads/1/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"author":"Anonymous","body":"sage","sage":true}'
-```
-
-### Step-by-Step Example (Create Thread → Reply)
-
-```bash
-# 1. Check boards
-curl localhost:8080/api/boards
-# → {"boards":[{"id":1,"name":"programming","title":"Programming General","created_at":"2025-01-01T00:00:00Z"}]}
-
-# 2. Create a thread on the programming board
-curl -s -X POST localhost:8080/api/boards/programming/threads \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Go Thread","author":"gopher","body":"Go is great!"}' | jq .
-# → { "thread": { "id": 1, "title": "Go Thread", ... }, "post": { "id": 1, "number": 1, ... } }
-
-# 3. Post a reply (using the thread.id from step 2)
-curl -s -X POST localhost:8080/api/threads/1/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"author":"Anon","body":"Indeed"}' | jq .
-# → { "id": 2, "number": 2, "author": "Anon", "body": "Indeed", ... }
-
-# 4. Post a reply with sage
-curl -s -X POST localhost:8080/api/threads/1/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"author":"sage","body":"sage","sage":true}' | jq .
-# → { "id": 3, "number": 3, "sage": true, ... }
-
-# 5. Verify the posts list
-curl -s localhost:8080/api/threads/1/posts | jq .
-# → [ { "number": 1, "author": "gopher", "body": "Go is great!" },
-#     { "number": 2, "author": "Anon", "body": "Indeed" },
-#     { "number": 3, "author": "sage", "body": "sage", "sage": true } ]
-```
+> **Workshop Focus**: This workshop focuses on migrating the existing REST API to **gRPC**. You will modify **only the Presentation layer** (HTTP Handler / Router), confirming that Domain, UseCase, and Infra remain completely untouched.
 
 ### About "sage" and Thread Bumping
 
@@ -607,3 +536,18 @@ In this case, switching to gRPC requires **rewriting the entire function**.
 1. **Localized Impact**: Only the Presentation layer changes. UseCase's `Execute` call remains untouched.
 2. **Protocol Differences Are "Conversion" Differences**: Both HTTP and gRPC follow the same "convert input to DTO → call UseCase" structure.
 3. **Easy Swapping**: Production uses gRPC, internal tools use HTTP, tests use CLI — all sharing the same UseCases.
+
+---
+
+## Comprehension Check
+
+Try answering these questions yourself.
+
+### Question 1: Protobuf and the Domain Layer
+What problems arise if you directly use Go structs generated from .proto files (e.g., `pb.Post`) as Domain layer entities? According to Clean Architecture, in which layer and how should the conversion be performed?
+
+### Question 2: Differences in Error Handling
+In HTTP, returning `404 Not Found` is natural, but in gRPC, you use `status.NotFound`. In which layer should error conversion be performed? If you write "for HTTP" and "for gRPC" branching in the UseCase layer, what problems would occur?
+
+### Question 3: Transaction Boundaries
+`CreateThreadUseCase` performs "thread creation" and "first post" in the same transaction. To which layer should this transaction control belong? If you start and end transactions in the Presentation layer (HTTP Handler), which Clean Architecture principle would be violated?

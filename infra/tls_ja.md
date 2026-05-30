@@ -63,7 +63,7 @@ graph TD
 
 ### ✅ チェックポイント
 
-- [ ] `openssl version` で OpenSSL がインストールされていることを確認した
+- [ ] `openssl version` で OpenSSL 1.1.1 以降 / 3.x 系がインストールされていることを確認した
 - [ ] `podman version` または `docker version` でコンテナ実行環境があることを確認した
 
 ### STEP 1: ルート CA (Root CA) の構築
@@ -156,7 +156,7 @@ curl --cacert rootCA.crt https://server.workshop.local
 
 ---
 
-## Clean Architecture と SSL 終端
+## クリーンアーキテクチャと SSL 終端
 
 本実習では **SSL 終端 (SSL Termination)** という構成を取りました。
 
@@ -171,7 +171,7 @@ curl --cacert rootCA.crt https://server.workshop.local
 
 ```bash
 sudo podman rm -f traefik
-kill %1  # Python サーバーの停止
+pkill -f "python3 -m http.server"  # Python サーバーの停止（該当プロセスのみ停止）
 rm rootCA.* server.* dynamic_conf.yaml
 ```
 

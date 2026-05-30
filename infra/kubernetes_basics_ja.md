@@ -2,6 +2,8 @@
 
 このワークショップでは、Kubernetes (K8s) の基礎概念から実際の運用まで、ハンズオン形式で学びます。単なるインフラ管理ツールとしてではなく、**「分散システムを動かすためのプラットフォーム」**としての K8s を理解することを目指します。
 
+> **⚠️ 所要時間の目安**: 本実習は内容が豊富なため、**複数セッションに分割して実施することを推奨**します（目安：各セクション 30〜45 分）。
+>
 > **💡 用語集**: この実習で登場する[Pod](glossary_ja.md#kubernetes)や[Deployment](glossary_ja.md#kubernetes)、[Service](glossary_ja.md#kubernetes)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
 ---
@@ -704,7 +706,7 @@ cd ~/k8s-workshop/app
 # Go モジュール初期化
 go mod init github.com/example/k8s-app
 
-# Clean Architecture 構造作成
+# クリーンアーキテクチャ構造作成
 mkdir -p domain usecase infra cmd/server
 
 # 実装 (簡略化)
@@ -821,16 +823,16 @@ curl http://localhost:8080
 
 ---
 
-## Clean Architecture との親和性
+## クリーンアーキテクチャとの親和性
 
-Kubernetes は Clean Architecture と非常に相性が良いです：
+Kubernetes はクリーンアーキテクチャと非常に相性が良いです：
 
 1. **レイヤー分離**: 各レイヤーを独立した Deployment としてデプロイ可能
 2. **依存注入**: ConfigMap, Secret で設定注入
 3. **インターフェース分離**: Service でレイヤー間の通信を抽象化
 
 ```yaml
-# Clean Architecture なマイクロサービス例
+# クリーンアーキテクチャなマイクロサービス例
 apiVersion: v1
 kind: Service
 metadata:

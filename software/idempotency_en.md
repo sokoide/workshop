@@ -78,7 +78,7 @@ In distributed systems, network failures and timeouts occur daily.
 | POST | ❌ No | Resource creation (each call creates a new resource) |
 | PATCH | ⚠️ Depends | Content dependent (absolute values are idempotent, relative are not) |
 
-**Important**: POST is non-idempotent by default. Sending the same request twice will result in two different resources being created. If idempotency is needed, use the Idempotency Key pattern.
+**Important**: POST is non-idempotent by default. Without special duplicate detection mechanisms, sending the same request twice may result in two different resources being created. If idempotency is needed, implement server-side duplicate detection (e.g., Idempotency Key) or design for idempotent behavior.
 
 ---
 

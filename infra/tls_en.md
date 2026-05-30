@@ -63,7 +63,7 @@ In this workshop, we will reproduce all roles (CA, Server, Client) in a local en
 
 ### ✅ Verification Checkpoints
 
-- [ ] Confirmed OpenSSL is installed via `openssl version`.
+- [ ] Confirmed OpenSSL 1.1.1 or later / 3.x is installed via `openssl version`.
 - [ ] Confirmed Podman or Docker is available.
 
 ### STEP 1: Build a Root CA
@@ -171,7 +171,7 @@ This ensures security through infrastructure layer changes alone, without needin
 
 ```bash
 sudo podman rm -f traefik
-kill %1  # Stop Python server
+pkill -f "python3 -m http.server"  # Stop Python server (only matching processes)
 rm rootCA.* server.* dynamic_conf.yaml
 ```
 

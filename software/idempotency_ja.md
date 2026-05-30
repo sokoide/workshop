@@ -78,7 +78,7 @@ sequenceDiagram
 | POST | ❌ なし | リソースの作成（同じデータでも毎回新しいリソースが作成される） |
 | PATCH | ⚠️ 依存 | 変更内容による（絶対値なら冪等、相対値なら非冪等） |
 
-**重要**: POST はデフォルトで非冪等です。同じリクエストを 2 回送ると、2 つの異なるリソースが作成されます。冪等性が必要な場合は Idempotency Key パターンを使用します。
+**重要**: POST はデフォルトで非冪等です。特別な重複検出機構がなければ、同じリクエストを 2 回送ると 2 つの異なるリソースが作成される可能性があります。冪等性が必要な場合は、サーバー側で重複検出（例：Idempotency Key）を実装するか、冪等性を保証する設計にしてください。
 
 ---
 
@@ -256,7 +256,7 @@ func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, resu
 
 ### STEP 4: 冪等性付き課金処理の完成
 
-Clean Architecture で実装します。
+クリーンアーキテクチャで実装します。
 
 ```go
 // Usecase: ビジネスロジック
@@ -288,7 +288,7 @@ func (uc *ChargeUsecase) Execute(ctx context.Context, req ChargeRequest) (*Charg
 
 ### ✅ チェックポイント
 
-- [ ] Clean Architecture の各レイヤーが分離されていることを確認した
+- [ ] クリーンアーキテクチャの各レイヤーが分離されていることを確認した
 
 ---
 

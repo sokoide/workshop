@@ -1,5 +1,7 @@
 # Web Security Workshop: XSS, CSRF, Clickjacking, and CORS
 
+> **⚠️ This workshop consists of 4 independent sections (XSS / CSRF / Clickjacking / CORS). Consider splitting into multiple sessions based on available time.**
+
 ## Purpose
 
 In this workshop, you will learn the mechanisms of and countermeasures against common Web application vulnerabilities: XSS (Cross-Site Scripting), CSRF (Cross-Site Request Forgery), Clickjacking, and CORS (Cross-Origin Resource Sharing) misconfigurations. You will use an intentionally vulnerable application to experience these attacks and learn how to defend against them.

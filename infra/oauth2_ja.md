@@ -78,6 +78,12 @@ infra/assets/oauth2/
 
 ## 準備
 
+### 前提条件
+
+- [ ] `podman version` で Podman がインストールされていることを確認した
+- [ ] `podman compose` または `podman-compose` プラグインが利用可能であることを確認した（`podman compose version` で確認）
+- [ ] `go version` で Go 1.22 以降がインストールされていることを確認した
+
 ### 1. Keycloak の起動（Podman）
 
 ```bash
