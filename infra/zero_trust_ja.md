@@ -210,11 +210,11 @@ ZTA 環境でのトラブルシューティングは、従来のデバッグと�
 
 ### 6.1 エラーの切り分け
 
-| 症状 | 推定原因 | アクション |
-| :--- | :--- | :--- |
-| **403 Forbidden** | 認可ポリシー (AuthZ) の拒否 | `istioctl proxy-config authz` で有効なポリシーを確認 |
-| **503 Service Unavailable** | mTLS ハンドシェイク失敗 | 相手の Pod にサイドカーが注入されているか確認 |
-| **404 Not Found** | ルーティングミス | `istioctl proxy-config routes` でパス定義を確認 |
+| 症状                        | 推定原因                    | アクション                                           |
+| :---                        | :---                        | :---                                                 |
+| **403 Forbidden**           | 認可ポリシー (AuthZ) の拒否 | `istioctl proxy-config authz` で有効なポリシーを確認 |
+| **503 Service Unavailable** | mTLS ハンドシェイク失敗     | 相手の Pod にサイドカーが注入されているか確認        |
+| **404 Not Found**           | ルーティングミス            | `istioctl proxy-config routes` でパス定義を確認      |
 
 ### 6.2 ログの活用（Envoy Access Log）
 

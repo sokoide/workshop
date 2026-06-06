@@ -19,11 +19,11 @@
 
 ビジネスルールの追加は内側から外側へ波及しますが、各層の変更は **その層の責務に直結する最小限のもの** です。
 
-| 層 | 変更内容 | 役割 |
-| ---- | --------- | ------ |
-| **Domain** | `Thread.OwnerOnly` フラグ追加、`CanPost()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
-| **UseCase** | `thread.CanPost(in.Author)` の呼び出しを1行追加、スレッド作成時に `Owner` を設定 | ルールの適用 |
-| **Infra** | `threads` テーブルに `owner_only` 列と `owner` 列を追加、読み書きを対応 | 永続化の追従 |
+| 層               | 変更内容                                                                                                           | 役割             |
+| ----             | ---------                                                                                                          | ------           |
+| **Domain**       | `Thread.OwnerOnly` フラグ追加、`CanPost()` メソッド追加、`ErrNotThreadOwner` エラー追加                            | ルールの定義     |
+| **UseCase**      | `thread.CanPost(in.Author)` の呼び出しを1行追加、スレッド作成時に `Owner` を設定                                   | ルールの適用     |
+| **Infra**        | `threads` テーブルに `owner_only` 列と `owner` 列を追加、読み書きを対応                                            | 永続化の追従     |
 | **Presentation** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加、`createThreadRequest` に `owner_only` フィールドを追加 | 表示と入力の追従 |
 
 ### Step 1: Domain 層 — ルールの定義

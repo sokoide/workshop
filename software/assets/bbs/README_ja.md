@@ -40,11 +40,11 @@ BBS_DB=:memory: ./bbs
 サーバーは `localhost:8080` で待機します。
 初回起動時、以下の板が自動的に作成されます。
 
-| name        | description          |
-| ----------- | -------------------- |
-| programming | Programming General  |
-| news        | News & Current Events|
-| chat        | Casual Chat          |
+| name        | description           |
+| ----------- | --------------------  |
+| programming | Programming General   |
+| news        | News & Current Events |
+| chat        | Casual Chat           |
 
 ## API 仕様
 
@@ -190,12 +190,12 @@ Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domai
 
 #### 変更が必要な層: Adapters 層 (Presentation) のみ
 
-| 変更対象 | 変更内容 |
-| ---------- | --------- |
-| `handler/*.go` | `http.ResponseWriter` → protobuf メッセージの変換に差し替え |
-| `router.go` | `http.ServeMux` → gRPC サービス登録 (`RegisterBbsServiceServer`) |
-| `middleware/logging.go` | HTTP middleware → gRPC UnaryInterceptor |
-| `cmd/bbs/main.go` | `http.ListenAndServe` → `grpc.NewServer()` + `net.Listen` |
+| 変更対象                | 変更内容                                                         |
+| ----------              | ---------                                                        |
+| `handler/*.go`          | `http.ResponseWriter` → protobuf メッセージの変換に差し替え      |
+| `router.go`             | `http.ServeMux` → gRPC サービス登録 (`RegisterBbsServiceServer`) |
+| `middleware/logging.go` | HTTP middleware → gRPC UnaryInterceptor                          |
+| `cmd/bbs/main.go`       | `http.ListenAndServe` → `grpc.NewServer()` + `net.Listen`        |
 
 Framework 層は「入力変換 → UseCase 呼び出し → 出力変換」という構造が同一です。
 Handler の内部ロジックは変わらず、変わるのは DTO の変換先（JSON → protobuf）とエラー変換先（HTTP status → gRPC status）だけです。
@@ -246,11 +246,11 @@ UseCase のシグネチャ `Execute(ctx, Input) (Output, error)` は通信方式
 
 #### 変更が不要な層
 
-| 層 | 理由 |
-| ---- | ------ |
-| **Domain** | Entity（Board, Thread, Post）、Port Interface、ドメインエラー — これらは gRPC の型を一切インポートしていないため |
-| **UseCase** | `Execute` メソッドのシグネチャが不変。DTO（`CreateThreadInput`, `CreateThreadOutput`）も通信プロトコルに依存しないため |
-| **Infra Adapter** | Repository 実装（SQLクエリ）、TransactionManager（`sql.Tx`） — DB アクセス方法は通信方式と無関係なため |
+| 層                | 理由                                                                                                                   |
+| ----              | ------                                                                                                                 |
+| **Domain**        | Entity（Board, Thread, Post）、Port Interface、ドメインエラー — これらは gRPC の型を一切インポートしていないため       |
+| **UseCase**       | `Execute` メソッドのシグネチャが不変。DTO（`CreateThreadInput`, `CreateThreadOutput`）も通信プロトコルに依存しないため |
+| **Infra Adapter** | Repository 実装（SQLクエリ）、TransactionManager（`sql.Tx`） — DB アクセス方法は通信方式と無関係なため                 |
 
 #### レイヤー分離がない場合との比較
 
@@ -277,12 +277,12 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 
 #### 変更内容
 
-| 層 | 変更内容 | 役割 |
-| ---- | --------- | ------ |
-| **Domain** | `Thread.Owner` フィールド追加、`CanPost()` / `EnableOwnerOnlyMode()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
-| **UseCase** | `thread.CanPost(in.Author)` の呼び出し1行を追加 | ルールの適用 |
-| **Infra** | `threads` テーブルに `owner` 列を追加、読み書きを対応 | 永続化の追従 |
-| **Framework** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加 | 表示の追従 |
+| 層            | 変更内容                                                                                                           | 役割         |
+| ----          | ---------                                                                                                          | ------       |
+| **Domain**    | `Thread.Owner` フィールド追加、`CanPost()` / `EnableOwnerOnlyMode()` メソッド追加、`ErrNotThreadOwner` エラー追加 | ルールの定義 |
+| **UseCase**   | `thread.CanPost(in.Author)` の呼び出し1行を追加                                                                    | ルールの適用 |
+| **Infra**     | `threads` テーブルに `owner` 列を追加、読み書きを対応                                                              | 永続化の追従 |
+| **Framework** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加                                                         | 表示の追従   |
 
 **Domain — ルールの定義:**
 
@@ -405,20 +405,20 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 #### 変更が必要な層: Infra Adapter Layer のみ
 
-| 変更対象 | 変更内容 |
-| ---------- | --------- |
-| `infra/persistence/sqlite/` | → `infra/persistence/postgres/` を新規作成 |
-| 各 `*_repo.go` | SQL 文法の差異（`?` → `$1`、`AUTOINCREMENT` → `SERIAL`）を修正 |
-| `transaction.go` | `sql.Tx` の扱いは同じだが、接続文字列等の設定を変更 |
-| `model.go` | PostgreSQL 用の型マッピングに調整 |
+| 変更対象                    | 変更内容                                                       |
+| ----------                  | ---------                                                      |
+| `infra/persistence/sqlite/` | → `infra/persistence/postgres/` を新規作成                     |
+| 各 `*_repo.go`              | SQL 文法の差異（`?` → `$1`、`AUTOINCREMENT` → `SERIAL`）を修正 |
+| `transaction.go`            | `sql.Tx` の扱いは同じだが、接続文字列等の設定を変更            |
+| `model.go`                  | PostgreSQL 用の型マッピングに調整                              |
 
 #### 変更が不要な層
 
-| 層 | 理由 |
-| ---- | ------ |
-| **Domain** | Port Interface（`BoardRepository`, `TransactionManager`）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
-| **UseCase** | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし |
-| **Framework** | Handler は UseCase を呼ぶだけで、DB の種類を知らない |
+| 層            | 理由                                                                                                                             |
+| ----          | ------                                                                                                                           |
+| **Domain**    | Port Interface（`BoardRepository`, `TransactionManager`）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
+| **UseCase**   | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし                                             |
+| **Framework** | Handler は UseCase を呼ぶだけで、DB の種類を知らない                                                                             |
 
 Composition Root（`cmd/bbs/main.go`）だけが具象実装の差し替え箇所を知っています:
 
@@ -439,12 +439,12 @@ boardRepo := postgres.NewBoardRepository(db)
 
 #### 変更内容
 
-| 層 | 変更内容 | 役割 |
-| ---- | --------- | ------ |
-| **UseCase** | `port.NotificationGateway` interface を新規定義 | 「通知が必要である」という抽象の定義。通知はアプリケーションワークフローの道具であるため、UseCase Port として定義します。 |
-| **UseCase** | `CreatePostUseCase` に `NotificationGateway` を注入、投稿成功後に呼び出し | 通知のタイミング制御 |
-| **Infra** | `infra/notification/slack_gateway.go` を新規作成 | Slack API の具体実装 |
-| **Framework** | 変更なし | — |
+| 層            | 変更内容                                                                  | 役割                                                                                                                      |
+| ----          | ---------                                                                 | ------                                                                                                                    |
+| **UseCase**   | `port.NotificationGateway` interface を新規定義                           | 「通知が必要である」という抽象の定義。通知はアプリケーションワークフローの道具であるため、UseCase Port として定義します。 |
+| **UseCase**   | `CreatePostUseCase` に `NotificationGateway` を注入、投稿成功後に呼び出し | 通知のタイミング制御                                                                                                      |
+| **Infra**     | `infra/notification/slack_gateway.go` を新規作成                          | Slack API の具体実装                                                                                                      |
+| **Framework** | 変更なし                                                                  | —                                                                                                                         |
 
 **UseCase — 新しい Port:**
 
@@ -517,10 +517,10 @@ createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
 
 #### 変更が不要な層
 
-| 層 | 理由 |
-| ---- | ------ |
-| **Entity** | Board, Thread, Post — 通知とは無関係なため |
-| **Framework (Handler)** | HTTP リクエストの処理は通知を知らないため |
+| 層                      | 理由                                       |
+| ----                    | ------                                     |
+| **Entity**              | Board, Thread, Post — 通知とは無関係なため |
+| **Framework (Handler)** | HTTP リクエストの処理は通知を知らないため  |
 
 #### ポイント: 通知先の差し替えが容易
 
@@ -561,10 +561,10 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 #### 変更内容
 
-| 層 | 変更内容 | 役割 |
-| ---- | --------- | ------ |
+| 層            | 変更内容                                       | 役割       |
+| ----          | ---------                                      | ------     |
 | **Framework** | `middleware/auth.go` を新規作成、Router に適用 | 認証・認可 |
-| その他の層 | **変更なし** | — |
+| その他の層    | **変更なし**                                   | —          |
 
 **Framework — 認証ミドルウェア（新規ファイル）:**
 
@@ -602,11 +602,11 @@ mux.HandleFunc("POST /api/threads/{threadID}/posts", auth(secret)(postHandler.Cr
 
 #### 変更が不要な層
 
-| 層 | 理由 |
-| ---- | ------ |
-| **Domain** | Entity と Port は「誰が」操作しているかを知らない。認証は Framework の責務 |
+| 層          | 理由                                                                                                              |
+| ----        | ------                                                                                                            |
+| **Domain**  | Entity と Port は「誰が」操作しているかを知らない。認証は Framework の責務                                        |
 | **UseCase** | `Execute(ctx, Input)` のシグネチャ不変。認証済みユーザーが必要なら Input DTO にフィールドを追加するだけで対応可能 |
-| **Infra** | DB アクセスは認証とは無関係 |
+| **Infra**   | DB アクセスは認証とは無関係                                                                                       |
 
 #### ポイント: 認証ロジックがビジネスに混ざらない
 
@@ -710,13 +710,13 @@ Framework Test: モック UseCase → 403 が返る                     （DBも
 
 ### まとめ: 変更の種類と影響範囲
 
-| 変更の種類 | 影響する層 | 触らない層 |
-| ----------- | ----------- | ----------- |
-| 通信方式の変更（HTTP → gRPC） | Framework | Domain, UseCase, Infra |
-| DB の変更（SQLite → PostgreSQL） | Infra | Domain, UseCase, Framework |
-| ビジネスルールの追加・変更 | Domain, UseCase | Framework, Infra |
-| 外部サービス統合（Slack通知など） | Domain (Port), UseCase, Infra (新規) | Entity, Framework |
-| 認証の追加（JWTなど） | Framework | Domain, UseCase, Infra |
+| 変更の種類                        | 影響する層                           | 触らない層                 |
+| -----------                       | -----------                          | -----------                |
+| 通信方式の変更（HTTP → gRPC）     | Framework                            | Domain, UseCase, Infra     |
+| DB の変更（SQLite → PostgreSQL）  | Infra                                | Domain, UseCase, Framework |
+| ビジネスルールの追加・変更        | Domain, UseCase                      | Framework, Infra           |
+| 外部サービス統合（Slack通知など） | Domain (Port), UseCase, Infra (新規) | Entity, Framework          |
+| 認証の追加（JWTなど）             | Framework                            | Domain, UseCase, Infra     |
 
 **DB が変われば Infra だけ、通信方式が変われば Framework だけ、ビジネスルールが変われば Domain と UseCase だけ。**
 この「影響範囲の局所化」が Clean Architecture のメンテナンス性の源泉です。

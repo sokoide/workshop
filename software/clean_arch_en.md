@@ -57,12 +57,12 @@ graph TD
 
 ## Mapping to Original Architectures
 
-| Original Clean Architecture | This Variant's Placement |
-| :--- | :--- |
-| Entities | Domain |
-| Use Cases | UseCases |
-| Interface Adapters | Adapters (Presentation + Infrastructure) |
-| Frameworks & Drivers | Concrete mechanisms used by Adapters and Composition Root (main.go) |
+| Original Clean Architecture | This Variant's Placement                                            |
+| :---                        | :---                                                                |
+| Entities                    | Domain                                                              |
+| Use Cases                   | UseCases                                                            |
+| Interface Adapters          | Adapters (Presentation + Infrastructure)                            |
+| Frameworks & Drivers        | Concrete mechanisms used by Adapters and Composition Root (main.go) |
 
 > **Note:** In this 3-layer variant, the traditional "Frameworks & Drivers" layer is absorbed into Adapters and Composition Root. Web frameworks, routing libraries, and DB drivers are treated as implementation details within the Adapters layer, not as a separate architectural layer. The Composition Root (`main.go`) wires everything together but contains no business logic.
 

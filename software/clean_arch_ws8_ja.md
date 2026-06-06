@@ -40,13 +40,13 @@ Presentation Adapters ---→ UseCases ---→ Domain
 
 ### 依存マトリクス
 
-| 依存元 ↓ →                         | Domain | UseCases | Adapters |
-|:----------------------------------:|:------:|:--------:|:--------:|
-| Domain                             | yes    | no       | no       |
-| UseCases                           | yes    | yes      | no       |
-| Adapters（Presentation）           | limited| yes      | self     |
-| Adapters（Infrastructure）         | yes    | yes      | self     |
-| Composition Root                   | yes    | yes      | yes      |
+|         依存元 ↓ →         |  Domain | UseCases | Adapters |
+|:--------------------------:|:-------:|:--------:|:--------:|
+|           Domain           |   yes   |    no    |    no    |
+|          UseCases          |   yes   |    yes   |    no    |
+|  Adapters（Presentation）  | limited |    yes   |   self   |
+| Adapters（Infrastructure） |   yes   |    yes   |   self   |
+|      Composition Root      |   yes   |    yes   |    yes   |
 
 - `Presentation → Domain` は `limited`: Presentation は UseCases から返された Domain の値をシリアライズのために **読み取ってもよい** が、ワークフローの判断のために Domain の振る舞いを **直接呼び出してはならない**。
 - Presentation Adapters と Infrastructure Adapters は同じ概念層にありますが、互いに直接依存してはなりません。

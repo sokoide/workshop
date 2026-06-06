@@ -19,11 +19,11 @@
 
 以下の層は **1行も変更しません**。
 
-| 層 | 理由 |
-| ---- | ------ |
-| **Domain** | Port Interface（`BoardRepository`, `ThreadRepository` 等）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
-| **UseCase** | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし |
-| **Presentation** | Handler は UseCase を呼ぶだけで、DB の種類を知らない |
+| 層               | 理由                                                                                                                             |
+| ----             | ------                                                                                                                           |
+| **Domain**       | Port Interface（`BoardRepository`, `ThreadRepository` 等）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
+| **UseCase**      | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし                                             |
+| **Presentation** | Handler は UseCase を呼ぶだけで、DB の種類を知らない                                                                             |
 
 ### Step 1: 現在の SQLite 実装を確認する
 

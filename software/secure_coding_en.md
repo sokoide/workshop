@@ -64,11 +64,11 @@ func GetUser(db *sql.DB, username string) (*User, error) {
 
 **Placeholder syntax varies by RDBMS:**
 
-|Database|Syntax|Example|
-|:---|:---|:---|
-|PostgreSQL|`$1, $2, ...`|`WHERE name = $1`|
-|MySQL|`?`|`WHERE name = ?`|
-|SQLite|`?` or `$1`|`WHERE name = ?`|
+| Database   | Syntax        | Example           |
+|:-----------|:--------------|:------------------|
+| PostgreSQL | `$1, $2, ...` | `WHERE name = $1` |
+| MySQL      | `?`           | `WHERE name = ?`  |
+| SQLite     | `?` or `$1`   | `WHERE name = ?`  |
 
 **Why placeholders are safe:**
 
@@ -322,13 +322,13 @@ bcrypt (cost=10):
 
 **Hash algorithm comparison:**
 
-|Algorithm|Use Case|Password Storage|
-|:---|:---|:---|
-|MD5 / SHA-1|Checksums, non-security uses|❌ Never|
-|SHA-256|Data integrity, signatures|❌ Too fast|
-|bcrypt|Password hashing|✅ Recommended|
-|argon2id|Password hashing (newer)|✅ Recommended (memory-hard)|
-|scrypt|Password hashing|✅ Recommended|
+| Algorithm   | Use Case                     | Password Storage             |
+|:------------|:-----------------------------|:-----------------------------|
+| MD5 / SHA-1 | Checksums, non-security uses | ❌ Never                     |
+| SHA-256     | Data integrity, signatures   | ❌ Too fast                  |
+| bcrypt      | Password hashing             | ✅ Recommended               |
+| argon2id    | Password hashing (newer)     | ✅ Recommended (memory-hard) |
+| scrypt      | Password hashing             | ✅ Recommended               |
 
 ---
 
@@ -394,13 +394,13 @@ func GenerateSessionID() string {
 
 **When to use which:**
 
-|Use Case|Package|Reason|
-|:---|:---|:---|
-|Test data, simulations|`math/rand`|Predictability is fine|
-|Session IDs, CSRF tokens|`crypto/rand`|Must be unguessable|
-|Password reset tokens|`crypto/rand`|Must be unguessable|
-|UUIDs|`crypto/rand`-based UUID v4|Must be unguessable|
-|Lotteries, games|`math/rand`|Fairness needed but not cryptographic security|
+| Use Case                 | Package                     | Reason                                         |
+|:-------------------------|:----------------------------|:-----------------------------------------------|
+| Test data, simulations   | `math/rand`                 | Predictability is fine                         |
+| Session IDs, CSRF tokens | `crypto/rand`               | Must be unguessable                            |
+| Password reset tokens    | `crypto/rand`               | Must be unguessable                            |
+| UUIDs                    | `crypto/rand`-based UUID v4 | Must be unguessable                            |
+| Lotteries, games         | `math/rand`                 | Fairness needed but not cryptographic security |
 
 ---
 
@@ -577,14 +577,14 @@ func maskEmail(email string) string {
 
 **Data that must never appear in logs:**
 
-|Data|Example|Handling|
-|:---|:---|:---|
-|Passwords|`password=s3cret`|Never log|
-|Session tokens|`session_id=abc123`|Log ID only (not token value)|
-|API keys|`api_key=sk-xxxx`|Mask|
-|Credit card numbers|`card=4111...1111`|Show last 4 digits only|
-|PII (personally identifiable info)|Address, phone number|Mask or omit|
-|Authorization headers|`Bearer eyJ...`|Never log|
+| Data                               | Example               | Handling                      |
+|:-----------------------------------|:----------------------|:------------------------------|
+| Passwords                          | `password=s3cret`     | Never log                     |
+| Session tokens                     | `session_id=abc123`   | Log ID only (not token value) |
+| API keys                           | `api_key=sk-xxxx`     | Mask                          |
+| Credit card numbers                | `card=4111...1111`    | Show last 4 digits only       |
+| PII (personally identifiable info) | Address, phone number | Mask or omit                  |
+| Authorization headers              | `Bearer eyJ...`       | Never log                     |
 
 ---
 
@@ -698,21 +698,21 @@ func WithdrawDB(db *sql.DB, userID int, amount int) error {
 
 **Race condition patterns:**
 
-|Pattern|Description|Countermeasure|
-|:---|:---|:---|
-|TOCTOU|State changes between check and use|Mutex / DB transaction|
-|Double submit|Form submitted twice|Idempotency key|
-|Counter race|Multiple goroutines updating the same counter|`sync/atomic` / Mutex|
-|File race|Concurrent writes to the same file|File locking / exclusive control|
+| Pattern       | Description                                   | Countermeasure                   |
+|:--------------|:----------------------------------------------|:---------------------------------|
+| TOCTOU        | State changes between check and use           | Mutex / DB transaction           |
+| Double submit | Form submitted twice                          | Idempotency key                  |
+| Counter race  | Multiple goroutines updating the same counter | `sync/atomic` / Mutex            |
+| File race     | Concurrent writes to the same file            | File locking / exclusive control |
 
 ---
 
 ## Defense Checklist
 
-|Category|Item|Check|
-|:---|:---|:---|
-|**SQL**|Using placeholders (parameterized queries)|□|
-|**Input validation**|Using allowlist-based validation|□|
+| Category             | Item                                       | Check |
+|:---------------------|:-------------------------------------------|:------|
+| **SQL**              | Using placeholders (parameterized queries) | □     |
+| **Input validation** | Using allowlist-based validation           | □     |
 ||Setting string length limits|□|
 |**File access**|Path traversal prevention (verify within base directory)|□|
 |**Passwords**|Hashing with bcrypt / argon2id|□|

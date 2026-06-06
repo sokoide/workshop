@@ -14,13 +14,13 @@
 +----------------------------------------------------+
 | Ethernet Frame (L2)                                |
 | +------------------------------------------------+ |
-| | IPv4 Packet (L3)                               | |
-| | +--------------------------------------------+ | |
-| | | ICMP Message (L4)                          | | |
-| | | +----------------------------------------+ | | |
-| | | | Payload (Data)                         | | | |
-| | | +----------------------------------------+ | | |
-| | +--------------------------------------------+ | |
+|                                                    | IPv4 Packet (L3)                               |                                            |
+|                                                    | +--------------------------------------------+ |                                            |
+|                                                    |                                                | ICMP Message (L4)                          |                |  |
+|                                                    |                                                | +----------------------------------------+ |                |  |
+|                                                    |                                                |                                            | Payload (Data) |  |  |  |
+|                                                    |                                                | +----------------------------------------+ |                |  |
+|                                                    | +--------------------------------------------+ |                                            |
 | +------------------------------------------------+ |
 +----------------------------------------------------+
 ```
@@ -362,12 +362,12 @@ AF_PACKET は Linux で **データリンク層（L2）に直接アクセスす�
 ```text
 Regular Socket (AF_INET)
 +-----------+     +------------------------+
-|   App     | <-- | Kernel handles TCP/IP  |
+| App | <-- | Kernel handles TCP/IP |
 +-----------+     +------------------------+
 
 Raw Socket (AF_PACKET)
 +-----------+     +------------------------------------+
-|   App     | <-- | Raw Ethernet frame (bytes)         |
+| App | <-- | Raw Ethernet frame (bytes) |
 +-----------+     | Build headers from MAC layer up    |
                   +------------------------------------+
 ```
@@ -588,15 +588,15 @@ IPv4 は異なるネットワークセグメント間での通信を可能にし
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|Version|  IHL  |    TOS       |          Total Length         |
+| Version | IHL | TOS | Total Length |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|         Identification        |Flags|     Fragment Offset     |
+| Identification | Flags | Fragment Offset |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|  TTL  | Protocol|        Header Checksum                      |
+| TTL | Protocol | Header Checksum |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                       Source Address                          |
+| Source Address |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Destination Address                        |
+| Destination Address |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
@@ -803,11 +803,11 @@ ICMP (Internet Control Message Protocol) はネットワーク診断に使用さ
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|     Type      |     Code      |          Checksum             |
+| Type | Code | Checksum |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|           Identifier          |        Sequence Number        |
+| Identifier | Sequence Number |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                             Data                              |
+| Data |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
@@ -1199,11 +1199,11 @@ sudo tcpdump -i veth-host -nn -vv icmp
 =================== Receive Path (Rx) ===================
 
 NIC --> Raw Socket --> Ethernet.Parse --> IPv4.Parse --> ICMP.Parse
-                           |                  |               |
+                           |  |  |
                       [MAC Filter]      [IP Filter]    [Type Check]
-                           |                  |               |
+                           |  |  |
                         Pass?              Pass?           Type=8?
-                           |                  |               |
+                           |  |  |
                            v                  v               v
                       Drop/Continue     Drop/Continue   Drop/Reply
 
@@ -1296,24 +1296,24 @@ T1: Namespace 側で ping 192.168.100.1 実行
     v
 T2: Packet arrives (Echo Request)
     +---------------------------------------------------+
-    | Ethernet: Dst=FF:FF:FF:FF:FF:FF                   |
-    | IPv4:     Src=192.168.100.2, Dst=192.168.100.1    |
-    | ICMP:     Type=8, ID=1234, Seq=1                  |
+    | Ethernet: Dst=FF:FF:FF:FF:FF:FF                |
+    | IPv4:     Src=192.168.100.2, Dst=192.168.100.1 |
+    | ICMP:     Type=8, ID=1234, Seq=1               |
     +---------------------------------------------------+
     |
     v  veth-host に到着
     |
 T3: Custom stack receives
-    |  -> MAC Filter: broadcast -> Pass
-    |  -> IP Filter:  DstIP is ours -> Pass
-    |  -> Type Check: Type=8 -> Generate Reply
+    | -> MAC Filter: broadcast -> Pass
+    | -> IP Filter:  DstIP is ours -> Pass
+    | -> Type Check: Type=8 -> Generate Reply
     |
     v
 T4: Packet sent (Echo Reply)
     +---------------------------------------------------+
-    | Ethernet: Dst=xx:xx:xx:xx:xx:xx                   |
-    | IPv4:     Src=192.168.100.1, Dst=192.168.100.2    |
-    | ICMP:     Type=0, ID=1234, Seq=1                  |
+    | Ethernet: Dst=xx:xx:xx:xx:xx:xx                |
+    | IPv4:     Src=192.168.100.1, Dst=192.168.100.2 |
+    | ICMP:     Type=0, ID=1234, Seq=1               |
     +---------------------------------------------------+
     |
     v  Namespace 側に送信

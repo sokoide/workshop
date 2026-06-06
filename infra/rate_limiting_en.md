@@ -302,11 +302,11 @@ for i in {1..20}; do
 done
 ```
 
-| Algorithm | Boundary Behavior | Memory Usage | CPU Usage | Burst Tolerance |
-| :--- | :--- | :--- | :--- | :--- |
-| Fixed Window | Spikes possible | Low | Low | No |
-| Sliding Window | Smooth | High | High | No |
-| Token Bucket | Smooth | Medium | Medium | Yes |
+| Algorithm      | Boundary Behavior | Memory Usage | CPU Usage | Burst Tolerance |
+| :---           | :---              | :---         | :---      | :---            |
+| Fixed Window   | Spikes possible   | Low          | Low       | No              |
+| Sliding Window | Smooth            | High         | High      | No              |
+| Token Bucket   | Smooth            | Medium       | Medium    | Yes             |
 
 ---
 

@@ -36,12 +36,12 @@
 
 設定作業中に以下の値が必要になります。先にメモしておくとスムーズです。
 
-| 値 | 取得場所 | 使用箇所 |
-| --- | --------- | --------- |
-| **テナント ID** | Entra 管理センター → 概要 | Go コードの環境変数 `TENANT_ID` |
-| **API App Client ID** | App registrations → workshop-api → 概要 | Go コードの環境変数 `API_CLIENT_ID`、トークン要求 |
-| **Client App Client ID** | App registrations → workshop-client → 概要 | Postman / SPA 設定 |
-| **Managed Identity Object ID** | Azure Portal → リソース → Identity → Object ID | App Role 割り当て（`az rest` コマンド） |
+| 値                             | 取得場所                                       | 使用箇所                                          |
+| ---                            | ---------                                      | ---------                                         |
+| **テナント ID**                | Entra 管理センター → 概要                      | Go コードの環境変数 `TENANT_ID`                   |
+| **API App Client ID**          | App registrations → workshop-api → 概要        | Go コードの環境変数 `API_CLIENT_ID`、トークン要求 |
+| **Client App Client ID**       | App registrations → workshop-client → 概要     | Postman / SPA 設定                                |
+| **Managed Identity Object ID** | Azure Portal → リソース → Identity → Object ID | App Role 割り当て（`az rest` コマンド）           |
 
 > **補足**: Client ID は「アプリケーション(クライアント)ID」とも表記されます。GUID 形式の文字列です。
 
@@ -49,15 +49,15 @@
 
 ## まず分類を整理する
 
-| 項目 | A. M2M | B. ユーザー委任フロー |
-| ---- | ------ | --------------------- |
-| 主体 | アプリケーション / ワークロード | ユーザー |
-| 典型例 | App Service, Functions, VM, バッチ | SPA, モバイル, デスクトップ, Postman |
-| 認証フロー | Client Credentials Flow | Authorization Code Flow + PKCE |
-| API 側で使う権限 | **App Role** | **Scope** |
-| トークンの Claim | `roles: ["Svc.Invoke"]` | `scp: "access_as_user"` |
-| Managed Identity | 積極的に使う（Azure 内） | 通常使わない |
-| アクセストークンの有効期限 | 通常長め（〜60分） | 通常短め（〜5-60分） |
+| 項目                       | A. M2M                             | B. ユーザー委任フロー                |
+| ----                       | ------                             | ---------------------                |
+| 主体                       | アプリケーション / ワークロード    | ユーザー                             |
+| 典型例                     | App Service, Functions, VM, バッチ | SPA, モバイル, デスクトップ, Postman |
+| 認証フロー                 | Client Credentials Flow            | Authorization Code Flow + PKCE       |
+| API 側で使う権限           | **App Role**                       | **Scope**                            |
+| トークンの Claim           | `roles: ["Svc.Invoke"]`            | `scp: "access_as_user"`              |
+| Managed Identity           | 積極的に使う（Azure 内）           | 通常使わない                         |
+| アクセストークンの有効期限 | 通常長め（〜60分）                 | 通常短め（〜5-60分）                 |
 
 > **重要な違い**:
 >
@@ -70,11 +70,11 @@
 
 Entra ID は 2 種類のアクセストークン形式を発行します。この実習では **v2 トークン** を使用します。
 
-| 項目 | v1 トークン | v2 トークン |
-| ------ | ------------ | ------------ |
-| `aud` (audience) | `api://<client-id>` (URI 形式) | `<client-id>` (GUID 形式) |
-| `iss` (issuer) | `https://sts.windows.net/<tenant-id>/` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
-| 検証の複雑さ | URI マッチングが必要 | GUID マッチングで済む |
+| 項目             | v1 トークン                            | v2 トークン                                          |
+| ------           | ------------                           | ------------                                         |
+| `aud` (audience) | `api://<client-id>` (URI 形式)         | `<client-id>` (GUID 形式)                            |
+| `iss` (issuer)   | `https://sts.windows.net/<tenant-id>/` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| 検証の複雑さ     | URI マッチングが必要                   | GUID マッチングで済む                                |
 
 **本実習では v2 を推奨する理由**: 検証ロジックがシンプルになり、実装ミスを減らせるため。
 
@@ -101,24 +101,24 @@ echo "<トークン>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
 
 ### 確認すべき Claim
 
-| Claim | 期待値 | 確認内容 |
-| ------- | -------- | ---------- |
-| `aud` | API の Client ID | 自分の API 宛てか |
-| `iss` | `https://login.microsoftonline.com/<tenant-id>/v2.0` | 正しいテナントか |
-| `scp` | `access_as_user` | ユーザー委任の場合 |
-| `roles` | `["Svc.Invoke"]` | M2M の場合 |
-| `appid` | Client App の ID | どのアプリが要求したか |
+| Claim   | 期待値                                               | 確認内容               |
+| ------- | --------                                             | ----------             |
+| `aud`   | API の Client ID                                     | 自分の API 宛てか      |
+| `iss`   | `https://login.microsoftonline.com/<tenant-id>/v2.0` | 正しいテナントか       |
+| `scp`   | `access_as_user`                                     | ユーザー委任の場合     |
+| `roles` | `["Svc.Invoke"]`                                     | M2M の場合             |
+| `appid` | Client App の ID                                     | どのアプリが要求したか |
 
 ---
 
 ## 登場人物と役割
 
-| 登場人物 | 例 | 役割 |
-| ---- | ---- | ---- |
-| Resource Owner | ユーザー | サインインし、権限付与に同意する主体 |
-| Client | React / Postman / Azure ワークロード | アクセストークンを取得し API を呼ぶ |
-| Authorization Server | Microsoft Entra ID | 認証し、アクセストークンを発行する |
-| Resource Server | Go REST API | トークンを検証し、リソースを返す |
+| 登場人物             | 例                                   | 役割                                 |
+| ----                 | ----                                 | ----                                 |
+| Resource Owner       | ユーザー                             | サインインし、権限付与に同意する主体 |
+| Client               | React / Postman / Azure ワークロード | アクセストークンを取得し API を呼ぶ  |
+| Authorization Server | Microsoft Entra ID                   | 認証し、アクセストークンを発行する   |
+| Resource Server      | Go REST API                          | トークンを検証し、リソースを返す     |
 
 ---
 
@@ -301,11 +301,11 @@ func main() {
 
 #### Client App の環境変数
 
-| 環境変数 | 必須 | 説明 | デフォルト値 |
-| --------- | :----: | ------ | ------------- |
-| `PORT` | - | リッスンポート番号 | `8080` |
-| `API_SCOPE` | - | アクセスしたい API のスコープ | `https://graph.microsoft.com/.default` (テスト用) |
-| `API_ENDPOINT` | - | 呼び出す API の URL | - (未設定時は API 呼び出しスキップ) |
+| 環境変数       | 必須   | 説明                          | デフォルト値                                      |
+| ---------      | :----: | ------                        | -------------                                     |
+| `PORT`         | -      | リッスンポート番号            | `8080`                                            |
+| `API_SCOPE`    | -      | アクセスしたい API のスコープ | `https://graph.microsoft.com/.default` (テスト用) |
+| `API_ENDPOINT` | -      | 呼び出す API の URL           | - (未設定時は API 呼び出しスキップ)               |
 
 > **注意**: `API_SCOPE` には通常 `api://<api-client-id>/.default` を設定します。`.default` は「その API に割り当てられた全権限」を意味します。
 
@@ -414,10 +414,10 @@ sequenceDiagram
 
 #### 4. 同意 (consent) を行う
 
-| 同意の種類 | 必要なケース | 実行者 |
-| ---------- | ------------ | ------ |
-| **ユーザー同意** | ユーザー同意が許可されたテナント + 低影響権限 | サインインするユーザー自身 |
-| **管理者同意** | テナントでユーザー同意が無効 / 高影響権限 / Application permissions | テナント管理者 |
+| 同意の種類       | 必要なケース                                                        | 実行者                     |
+| ----------       | ------------                                                        | ------                     |
+| **ユーザー同意** | ユーザー同意が許可されたテナント + 低影響権限                       | サインインするユーザー自身 |
+| **管理者同意**   | テナントでユーザー同意が無効 / 高影響権限 / Application permissions | テナント管理者             |
 
 操作方法:
 
@@ -555,13 +555,13 @@ func main() {
 
 #### 環境変数一覧
 
-| 環境変数 | 必須 | 説明 | デフォルト値 |
-| --------- | :----: | ------ | ------------- |
-| `TENANT_ID` | ✅ | Entra テナント ID | - |
-| `API_CLIENT_ID` | ✅ | API アプリの Client ID | - |
-| `REQUIRED_SCOPE` | - | ユーザー委任フローで要求するスコープ | `access_as_user` |
-| `REQUIRED_APP_ROLE` | - | M2M フローで要求する App Role | `Svc.Invoke` |
-| `PORT` | - | リッスンポート番号 | `8080` |
+| 環境変数            | 必須   | 説明                                 | デフォルト値     |
+| ---------           | :----: | ------                               | -------------    |
+| `TENANT_ID`         | ✅     | Entra テナント ID                    | -                |
+| `API_CLIENT_ID`     | ✅     | API アプリの Client ID               | -                |
+| `REQUIRED_SCOPE`    | -      | ユーザー委任フローで要求するスコープ | `access_as_user` |
+| `REQUIRED_APP_ROLE` | -      | M2M フローで要求する App Role        | `Svc.Invoke`     |
+| `PORT`              | -      | リッスンポート番号                   | `8080`           |
 
 ---
 
@@ -622,24 +622,24 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
 
 ### 3. よくあるエラーと確認方法
 
-| エラー | 確認コマンド | 対策 |
-| -------- | ------------- | ------ |
-| `401 Unauthorized` | トークンを jwt.ms で確認 | `aud` が API の Client ID と一致するか |
-| `403 Forbidden` | `scp` / `roles` を確認 | Scope または App Role が付与されているか |
-| `invalid_client` | Client ID / Secret を確認 | 正しい App Registration を使用しているか |
+| エラー             | 確認コマンド              | 対策                                     |
+| --------           | -------------             | ------                                   |
+| `401 Unauthorized` | トークンを jwt.ms で確認  | `aud` が API の Client ID と一致するか   |
+| `403 Forbidden`    | `scp` / `roles` を確認    | Scope または App Role が付与されているか |
+| `invalid_client`   | Client ID / Secret を確認 | 正しい App Registration を使用しているか |
 
 ---
 
 ## トラブルシューティング
 
-| 現象 | 原因 | 対策 |
-| ---- | ---- | ---- |
-| **401 Unauthorized / `aud` mismatch** | API 向けではないトークンを受信 | トークンを [jwt.ms](https://jwt.ms) でデコードし、`aud` が API の client ID と一致するか確認 |
-| **403 Forbidden** | 署名検証は通ったが権限不足 | `scp` / `roles` の追加、同意の実施、App Role 割り当てを確認 |
-| **SPA でトークン交換時に CORS エラー** | Redirect URI のプラットフォーム設定ミス | `Authentication` で `Single-page application` であることを確認（`Web` は不可） |
-| **`roles` が入らない** | ユーザー委任フローを使っている / 割り当て未実施 | M2M なら Client Credentials を使用。App Role の割り当て（`az rest` 手順）を再確認 |
-| **`iss` mismatch** | テナント違い / v1・v2 混在 | `requestedAccessTokenVersion` と Resource Server の issuer 設定を見直し |
-| **`ManagedIdentityCredential: managed identity timed out`** | API への App Role が未割り当て | **Role 未割り当て時の想定動作です。** 権限がないため Entra ID がトークン発行を拒否し、結果として SDK がタイムアウトします。Managed Identity に App Role を割り当ててください。 |
+| 現象                                                        | 原因                                            | 対策                                                                                                                                                                           |
+| ----                                                        | ----                                            | ----                                                                                                                                                                           |
+| **401 Unauthorized / `aud` mismatch**                       | API 向けではないトークンを受信                  | トークンを [jwt.ms](https://jwt.ms) でデコードし、`aud` が API の client ID と一致するか確認                                                                                   |
+| **403 Forbidden**                                           | 署名検証は通ったが権限不足                      | `scp` / `roles` の追加、同意の実施、App Role 割り当てを確認                                                                                                                    |
+| **SPA でトークン交換時に CORS エラー**                      | Redirect URI のプラットフォーム設定ミス         | `Authentication` で `Single-page application` であることを確認（`Web` は不可）                                                                                                 |
+| **`roles` が入らない**                                      | ユーザー委任フローを使っている / 割り当て未実施 | M2M なら Client Credentials を使用。App Role の割り当て（`az rest` 手順）を再確認                                                                                             |
+| **`iss` mismatch**                                          | テナント違い / v1・v2 混在                      | `requestedAccessTokenVersion` と Resource Server の issuer 設定を見直し                                                                                                        |
+| **`ManagedIdentityCredential: managed identity timed out`** | API への App Role が未割り当て                  | **Role 未割り当て時の想定動作です。** 権限がないため Entra ID がトークン発行を拒否し、結果として SDK がタイムアウトします。Managed Identity に App Role を割り当ててください。 |
 
 ### トークンのデバッグ方法
 
@@ -671,12 +671,12 @@ echo "<トークン>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
 
 #### 3. よくある間違い
 
-| 間違い | 正しい設定 |
-| -------- | ----------- |
-| `aud` が `api://xxx`（URI 形式） | v2 トークンでは Client ID (GUID) |
-| `iss` が `sts.windows.net` | v2 トークンでは `login.microsoftonline.com/.../v2.0` |
-| M2M で `scp` をチェック | M2M では `roles` をチェック |
-| ユーザー委任で `roles` をチェック | ユーザー委任では `scp` をチェック |
+| 間違い                            | 正しい設定                                           |
+| --------                          | -----------                                          |
+| `aud` が `api://xxx`（URI 形式）  | v2 トークンでは Client ID (GUID)                     |
+| `iss` が `sts.windows.net`        | v2 トークンでは `login.microsoftonline.com/.../v2.0` |
+| M2M で `scp` をチェック           | M2M では `roles` をチェック                          |
+| ユーザー委任で `roles` をチェック | ユーザー委任では `scp` をチェック                    |
 
 **成功時の表示:**
 正しく権限が割り当てられ、API 呼び出しに成功すると、ブラウザには以下のように表示されます。

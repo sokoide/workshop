@@ -57,12 +57,12 @@ graph TD
 
 ## オリジナルアーキテクチャとの対応
 
-| オリジナル Clean Architecture | このバリアントでの位置づけ |
-| :--- | :--- |
-| Entities | Domain |
-| Use Cases | UseCases |
-| Interface Adapters | Adapters（Presentation + Infrastructure） |
-| Frameworks & Drivers | Adapters と Composition Root（main.go）が使用する具体的なメカニズム |
+| オリジナル Clean Architecture | このバリアントでの位置づけ                                          |
+| :---                          | :---                                                                |
+| Entities                      | Domain                                                              |
+| Use Cases                     | UseCases                                                            |
+| Interface Adapters            | Adapters（Presentation + Infrastructure）                           |
+| Frameworks & Drivers          | Adapters と Composition Root（main.go）が使用する具体的なメカニズム |
 
 > **補足:** この 3 層バリアントでは、従来の「Frameworks & Drivers」層は Adapters と Composition Root に吸収されています。Web フレームワーク、ルーティングライブラリ、DB ドライバーは Adapters 層内の実装詳細として扱われ、独立したアーキテクチャ層とはなりません。Composition Root（`main.go`）はすべての配線を行いますが、ビジネスロジックは一切含みません。
 
@@ -125,13 +125,13 @@ UseCases または Domain が所有するポートを外部システムに接続
 
 ## 依存マトリクス
 
-|         依存元 ↓ →         |  Domain | UseCases | Adapters |
-|:--------------------------:|:-------:|:--------:|:--------:|
-|           Domain           |   yes   |    no    |    no    |
-|          UseCases          |   yes   |    yes   |    no    |
-|  Adapters（Presentation）  |  cond.  |    yes   |   self   |
-| Adapters（Infrastructure） |   yes   |    yes   |   self   |
-|      Composition Root      |   yes   |    yes   |    yes   |
+|         依存元 ↓ →         | Domain | UseCases | Adapters |
+|:--------------------------:|:------:|:--------:|:--------:|
+|           Domain           |   yes  |    no    |    no    |
+|          UseCases          |   yes  |    yes   |    no    |
+|  Adapters（Presentation）  |  cond. |    yes   |   self   |
+| Adapters（Infrastructure） |   yes  |    yes   |   self   |
+|      Composition Root      |   yes  |    yes   |    yes   |
 
 * `Presentation → Domain` は `cond.` (conditional): Presentation は UseCases から返された Domain の値をシリアライズのために **読み取ってもよい**（pragmatic モード）。ただし、これは以下の **Boundary Simplification Checklist** をすべて満たす場合に限られる。
 

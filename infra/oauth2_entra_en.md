@@ -36,12 +36,12 @@ Is a user involved?
 
 You will need the following values during configuration. It is helpful to note them down beforehand.
 
-| Value | Where to find | Where it's used |
-| --- | --------- | --------- |
-| **Tenant ID** | Entra admin center → Overview | Go code environment variable `TENANT_ID` |
-| **API App Client ID** | App registrations → workshop-api → Overview | Go code environment variable `API_CLIENT_ID`, Token requests |
-| **Client App Client ID** | App registrations → workshop-client → Overview | Postman / SPA configuration |
-| **Managed Identity Object ID** | Azure Portal → Resource → Identity → Object ID | App Role assignment (`az rest` command) |
+| Value                          | Where to find                                  | Where it's used                                              |
+| ---                            | ---------                                      | ---------                                                    |
+| **Tenant ID**                  | Entra admin center → Overview                  | Go code environment variable `TENANT_ID`                     |
+| **API App Client ID**          | App registrations → workshop-api → Overview    | Go code environment variable `API_CLIENT_ID`, Token requests |
+| **Client App Client ID**       | App registrations → workshop-client → Overview | Postman / SPA configuration                                  |
+| **Managed Identity Object ID** | Azure Portal → Resource → Identity → Object ID | App Role assignment (`az rest` command)                      |
 
 > **Note**: Client ID is also referred to as "Application (client) ID". It is a string in GUID format.
 
@@ -49,15 +49,15 @@ You will need the following values during configuration. It is helpful to note t
 
 ## First, Understand the Classification
 
-| Item | A. M2M | B. User-Delegated Flow |
-| ---- | ------ | --------------------- |
-| Subject | Application / Workload | User |
-| Typical Examples | App Service, Functions, VM, Batch jobs | SPA, Mobile, Desktop, Postman |
-| Auth Flow | Client Credentials Flow | Authorization Code Flow + PKCE |
-| API Side Permissions | **App Role** | **Scope** |
-| Token Claim | `roles: ["Svc.Invoke"]` | `scp: "access_as_user"` |
-| Managed Identity | Actively used (within Azure) | Normally not used |
-| Token Expiration | Typically longer (~60 min) | Typically shorter (~5-60 min) |
+| Item                 | A. M2M                                 | B. User-Delegated Flow         |
+| ----                 | ------                                 | ---------------------          |
+| Subject              | Application / Workload                 | User                           |
+| Typical Examples     | App Service, Functions, VM, Batch jobs | SPA, Mobile, Desktop, Postman  |
+| Auth Flow            | Client Credentials Flow                | Authorization Code Flow + PKCE |
+| API Side Permissions | **App Role**                           | **Scope**                      |
+| Token Claim          | `roles: ["Svc.Invoke"]`                | `scp: "access_as_user"`        |
+| Managed Identity     | Actively used (within Azure)           | Normally not used              |
+| Token Expiration     | Typically longer (~60 min)             | Typically shorter (~5-60 min)  |
 
 > **Key Difference**:
 >
@@ -70,11 +70,11 @@ You will need the following values during configuration. It is helpful to note t
 
 Entra ID issues two types of access token formats. This workshop uses **v2 tokens**.
 
-| Item | v1 Token | v2 Token |
-| ------ | ------------ | ------------ |
-| `aud` (audience) | `api://<client-id>` (URI format) | `<client-id>` (GUID format) |
-| `iss` (issuer) | `https://sts.windows.net/<tenant-id>/` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
-| Validation complexity | Requires URI matching | Simple GUID matching |
+| Item                  | v1 Token                               | v2 Token                                             |
+| ------                | ------------                           | ------------                                         |
+| `aud` (audience)      | `api://<client-id>` (URI format)       | `<client-id>` (GUID format)                          |
+| `iss` (issuer)        | `https://sts.windows.net/<tenant-id>/` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| Validation complexity | Requires URI matching                  | Simple GUID matching                                 |
 
 **Why we recommend v2**: It simplifies the validation logic and reduces implementation errors.
 
@@ -101,24 +101,24 @@ echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
 
 ### Claims to Verify
 
-| Claim | Expected Value | Description |
-| ------- | -------- | ---------- |
-| `aud` | API Client ID | Is it intended for your API? |
-| `iss` | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Is it from the correct tenant? |
-| `scp` | `access_as_user` | For user-delegated flows |
-| `roles` | `["Svc.Invoke"]` | For M2M flows |
-| `appid` | Client App ID | Which app requested the token? |
+| Claim   | Expected Value                                       | Description                    |
+| ------- | --------                                             | ----------                     |
+| `aud`   | API Client ID                                        | Is it intended for your API?   |
+| `iss`   | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Is it from the correct tenant? |
+| `scp`   | `access_as_user`                                     | For user-delegated flows       |
+| `roles` | `["Svc.Invoke"]`                                     | For M2M flows                  |
+| `appid` | Client App ID                                        | Which app requested the token? |
 
 ---
 
 ## Actors and Roles
 
-| Actor | Example | Role |
-| ---- | ---- | ---- |
-| Resource Owner | User | Signs in and grants consent |
-| Client | React / Postman / Azure Workload | Obtains an access token and calls the API |
-| Authorization Server | Microsoft Entra ID | Authenticates and issues access tokens |
-| Resource Server | Go REST API | Validates tokens and returns resources |
+| Actor                | Example                          | Role                                      |
+| ----                 | ----                             | ----                                      |
+| Resource Owner       | User                             | Signs in and grants consent               |
+| Client               | React / Postman / Azure Workload | Obtains an access token and calls the API |
+| Authorization Server | Microsoft Entra ID               | Authenticates and issues access tokens    |
+| Resource Server      | Go REST API                      | Validates tokens and returns resources    |
 
 ---
 
@@ -301,11 +301,11 @@ func main() {
 
 #### Client App Environment Variables
 
-| Variable | Required | Description | Default |
-| --------- | :----: | ------ | ------------- |
-| `PORT` | - | Listening port number | `8080` |
-| `API_SCOPE` | - | The scope of the API you want to access | `https://graph.microsoft.com/.default` (for testing) |
-| `API_ENDPOINT` | - | The URL of the API to call | - (skips API call if not set) |
+| Variable       | Required | Description                             | Default                                              |
+| ---------      | :----:   | ------                                  | -------------                                        |
+| `PORT`         | -        | Listening port number                   | `8080`                                               |
+| `API_SCOPE`    | -        | The scope of the API you want to access | `https://graph.microsoft.com/.default` (for testing) |
+| `API_ENDPOINT` | -        | The URL of the API to call              | - (skips API call if not set)                        |
 
 > **Note**: Typically, `API_SCOPE` is set to `api://<api-client-id>/.default`. The `.default` suffix means "all permissions assigned to that API".
 
@@ -412,10 +412,10 @@ sequenceDiagram
 
 #### 4. Perform Consent
 
-| Consent Type | Required When | Performer |
-| ---------- | ------------ | ------ |
-| **User Consent** | Tenant allows user consent + Low impact permissions | The user signing in |
-| **Admin Consent** | User consent disabled / High impact / Application permissions | Tenant Admin |
+| Consent Type      | Required When                                                 | Performer           |
+| ----------        | ------------                                                  | ------              |
+| **User Consent**  | Tenant allows user consent + Low impact permissions           | The user signing in |
+| **Admin Consent** | User consent disabled / High impact / Application permissions | Tenant Admin        |
 
 Operation:
 
@@ -553,13 +553,13 @@ func main() {
 
 #### Environment Variables List
 
-| Variable | Required | Description | Default |
-| --------- | :----: | ------ | ------------- |
-| `TENANT_ID` | ✅ | Entra Tenant ID | - |
-| `API_CLIENT_ID` | ✅ | API App Client ID | - |
-| `REQUIRED_SCOPE` | - | Scope required for user flow | `access_as_user` |
-| `REQUIRED_APP_ROLE` | - | App Role required for M2M flow | `Svc.Invoke` |
-| `PORT` | - | Listening port number | `8080` |
+| Variable            | Required | Description                    | Default          |
+| ---------           | :----:   | ------                         | -------------    |
+| `TENANT_ID`         | ✅       | Entra Tenant ID                | -                |
+| `API_CLIENT_ID`     | ✅       | API App Client ID              | -                |
+| `REQUIRED_SCOPE`    | -        | Scope required for user flow   | `access_as_user` |
+| `REQUIRED_APP_ROLE` | -        | App Role required for M2M flow | `Svc.Invoke`     |
+| `PORT`              | -        | Listening port number          | `8080`           |
 
 ---
 
@@ -614,24 +614,24 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
 
 ### 3. Common Errors and Verification
 
-| Error | Verification Command | Action |
-| -------- | ------------- | ------ |
-| `401 Unauthorized` | Check token on jwt.ms | Does `aud` match the API's Client ID? |
-| `403 Forbidden` | Check `scp` / `roles` | Is the Scope or App Role granted? |
-| `invalid_client` | Check Client ID / Secret | Are you using the correct App Registration? |
+| Error              | Verification Command     | Action                                      |
+| --------           | -------------            | ------                                      |
+| `401 Unauthorized` | Check token on jwt.ms    | Does `aud` match the API's Client ID?       |
+| `403 Forbidden`    | Check `scp` / `roles`    | Is the Scope or App Role granted?           |
+| `invalid_client`   | Check Client ID / Secret | Are you using the correct App Registration? |
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Cause | Solution |
-| ---- | ---- | ---- |
-| **401 Unauthorized / `aud` mismatch** | Token not intended for this API | Decode the token at [jwt.ms](https://jwt.ms) and verify `aud` matches the API's Client ID. |
-| **403 Forbidden** | Signature valid but missing permissions | Verify `scp` / `roles`, consent status, and App Role assignment. |
-| **CORS error in SPA token exchange** | Redirect URI platform misconfiguration | Ensure platform is set to `Single-page application`, not `Web`. |
-| **`roles` missing** | Using user flow / Assignment skipped | For M2M, use Client Credentials. Double-check App Role assignment (`az rest` steps). |
-| **`iss` mismatch** | Wrong tenant / Mix of v1 and v2 | Verify `requestedAccessTokenVersion` and Resource Server issuer settings. |
-| **`ManagedIdentityCredential: managed identity timed out`** | No App Role assigned to API | **Expected behavior if no role is assigned.** Entra ID denies the token request, causing the SDK to timeout. Assign the App Role to the Managed Identity. |
+| Symptom                                                     | Cause                                   | Solution                                                                                                                                                  |
+| ----                                                        | ----                                    | ----                                                                                                                                                      |
+| **401 Unauthorized / `aud` mismatch**                       | Token not intended for this API         | Decode the token at [jwt.ms](https://jwt.ms) and verify `aud` matches the API's Client ID.                                                                |
+| **403 Forbidden**                                           | Signature valid but missing permissions | Verify `scp` / `roles`, consent status, and App Role assignment.                                                                                          |
+| **CORS error in SPA token exchange**                        | Redirect URI platform misconfiguration  | Ensure platform is set to `Single-page application`, not `Web`.                                                                                           |
+| **`roles` missing**                                         | Using user flow / Assignment skipped    | For M2M, use Client Credentials. Double-check App Role assignment (`az rest` steps).                                                                      |
+| **`iss` mismatch**                                          | Wrong tenant / Mix of v1 and v2         | Verify `requestedAccessTokenVersion` and Resource Server issuer settings.                                                                                 |
+| **`ManagedIdentityCredential: managed identity timed out`** | No App Role assigned to API             | **Expected behavior if no role is assigned.** Entra ID denies the token request, causing the SDK to timeout. Assign the App Role to the Managed Identity. |
 
 ### How to Debug Tokens
 
@@ -663,12 +663,12 @@ echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
 
 #### 3. Common Mistakes
 
-| Mistake | Correct Configuration |
-| -------- | ----------- |
-| `aud` is `api://xxx` (URI format) | Should be Client ID (GUID) for v2 tokens |
-| `iss` is `sts.windows.net` | Should be `login.microsoftonline.com/.../v2.0` for v2 |
-| Checking `scp` in M2M flow | Check `roles` in M2M |
-| Checking `roles` in user flow | Check `scp` in user-delegated flow |
+| Mistake                           | Correct Configuration                                 |
+| --------                          | -----------                                           |
+| `aud` is `api://xxx` (URI format) | Should be Client ID (GUID) for v2 tokens              |
+| `iss` is `sts.windows.net`        | Should be `login.microsoftonline.com/.../v2.0` for v2 |
+| Checking `scp` in M2M flow        | Check `roles` in M2M                                  |
+| Checking `roles` in user flow     | Check `scp` in user-delegated flow                    |
 
 **Display on Success:**
 Once permissions are correctly assigned and the API call succeeds, the browser will display:

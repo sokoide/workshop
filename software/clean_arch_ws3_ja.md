@@ -13,9 +13,9 @@
 
 2 ちゃんねる風掲示板特有の「スレッドの浮上」仕様です。
 
-| 用語 | 意味 | 挙動 |
-| :--- | :--- | :--- |
-| **age** | 上げる | `LastPostedAt` を更新し、一覧の最上部に浮上させる |
+| 用語     | 意味   | 挙動                                                |
+| :---     | :---   | :---                                                |
+| **age**  | 上げる | `LastPostedAt` を更新し、一覧の最上部に浮上させる   |
 | **sage** | 下げる | `LastPostedAt` を更新せず、スレッドの位置を変えない |
 
 **デフォルト動作:**
@@ -76,18 +76,18 @@ func (t *Thread) Bump(postedAt time.Time, sage bool) {
 
 これらはドメインモデルの不変条件の強制や、エンティティ・集約の再構成に不可欠なため、Domain 層に定義します。
 
-| ファイル | Interface | 役割 |
-| :--- | :--- | :--- |
-| `internal/domain/port/repository.go` | `BoardRepository` | 掲示板の永続化（ドメインエンティティの再構成） |
-| | `ThreadRepository` | スレッドの永続化（ドメインエンティティの再構成） |
-| | `PostRepository` | 投稿の永続化（ドメインエンティティの再構成） |
+| ファイル                             | Interface          | 役割                                             |
+| :---                                 | :---               | :---                                             |
+| `internal/domain/port/repository.go` | `BoardRepository`  | 掲示板の永続化（ドメインエンティティの再構成）   |
+|                                      | `ThreadRepository` | スレッドの永続化（ドメインエンティティの再構成） |
+|                                      | `PostRepository`   | 投稿の永続化（ドメインエンティティの再構成）     |
 
 #### UseCase Port（UseCase 層帰属）
 
 トランザクション境界の制御は、ビジネスルールそのものではなく、ユースケースのオーケストレーション（アプリケーション制御）の関心事であるため、UseCase 層に定義します。
 
-| ファイル | Interface | 役割 |
-| :--- | :--- | :--- |
+| ファイル                          | Interface            | 役割                       |
+| :---                              | :---                 | :---                       |
 | `internal/usecase/transaction.go` | `TransactionManager` | トランザクション境界の制御 |
 
 ```go
@@ -284,11 +284,11 @@ Presentation Adapters ──→ UseCases ──→ Domain
 
 以下の層は **1行も変更しません**。
 
-| 層 | 理由 |
-| ---- | ------ |
-| **Domain** | Entity（Board, Thread, Post）、Port Interface は通信プロトコルに依存しないため |
+| 層          | 理由                                                                             |
+| ----        | ------                                                                           |
+| **Domain**  | Entity（Board, Thread, Post）、Port Interface は通信プロトコルに依存しないため   |
 | **UseCase** | `Execute(ctx, Input) (Output, error)` のシグネチャが不変。DTO もプロトコル非依存 |
-| **Infra** | Repository 実装（SQLクエリ、エラー変換）は通信方式と無関係 |
+| **Infra**   | Repository 実装（SQLクエリ、エラー変換）は通信方式と無関係                       |
 
 ### Step 1: 現在の HTTP Handler を確認する
 

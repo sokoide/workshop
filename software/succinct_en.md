@@ -545,12 +545,12 @@ func (bv *BitVector) Rank1(i int) int {
 
 ## 6. Complexity and Trade-offs
 
-| Implementation | Space Efficiency | Search Speed | Updates | Main Use Cases |
-| :--- | :--- | :--- | :--- | :--- |
-| **Pointer-based Trie** | Low (Heavy pointers) | Medium | Fast | Prototyping, frequent updates |
-| **Radix Tree** | Medium (Merged nodes) | Medium-High | Medium | Routers, path searching |
-| **Double Array** | High (Arrays only) | **Extremely High** | Difficult | Static dictionaries |
-| **LOUDS** | **Extremely High** | Medium-High | Difficult | Large-scale / low-memory |
+| Implementation         | Space Efficiency      | Search Speed       | Updates   | Main Use Cases                |
+| :---                   | :---                  | :---               | :---      | :---                          |
+| **Pointer-based Trie** | Low (Heavy pointers)  | Medium             | Fast      | Prototyping, frequent updates |
+| **Radix Tree**         | Medium (Merged nodes) | Medium-High        | Medium    | Routers, path searching       |
+| **Double Array**       | High (Arrays only)    | **Extremely High** | Difficult | Static dictionaries           |
+| **LOUDS**              | **Extremely High**    | Medium-High        | Difficult | Large-scale / low-memory      |
 
 ### In a Nutshell
 
@@ -613,12 +613,12 @@ Of course, this is because the conditions are "read-mostly and almost immutable.
 
 ### Memory Comparison (Rough Estimate: 1M words / 6M nodes)
 
-| Item | Pointer-based | Radix Tree | Double Array | LOUDS (Succinct) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Total Size** | **0.8 - 1.5 GB** | **300 - 600 MB** | **100 - 150 MB** | **10 - 20 MB** |
-| **Structure** | Pointers / map | Pointers / map (Merged) | Two integer arrays | Bit string (2n bits) |
-| **Management** | Very High | High | Low | Extremely Low |
-| **Search Speed** | Medium | Medium-High | **Extremely High** | Medium-High |
+| Item             | Pointer-based    | Radix Tree              | Double Array       | LOUDS (Succinct)     |
+| :---             | :---             | :---                    | :---               | :---                 |
+| **Total Size**   | **0.8 - 1.5 GB** | **300 - 600 MB**        | **100 - 150 MB**   | **10 - 20 MB**       |
+| **Structure**    | Pointers / map   | Pointers / map (Merged) | Two integer arrays | Bit string (2n bits) |
+| **Management**   | Very High        | High                    | Low                | Extremely Low        |
+| **Search Speed** | Medium           | Medium-High             | **Extremely High** | Medium-High          |
 
 The essence of this difference is that while pointer-based or Radix implementations manage "nodes as objects," Double Array and LOUDS "flatten the structure into arrays or bit strings." LOUDS, in particular, achieves overwhelming memory savings by bringing management costs close to zero.
 
@@ -706,12 +706,12 @@ IMEs like Mozc choose different data structures based on the use case:
 
 ### Suitability in Japanese Environments
 
-| Structure | Suitability | Features |
-| :--- | :--- | :--- |
-| **Pointer-based** | Low | Excessive memory consumption. Not suitable for mobile or background PC software. |
-| **Double Array** | **High (Lookup)** | Fastest speed. Cache efficiency is key when traversing deeper trees due to UTF-8 decomposition. |
-| **LOUDS** | **High (Compression)** | Smallest size. Powerful in memory-constrained environments like mobile devices. |
-| **Radix Tree** | Medium | Effective for long readings. Concepts are sometimes integrated into LOUDS internal optimizations. |
+| Structure         | Suitability            | Features                                                                                          |
+| :---              | :---                   | :---                                                                                              |
+| **Pointer-based** | Low                    | Excessive memory consumption. Not suitable for mobile or background PC software.                  |
+| **Double Array**  | **High (Lookup)**      | Fastest speed. Cache efficiency is key when traversing deeper trees due to UTF-8 decomposition.   |
+| **LOUDS**         | **High (Compression)** | Smallest size. Powerful in memory-constrained environments like mobile devices.                   |
+| **Radix Tree**    | Medium                 | Effective for long readings. Concepts are sometimes integrated into LOUDS internal optimizations. |
 
 ---
 

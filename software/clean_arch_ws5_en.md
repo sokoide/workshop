@@ -19,11 +19,11 @@ Due to increased traffic, migrate the database from SQLite to PostgreSQL.
 
 The following layers require **zero modifications**:
 
-| Layer | Reason |
-| ------- | -------- |
-| **Domain** | Port Interfaces (`BoardRepository`, `ThreadRepository`, etc.) are abstract, so calls work identically regardless of SQLite or PostgreSQL |
-| **UseCase** | Depends on Repository **Interfaces**, so swapping concrete implementations has no impact |
-| **Presentation** | Handlers call UseCases and know nothing about the DB type |
+| Layer            | Reason                                                                                                                                   |
+| -------          | --------                                                                                                                                 |
+| **Domain**       | Port Interfaces (`BoardRepository`, `ThreadRepository`, etc.) are abstract, so calls work identically regardless of SQLite or PostgreSQL |
+| **UseCase**      | Depends on Repository **Interfaces**, so swapping concrete implementations has no impact                                                 |
+| **Presentation** | Handlers call UseCases and know nothing about the DB type                                                                                |
 
 ### Step 1: Review the Current SQLite Implementation
 

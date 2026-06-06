@@ -69,14 +69,14 @@ In distributed systems, network failures and timeouts occur daily.
 
 ## HTTP Methods and Idempotency
 
-| Method | Idempotent | Description |
-| :--- | :--- | :--- |
-| GET | ✅ Yes | Retrieval only (no side effects) |
-| HEAD | ✅ Yes | Header retrieval only (no side effects) |
-| PUT | ✅ Yes | Full replacement (same data results in same state) |
-| DELETE | ✅ Yes | Resource deletion (2nd call is 404, but state is the same) |
-| POST | ❌ No | Resource creation (each call creates a new resource) |
-| PATCH | ⚠️ Depends | Content dependent (absolute values are idempotent, relative are not) |
+| Method | Idempotent | Description                                                          |
+| :---   | :---       | :---                                                                 |
+| GET    | ✅ Yes     | Retrieval only (no side effects)                                     |
+| HEAD   | ✅ Yes     | Header retrieval only (no side effects)                              |
+| PUT    | ✅ Yes     | Full replacement (same data results in same state)                   |
+| DELETE | ✅ Yes     | Resource deletion (2nd call is 404, but state is the same)           |
+| POST   | ❌ No      | Resource creation (each call creates a new resource)                 |
+| PATCH  | ⚠️ Depends | Content dependent (absolute values are idempotent, relative are not) |
 
 **Important**: POST is non-idempotent by default. Without special duplicate detection mechanisms, sending the same request twice may result in two different resources being created. If idempotency is needed, implement server-side duplicate detection (e.g., Idempotency Key) or design for idempotent behavior.
 
@@ -337,11 +337,11 @@ defer redis.Del(ctx, "lock:"+key)
 
 ### 2. Key Expiration Strategy
 
-| Use Case | Recommended TTL | Reason |
-| :--- | :--- | :--- |
-| Payments | 48 hours | Inquiry window after payment completion |
-| Inventory | 15 minutes | Cart session duration |
-| File Upload | 24 hours | Grace period for upload completion |
+| Use Case    | Recommended TTL | Reason                                  |
+| :---        | :---            | :---                                    |
+| Payments    | 48 hours        | Inquiry window after payment completion |
+| Inventory   | 15 minutes      | Cart session duration                   |
+| File Upload | 24 hours        | Grace period for upload completion      |
 
 ### 3. Partial Idempotency
 
