@@ -1358,17 +1358,17 @@ sudo ip netns delete workshop
 
 - root 権限で実行しているか確認
 
-    ```bash
-    sudo ./tcpip_stack -iface veth-host
-    ```
+  ```bash
+  sudo ./tcpip_stack -iface veth-host
+  ```
 
 - `CAP_NET_RAW` ケーパビリティがないか確認
 
-    ```bash
-    getcap ./tcpip_stack
-    # なければ付与
-    sudo setcap cap_net_raw+ep ./tcpip_stack
-    ```
+  ```bash
+  getcap ./tcpip_stack
+  # なければ付与
+  sudo setcap cap_net_raw+ep ./tcpip_stack
+  ```
 
 ### Ping が通らない
 
@@ -1378,22 +1378,22 @@ sudo ip netns delete workshop
 
 - カスタムスタックが起動しているか確認
 
-    ```bash
-    sudo ip netns exec workshop ping 192.168.100.1
-    ```
+  ```bash
+  sudo ip netns exec workshop ping 192.168.100.1
+  ```
 
 - インターフェースの状態を確認
 
-    ```bash
-    ip link show veth-host
-    ip addr show veth-host
-    ```
+  ```bash
+  ip link show veth-host
+  ip addr show veth-host
+  ```
 
 - tcpdump でパケットを確認
 
-    ```bash
-    sudo tcpdump -i veth-host -nn -vv icmp
-    ```
+  ```bash
+  sudo tcpdump -i veth-host -nn -vv icmp
+  ```
 
 ### ビルドエラーが発生する
 
@@ -1403,17 +1403,17 @@ sudo ip netns delete workshop
 
 - GCC がインストールされているか確認
 
-    ```bash
-    gcc --version
-    # なければインストール
-    sudo apt install gcc
-    ```
+  ```bash
+  gcc --version
+  # なければインストール
+  sudo apt install gcc
+  ```
 
 - Linux ヘッダーがインストールされているか確認
 
-    ```bash
-    sudo apt install linux-headers-$(uname -r)
-    ```
+  ```bash
+  sudo apt install linux-headers-$(uname -r)
+  ```
 
 ---
 

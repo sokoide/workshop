@@ -51,10 +51,10 @@ HTTP/1.1 から最新の HTTP/3 まで、どのように接続を効率化して
 
 1. **ブラウザで双方向通信が必要** (チャット、ゲーム) → **WebSocket**
 2. **ブラウザへの片方向通知で十分** (ニュースフィード、株価更新) → **SSE (Server-Sent Events)**
-    - 実装が非常にシンプル（`text/event-stream`）で、ブラウザ標準で自動再接続もサポートされます。
+   - 実装が非常にシンプル（`text/event-stream`）で、ブラウザ標準で自動再接続もサポートされます。
 3. **モバイル等で回線変動が激しい / 低遅延要件が強い** → **WebTransport (HTTP/3) も検討**
 4. **サービス間（Backend-to-Backend）通信** → **gRPC Streaming**
-    - 型安全（IDL/proto）で、サーバー・クライアント・双方向の全てのストリーミングが揃っています。
+   - 型安全（IDL/proto）で、サーバー・クライアント・双方向の全てのストリーミングが揃っています。
 
 ---
 
@@ -193,70 +193,70 @@ sequenceDiagram
 
 1. **リポジトリへ移動**
 
-    ```bash
-    cd infra/assets/http_persistent_conn
-    ```
+   ```bash
+   cd infra/assets/http_persistent_conn
+   ```
 
 2. **ツールのインストール**
 
-    Ubuntu 24.04 では、最新の開発ツール（`websocat`, `go`, `protobuf` 等）を簡単に導入するため、**Homebrew (Linuxbrew)** の使用を推奨します。
+   Ubuntu 24.04 では、最新の開発ツール（`websocat`, `go`, `protobuf` 等）を簡単に導入するため、**Homebrew (Linuxbrew)** の使用を推奨します。
 
-    ```bash
-    # 1. システム基盤ツールのインストール (apt)
-    sudo apt update
-    sudo apt install -y podman podman-compose git make openssl curl
+   ```bash
+   # 1. システム基盤ツールのインストール (apt)
+   sudo apt update
+   sudo apt install -y podman podman-compose git make openssl curl
 
-    # 2. 開発ツールのインストール (Homebrew)
-    # Homebrew が未インストールの場合は: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    brew install websocat go protobuf grpcurl watch
-    ```
+   # 2. 開発ツールのインストール (Homebrew)
+   # Homebrew が未インストールの場合は: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   brew install websocat go protobuf grpcurl watch
+   ```
 
-    > [!IMPORTANT]
-    > Homebrew と Go のバイナリパスを通す必要があります。
-    >
-    > ```bash
-    > # ~/.bashrc や ~/.zshrc に追記例
-    > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-    > export PATH=$PATH:$(go env GOPATH)/bin
-    > ```
+   > [!IMPORTANT]
+   > Homebrew と Go のバイナリパスを通す必要があります。
+   >
+   > ```bash
+   > # ~/.bashrc や ~/.zshrc に追記例
+   > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+   > export PATH=$PATH:$(go env GOPATH)/bin
+   > ```
 
-    次に、Go 言語専用のプロトコルバッファ用プラグインを `make setup` でセットアップします。
+   次に、Go 言語専用のプロトコルバッファ用プラグインを `make setup` でセットアップします。
 
-    ```bash
-    make setup
-    # (ツールのパスが表示されます。インストール済みの場合は出力がありません)
-    which protoc-gen-go grpcurl
-    ```
+   ```bash
+   make setup
+   # (ツールのパスが表示されます。インストール済みの場合は出力がありません)
+   which protoc-gen-go grpcurl
+   ```
 
 3. **自己署名証明書の生成**
 
-    HTTP/2/3 は TLS・QUIC を前提にするため、ローカル用の証明書を作成します。
+   HTTP/2/3 は TLS・QUIC を前提にするため、ローカル用の証明書を作成します。
 
-    ```bash
-    make cert
-    ```
+   ```bash
+   make cert
+   ```
 
 4. **Protobuf のコード生成**
 
-    `proto/greeter.proto` から Go の stub を生成し、`pb/greeter.pb.go` を吐き出します。
+   `proto/greeter.proto` から Go の stub を生成し、`pb/greeter.pb.go` を吐き出します。
 
-    ```bash
-    make gen
-    ```
+   ```bash
+   make gen
+   ```
 
 5. **サーバーを起動**
 
-    ```bash
-    make run
-    ```
+   ```bash
+   make run
+   ```
 
-    起動後のポート一覧:
-    - `:8080` → HTTP/1.1 + WebSocket + SSE
-    - `:8443` → HTTP/2 (TLS)
-    - `:8444` → HTTP/3 (QUIC)
-    - `:50051` → gRPC (HTTP/2)
+   起動後のポート一覧:
+   - `:8080` → HTTP/1.1 + WebSocket + SSE
+   - `:8443` → HTTP/2 (TLS)
+   - `:8444` → HTTP/3 (QUIC)
+   - `:50051` → gRPC (HTTP/2)
 
-    サーバーはこのターミナルで動かしたまま、別ターミナルで以下のステップを走らせていきます。
+   サーバーはこのターミナルで動かしたまま、別ターミナルで以下のステップを走らせていきます。
 
 ---
 
@@ -282,35 +282,35 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 **観察ポイント**:
 
 - **Keep-Alive あり（デフォルト）の場合**:
-    1. **curl のログ**: 2 回目のリクエストのログに `Re-using existing connection! (#0) with host localhost` という表示があることを確認してください。TCP の接続が 1 回で済んでいることがわかります。
-    2. **Socket の状態**: Linux なら `ss` で、macOS なら `lsof` で定期的に確認します。
+  1. **curl のログ**: 2 回目のリクエストのログに `Re-using existing connection! (#0) with host localhost` という表示があることを確認してください。TCP の接続が 1 回で済んでいることがわかります。
+  2. **Socket の状態**: Linux なら `ss` で、macOS なら `lsof` で定期的に確認します。
 
-        ```bash
-        # Linux (Ubuntu 24.04): -a で TIME-WAIT 等も拾える
-        watch -n 0.1 "ss -ntp | grep :8080"
-        ```
+     ```bash
+     # Linux (Ubuntu 24.04): -a で TIME-WAIT 等も拾える
+     watch -n 0.1 "ss -ntp | grep :8080"
+     ```
 
-        ```bash
-        # macOS: netstat で 8080 に関係するソケットをループ観測。サーバーを先に起動してから実行してください。
-        while true; do
-            clear
-            netstat -anp tcp | grep 8080 | grep -v TIME_WAIT
-            sleep 0.1
-        done
-        ```
+     ```bash
+     # macOS: netstat で 8080 に関係するソケットをループ観測。サーバーを先に起動してから実行してください。
+     while true; do
+         clear
+         netstat -anp tcp | grep 8080 | grep -v TIME_WAIT
+         sleep 0.1
+     done
+     ```
 
-        macOS では `netstat` に `ESTABLISHED`/`TIME_WAIT`/`CLOSE_WAIT` が一度に出るので、Keep-Alive の接続が見えるようになるはずです。`curl` で `http://localhost:8080/` を投げて `Connection refused` にならなければ、`netstat` の出力に `*:8080` や `127.0.0.1.8080` が常に滞留するようになります。
+     macOS では `netstat` に `ESTABLISHED`/`TIME_WAIT`/`CLOSE_WAIT` が一度に出るので、Keep-Alive の接続が見えるようになるはずです。`curl` で `http://localhost:8080/` を投げて `Connection refused` にならなければ、`netstat` の出力に `*:8080` や `127.0.0.1.8080` が常に滞留するようになります。
 
-        > **TIME_WAIT を除外したいとき**は `grep -v TIME_WAIT` を挟むと、ESTABLISHED や CLOSE_WAIT だけを確認できます。
-        > **Linux で ESTABLISHED (と少しの CLOSE_WAIT) を見たいなら**、下の `watch` コマンドで `ss -ntp` を使っています。`TIME_WAIT` も確認したいときは `ss -ntap` あるいは `ss -na | grep :8080` のように `-a` を追加してください（遅延応答 1 秒で ESTABLISHED の行も追いやすくなっています）。
+     > **TIME_WAIT を除外したいとき**は `grep -v TIME_WAIT` を挟むと、ESTABLISHED や CLOSE_WAIT だけを確認できます。
+     > **Linux で ESTABLISHED (と少しの CLOSE_WAIT) を見たいなら**、下の `watch` コマンドで `ss -ntp` を使っています。`TIME_WAIT` も確認したいときは `ss -ntap` あるいは `ss -na | grep :8080` のように `-a` を追加してください（遅延応答 1 秒で ESTABLISHED の行も追いやすくなっています）。
 
-    3. **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
+  3. **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
 
 - **Keep-Alive なし（Connection: close）の場合**:
-    1. **curl のログ**: 1 回目のレスポンス後に `Closing connection 0` となり、2 回目のリクエストで `Re-using existing connection!` が **表示されない** ことを確認してください。
-    2. **Socket の状態**: `ss` で監視していると、**2 つの異なる接続**（クライアント側のポート番号が異なるもの）が作成され、それぞれが終了（TIME-WAIT 等）していく様子が見えます。
+  1. **curl のログ**: 1 回目のレスポンス後に `Closing connection 0` となり、2 回目のリクエストで `Re-using existing connection!` が **表示されない** ことを確認してください。
+  2. **Socket の状態**: `ss` で監視していると、**2 つの異なる接続**（クライアント側のポート番号が異なるもの）が作成され、それぞれが終了（TIME-WAIT 等）していく様子が見えます。
 
-    ※ macOS の場合は `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` 等を利用してください。
+  ※ macOS の場合は `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` 等を利用してください。
 
 > **タイムアウトについての補足**:
 > サーバー側には通常 **Keep-Alive Timeout** が設定されており、一定時間リクエストがないとサーバー側から TCP 切断（FIN）を送ります。実習中、放置して接続が消えても、次のリクエストで再度ハンドシェイクが行われるだけなので問題ありません。
@@ -371,23 +371,23 @@ podman-compose up --build -d
 1. **設定ファイルで明示的にルーティング**: `infra/assets/http_persistent_conn/traefik.yml` と `traefik-dynamic.yml` により、Traefik は `Host(\`localhost\`)`を聞いて`<http://app:8080`> へ転送します。`/run/podman/podman.sock` の共有は不要です。
 2. **ホスト 18080 へのアクセス**: Compose は `18080:80` をバインドしているので、`websocat -v ws://localhost:18080/ws` や `curl http://localhost:18080/` を使って、Traefik → app:8080 への通信が通ることを確認できます。
 3. **Socket 監視（プラットフォーム別）**:
-    - **Linux**:
+   - **Linux**:
 
-        ```bash
-        watch -n 0.1 "ss -ntp | grep :18080"
-        ```
+     ```bash
+     watch -n 0.1 "ss -ntp | grep :18080"
+     ```
 
-    - **macOS**:
+   - **macOS**:
 
-        ```bash
-        while true; do
-            clear
-            lsof -nP -iTCP:18080 | grep 18080
-            sleep 0.1
-        done
-        ```
+     ```bash
+     while true; do
+         clear
+         lsof -nP -iTCP:18080 | grep 18080
+         sleep 0.1
+     done
+     ```
 
-        > Linux では `ss -ntp` を使って ESTABLISHED を拾っています。`TIME_WAIT` も確認したいときは `ss -ntap` を再実行してください。
+     > Linux では `ss -ntp` を使って ESTABLISHED を拾っています。`TIME_WAIT` も確認したいときは `ss -ntap` を再実行してください。
 
 4. **透過性**: クライアント（websocat）から見れば、直接接続したときとほぼ同じ挙動になります。プロキシがプロトコルの中身を邪魔せず、ストリームを中継していることがわかります。
 5. **注意**: `podman-compose down` で後片付けを忘れないようにしてください。
@@ -409,23 +409,23 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 1. **マルチプレキシング**: `curl` のログで `[HTTP/2] [1] GET /a`, `[HTTP/2] [3] GET /b` のように、異なる奇数のストリーム ID が同時に動いていることを確認。
 2. **Socket 監視**: 複数のリクエストを投げている間も、OS レベルで見える TCP ソケットは **常に 1 つだけ** であることを確認します。
 3. **Socket Monitoring (platform specific)**:
-    - **Linux**:
+   - **Linux**:
 
-        ```bash
-        watch -n 0.1 "ss -ntp | grep :8443"
-        ```
+     ```bash
+     watch -n 0.1 "ss -ntp | grep :8443"
+     ```
 
-    - **macOS**:
+   - **macOS**:
 
-        ```bash
-        while true; do
-            clear
-            lsof -nP -iTCP:8443 | grep 8443
-            sleep 0.1
-        done
-        ```
+     ```bash
+     while true; do
+         clear
+         lsof -nP -iTCP:8443 | grep 8443
+         sleep 0.1
+     done
+     ```
 
-        > Linux では `ss -ntp` を使っており、`TIME_WAIT` は表示されません。`TIME_WAIT` も確認したい場合は `ss -ntap` を再実行してください。
+     > Linux では `ss -ntp` を使っており、`TIME_WAIT` は表示されません。`TIME_WAIT` も確認したい場合は `ss -ntap` を再実行してください。
 
 ### STEP 4: HTTP/3 (QUIC) の 0-RTT と UDP への移行
 
@@ -456,9 +456,9 @@ curl --http3 -k -v https://localhost:8444/
 
 1. **プロトコルの違い**: `curl` のログで `ALPN: h3` を確認。
 2. **Socket 監視 (UDP)**:
-    - UDP は接続（Handshake）を行わない「コネクションレス」なプロトコルでです。
-    - Linux: `sudo tcpdump -i lo -n port 8444`
-    - macos: `sudo tcpdump -i lo0 -n port 8444`
+   - UDP は接続（Handshake）を行わない「コネクションレス」なプロトコルでです。
+   - Linux: `sudo tcpdump -i lo -n port 8444`
+   - macos: `sudo tcpdump -i lo0 -n port 8444`
 
 ### STEP 5: gRPC (HTTP/2) での多種多様なストリーム通信
 
@@ -500,25 +500,25 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
 - `grpcurl` はコマンドごとに新しいプロセスが起動するため、通常は呼び出しごとに新しい接続になります。
 - gRPC の真価（1 接続多重化）は、アプリケーション内で `ClientConn` を長寿命で再利用したときに最大化されます。
 - **Socket 監視**:
-    1. **Linux**:
+  1. **Linux**:
 
-        ```bash
-        watch -n 0.1 "ss -ntp | grep :50051"
-        ```
+     ```bash
+     watch -n 0.1 "ss -ntp | grep :50051"
+     ```
 
-        > Linux では `ss -ntp` を使って TIME_WAIT を除外しています。`TIME_WAIT` も確認したいなら `ss -ntap` を再実行してください。
+     > Linux では `ss -ntp` を使って TIME_WAIT を除外しています。`TIME_WAIT` も確認したいなら `ss -ntap` を再実行してください。
 
-    2. **macOS**: `watch`/`ss` が無いので代わりに:
+  2. **macOS**: `watch`/`ss` が無いので代わりに:
 
-        ```bash
-        while true; do
-            clear
-            netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
-            sleep 0.1
-        done
-        ```
+     ```bash
+     while true; do
+         clear
+         netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
+         sleep 0.1
+     done
+     ```
 
-        > **TIME_WAIT を含めたい場合**は `grep -v TIME_WAIT` を省略すると、TIME_WAIT も含めた出力が流れます。
+     > **TIME_WAIT を含めたい場合**は `grep -v TIME_WAIT` を省略すると、TIME_WAIT も含めた出力が流れます。
 
 ### ✅ チェックポイント
 
@@ -538,23 +538,23 @@ curl -v http://localhost:8080/sse
 2. **この実装の挙動**: サンプルコードでは 2 秒おきに 5 件送信した後に接続を閉じます（無限配信ではありません）。
 3. **軽量性**: WebSocket のような複雑なフレーム制御ではなく、「長めの HTTP レスポンス」として実装できる点を確認します。
 4. **Socket Monitoring (platform specific)**:
-    - **Linux**:
+   - **Linux**:
 
-        ```bash
-        watch -n 0.1 "ss -ntp | grep :8080"
-        ```
+     ```bash
+     watch -n 0.1 "ss -ntp | grep :8080"
+     ```
 
-        > Linux では `ss -ntp` を使って TIME_WAIT を隠しています。`TIME_WAIT` も確認したい場合は `ss -ntap` を再実行してください。
+     > Linux では `ss -ntp` を使って TIME_WAIT を隠しています。`TIME_WAIT` も確認したい場合は `ss -ntap` を再実行してください。
 
-    - **macOS**:
+   - **macOS**:
 
-        ```bash
-        while true; do
-            clear
-            lsof -nP -iTCP:8080 | grep 8080
-            sleep 0.1
-        done
-        ```
+     ```bash
+     while true; do
+         clear
+         lsof -nP -iTCP:8080 | grep 8080
+         sleep 0.1
+     done
+     ```
 
 ---
 
@@ -650,10 +650,10 @@ podman-compose down
 
 - システム標準の `curl` が HTTP/3 に対応していません。
 
-    ```bash
-    brew install curl
-    # brew のパスを優先するように alias を設定
-    ```
+  ```bash
+  brew install curl
+  # brew のパスを優先するように alias を設定
+  ```
 
 ### gRPC の証明書エラー
 

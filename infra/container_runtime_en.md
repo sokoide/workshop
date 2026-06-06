@@ -106,15 +106,15 @@ cp /etc/resolv.conf rootfs/etc/resolv.conf
 Experience manual isolation using the `unshare` command.
 
 1. **PID Namespace**: `sudo unshare --pid --fork /bin/sh`
-    - Verify that `echo $$` outputs PID 1.
+   - Verify that `echo $$` outputs PID 1.
 2. **Mount Namespace and chroot**:
 
-    ```bash
-    sudo unshare --pid --fork --mount /bin/sh
-    chroot rootfs /bin/sh
-    mount -t proc proc /proc
-    ps # Only processes inside the container are visible
-    ```
+   ```bash
+   sudo unshare --pid --fork --mount /bin/sh
+   chroot rootfs /bin/sh
+   mount -t proc proc /proc
+   ps # Only processes inside the container are visible
+   ```
 
 ### STEP 3: Apply Resource Control (Cgroups v2)
 
@@ -190,9 +190,9 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 
 - **Insufficient Permissions**: Creating namespaces other than the user namespace requires root privileges.
 
-    ```bash
-    sudo ./mycontainer
-    ```
+  ```bash
+  sudo ./mycontainer
+  ```
 
 ### cgroup v2 is Not Mounted
 
@@ -202,9 +202,9 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 
 - The kernel version is old or cgroup v1 is in use.
 
-    ```bash
-    mount | grep cgroup
-    ```
+  ```bash
+  mount | grep cgroup
+  ```
 
 ---
 

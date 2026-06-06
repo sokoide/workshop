@@ -207,16 +207,16 @@ sudo podman run -d --name b --network net-vlan20 --ip 192.168.20.20 alpine sleep
 
 1. **疎通確認**: A から B への Ping が通ることを確認します。
 
-    ```bash
-    sudo podman exec a ping -c 3 192.168.20.20
-    ```
+   ```bash
+   sudo podman exec a ping -c 3 192.168.20.20
+   ```
 
 2. **ルーティング遮断実験**: ルーターで通信をブロックし、Ping が通らなくなることを確認します。
 
-    ```bash
-    sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
-    sudo podman exec a ping -c 3 -W 1 192.168.20.20 # 失敗する
-    ```
+   ```bash
+   sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
+   sudo podman exec a ping -c 3 -W 1 192.168.20.20 # 失敗する
+   ```
 
 ---
 
@@ -249,16 +249,16 @@ sudo ip link delete $IF.20
 
 - ルーターコンテナの `ip_forward` が有効になっているか確認
 
-    ```bash
-    sudo podman exec router sysctl net.ipv4.ip_forward
-    # net.ipv4.ip_forward = 1 でなければ有効化
-    ```
+  ```bash
+  sudo podman exec router sysctl net.ipv4.ip_forward
+  # net.ipv4.ip_forward = 1 でなければ有効化
+  ```
 
 - iptables のフォワードルールが正しく設定されているか確認
 
-    ```bash
-    sudo podman exec router iptables -L FORWARD -v -n
-    ```
+  ```bash
+  sudo podman exec router iptables -L FORWARD -v -n
+  ```
 
 ### Podman ネットワークの作成に失敗する
 
@@ -268,16 +268,16 @@ sudo ip link delete $IF.20
 
 - VLAN サブインターフェースが正しく作成されているか確認
 
-    ```bash
-    ip link show | grep $IF
-    ```
+  ```bash
+  ip link show | grep $IF
+  ```
 
 - Rootless モードで実行していないか確認
 
-    ```bash
-    sudo podman info | grep rootless
-    # rootless: false である必要あり
-    ```
+  ```bash
+  sudo podman info | grep rootless
+  # rootless: false である必要あり
+  ```
 
 ### NAT 経由でインターネットに接続できない
 
@@ -287,16 +287,16 @@ sudo ip link delete $IF.20
 
 - ルーターのデフォルトルートが正しく設定されているか確認
 
-    ```bash
-    sudo podman exec router ip route
-    # default via 192.168.1.1 dev eth0 などが表示されるはず
-    ```
+  ```bash
+  sudo podman exec router ip route
+  # default via 192.168.1.1 dev eth0 などが表示されるはず
+  ```
 
 - MASQUERADE ルールが設定されているか確認
 
-    ```bash
-    sudo podman exec router iptables -t nat -L POSTROUTING -v -n
-    ```
+  ```bash
+  sudo podman exec router iptables -t nat -L POSTROUTING -v -n
+  ```
 
 ---
 

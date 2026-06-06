@@ -193,35 +193,35 @@ sudo minikube start --driver=none
 
 1. **PersistentVolume (iscsi-pv.yaml)**
 
-    ```yaml
-    apiVersion: v1
-    kind: PersistentVolume
-    metadata:
-        name: iscsi-pv
-    spec:
-        capacity:
-            storage: 1Gi
-        accessModes: [ReadWriteOnce]
-        iscsi:
-            targetPortal: "192.168.1.12:3260"
-            iqn: "iqn.2025-12.world.server:storage"
-            lun: 0
-            fsType: "ext4"
-    ```
+   ```yaml
+   apiVersion: v1
+   kind: PersistentVolume
+   metadata:
+     name: iscsi-pv
+   spec:
+     capacity:
+       storage: 1Gi
+     accessModes: [ReadWriteOnce]
+     iscsi:
+       targetPortal: "192.168.1.12:3260"
+       iqn: "iqn.2025-12.world.server:storage"
+       lun: 0
+       fsType: "ext4"
+   ```
 
 2. **PersistentVolumeClaim (iscsi-pvc.yaml)**
 
-    ```yaml
-    apiVersion: v1
-    kind: PersistentVolumeClaim
-    metadata:
-        name: iscsi-pvc
-    spec:
-        accessModes: [ReadWriteOnce]
-        resources:
-            requests:
-                storage: 1Gi
-    ```
+   ```yaml
+   apiVersion: v1
+   kind: PersistentVolumeClaim
+   metadata:
+     name: iscsi-pvc
+   spec:
+     accessModes: [ReadWriteOnce]
+     resources:
+       requests:
+         storage: 1Gi
+   ```
 
 ```bash
 kubectl apply -f iscsi-pv.yaml

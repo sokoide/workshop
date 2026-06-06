@@ -14,9 +14,9 @@
 
 例: `ProcessOrder` が「金額計算」「DB 保存」「メール通知」を同時に持つ場合。
 
-* 税計算ルールを変えたいだけでも、同じ関数内の通知処理まで影響確認が必要になる
-* DB 保存の失敗を再現したいテストで、SMTP モックまで必要になる
-* メール文面変更のリリースで、注文計算に不具合を混入させるリスクが上がる
+- 税計算ルールを変えたいだけでも、同じ関数内の通知処理まで影響確認が必要になる
+- DB 保存の失敗を再現したいテストで、SMTP モックまで必要になる
+- メール文面変更のリリースで、注文計算に不具合を混入させるリスクが上がる
 
 つまり、**変更の影響範囲が読めなくなり、改修コストと障害率が上がる** のが本質です。
 
@@ -127,17 +127,17 @@ func (n MailNotifier) SendOrderCreated(ctx context.Context, to, body string) err
 
 ### クリーンアーキテクチャで見る S
 
-* **Domain:** 金額計算のルール（Entity/Domain Service）
-* **UseCase:** 注文作成の手順（計算 -> 保存 -> 通知）
-* **Infra Adapters:** DB 保存実装、メール通知実装
-* **Framework:** HTTP Handler/CLI から UseCase を呼ぶ
+- **Domain:** 金額計算のルール（Entity/Domain Service）
+- **UseCase:** 注文作成の手順（計算 -> 保存 -> 通知）
+- **Infra Adapters:** DB 保存実装、メール通知実装
+- **Framework:** HTTP Handler/CLI から UseCase を呼ぶ
 
 ポイントは、変更理由ごとに修正レイヤーが分かれることです。
 
-* 税計算変更: Domain だけ
-* DB 製品変更: Infra Adapters だけ
-* API 入出力形式変更: Framework だけ
-* メール送信方式変更（SMTP -> SES など）: Infra Adapters だけ
+- 税計算変更: Domain だけ
+- DB 製品変更: Infra Adapters だけ
+- API 入出力形式変更: Framework だけ
+- メール送信方式変更（SMTP -> SES など）: Infra Adapters だけ
 
 ---
 
@@ -149,8 +149,8 @@ func (n MailNotifier) SendOrderCreated(ctx context.Context, to, body string) err
 
 `switch paymentType` のような分岐を既存コードに増やし続けると、支払い方法追加のたびに既存の決済経路へ手を入れることになります。
 
-* 新規追加のたびに既存の回帰テスト範囲が肥大化
-* 既存分岐の修正ミスで別決済が壊れる
+- 新規追加のたびに既存の回帰テスト範囲が肥大化
+- 既存分岐の修正ミスで別決済が壊れる
 
 ### 悪い例
 
@@ -202,8 +202,8 @@ func Checkout(ctx context.Context, pm PaymentMethod, amount int) error {
 
 同じインターフェースでも実装ごとに挙動が違うと、環境差（local/test/prod）で不具合が発生します。
 
-* in-memory では `nil, nil`、RDB では `ErrNotFound` など契約不一致
-* 呼び出し側に実装分岐が増え、抽象化の価値が消える
+- in-memory では `nil, nil`、RDB では `ErrNotFound` など契約不一致
+- 呼び出し側に実装分岐が増え、抽象化の価値が消える
 
 ### 悪い例: 同じ interface でも契約を壊すと置換できない
 
@@ -250,8 +250,8 @@ func Checkout(ctx context.Context, gw PaymentGateway, amount int) error {
 
 巨大インターフェースは、不要な依存とモック実装の負担を増やします。
 
-* 読み取り処理のテストなのに `Create/Update/Delete` のダミー実装が必要
-* 変更の影響が広がり、コンパイルエラーが連鎖しやすい
+- 読み取り処理のテストなのに `Create/Update/Delete` のダミー実装が必要
+- 変更の影響が広がり、コンパイルエラーが連鎖しやすい
 
 ### 悪い例
 
@@ -291,8 +291,8 @@ type UserCreator interface {
 
 UseCase が DB クライアントや外部 SDK に直接依存すると、技術選定の変更がビジネスロジック改修に直結します。
 
-* MySQL -> PostgreSQL 移行で UseCase まで大量修正
-* ユースケース単体テストが困難（本物の DB/API が必要）
+- MySQL -> PostgreSQL 移行で UseCase まで大量修正
+- ユースケース単体テストが困難（本物の DB/API が必要）
 
 ### 例
 
@@ -322,15 +322,15 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, sku string, qty int) 
 
 SOLID は「きれいに書くため」ではなく、以下を下げるための実務ルールです。
 
-* 変更時の影響範囲
-* テスト準備コスト
-* 実装差による本番障害リスク
+- 変更時の影響範囲
+- テスト準備コスト
+- 実装差による本番障害リスク
 
 ---
 
 ## Go で SOLID を実践するコツ
 
-* インターフェースは実装側ではなく **利用側（consumer）** に置く
-* `context.Context` は I/O を伴う関数の第 1 引数で受ける
-* エラー契約（例: `ErrNotFound`）を実装間で統一する
-* まずはシンプルに作り、重複や変更圧が出た時に抽象化する
+- インターフェースは実装側ではなく **利用側（consumer）** に置く
+- `context.Context` は I/O を伴う関数の第 1 引数で受ける
+- エラー契約（例: `ErrNotFound`）を実装間で統一する
+- まずはシンプルに作り、重複や変更圧が出た時に抽象化する

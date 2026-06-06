@@ -112,21 +112,21 @@ Keycloak admin console: `http://localhost:8080`
 2. Create a Realm named `workshop`
 3. Create a user (for example, `swe-user`) and set a password
 4. Create a Client (e.g., `workshop-client`)
-    - Client authentication: `Off` (Public client)
-    - Standard flow: `On`
-    - Valid redirect URIs: `http://localhost:3000/callback`
+   - Client authentication: `Off` (Public client)
+   - Standard flow: `On`
+   - Valid redirect URIs: `http://localhost:3000/callback`
 5. Add the `profile` and `email` client scopes if needed
-    - `openid` may not appear in Keycloak's Client Scope list
-    - `openid` is a reserved scope for OIDC and is usually supplied in the authorization request as `scope=openid`
+   - `openid` may not appear in Keycloak's Client Scope list
+   - `openid` is a reserved scope for OIDC and is usually supplied in the authorization request as `scope=openid`
 6. Add an Audience mapper so the access token includes `aud=workshop-client`
-    - `Client scopes` > `roles` > `Mappers` > `Add mapper` > `By configuration` > `Audience`
-    - `Name`: `aud-workshop-client`
-    - `Included Client Audience`: `workshop-client`
-    - `Add to access token`: `On`
-    - `Add to ID token`: `Off`
-    - `Add to lightweight access token`: `Off`
-    - `Add to token introspection`: `On`
-    - Without this, the Go API later fails with `token has invalid audience`
+   - `Client scopes` > `roles` > `Mappers` > `Add mapper` > `By configuration` > `Audience`
+   - `Name`: `aud-workshop-client`
+   - `Included Client Audience`: `workshop-client`
+   - `Add to access token`: `On`
+   - `Add to ID token`: `Off`
+   - `Add to lightweight access token`: `Off`
+   - `Add to token introspection`: `On`
+   - Without this, the Go API later fails with `token has invalid audience`
 
 Notes:
 

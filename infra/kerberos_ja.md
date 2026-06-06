@@ -93,57 +93,57 @@ sudo sh -c 'echo "127.0.0.1 kdc.test.local nginx.test.local" >> /etc/hosts'
 
 1. **krb5.conf** (Kerberos 設定)
 
-    ```ini
-    [libdefaults]
-        default_realm = TEST.LOCAL
-        dns_lookup_realm = false
-        dns_lookup_kdc = false
-        dns_canonicalize_hostname = false
-        rdns = false
+   ```ini
+   [libdefaults]
+       default_realm = TEST.LOCAL
+       dns_lookup_realm = false
+       dns_lookup_kdc = false
+       dns_canonicalize_hostname = false
+       rdns = false
 
-    [realms]
-        TEST.LOCAL = {
-            kdc = 127.0.0.1:10088
-            admin_server = 127.0.0.1
-        }
+   [realms]
+       TEST.LOCAL = {
+           kdc = 127.0.0.1:10088
+           admin_server = 127.0.0.1
+       }
 
-    [domain_realm]
-        .test.local = TEST.LOCAL
-        test.local = TEST.LOCAL
-    ```
+   [domain_realm]
+       .test.local = TEST.LOCAL
+       test.local = TEST.LOCAL
+   ```
 
 2. **nginx.conf** (NGINX 設定)
 
-    ```nginx
-    load_module modules/ngx_http_auth_spnego_module.so;
+   ```nginx
+   load_module modules/ngx_http_auth_spnego_module.so;
 
-    events {}
+   events {}
 
-    http {
-        server {
-            listen 80;
-            server_name nginx.test.local;
-            root /usr/share/nginx/html;
-            default_type text/plain;
+   http {
+       server {
+           listen 80;
+           server_name nginx.test.local;
+           root /usr/share/nginx/html;
+           default_type text/plain;
 
-            location / {
-                auth_gss on;
-                auth_gss_realm TEST.LOCAL;
-                auth_gss_keytab /etc/nginx/krb5.keytab;
-                auth_gss_service_name HTTP/nginx.test.local;
-                auth_gss_allow_basic_fallback off;
-                add_header X-Remote-User $remote_user always;
-                try_files /index.txt =404;
-            }
-        }
-    }
-    ```
+           location / {
+               auth_gss on;
+               auth_gss_realm TEST.LOCAL;
+               auth_gss_keytab /etc/nginx/krb5.keytab;
+               auth_gss_service_name HTTP/nginx.test.local;
+               auth_gss_allow_basic_fallback off;
+               add_header X-Remote-User $remote_user always;
+               try_files /index.txt =404;
+           }
+       }
+   }
+   ```
 
 3. **index.txt** (固定レスポンス)
 
-    ```text
-    SPNEGO Authentication Successful
-    ```
+   ```text
+   SPNEGO Authentication Successful
+   ```
 
 ### ✅ チェックポイント
 
@@ -156,64 +156,64 @@ NGINX に SPNEGO モジュールを組み込むための Dockerfile を用意し
 
 1. **Dockerfile.kdc**
 
-    ```dockerfile
-    FROM docker.io/library/ubuntu:24.04
-    ENV DEBIAN_FRONTEND=noninteractive
-    RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
-    COPY krb5.conf /etc/krb5.conf
-    CMD ["/bin/sh", "-c", "if [ ! -f /var/lib/krb5kdc/principal ]; then kdb5_util create -s -P admin_password; fi && exec krb5kdc -n"]
-    ```
+   ```dockerfile
+   FROM docker.io/library/ubuntu:24.04
+   ENV DEBIAN_FRONTEND=noninteractive
+   RUN apt-get update && apt-get install -y krb5-kdc krb5-admin-server
+   COPY krb5.conf /etc/krb5.conf
+   CMD ["/bin/sh", "-c", "if [ ! -f /var/lib/krb5kdc/principal ]; then kdb5_util create -s -P admin_password; fi && exec krb5kdc -n"]
+   ```
 
 2. **Dockerfile.nginx**
 
-    ```dockerfile
-    FROM docker.io/library/nginx:1.25.1 AS builder
-    RUN apt-get update && apt-get install -y git build-essential libkrb5-dev wget libpcre3-dev zlib1g-dev
-    RUN wget http://nginx.org/download/nginx-1.25.1.tar.gz && tar zxvf nginx-1.25.1.tar.gz
-    RUN git clone https://github.com/stnoonan/spnego-http-auth-nginx-module.git
-    WORKDIR /nginx-1.25.1
-    RUN ./configure --with-compat --add-dynamic-module=../spnego-http-auth-nginx-module && make modules
+   ```dockerfile
+   FROM docker.io/library/nginx:1.25.1 AS builder
+   RUN apt-get update && apt-get install -y git build-essential libkrb5-dev wget libpcre3-dev zlib1g-dev
+   RUN wget http://nginx.org/download/nginx-1.25.1.tar.gz && tar zxvf nginx-1.25.1.tar.gz
+   RUN git clone https://github.com/stnoonan/spnego-http-auth-nginx-module.git
+   WORKDIR /nginx-1.25.1
+   RUN ./configure --with-compat --add-dynamic-module=../spnego-http-auth-nginx-module && make modules
 
-    FROM docker.io/library/nginx:1.25.1
-    RUN apt-get update && apt-get install -y krb5-user && rm -rf /var/lib/apt/lists/*
-    COPY --from=builder /nginx-1.25.1/objs/ngx_http_auth_spnego_module.so /etc/nginx/modules/
-    ```
+   FROM docker.io/library/nginx:1.25.1
+   RUN apt-get update && apt-get install -y krb5-user && rm -rf /var/lib/apt/lists/*
+   COPY --from=builder /nginx-1.25.1/objs/ngx_http_auth_spnego_module.so /etc/nginx/modules/
+   ```
 
 3. **docker-compose.yml**
 
-    ```yaml
-    version: "3"
-    services:
-      kdc:
-        build:
-          context: .
-          dockerfile: Dockerfile.kdc
-        image: localhost/krb_kdc:latest
-        pull_policy: never
-        volumes:
-          - ./kdc-data:/var/lib/krb5kdc
-        ports:
-          - "10088:88"
-          - "10088:88/udp"
-        hostname: kdc.test.local
+   ```yaml
+   version: "3"
+   services:
+     kdc:
+       build:
+         context: .
+         dockerfile: Dockerfile.kdc
+       image: localhost/krb_kdc:latest
+       pull_policy: never
+       volumes:
+         - ./kdc-data:/var/lib/krb5kdc
+       ports:
+         - "10088:88"
+         - "10088:88/udp"
+       hostname: kdc.test.local
 
-      nginx:
-        build:
-          context: .
-          dockerfile: Dockerfile.nginx
-        image: localhost/krb_nginx:latest
-        pull_policy: never
-        ports:
-          - "8080:80"
-        volumes:
-          - ./nginx.conf:/etc/nginx/nginx.conf:ro
-          - ./index.txt:/usr/share/nginx/html/index.txt:ro
-          - ./krb5.keytab:/etc/nginx/krb5.keytab:ro
-          - ./krb5.conf:/etc/krb5.conf:ro
-        depends_on:
-          - kdc
-        hostname: nginx.test.local
-    ```
+     nginx:
+       build:
+         context: .
+         dockerfile: Dockerfile.nginx
+       image: localhost/krb_nginx:latest
+       pull_policy: never
+       ports:
+         - "8080:80"
+       volumes:
+         - ./nginx.conf:/etc/nginx/nginx.conf:ro
+         - ./index.txt:/usr/share/nginx/html/index.txt:ro
+         - ./krb5.keytab:/etc/nginx/krb5.keytab:ro
+         - ./krb5.conf:/etc/krb5.conf:ro
+       depends_on:
+         - kdc
+       hostname: nginx.test.local
+   ```
 
 ### ✅ チェックポイント
 

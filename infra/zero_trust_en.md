@@ -190,13 +190,13 @@ spec:
     matchLabels:
       app: server
   rules:
-  - from:
-    - source:
-        principals: ["cluster.local/ns/default/sa/client-sa"]
-    to:
-    - operation:
-        methods: ["GET"]
-        paths: ["/api/v1/data"]
+    - from:
+        - source:
+            principals: ["cluster.local/ns/default/sa/client-sa"]
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/api/v1/data"]
 ```
 
 **💡 SWE Tip**:
@@ -211,7 +211,7 @@ Troubleshooting in a ZTA environment differs from traditional debugging.
 ### 6.1 Isolating the Error
 
 | Symptom                     | Probable Cause                              | Action                                                     |
-| :---                        | :---                                        | :---                                                       |
+| :-------------------------- | :------------------------------------------ | :--------------------------------------------------------- |
 | **403 Forbidden**           | Rejected by an Authorization Policy (AuthZ) | Run `istioctl proxy-config authz` to see active policies   |
 | **503 Service Unavailable** | mTLS handshake failure                      | Check if the target Pod has a sidecar injected             |
 | **404 Not Found**           | Routing error                               | Check path definitions with `istioctl proxy-config routes` |

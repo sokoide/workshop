@@ -14,7 +14,7 @@ The BBS in this workshop is a simple 3-tier bulletin board: Boards â†’ Threads â
 This BBS implements a 2channel-style "thread bumping" mechanism.
 
 | Term     | Meaning | Behavior                                     |
-| :---     | :---    | :---                                         |
+| :------- | :------ | :------------------------------------------- |
 | **age**  | "raise" | Updates `LastPostedAt`, moving thread to top |
 | **sage** | "lower" | Does NOT update `LastPostedAt`               |
 
@@ -81,7 +81,7 @@ The "abstractions" (Ports) at the core of Clean Architecture are categorized bas
 Essential for aggregate reconstitution and business invariant enforcement.
 
 | File                                 | Interface          | Purpose                                            |
-| :---                                 | :---               | :---                                               |
+| :----------------------------------- | :----------------- | :------------------------------------------------- |
 | `internal/domain/port/repository.go` | `BoardRepository`  | Board persistence (reconstitutes Domain entities)  |
 |                                      | `ThreadRepository` | Thread persistence (reconstitutes Domain entities) |
 |                                      | `PostRepository`   | Post persistence (reconstitutes Domain entities)   |
@@ -91,7 +91,7 @@ Essential for aggregate reconstitution and business invariant enforcement.
 Handles application-level orchestration that is independent of core business logic rules.
 
 | File                              | Interface            | Purpose                      |
-| :---                              | :---                 | :---                         |
+| :-------------------------------- | :------------------- | :--------------------------- |
 | `internal/usecase/transaction.go` | `TransactionManager` | Transaction boundary control |
 
 ```go
@@ -289,7 +289,7 @@ You need to migrate the REST API to gRPC without touching any business logic.
 The following layers require **zero modifications**:
 
 | Layer       | Reason                                                                                            |
-| -------     | --------                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------- |
 | **Domain**  | Entities (Board, Thread, Post), Port Interfaces do not depend on any communication protocol       |
 | **UseCase** | `Execute(ctx, Input) (Output, error)` signature is unchanged. DTOs are protocol-agnostic          |
 | **Infra**   | Repository implementations (SQL queries, error conversion) are unrelated to communication methods |

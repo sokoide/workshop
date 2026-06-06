@@ -106,20 +106,20 @@ cp /etc/resolv.conf rootfs/etc/resolv.conf
 `unshare` コマンドで手動隔離を体験します。
 
 1. **PID 名前空間**: `sudo unshare --pid --fork /bin/sh`
-    - `echo $$` で PID が 1 になることを確認。
+   - `echo $$` で PID が 1 になることを確認。
 2. **Mount 名前空間と chroot**:
 
-    ```bash
-    sudo unshare --pid --fork --mount /bin/sh
-    chroot rootfs /bin/sh
-    mount -t proc proc /proc
-    ps # コンテナ内のプロセスだけが見える
-    ```
+   ```bash
+   sudo unshare --pid --fork --mount /bin/sh
+   chroot rootfs /bin/sh
+   mount -t proc proc /proc
+   ps # コンテナ内のプロセスだけが見える
+   ```
 
    ### ✅ チェックポイント
 
-    - [ ] `echo $$` で PID が 1 となっていることを確認した
-    - [ ] `ps` でホスト側のプロセスが見えていないことを確認した
+   - [ ] `echo $$` で PID が 1 となっていることを確認した
+   - [ ] `ps` でホスト側のプロセスが見えていないことを確認した
 
 ### STEP 3: リソース制限 (Cgroups v2) の適用
 
@@ -195,9 +195,9 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 
 - **権限不足**: ユーザー名前空間以外の名前空間の作成には root 権限が必要です。
 
-    ```bash
-    sudo ./mycontainer
-    ```
+  ```bash
+  sudo ./mycontainer
+  ```
 
 ### cgroup v2 がマウントされていない
 
@@ -207,9 +207,9 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 
 - カーネルバージョンが古いか、cgroup v1 が使われています。
 
-    ```bash
-    mount | grep cgroup
-    ```
+  ```bash
+  mount | grep cgroup
+  ```
 
 ---
 

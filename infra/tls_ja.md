@@ -194,16 +194,16 @@ rm rootCA.* server.* dynamic_conf.yaml
 
 - CA 証明書が正しく指定されているか確認
 
-    ```bash
-    curl --cacert rootCA.crt https://server.workshop.local
-    ```
+  ```bash
+  curl --cacert rootCA.crt https://server.workshop.local
+  ```
 
 - サーバー証明書が CA で署名されているか確認
 
-    ```bash
-    openssl verify -CAfile rootCA.crt server.crt
-    # server.crt: OK と表示されるはず
-    ```
+  ```bash
+  openssl verify -CAfile rootCA.crt server.crt
+  # server.crt: OK と表示されるはず
+  ```
 
 ### Traefik が起動しない
 
@@ -213,21 +213,21 @@ rm rootCA.* server.* dynamic_conf.yaml
 
 - 証明書ファイルのパスが正しいか確認
 
-    ```bash
-    ls -la rootCA.crt server.crt server.key
-    ```
+  ```bash
+  ls -la rootCA.crt server.crt server.key
+  ```
 
 - dynamic_conf.yaml の構文を確認
 
-    ```bash
-    cat dynamic_conf.yaml
-    ```
+  ```bash
+  cat dynamic_conf.yaml
+  ```
 
 - Traefik のログを確認
 
-    ```bash
-    sudo podman logs traefik
-    ```
+  ```bash
+  sudo podman logs traefik
+  ```
 
 ### 証明書の検証に失敗する
 
@@ -237,15 +237,15 @@ rm rootCA.* server.* dynamic_conf.yaml
 
 - SAN (Subject Alternative Name) が正しく設定されているか確認
 
-    ```bash
-    openssl x509 -in server.crt -noout -text | grep -A1 "Subject Alternative Name"
-    ```
+  ```bash
+  openssl x509 -in server.crt -noout -text | grep -A1 "Subject Alternative Name"
+  ```
 
 - ドメイン名が一致しているか確認
 
-    ```bash
-    cat /etc/hosts | grep server.workshop.local
-    ```
+  ```bash
+  cat /etc/hosts | grep server.workshop.local
+  ```
 
 ---
 

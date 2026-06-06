@@ -82,7 +82,7 @@ sequenceDiagram
 ## Anti-Patterns and Solutions
 
 | Vulnerability                       | ❌ Dangerous Practice                         | ✅ Safe Countermeasure                          |
-|:------------------------------------|:----------------------------------------------|:------------------------------------------------|
+| :---------------------------------- | :-------------------------------------------- | :---------------------------------------------- |
 | **Dependency vulnerabilities**      | Importing libraries without checking          | Detect known vulnerabilities with `govulncheck` |
 | **Container image vulnerabilities** | Using stale base images indefinitely          | Scan images with `Trivy` and keep them updated  |
 | **Unknown components**              | No visibility into what an image contains     | Generate and manage SBOMs                       |
@@ -440,7 +440,7 @@ Q: Which images are affected?
 **SBOM formats:**
 
 | Format     | Description               | Use Case           |
-|:-----------|:--------------------------|:-------------------|
+| :--------- | :------------------------ | :----------------- |
 | SPDX       | Linux Foundation standard | Industry standard  |
 | CycloneDX  | OWASP standard            | Security-focused   |
 | syft-table | Human-readable format     | Development review |
@@ -625,9 +625,9 @@ Learn how to integrate the four defense layers into a CI/CD pipeline.
          - name: Trivy Scan
            uses: aquasecurity/trivy-action@master
            with:
-             image-ref: 'app:${{ github.sha }}'
-             severity: 'HIGH,CRITICAL'
-             exit-code: '1'
+             image-ref: "app:${{ github.sha }}"
+             severity: "HIGH,CRITICAL"
+             exit-code: "1"
 
          - name: Generate SBOM
            run: |
@@ -660,7 +660,7 @@ Deploy to Production ✓
 ## Defense Checklist
 
 | Item                                                          | Check |
-|:--------------------------------------------------------------|:------|
+| :------------------------------------------------------------ | :---- |
 | Run `govulncheck` locally or in CI                            | □     |
 | Scan container images with Trivy or similar tools             | □     |
 | Pin base image versions (no `latest` tag)                     | □     |

@@ -19,7 +19,7 @@ This is a classic example of the new Port/Adapter pattern.
 ### Change Overview
 
 | Layer            | Change                                                                                                              | Role                                                                          |
-| -------          | --------                                                                                                            | ------                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | **Domain**       | **No changes**                                                                                                      | —                                                                             |
 | **UseCase**      | Define `port.NotificationGateway` interface (new file), inject into `CreatePostUseCase`, call after successful post | Abstract definition of "notification is needed" + control notification timing |
 | **Infra**        | Create `infra/notification/slack_gateway.go` (new file)                                                             | Concrete Slack API implementation                                             |
@@ -328,8 +328,8 @@ In this case:
 
 1. **New Port/Adapter Pattern**: New features are added by defining a new Port (interface) and adding a corresponding Adapter. Existing code is minimally affected.
 2. **Clear Responsibility Separation**:
-    - UseCase defines "what to notify" (`NotificationGateway` signature) — this is a UseCase Port because notification is an application workflow tool, not part of the core domain language
-    - UseCase decides "when to notify" (after successful post)
-    - Infra implements "how to notify" (Slack Webhook / Email SMTP)
+   - UseCase defines "what to notify" (`NotificationGateway` signature) — this is a UseCase Port because notification is an application workflow tool, not part of the core domain language
+   - UseCase decides "when to notify" (after successful post)
+   - Infra implements "how to notify" (Slack Webhook / Email SMTP)
 3. **Testability**: Interfaces enable notification mocking, allowing tests independent of external services.
 4. **Notification Target Swap**: Changing Slack → Email → LINE requires only a one-line change in Composition Root.

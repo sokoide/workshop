@@ -157,15 +157,15 @@ func main() {
 ## Key Points of This Workshop
 
 1. **Location of Knowledge:**
-    - Calculation method for tenure = **Entity**
-    - Definition of a veteran (5 years) = **Domain Service**
-    - These can be tested independently of "Database" or "Web".
+   - Calculation method for tenure = **Entity**
+   - Definition of a veteran (5 years) = **Domain Service**
+   - These can be tested independently of "Database" or "Web".
 2. **Localization of Change:**
-    - Even when the data source changed from DB to AD, we only had to add new code to the `infra` layer and change the injection target in `main`.
-    - **The core business logic (Domain/UseCase) remains untouched with zero lines of modification.** This is the true value of Clean Architecture.
+   - Even when the data source changed from DB to AD, we only had to add new code to the `infra` layer and change the injection target in `main`.
+   - **The core business logic (Domain/UseCase) remains untouched with zero lines of modification.** This is the true value of Clean Architecture.
 3. **Ports and Boundaries:**
-    - `domain.UserRepository` is an **output port**; implementations live in Infra Adapters Layer.
-    - Details like `LDAPClient` or DB drivers stay in the Infra Adapters Layer and never leak into Domain/UseCase.
+   - `domain.UserRepository` is an **output port**; implementations live in Infra Adapters Layer.
+   - Details like `LDAPClient` or DB drivers stay in the Infra Adapters Layer and never leak into Domain/UseCase.
 
 ---
 

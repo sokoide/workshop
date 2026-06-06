@@ -65,7 +65,7 @@ func GetUser(db *sql.DB, username string) (*User, error) {
 **Placeholder syntax varies by RDBMS:**
 
 | Database   | Syntax        | Example           |
-|:-----------|:--------------|:------------------|
+| :--------- | :------------ | :---------------- |
 | PostgreSQL | `$1, $2, ...` | `WHERE name = $1` |
 | MySQL      | `?`           | `WHERE name = ?`  |
 | SQLite     | `?` or `$1`   | `WHERE name = ?`  |
@@ -323,7 +323,7 @@ bcrypt (cost=10):
 **Hash algorithm comparison:**
 
 | Algorithm   | Use Case                     | Password Storage             |
-|:------------|:-----------------------------|:-----------------------------|
+| :---------- | :--------------------------- | :--------------------------- |
 | MD5 / SHA-1 | Checksums, non-security uses | ❌ Never                     |
 | SHA-256     | Data integrity, signatures   | ❌ Too fast                  |
 | bcrypt      | Password hashing             | ✅ Recommended               |
@@ -395,7 +395,7 @@ func GenerateSessionID() string {
 **When to use which:**
 
 | Use Case                 | Package                     | Reason                                         |
-|:-------------------------|:----------------------------|:-----------------------------------------------|
+| :----------------------- | :-------------------------- | :--------------------------------------------- |
 | Test data, simulations   | `math/rand`                 | Predictability is fine                         |
 | Session IDs, CSRF tokens | `crypto/rand`               | Must be unguessable                            |
 | Password reset tokens    | `crypto/rand`               | Must be unguessable                            |
@@ -578,7 +578,7 @@ func maskEmail(email string) string {
 **Data that must never appear in logs:**
 
 | Data                               | Example               | Handling                      |
-|:-----------------------------------|:----------------------|:------------------------------|
+| :--------------------------------- | :-------------------- | :---------------------------- |
 | Passwords                          | `password=s3cret`     | Never log                     |
 | Session tokens                     | `session_id=abc123`   | Log ID only (not token value) |
 | API keys                           | `api_key=sk-xxxx`     | Mask                          |
@@ -699,7 +699,7 @@ func WithdrawDB(db *sql.DB, userID int, amount int) error {
 **Race condition patterns:**
 
 | Pattern       | Description                                   | Countermeasure                   |
-|:--------------|:----------------------------------------------|:---------------------------------|
+| :------------ | :-------------------------------------------- | :------------------------------- |
 | TOCTOU        | State changes between check and use           | Mutex / DB transaction           |
 | Double submit | Form submitted twice                          | Idempotency key                  |
 | Counter race  | Multiple goroutines updating the same counter | `sync/atomic` / Mutex            |
@@ -709,21 +709,21 @@ func WithdrawDB(db *sql.DB, userID int, amount int) error {
 
 ## Defense Checklist
 
-| Category             | Item                                       | Check |
-|:---------------------|:-------------------------------------------|:------|
-| **SQL**              | Using placeholders (parameterized queries) | □     |
-| **Input validation** | Using allowlist-based validation           | □     |
-||Setting string length limits|□|
-|**File access**|Path traversal prevention (verify within base directory)|□|
-|**Passwords**|Hashing with bcrypt / argon2id|□|
-||Not storing passwords in plaintext|□|
-|**Random numbers**|Using `crypto/rand` for security purposes|□|
-|**Error handling**|Not returning internal error details in production|□|
-||Logging details server-side only|□|
-|**Logging**|Not writing passwords / tokens / API keys to logs|□|
-||Masking sensitive information|□|
-|**Concurrency**|Protecting shared data access with Mutex / atomic|□|
-||Using DB transactions and row locks appropriately|□|
+| Category             | Item                                                     | Check |
+| :------------------- | :------------------------------------------------------- | :---- |
+| **SQL**              | Using placeholders (parameterized queries)               | □     |
+| **Input validation** | Using allowlist-based validation                         | □     |
+|                      | Setting string length limits                             | □     |
+| **File access**      | Path traversal prevention (verify within base directory) | □     |
+| **Passwords**        | Hashing with bcrypt / argon2id                           | □     |
+|                      | Not storing passwords in plaintext                       | □     |
+| **Random numbers**   | Using `crypto/rand` for security purposes                | □     |
+| **Error handling**   | Not returning internal error details in production       | □     |
+|                      | Logging details server-side only                         | □     |
+| **Logging**          | Not writing passwords / tokens / API keys to logs        | □     |
+|                      | Masking sensitive information                            | □     |
+| **Concurrency**      | Protecting shared data access with Mutex / atomic        | □     |
+|                      | Using DB transactions and row locks appropriately        | □     |
 
 ---
 

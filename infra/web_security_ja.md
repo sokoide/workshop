@@ -119,7 +119,7 @@ CORS は「リクエストを送信するかどうか」を制御するもので
 ## アンチパターンと解決策
 
 | 脆弱性                   | ❌ 危険な実装                                      | ✅ 安全な対策                                                |
-|:-------------------------|:---------------------------------------------------|:-------------------------------------------------------------|
+| :----------------------- | :------------------------------------------------- | :----------------------------------------------------------- |
 | **XSS**                  | ユーザー入力をエスケープせずに出力する             | 出力を適切にエスケープする、CSPを設定する                    |
 | **CSRF**                 | Cookie だけに頼った認証を行う                      | CSRFトークンを使用する、SameSite属性を設定する               |
 | **クリックジャッキング** | 外部サイトからの iframe 埋め込みを許可している     | `X-Frame-Options` または CSP の `frame-ancestors` を設定する |
@@ -180,7 +180,9 @@ go run main.go
 3. 入力欄に以下のスクリプトを入力して送信します。
 
    ```html
-   <script>alert('XSS: your cookie: ' + document.cookie);</script>
+   <script>
+     alert("XSS: your cookie: " + document.cookie);
+   </script>
    ```
 
 4. ページがリロードされ、アラートに Cookie 値と実際の攻撃で使われるスクリプトが表示されることを確認します。
@@ -322,9 +324,9 @@ Cookieによる「認証」は成功 → メールアドレスが変更される
 ```html
 <!-- ページ読み込み時に自動送信 -->
 <body onload="document.forms[0].submit()">
-    <form action="http://victim.com/update-email" method="POST">
-        <input type="hidden" name="email" value="hacker@evil.com">
-    </form>
+  <form action="http://victim.com/update-email" method="POST">
+    <input type="hidden" name="email" value="hacker@evil.com" />
+  </form>
 </body>
 ```
 
@@ -347,17 +349,17 @@ Cookieによる「認証」は成功 → メールアドレスが変更される
 ```css
 /* 攻撃者サイトのCSS */
 #victim-frame {
-    position: absolute;  /* 絶対位置で配置 */
-    top: 0;
-    left: 0;
-    opacity: 0.4;        /* 本物の攻撃では 0.0 (完全透明) */
-    z-index: 2;          /* 背景より手前に配置 */
+  position: absolute; /* 絶対位置で配置 */
+  top: 0;
+  left: 0;
+  opacity: 0.4; /* 本物の攻撃では 0.0 (完全透明) */
+  z-index: 2; /* 背景より手前に配置 */
 }
 
 #fake-page {
-    position: absolute;
-    z-index: 1;          /* 背景側 */
-    /* 「無料ドーナツ」の偽ページ */
+  position: absolute;
+  z-index: 1; /* 背景側 */
+  /* 「無料ドーナツ」の偽ページ */
 }
 ```
 
@@ -614,11 +616,11 @@ http.SetCookie(w, &http.Cookie{
 ```html
 <!-- サーバーが生成するHTMLフォーム -->
 <form method="POST" action="/update-email">
-    <!-- hiddenフィールドで正しいトークンを埋め込む -->
-    <input type="hidden" name="csrf_token" value="abc123xyz456">
+  <!-- hiddenフィールドで正しいトークンを埋め込む -->
+  <input type="hidden" name="csrf_token" value="abc123xyz456" />
 
-    <input name="email" placeholder="新しいメールアドレス">
-    <button>更新</button>
+  <input name="email" placeholder="新しいメールアドレス" />
+  <button>更新</button>
 </form>
 ```
 
@@ -626,9 +628,8 @@ http.SetCookie(w, &http.Cookie{
 
 ```html
 <!-- ユーザーがブラウザで見るHTML -->
-<input type="hidden" name="csrf_token" value="abc123xyz456">
-                           ^^^^^^^^^^^^^^
-                           攻撃者には見えない（Cookieと同じく）
+<input type="hidden" name="csrf_token" value="abc123xyz456" />
+^^^^^^^^^^^^^^ 攻撃者には見えない（Cookieと同じく）
 ```
 
 **ステップ3: 正常なリクエスト（ユーザーが操作した場合）**
@@ -652,8 +653,8 @@ Body: csrf_token=abc123xyz456&email=new@example.com
 ```html
 <!-- 攻撃者サイトのHTML -->
 <form action="http://victim.com/update-email" method="POST">
-    <input type="hidden" name="email" value="hacker@evil.com">
-    <!-- ← トークンがない！攻撃者は正しいトークンを知りえない -->
+  <input type="hidden" name="email" value="hacker@evil.com" />
+  <!-- ← トークンがない！攻撃者は正しいトークンを知りえない -->
 </form>
 ```
 
@@ -861,16 +862,16 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 <!-- 攻撃者が別のサイトから API 呼び出し可能 -->
 <!-- evil.com -->
 <script>
-  fetch('https://victim.com/api/sensitive-data')
-    .then(r => r.json())  // CORS エラーにならない！
-    .then(data => sendToAttacker(data));
+  fetch("https://victim.com/api/sensitive-data")
+    .then((r) => r.json()) // CORS エラーにならない！
+    .then((data) => sendToAttacker(data));
 </script>
 ```
 
 **比較：`Access-Control-Allow-Origin: *` vs `Origin Reflection`**
 
-| 特徴                     | ACAO: *                      | Origin Reflection                |
-| :---                     | :---                         | :---                             |
+| 特徴                     | ACAO: \*                     | Origin Reflection                |
+| :----------------------- | :--------------------------- | :------------------------------- |
 | **許可する相手**         | 全員                         | 全員（一人ずつ個別に許可）       |
 | **Credentials (Cookie)** | 使えない                     | 使えてしまう（超危険）           |
 | **主な用途**             | 公共の API、静的ファイル     | 開発中のデバッグ（※本番では NG） |
@@ -927,7 +928,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 **CORS ヘッダーの重要ポイント:**
 
 | ヘッダー                           | 説明                         | 脆弱性                     |
-|:-----------------------------------|:-----------------------------|:---------------------------|
+| :--------------------------------- | :--------------------------- | :------------------------- |
 | `Access-Control-Allow-Origin`      | 許可するオリジン             | `*` は慎重に               |
 | `Access-Control-Allow-Credentials` | Cookie等の送信を許可         | `true` の時は `*` 使用不可 |
 | `Access-Control-Allow-Methods`     | 許可するHTTPメソッド         | 必要なメソッドのみ         |
@@ -981,7 +982,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 **本質的な違い:**
 
 |                    | **CSRF**                                     | **CORS**                                     |
-| :---               | :---                                         | :---                                         |
+| :----------------- | :------------------------------------------- | :------------------------------------------- |
 | **主な対象**       | **リクエストの送信**                         | **レスポンスの読み取り**                     |
 | **保護対象**       | **サーバー側**（意図しない操作の実行を防ぐ） | **クライアント側**（機密データの盗難を防ぐ） |
 | **攻撃の内容**     | なりすまして**操作**させる                   | 別サイトから**データを窃取**する             |
@@ -1046,15 +1047,15 @@ CORS: レスポンスの読み取りを制限（情報の防御）
 ```javascript
 // ✅ プリフライト発生
 fetch(url, {
-    method: 'PUT',                    // PUT/DELETE/PATCH
-    headers: { 'X-Custom': 'value' }  // カスタムヘッダー
-})
+  method: "PUT", // PUT/DELETE/PATCH
+  headers: { "X-Custom": "value" } // カスタムヘッダー
+});
 
 // ❌ プリフライトなし（シンプルなリクエスト）
 fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-})
+  method: "POST",
+  headers: { "Content-Type": "application/x-www-form-urlencoded" }
+});
 ```
 
 **シンプルな POST リクエストの条件:**
@@ -1070,10 +1071,10 @@ fetch(url, {
 ```html
 <!-- 攻撃者サイトのHTML -->
 <form action="https://victim.com/update-email" method="POST">
-    <input type="hidden" name="email" value="hacker@evil.com">
+  <input type="hidden" name="email" value="hacker@evil.com" />
 </form>
 <script>
-    document.forms[0].submit(); // 自動送信
+  document.forms[0].submit(); // 自動送信
 </script>
 ```
 
@@ -1093,7 +1094,7 @@ email=hacker@evil.com
 **攻撃方法ごとの比較:**
 
 | 攻撃方法                     | プリフライト発生？ | CORSで防げる？ | CSRFトークンで防げる？ |
-| :---                         | :---:              | :---:          | :---:                  |
+| :--------------------------- | :----------------: | :------------: | :--------------------: |
 | **フォーム POST**            | ❌ なし            | ❌ 不可        | ✅ 可能                |
 | **fetch + PUT/DELETE**       | ✅ あり            | ✅ 可能        | ✅ 可能                |
 | **fetch + カスタムヘッダー** | ✅ あり            | ✅ 可能        | ✅ 可能                |
@@ -1148,7 +1149,7 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 **ヘッダーの値と効果:**
 
 | 値               | 効果                             |
-| :---             | :---                             |
+| :--------------- | :------------------------------- |
 | `DENY`           | すべてのiframe埋め込みを拒否     |
 | `SAMEORIGIN`     | 同一オリジンのみ許可             |
 | `ALLOW-FROM uri` | 特定のオリジンのみ許可（非推奨） |
@@ -1216,7 +1217,7 @@ CSP は、ブラウザに対して「このページで許可するリソース�
 #### 主要ディレクティブ一覧
 
 | ディレクティブ    | 制御対象                     | 例                                             |
-|:------------------|:-----------------------------|:-----------------------------------------------|
+| :---------------- | :--------------------------- | :--------------------------------------------- |
 | `script-src`      | JavaScript の読み込み元      | `'self'`, `'unsafe-inline'`, `'nonce-abc'`     |
 | `style-src`       | CSS の読み込み元             | `'self'`, `'unsafe-inline'`                    |
 | `img-src`         | 画像の読み込み元             | `'self'`, `https://images.example.com`         |
@@ -1232,7 +1233,7 @@ CSP は、ブラウザに対して「このページで許可するリソース�
 #### ソース値の意味
 
 | ソース値          | 意味                                    | リスク                   |
-|:------------------|:----------------------------------------|:-------------------------|
+| :---------------- | :-------------------------------------- | :----------------------- |
 | `'self'`          | 同一オリジンのみ許可                    | 安全（推奨）             |
 | `'none'`          | 一切許可しない                          | 最も安全                 |
 | `'unsafe-inline'` | インラインスクリプト/スタイルを許可     | 危険（XSS 軽減効果なし） |
@@ -1321,7 +1322,7 @@ CSP ヘッダー:  script-src 'nonce-abc123'
 #### CSP が防ぐ攻撃と防げない攻撃
 
 | 攻撃                         | CSP で防げる？                  | 理由                                        |
-|:-----------------------------|:--------------------------------|:--------------------------------------------|
+| :--------------------------- | :------------------------------ | :------------------------------------------ |
 | インライン `<script>` XSS    | `script-src 'self'` で防ぐ      | インラインスクリプトがブロックされる        |
 | 外部ドメインの悪意スクリプト | `script-src 'self'` で防ぐ      | 許可外ドメインがブロックされる              |
 | `eval()` ベースの XSS        | `unsafe-eval` なしで防ぐ        | `eval()` がブロックされる                   |
@@ -1376,17 +1377,17 @@ Network タブ → "csp-report" への POST リクエストを確認
 
 ### 防御策チェックリスト
 
-| 脆弱性  | 項目                               | チェック |
-|:--------|:-----------------------------------|:---------|
-| **XSS** | ユーザー入力をエスケープしているか | □        |
-||`html/template` 等の自動エスケープ機能を使用|□|
-||HttpOnly Cookie を設定|□|
-||CSP を設定してインラインスクリプトを制限|□|
-|**CSRF**|CSRF トークンを実装|□|
-||SameSite 属性を Lax or Strict に設定|□|
-||重要操作には再認証を要求|□|
-|**クリックジャッキング**|X-Frame-Options ヘッダーを設定|□|
-||CSP frame-ancestors を設定|□|
+| 脆弱性                   | 項目                                         | チェック |
+| :----------------------- | :------------------------------------------- | :------- |
+| **XSS**                  | ユーザー入力をエスケープしているか           | □        |
+|                          | `html/template` 等の自動エスケープ機能を使用 | □        |
+|                          | HttpOnly Cookie を設定                       | □        |
+|                          | CSP を設定してインラインスクリプトを制限     | □        |
+| **CSRF**                 | CSRF トークンを実装                          | □        |
+|                          | SameSite 属性を Lax or Strict に設定         | □        |
+|                          | 重要操作には再認証を要求                     | □        |
+| **クリックジャッキング** | X-Frame-Options ヘッダーを設定               | □        |
+|                          | CSP frame-ancestors を設定                   | □        |
 
 ---
 
@@ -1398,8 +1399,8 @@ Network タブ → "csp-report" への POST リクエストを確認
 
 ```javascript
 // 脆弱なコード例
-const hash = location.hash.substring(1);  // URLの#以降を取得
-document.getElementById("output").innerHTML = hash;  // エスケープなしで挿入
+const hash = location.hash.substring(1); // URLの#以降を取得
+document.getElementById("output").innerHTML = hash; // エスケープなしで挿入
 
 // 攻撃URL:
 // http://victim.com/#<img src=x onerror=alert('XSS')>

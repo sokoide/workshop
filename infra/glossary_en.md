@@ -9,7 +9,7 @@ This document provides concise explanations of technical terms used across vario
 Refers to the layers of the OSI reference model or the TCP/IP model.
 
 | Layer | Name            | Key Protocols/Devices | Description                                      |
-| :---  | :---            | :---                  | :---                                             |
+| :---- | :-------------- | :-------------------- | :----------------------------------------------- |
 | L1    | Physical Layer  | Cables, NICs          | Transmission and reception of electrical signals |
 | L2    | Data Link Layer | Ethernet, MAC address | Communication within the same segment            |
 | L3    | Network Layer   | IP, Router            | Routing between different networks               |
@@ -197,7 +197,7 @@ A component that routes messages to queues based on rules (Direct, Fanout, Topic
 A component that handles message routing. RabbitMQ has several types.
 
 | Type    | Description                         |
-| :---    | :---                                |
+| :------ | :---------------------------------- |
 | Direct  | Routing key must match exactly      |
 | Fanout  | Delivers to all queues              |
 | Topic   | Wildcard pattern matching           |
@@ -216,7 +216,7 @@ Example: market.btc.usd
 Pattern matching characters used in Topic Exchanges.
 
 | Character | Description                | Example                                 |
-| :---      | :---                       | :---                                    |
+| :-------- | :------------------------- | :-------------------------------------- |
 | `*`       | Matches exactly one word   | `market.*.jpy` matches `market.btc.jpy` |
 | `#`       | Matches zero or more words | `market.#` matches `market.btc.usd`     |
 

@@ -14,9 +14,9 @@ When responsibilities are mixed, one change can impact unrelated concerns.
 
 Example: `ProcessOrder` handles pricing, DB persistence, and email notification in one function.
 
-* Even if you only change tax rules, you must validate impacts on notification behavior in the same function.
-* To test DB-failure behavior, you may still need SMTP mocks.
-* A release for email template updates can accidentally introduce bugs in pricing logic.
+- Even if you only change tax rules, you must validate impacts on notification behavior in the same function.
+- To test DB-failure behavior, you may still need SMTP mocks.
+- A release for email template updates can accidentally introduce bugs in pricing logic.
 
 In short, your change surface becomes hard to reason about, increasing both change cost and regression risk.
 
@@ -126,17 +126,17 @@ Tax-rule changes (10% -> 12%, reduced-tax condition changes, etc.) only touch `O
 
 ### S in Clean Architecture
 
-* **Domain:** pricing rules (Entity/Domain Service)
-* **UseCase:** order-creation flow (price -> save -> notify)
-* **Infra Adapters:** DB repository implementation, mail notifier implementation
-* **Framework:** HTTP handlers / CLI invoke UseCase
+- **Domain:** pricing rules (Entity/Domain Service)
+- **UseCase:** order-creation flow (price -> save -> notify)
+- **Infra Adapters:** DB repository implementation, mail notifier implementation
+- **Framework:** HTTP handlers / CLI invoke UseCase
 
 The key point is that fix locations are separated by change reason.
 
-* Tax-rule change: Domain only
-* DB product change: Infra Adapters only
-* API input/output format change: Framework only
-* Email provider change (SMTP -> SES): Infra Adapters only
+- Tax-rule change: Domain only
+- DB product change: Infra Adapters only
+- API input/output format change: Framework only
+- Email provider change (SMTP -> SES): Infra Adapters only
 
 ---
 
@@ -148,8 +148,8 @@ Software entities should be open for extension, closed for modification.
 
 If you keep adding cases to existing branching logic like `switch paymentType`, every new payment method forces edits to existing code paths.
 
-* Regression-test scope grows for every new method.
-* A mistaken edit in an existing branch can break another payment path.
+- Regression-test scope grows for every new method.
+- A mistaken edit in an existing branch can break another payment path.
 
 ### Bad Example
 
@@ -201,8 +201,8 @@ Implementations should be replaceable without breaking expected behavior.
 
 Even with the same interface, behavior mismatch across implementations causes environment-specific bugs.
 
-* Contract mismatch (e.g., one impl returns `nil, nil`, another returns `ErrNotFound`).
-* Callers start adding implementation-specific branching, defeating abstraction.
+- Contract mismatch (e.g., one impl returns `nil, nil`, another returns `ErrNotFound`).
+- Callers start adding implementation-specific branching, defeating abstraction.
 
 ### Bad Example: Same Interface, Broken Contract
 
@@ -250,8 +250,8 @@ Prefer small, focused interfaces over large ones.
 
 Large interfaces create unnecessary dependencies and heavier mock implementations.
 
-* A read-only test may still need dummy implementations for `Create/Update/Delete`.
-* Changes spread widely and trigger cascading compile errors.
+- A read-only test may still need dummy implementations for `Create/Update/Delete`.
+- Changes spread widely and trigger cascading compile errors.
 
 ### Bad Example
 
@@ -291,8 +291,8 @@ High-level modules (UseCase) should not depend directly on low-level modules (DB
 
 If a use case depends directly on DB clients or SDKs, technology changes leak into business logic.
 
-* MySQL -> PostgreSQL migration may force broad UseCase changes.
-* Unit testing use cases becomes harder (real DB/API dependencies).
+- MySQL -> PostgreSQL migration may force broad UseCase changes.
+- Unit testing use cases becomes harder (real DB/API dependencies).
 
 ### Example
 
@@ -322,15 +322,15 @@ Keeping the Clean Architecture dependency direction (outer -> inner) protects bu
 
 SOLID is not just about writing "clean-looking" code. It is a practical set of rules to reduce:
 
-* change impact scope
-* test setup cost
-* production risks caused by implementation mismatch
+- change impact scope
+- test setup cost
+- production risks caused by implementation mismatch
 
 ---
 
 ## Practical Go Tips for SOLID
 
-* Define interfaces on the **consumer side**, not the implementation side.
-* Pass `context.Context` as the first parameter for I/O-bound functions.
-* Keep error contracts consistent across implementations (e.g., `ErrNotFound`).
-* Start simple, then introduce abstraction when duplication or change pressure appears.
+- Define interfaces on the **consumer side**, not the implementation side.
+- Pass `context.Context` as the first parameter for I/O-bound functions.
+- Keep error contracts consistent across implementations (e.g., `ErrNotFound`).
+- Start simple, then introduce abstraction when duplication or change pressure appears.

@@ -10,20 +10,20 @@ In this guide, we will first look at a standard `Trie`, then follow the flow of 
 
 ### Succinct vs. Compressed
 
-* **Succinct**: The original data is recoverable, and the size aims for `n + o(n)` bits for a theoretical lower bound `n`.
-* **Compressed**: Becomes smaller on average, but worst-case scenario and operation costs are implementation-dependent.
+- **Succinct**: The original data is recoverable, and the size aims for `n + o(n)` bits for a theoretical lower bound `n`.
+- **Compressed**: Becomes smaller on average, but worst-case scenario and operation costs are implementation-dependent.
 
 ### Why it Works in Practice
 
-* Better memory locality, improving cache hit rates.
-* Fewer pointer traversals, reducing CPU branch mispredictions.
-* Effective for large-scale dictionaries, full-text search, and column-oriented data.
+- Better memory locality, improving cache hit rates.
+- Fewer pointer traversals, reducing CPU branch mispredictions.
+- Effective for large-scale dictionaries, full-text search, and column-oriented data.
 
 ### 3 Key Points to Remember
 
-* **Structure in bit strings**: Represent the shape of trees or arrays with bits instead of pointers.
-* **Operations reduce to `rank/select`**: Determine "which child index" or "where the parent is" using bitwise operations.
-* **Optimized for Reading**: Best for fixed dictionaries or read-heavy workloads.
+- **Structure in bit strings**: Represent the shape of trees or arrays with bits instead of pointers.
+- **Operations reduce to `rank/select`**: Determine "which child index" or "where the parent is" using bitwise operations.
+- **Optimized for Reading**: Best for fixed dictionaries or read-heavy workloads.
 
 ---
 
@@ -109,10 +109,10 @@ While intuitive, the memory efficiency degrades as the number of words increases
 
 The theoretical information of a `Trie` is simply "which node has which character branch" and "is it the end of a word." However, pointer-based implementations carry a lot of extra information for runtime convenience.
 
-* Each node has pointers.
-* The `map` itself has headers and buckets.
-* Nodes are scattered on the heap, resulting in fine-grained allocations.
-* The ratio of "management cost" to actual data tends to be large.
+- Each node has pointers.
+- The `map` itself has headers and buckets.
+- Nodes are scattered on the heap, resulting in fine-grained allocations.
+- The ratio of "management cost" to actual data tends to be large.
 
 In short, you only want to represent the "shape of the tree," but you are paying a lot of memory for **pointers, hash tables, and allocator management information**.
 
@@ -122,8 +122,8 @@ In short, you only want to represent the "shape of the tree," but you are paying
 
 This method compresses the Trie by merging nodes that have only one child, holding strings (labels) on the edges.
 
-* **Pros**: Reduced tree depth and dramatically fewer nodes. Used in Go's `httprouter`.
-* **Cons**: String splitting and splicing make the implementation slightly more complex.
+- **Pros**: Reduced tree depth and dramatically fewer nodes. Used in Go's `httprouter`.
+- **Cons**: String splitting and splicing make the implementation slightly more complex.
 
 ### Structure Image
 
@@ -143,18 +143,18 @@ graph TD
 
 This method represents the Trie using only two integer arrays (`base` and `check`), completely eliminating pointers. It is often considered the **best balance between search speed and memory efficiency** for static dictionaries.
 
-* **Transition formula**: `next_state = base[current_state] + code(char)`
-* **Verification**: `check[next_state] == current_state` (verifies if the transition is valid)
+- **Transition formula**: `next_state = base[current_state] + code(char)`
+- **Verification**: `check[next_state] == current_state` (verifies if the transition is valid)
 
 ### Pros
 
-* **Blazing Fast**: Transition achieved via simple array index access (O(1) per character).
-* **Pointer-less**: Densely packed in memory, leading to excellent cache efficiency.
+- **Blazing Fast**: Transition achieved via simple array index access (O(1) per character).
+- **Pointer-less**: Densely packed in memory, leading to excellent cache efficiency.
 
 ### Cons
 
-* **Construction Cost**: Heavy construction as it requires searching for empty slots while filling.
-* **Dynamic Updates**: Primarily suitable for static dictionaries.
+- **Construction Cost**: Heavy construction as it requires searching for empty slots while filling.
+- **Dynamic Updates**: Primarily suitable for static dictionaries.
 
 ### Conversion Flow
 
@@ -391,10 +391,10 @@ func main() {
 
 ### Key Understanding Points
 
-* `base[s] + code(c)` becomes the next state number (replaces pointers).
-* `check[next] == s` verifies if the transition actually originated from this parent.
-* The `base` value is searched as the "minimum offset where all children fit into empty slots."
-* In production, this is often combined with pre-calculating array sizes, sparse compression, or DAFSA.
+- `base[s] + code(c)` becomes the next state number (replaces pointers).
+- `check[next] == s` verifies if the transition actually originated from this parent.
+- The `base` value is searched as the "minimum offset where all children fit into empty slots."
+- In production, this is often combined with pre-calculating array sizes, sparse compression, or DAFSA.
 
 ---
 
@@ -402,9 +402,9 @@ func main() {
 
 LOUDS (Level-Order Unary Degree Sequence) arranges each node of the tree (Trie) in Breadth-First Search (BFS) order and represents the structure as a bit string instead of pointers.
 
-* Represent the number of children for each node as `1...10` (a sequence of `1`s equal to the number of children, terminated by a `0`).
-* Store edge labels (characters) in a separate array.
-* Restore parent-child relationships using `rank/select`.
+- Represent the number of children for each node as `1...10` (a sequence of `1`s equal to the number of children, terminated by a `0`).
+- Store edge labels (characters) in a separate array.
+- Restore parent-child relationships using `rank/select`.
 
 ### Conversion Flow
 
@@ -453,10 +453,10 @@ In production implementations, auxiliary indices (superblocks/blocks) are added 
 
 LOUDS maps the tree structure into a contiguous bit string instead of pointers. This provides the following improvements:
 
-* Eliminates the need for per-node pointers.
-* No `map` is used, so hash table management costs disappear.
-* Data is densely packed in arrays, leading to better cache locality.
-* Tree structures can be handled with "arrays + bitwise operations," making it scalable for massive dictionaries.
+- Eliminates the need for per-node pointers.
+- No `map` is used, so hash table management costs disappear.
+- Data is densely packed in arrays, leading to better cache locality.
+- Tree structures can be handled with "arrays + bitwise operations," making it scalable for massive dictionaries.
 
 In essence, while pointer-based trees are a "collection of objects," LOUDS treated the **tree as data that can be directly operated on as a serialized array, without needing to be deserialized**.
 
@@ -464,11 +464,11 @@ In essence, while pointer-based trees are a "collection of objects," LOUDS treat
 
 While memory efficient, implementation and updates are more difficult.
 
-* Requires understanding and implementing `rank/select`, which has a high learning curve.
-* Local updates (like adding a single node) are difficult; it usually requires reconstruction.
-* Difficult to trace the structure visually during debugging.
-* For small data, the effect might not justify the implementation complexity.
-* If label search or auxiliary index design is incorrect, the expected speed will not be achieved.
+- Requires understanding and implementing `rank/select`, which has a high learning curve.
+- Local updates (like adding a single node) are difficult; it usually requires reconstruction.
+- Difficult to trace the structure visually during debugging.
+- For small data, the effect might not justify the implementation complexity.
+- If label search or auxiliary index design is incorrect, the expected speed will not be achieved.
 
 ---
 
@@ -537,16 +537,16 @@ func (bv *BitVector) Rank1(i int) int {
 
 ### Key Understanding Points
 
-* Pack bit strings into `[]uint64` instead of `[]bool`.
-* Use `math/bits` to count the number of `1`s.
-* In practice, instead of scanning everything in `Rank1`, auxiliary arrays are added for acceleration.
+- Pack bit strings into `[]uint64` instead of `[]bool`.
+- Use `math/bits` to count the number of `1`s.
+- In practice, instead of scanning everything in `Rank1`, auxiliary arrays are added for acceleration.
 
 ---
 
 ## 6. Complexity and Trade-offs
 
 | Implementation         | Space Efficiency      | Search Speed       | Updates   | Main Use Cases                |
-| :---                   | :---                  | :---               | :---      | :---                          |
+| :--------------------- | :-------------------- | :----------------- | :-------- | :---------------------------- |
 | **Pointer-based Trie** | Low (Heavy pointers)  | Medium             | Fast      | Prototyping, frequent updates |
 | **Radix Tree**         | Medium (Merged nodes) | Medium-High        | Medium    | Routers, path searching       |
 | **Double Array**       | High (Arrays only)    | **Extremely High** | Difficult | Static dictionaries           |
@@ -554,35 +554,35 @@ func (bv *BitVector) Rank1(i int) int {
 
 ### In a Nutshell
 
-* **Pointer-based**: Easy to build and update, but consumes memory due to runtime overhead.
-* **Double Array**: Difficult to build, but extremely fast lookup and compact.
-* **LOUDS**: The hardest to build, but achieves near-theoretical memory limits.
+- **Pointer-based**: Easy to build and update, but consumes memory due to runtime overhead.
+- **Double Array**: Difficult to build, but extremely fast lookup and compact.
+- **LOUDS**: The hardest to build, but achieves near-theoretical memory limits.
 
 ### Rough Estimate: How much difference for 1 million words?
 
 Let's estimate with some assumptions:
 
-* 1 million words.
-* 1-16 characters per word.
-* Average length is about 8.5 characters.
-* Characters represented as `byte`.
-* Assuming about 6 million Trie nodes after prefix sharing.
-* Pointer-based uses `map[byte]*trieNode` version.
+- 1 million words.
+- 1-16 characters per word.
+- Average length is about 8.5 characters.
+- Characters represented as `byte`.
+- Assuming about 6 million Trie nodes after prefix sharing.
+- Pointer-based uses `map[byte]*trieNode` version.
 
 Total characters are approximately `1M x 8.5 = 8.5M`. With prefix sharing, we assume about 6 million nodes.
 
 #### Pointer-based Trie Breakdown
 
-* `trieNode` body: ~16 bytes per node.
-* `map` header: ~48 bytes per node.
-* Bucket area: Dozens to over 100 bytes per node.
+- `trieNode` body: ~16 bytes per node.
+- `map` header: ~48 bytes per node.
+- Bucket area: Dozens to over 100 bytes per node.
 
 Roughly, for 6 million nodes:
 
-* Node bodies: `6M x 16B` = ~96 MB.
-* `map` headers: `6M x 48B` = ~288 MB.
-* Bucket area: ~400–900 MB.
-* Runtime costs like GC/fragmentation: Dozens to hundreds of MB.
+- Node bodies: `6M x 16B` = ~96 MB.
+- `map` headers: `6M x 48B` = ~288 MB.
+- Bucket area: ~400–900 MB.
+- Runtime costs like GC/fragmentation: Dozens to hundreds of MB.
 
 In total, it wouldn't be surprising if it reached **0.8 GB to 1.5 GB**.
 
@@ -590,18 +590,18 @@ In total, it wouldn't be surprising if it reached **0.8 GB to 1.5 GB**.
 
 LOUDS holds the same structure with "Bit string + Label array + Auxiliary index."
 
-* LOUDS bit string: ~`2N` bits.
-* Label array: ~1 byte per node.
-* End-of-word flags: 1 bit per node.
-* Auxiliary arrays for `rank/select`: A few % to dozens of %.
+- LOUDS bit string: ~`2N` bits.
+- Label array: ~1 byte per node.
+- End-of-word flags: 1 bit per node.
+- Auxiliary arrays for `rank/select`: A few % to dozens of %.
 
 For `N = 6M`:
 
-* LOUDS bit string: ~12M bits = ~1.5 MB.
-* Label array: ~6M bytes = ~6 MB.
-* End flags: ~6M bits = ~0.75 MB.
-* Auxiliary index: ~1–5 MB.
-* Implementation overhead: A few MB.
+- LOUDS bit string: ~12M bits = ~1.5 MB.
+- Label array: ~6M bytes = ~6 MB.
+- End flags: ~6M bits = ~0.75 MB.
+- Auxiliary index: ~1–5 MB.
+- Implementation overhead: A few MB.
 
 In total, it often fits within **10 MB to 20+ MB**.
 
@@ -614,7 +614,7 @@ Of course, this is because the conditions are "read-mostly and almost immutable.
 ### Memory Comparison (Rough Estimate: 1M words / 6M nodes)
 
 | Item             | Pointer-based    | Radix Tree              | Double Array       | LOUDS (Succinct)     |
-| :---             | :---             | :---                    | :---               | :---                 |
+| :--------------- | :--------------- | :---------------------- | :----------------- | :------------------- |
 | **Total Size**   | **0.8 - 1.5 GB** | **300 - 600 MB**        | **100 - 150 MB**   | **10 - 20 MB**       |
 | **Structure**    | Pointers / map   | Pointers / map (Merged) | Two integer arrays | Bit string (2n bits) |
 | **Management**   | Very High        | High                    | Low                | Extremely Low        |
@@ -624,8 +624,8 @@ The essence of this difference is that while pointer-based or Radix implementati
 
 **Criteria for Practical Decision**
 
-* Fixed or near-fixed dictionaries/indices: Consider **Succinct (LOUDS)** or **Double Array**.
-* Frequent updates or early stage of development: Prioritize **Standard Trie**.
+- Fixed or near-fixed dictionaries/indices: Consider **Succinct (LOUDS)** or **Double Array**.
+- Frequent updates or early stage of development: Prioritize **Standard Trie**.
 
 ### Usage Cheat Sheet
 
@@ -644,11 +644,11 @@ flowchart TD
 
 ## 7. SWE Implementation Guide (Go)
 
-* Start by creating a baseline with `[]uint64` + `bits.OnesCount64`.
-* Measure memory and latency using `go test -bench . -benchmem`.
-* Add index construction (auxiliary arrays for rank/select) in a separate phase.
-* Separate APIs by purpose: `Builder` (construction) and `Reader` (lookup).
-* If updates are necessary, consider `immutable snapshots` + differential reconstruction.
+- Start by creating a baseline with `[]uint64` + `bits.OnesCount64`.
+- Measure memory and latency using `go test -bench . -benchmem`.
+- Add index construction (auxiliary arrays for rank/select) in a separate phase.
+- Separate APIs by purpose: `Builder` (construction) and `Reader` (lookup).
+- If updates are necessary, consider `immutable snapshots` + differential reconstruction.
 
 ### Implementation Order
 
@@ -666,23 +666,23 @@ flowchart TD
 ### Key Use Cases
 
 1. **Fast Lookup with Double-Array Trie**:
-    * Mozc uses a [Darts](https://github.com/google/mozc/blob/master/src/base/darts.h) based implementation.
-    * **Purpose**: Candidate search and predictive input (Kana-Kanji conversion).
-    * **Source**: [`src/storage/dictionary/`](https://github.com/google/mozc/tree/master/src/storage/dictionary)
+   - Mozc uses a [Darts](https://github.com/google/mozc/blob/master/src/base/darts.h) based implementation.
+   - **Purpose**: Candidate search and predictive input (Kana-Kanji conversion).
+   - **Source**: [`src/storage/dictionary/`](https://github.com/google/mozc/tree/master/src/storage/dictionary)
 
 2. **Massive Dictionary Compression with LOUDS**:
-    * For huge system dictionaries (millions of words), it uses LOUDS.
-    * **Purpose**: Minimize memory footprint while maintaining millisecond-level lookups.
-    * **Source**: [`src/storage/louds/`](https://github.com/google/mozc/tree/master/src/storage/louds)
+   - For huge system dictionaries (millions of words), it uses LOUDS.
+   - **Purpose**: Minimize memory footprint while maintaining millisecond-level lookups.
+   - **Source**: [`src/storage/louds/`](https://github.com/google/mozc/tree/master/src/storage/louds)
 
 3. **Predictive Input (Suggestion) Acceleration**:
-    * Uses "Common Prefix Search" to instantly list words (e.g., "today", "tomorrow") starting from a prefix.
-    * **Source**: [`src/prediction/dictionary_predictor.cc`](https://github.com/google/mozc/blob/master/src/prediction/dictionary_predictor.cc)
+   - Uses "Common Prefix Search" to instantly list words (e.g., "today", "tomorrow") starting from a prefix.
+   - **Source**: [`src/prediction/dictionary_predictor.cc`](https://github.com/google/mozc/blob/master/src/prediction/dictionary_predictor.cc)
 
 ### Why Trie for Mozc?
 
-* **Common Prefix Search**: Japanese "yomi" (readings) often overlap, and Trie's prefix sharing directly leads to massive memory savings.
-* **Deterministic Speed**: Unlike hash tables, lookups have a constant speed ($O(1)$ per char for Double-Array), minimizing latency for the user.
+- **Common Prefix Search**: Japanese "yomi" (readings) often overlap, and Trie's prefix sharing directly leads to massive memory savings.
+- **Deterministic Speed**: Unlike hash tables, lookups have a constant speed ($O(1)$ per char for Double-Array), minimizing latency for the user.
 
 ---
 
@@ -694,20 +694,20 @@ In languages like Japanese (Unicode) where the character set is massive, impleme
 
 Instead of treating multi-byte characters as single units, it is common to **decompose them into UTF-8 byte sequences (0–255) and map them onto the Trie**.
 
-* **Pros**: Limits the branches per node to a maximum of 256, stabilizing Double Array packing efficiency and pointer-based memory management.
-* **Cons**: Increases tree depth by 3x–4x (3 bytes per Japanese character), but the benefits of simplified search algorithms and improved memory efficiency outweigh this cost.
+- **Pros**: Limits the branches per node to a maximum of 256, stabilizing Double Array packing efficiency and pointer-based memory management.
+- **Cons**: Increases tree depth by 3x–4x (3 bytes per Japanese character), but the benefits of simplified search algorithms and improved memory efficiency outweigh this cost.
 
 ### Static vs. Dynamic Dictionary Trade-offs
 
 IMEs like Mozc choose different data structures based on the use case:
 
-* **System Dictionary (Static)**: Since it is not rewritten after construction, **LOUDS** (extreme compression) or **Double Array** (fastest lookup) are chosen.
-* **User Dictionary (Dynamic)**: Due to frequent additions and deletions, **B-trees** or **Hash Tables**, which are more resilient to updates than Tries, are typically used.
+- **System Dictionary (Static)**: Since it is not rewritten after construction, **LOUDS** (extreme compression) or **Double Array** (fastest lookup) are chosen.
+- **User Dictionary (Dynamic)**: Due to frequent additions and deletions, **B-trees** or **Hash Tables**, which are more resilient to updates than Tries, are typically used.
 
 ### Suitability in Japanese Environments
 
 | Structure         | Suitability            | Features                                                                                          |
-| :---              | :---                   | :---                                                                                              |
+| :---------------- | :--------------------- | :------------------------------------------------------------------------------------------------ |
 | **Pointer-based** | Low                    | Excessive memory consumption. Not suitable for mobile or background PC software.                  |
 | **Double Array**  | **High (Lookup)**      | Fastest speed. Cache efficiency is key when traversing deeper trees due to UTF-8 decomposition.   |
 | **LOUDS**         | **High (Compression)** | Smallest size. Powerful in memory-constrained environments like mobile devices.                   |
@@ -717,8 +717,8 @@ IMEs like Mozc choose different data structures based on the use case:
 
 ## Summary
 
-* **Radix Tree**: "Structural efficiency" by pruning redundant nodes.
-* **Double Array**: "Lookup efficiency" by reducing it to array operations.
-* **Succinct (LOUDS)**: "Memory efficiency" by representing the tree as bits.
-* In Go, choose your weapon (Radix for routing, DAT for static dictionaries, LOUDS for billions of words) based on the specific constraints of your use case.
-* Don't implement everything at once; introduce phases in the order of `BitVector -> rank/select -> LOUDS`.
+- **Radix Tree**: "Structural efficiency" by pruning redundant nodes.
+- **Double Array**: "Lookup efficiency" by reducing it to array operations.
+- **Succinct (LOUDS)**: "Memory efficiency" by representing the tree as bits.
+- In Go, choose your weapon (Radix for routing, DAT for static dictionaries, LOUDS for billions of words) based on the specific constraints of your use case.
+- Don't implement everything at once; introduce phases in the order of `BitVector -> rank/select -> LOUDS`.

@@ -131,15 +131,15 @@ func main() {
 ## Key Points of This Workshop
 
 1. **Abstraction of Side Effects (Exercise 1):**
-    - The act of "sending a notification" itself is an application requirement, while "sending via Slack" is merely a means (infrastructure detail).
-    - The `NotificationGateway` interface is a UseCase Port (not a Domain Port) because notification is a tool for the application workflow, not part of the core domain language.
-    - By pushing details outward, it becomes easy to verify that "a notification was called" during testing without actually sending a notification.
+   - The act of "sending a notification" itself is an application requirement, while "sending via Slack" is merely a means (infrastructure detail).
+   - The `NotificationGateway` interface is a UseCase Port (not a Domain Port) because notification is a tool for the application workflow, not part of the core domain language.
+   - By pushing details outward, it becomes easy to verify that "a notification was called" during testing without actually sending a notification.
 2. **Transparent Feature Addition (Exercise 2):**
-    - As long as the interface remains the same, the caller won't notice if the internal logic changes from "retrieving from DB" to "retrieving with cache control."
-    - This allows for infrastructure-level improvements (performance tuning, logging, retry logic, etc.) while keeping the business logic healthy.
+   - As long as the interface remains the same, the caller won't notice if the internal logic changes from "retrieving from DB" to "retrieving with cache control."
+   - This allows for infrastructure-level improvements (performance tuning, logging, retry logic, etc.) while keeping the business logic healthy.
 3. **Ports and Implementation Separation:**
-    - The notification interface is a UseCase-owned output port; Slack/Email implementations live in Infra Adapters Layer.
-    - Details like Redis clients stay in the Infra Adapters Layer.
+   - The notification interface is a UseCase-owned output port; Slack/Email implementations live in Infra Adapters Layer.
+   - Details like Redis clients stay in the Infra Adapters Layer.
 
 ---
 

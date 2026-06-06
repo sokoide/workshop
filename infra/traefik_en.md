@@ -77,35 +77,35 @@ Create a `docker-compose.yml` with the following content. We will use the lightw
 version: "3"
 
 services:
-    # Traefik Reverse Proxy
-    traefik:
-        image: traefik:v2.10
-        command:
-            - "--api.insecure=true"
-            - "--providers.docker=true"
-            - "--providers.docker.exposedbydefault=false"
-            - "--entrypoints.web.address=:80"
-        ports:
-            - "80:80"
-            - "8080:8080" # Dashboard
-        volumes:
-            - /run/podman/podman.sock:/var/run/docker.sock:ro
+  # Traefik Reverse Proxy
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080" # Dashboard
+    volumes:
+      - /run/podman/podman.sock:/var/run/docker.sock:ro
 
-    # Backend A (Whoami)
-    whoami-a:
-        image: traefik/whoami
-        labels:
-            - "traefik.enable=true"
-            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-            - "traefik.http.services.whoami.loadbalancer.server.port=80"
+  # Backend A (Whoami)
+  whoami-a:
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
 
-    # Backend B (Whoami - LB as same service)
-    whoami-b:
-        image: traefik/whoami
-        labels:
-            - "traefik.enable=true"
-            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-            - "traefik.http.services.whoami.loadbalancer.server.port=80"
+  # Backend B (Whoami - LB as same service)
+  whoami-b:
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
 ```
 
 ### 2. Start Containers

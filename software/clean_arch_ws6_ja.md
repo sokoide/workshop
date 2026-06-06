@@ -19,7 +19,7 @@
 ### 変更範囲の全体像
 
 | 層               | 変更内容                                                                                           | 役割                                                        |
-| ----             | ---------                                                                                          | ------                                                      |
+| ---------------- | -------------------------------------------------------------------------------------------------  | ----------------------------------------------------------- |
 | **Domain**       | **変更なし**                                                                                       | —                                                           |
 | **UseCase**      | `port.NotificationGateway` interface を新規定義、`CreatePostUseCase` に注入、投稿成功後に呼び出し | 「通知が必要である」という抽象の定義 + 通知のタイミング制御 |
 | **Infra**        | `infra/notification/slack_gateway.go` を新規作成                                                   | Slack API の具体実装                                        |
@@ -328,8 +328,8 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 1. **新規 Port/Adapter パターン**: 新機能は新しい Port（interface）を定義し、対応する Adapter を増やすことで追加できる。既存コードへの影響は最小限。
 2. **責務の明確化**:
-    - UseCase は「何を通知するか」を定義（`NotificationGateway` のシグネチャ）— 通知はコアドメイン言語の一部ではなくアプリケーションワークフローの道具であるため、UseCase Port に分類される
-    - UseCase は「いつ通知するか」を決定（投稿成功後）
-    - Infra は「どう通知するか」を実装（Slack Webhook / Email SMTP）
+   - UseCase は「何を通知するか」を定義（`NotificationGateway` のシグネチャ）— 通知はコアドメイン言語の一部ではなくアプリケーションワークフローの道具であるため、UseCase Port に分類される
+   - UseCase は「いつ通知するか」を決定（投稿成功後）
+   - Infra は「どう通知するか」を実装（Slack Webhook / Email SMTP）
 3. **テスト容易性**: interface によって通知をモックでき、外部サービスに依存しないテストが書ける。
 4. **通知先の差し替え**: Slack → Email → LINE の変更は Composition Root の 1 行変更だけで完了。

@@ -184,18 +184,18 @@ podman rm workshop-redis
 
 - Redis コンテナが起動しているか確認
 
-    ```bash
-    podman ps | grep redis
-    # または
-    make redis-status  # Makefile に定義されている場合
-    ```
+  ```bash
+  podman ps | grep redis
+  # または
+  make redis-status  # Makefile に定義されている場合
+  ```
 
 - ポート 6379 が正しく公開されているか確認
 
-    ```bash
-    podman port workshop-redis
-    # 6379/tcp -> 0.0.0.0:6379 と表示されるはず
-    ```
+  ```bash
+  podman port workshop-redis
+  # 6379/tcp -> 0.0.0.0:6379 と表示されるはず
+  ```
 
 ### プログラムがパニックになる
 
@@ -205,12 +205,12 @@ podman rm workshop-redis
 
 - Redis サーバーが起動していない状態でプログラムを実行
 
-    ```bash
-    # 先に Redis を起動
-    make redis-up
-    # または
-    podman start workshop-redis
-    ```
+  ```bash
+  # 先に Redis を起動
+  make redis-up
+  # または
+  podman start workshop-redis
+  ```
 
 ### スコアが正しく反映されない
 
@@ -220,16 +220,16 @@ podman rm workshop-redis
 
 - Redis 内のデータを直接確認
 
-    ```bash
-    podman exec -it workshop-redis redis-cli
-    > ZREVRANGE game_leaderboard 0 -1 WITHSCORES
-    ```
+  ```bash
+  podman exec -it workshop-redis redis-cli
+  > ZREVRANGE game_leaderboard 0 -1 WITHSCORES
+  ```
 
 - Ban リストを確認
 
-    ```bash
-    > SMEMBERS banned_users
-    ```
+  ```bash
+  > SMEMBERS banned_users
+  ```
 
 ---
 

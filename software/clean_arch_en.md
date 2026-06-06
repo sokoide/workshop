@@ -58,7 +58,7 @@ graph TD
 ## Mapping to Original Architectures
 
 | Original Clean Architecture | This Variant's Placement                                            |
-| :---                        | :---                                                                |
+| :-------------------------- | :------------------------------------------------------------------ |
 | Entities                    | Domain                                                              |
 | Use Cases                   | UseCases                                                            |
 | Interface Adapters          | Adapters (Presentation + Infrastructure)                            |
@@ -83,22 +83,22 @@ The names differ, but the main rule stays the same: **source-code dependencies p
 
 The heart of the application, representing the business rules themselves.
 
-* **Entity / Aggregate / Value Object:** Business "objects" or "concepts."
-* **Domain Service:** Knowledge or logic that spans multiple entities.
-* **Domain Error:** Errors defined in domain vocabulary.
-* **Domain Port (Interface):** Repository and other ports only when the abstraction is part of the domain language.
-* **No external dependencies:** No DB, HTTP, ORM, SDK, web framework, or generated transport types.
-* **Note on `context.Context`:** Domain interfaces in Go commonly accept `context.Context` as the first parameter for cancellation and deadline propagation. This is a **pragmatic exception** to the "no external dependencies" rule, justified specifically because `context.Context` carries cancellation and deadline signals — a Go runtime concern, not a business dependency. The exception does not extend to other standard library packages (e.g., `net/http`, `database/sql`). Domain MUST NOT read custom values from context — that responsibility belongs to Infrastructure Adapters.
+- **Entity / Aggregate / Value Object:** Business "objects" or "concepts."
+- **Domain Service:** Knowledge or logic that spans multiple entities.
+- **Domain Error:** Errors defined in domain vocabulary.
+- **Domain Port (Interface):** Repository and other ports only when the abstraction is part of the domain language.
+- **No external dependencies:** No DB, HTTP, ORM, SDK, web framework, or generated transport types.
+- **Note on `context.Context`:** Domain interfaces in Go commonly accept `context.Context` as the first parameter for cancellation and deadline propagation. This is a **pragmatic exception** to the "no external dependencies" rule, justified specifically because `context.Context` carries cancellation and deadline signals — a Go runtime concern, not a business dependency. The exception does not extend to other standard library packages (e.g., `net/http`, `database/sql`). Domain MUST NOT read custom values from context — that responsibility belongs to Infrastructure Adapters.
 
 ### 2. UseCases Layer
 
 Describes the steps to realize specific "features" of the application. **Orchestration only.**
 
-* **Role:** Coordinates Domain objects and boundary interfaces without direct SQL / HTTP / file / SDK calls.
-* **Defines input/output boundaries** and application DTOs.
-* **Defines ports** for application-specific external capabilities (UseCase Ports).
-* **Controls transaction boundaries** and application policies (retries, idempotency, authorization decisions).
-* **Dependencies:** Domain only. No direct dependency on concrete Adapters, web frameworks, or database drivers.
+- **Role:** Coordinates Domain objects and boundary interfaces without direct SQL / HTTP / file / SDK calls.
+- **Defines input/output boundaries** and application DTOs.
+- **Defines ports** for application-specific external capabilities (UseCase Ports).
+- **Controls transaction boundaries** and application policies (retries, idempotency, authorization decisions).
+- **Dependencies:** Domain only. No direct dependency on concrete Adapters, web frameworks, or database drivers.
 
 ### 3. Adapters Layer
 
@@ -108,32 +108,32 @@ Describes the steps to realize specific "features" of the application. **Orchest
 
 Adapters that deliver application behavior to users or external callers.
 
-* **Controller / Handler:** Converts external requests (HTTP, CLI) to UseCase inputs and calls the UseCase.
-* **Presenter:** Formats the UseCase output for external consumption (e.g., JSON).
-* **Request/Response DTOs:** Transport-specific data structures.
-* **Auth Middleware:** Authentication and authorization entry-point checks when they are delivery concerns.
+- **Controller / Handler:** Converts external requests (HTTP, CLI) to UseCase inputs and calls the UseCase.
+- **Presenter:** Formats the UseCase output for external consumption (e.g., JSON).
+- **Request/Response DTOs:** Transport-specific data structures.
+- **Auth Middleware:** Authentication and authorization entry-point checks when they are delivery concerns.
 
 #### 3b. Infrastructure Adapters (Outbound / Driven)
 
 Adapters that connect UseCases or Domain-owned ports to external systems.
 
-* **Repository Impl:** Implements the interface defined in the Domain or UseCases layer. Mapping and query construction live here.
-* **Gateway Impl:** Implementation of external API clients, notification, search, payment, etc.
-* **Error Conversion:** Converts driver errors (e.g., `sql.ErrNoRows`) to domain errors before they reach inner layers.
+- **Repository Impl:** Implements the interface defined in the Domain or UseCases layer. Mapping and query construction live here.
+- **Gateway Impl:** Implementation of external API clients, notification, search, payment, etc.
+- **Error Conversion:** Converts driver errors (e.g., `sql.ErrNoRows`) to domain errors before they reach inner layers.
 
 ---
 
 ## Dependency Matrix
 
-| From / To                 | Domain  | UseCases | Adapters |
-| ------------------------- | ------- | -------- | -------- |
-| Domain                    | yes     | no       | no       |
-| UseCases                  | yes     | yes      | no       |
-| Adapters (Presentation)   | cond.   | yes      | self     |
-| Adapters (Infrastructure) | yes     | yes      | self     |
-| Composition Root          | yes     | yes      | yes      |
+| From / To                 | Domain | UseCases | Adapters |
+| ------------------------- | ------ | -------- | -------- |
+| Domain                    | yes    | no       | no       |
+| UseCases                  | yes    | yes      | no       |
+| Adapters (Presentation)   | cond.  | yes      | self     |
+| Adapters (Infrastructure) | yes    | yes      | self     |
+| Composition Root          | yes    | yes      | yes      |
 
-* `Presentation → Domain` is `cond.` (conditional): Presentation MAY read Domain values returned by UseCases for serialization (pragmatic mode). This is only permissible if the **Boundary Simplification Checklist** below is fully satisfied.
+- `Presentation → Domain` is `cond.` (conditional): Presentation MAY read Domain values returned by UseCases for serialization (pragmatic mode). This is only permissible if the **Boundary Simplification Checklist** below is fully satisfied.
 
 ### Boundary Simplification Checklist
 
@@ -144,7 +144,7 @@ Adapters that connect UseCases or Domain-owned ports to external systems.
 
 For modification operations (Create/Update/Delete), always use dedicated Input DTOs to protect invariants and perform input validation.
 
-* Presentation Adapters and Infrastructure Adapters are in the same conceptual layer but must not depend on each other directly.
+- Presentation Adapters and Infrastructure Adapters are in the same conceptual layer but must not depend on each other directly.
 
 ---
 
@@ -313,9 +313,9 @@ func LongRunningProcess(ctx context.Context) error {
 
 #### ctx vs. Arguments
 
-* **Use Arguments for:** **Essential business data** such as `userID` or `groupID`. Passing these explicitly as arguments ensures type safety and makes the function's dependencies clear.
+- **Use Arguments for:** **Essential business data** such as `userID` or `groupID`. Passing these explicitly as arguments ensures type safety and makes the function's dependencies clear.
 
-* **Use ctx for:** **Cross-cutting (supplementary) information** such as `Request ID` or `Auth Tokens`. These are not core to the business logic but are necessary for logging, authorization at the infra layer, or distributed tracing.
+- **Use ctx for:** **Cross-cutting (supplementary) information** such as `Request ID` or `Auth Tokens`. These are not core to the business logic but are necessary for logging, authorization at the infra layer, or distributed tracing.
 
 **Do not smuggle resources in context:** Do not hide `sql.Tx`, DB handles, request objects, or SDK clients inside `context.Context` to cross architectural boundaries. Use explicit function parameters or dependency injection instead. The one exception: Infrastructure Adapters MAY propagate transaction handles internally via `context.WithValue` (e.g., to share `*sql.Tx` across repository calls within a transaction), but UseCases and Domain MUST NOT read those values from context.
 
@@ -323,14 +323,14 @@ func LongRunningProcess(ctx context.Context) error {
 
 ## Port Ownership Guidance
 
-* **Domain Port:** When the abstraction is part of the "Domain Language" and is essential for the domain model to fulfill its core business rules.
-  * *Examples:* `UserRepository.FindByID` (essential for re-constituting entities).
-  * *Heuristic:* "Would the domain model be incomplete or unable to enforce its invariants without this capability?"
-* **UseCase Port:** When the abstraction is a "Tool" required to complete an application-specific procedure.
-  * *Examples:* `NotificationGateway.SendWelcomeEmail` (a side-effect of a workflow), `IdentityGateway.IsMember` (authorization check against external provider), `TransactionManager.RunInTransaction` (application-level transaction boundary).
-  * *Heuristic:* "Is this a requirement of the application workflow rather than the core business logic itself?"
-* **Repository ports — Domain or UseCase?** Repository interfaces (e.g., `BoardRepository`, `ThreadRepository`) may live in the Domain layer when their operations express core domain language (e.g., "find an entity by ID" is essential for reconstituting aggregates). In contrast, `TransactionManager` controls application-level transaction boundaries — an orchestration concern, not a domain concept — and belongs in the UseCase layer. The distinction: *if removing the interface would break the domain model's ability to enforce invariants, it's a Domain Port; otherwise, it's a UseCase Port.*
-* Concrete implementations live in **Infrastructure Adapters** regardless of which inner layer owns the interface.
+- **Domain Port:** When the abstraction is part of the "Domain Language" and is essential for the domain model to fulfill its core business rules.
+  - _Examples:_ `UserRepository.FindByID` (essential for re-constituting entities).
+  - _Heuristic:_ "Would the domain model be incomplete or unable to enforce its invariants without this capability?"
+- **UseCase Port:** When the abstraction is a "Tool" required to complete an application-specific procedure.
+  - _Examples:_ `NotificationGateway.SendWelcomeEmail` (a side-effect of a workflow), `IdentityGateway.IsMember` (authorization check against external provider), `TransactionManager.RunInTransaction` (application-level transaction boundary).
+  - _Heuristic:_ "Is this a requirement of the application workflow rather than the core business logic itself?"
+- **Repository ports — Domain or UseCase?** Repository interfaces (e.g., `BoardRepository`, `ThreadRepository`) may live in the Domain layer when their operations express core domain language (e.g., "find an entity by ID" is essential for reconstituting aggregates). In contrast, `TransactionManager` controls application-level transaction boundaries — an orchestration concern, not a domain concept — and belongs in the UseCase layer. The distinction: _if removing the interface would break the domain model's ability to enforce invariants, it's a Domain Port; otherwise, it's a UseCase Port._
+- Concrete implementations live in **Infrastructure Adapters** regardless of which inner layer owns the interface.
 
 ### Input Port Interface Policy
 
@@ -340,30 +340,30 @@ Input Ports (UseCase interfaces called by Presentation Adapters) should be defin
 
 ## Ports and Repository Boundary
 
-* **Input Port:** The UseCase interface called by Presentation Adapters (Web/CLI/Batch). Controllers depend on this port.
-* **Output Port:** Contracts the Domain / UseCases require from the outside (e.g., repositories). Interfaces live inside, implementations live in Infrastructure Adapters.
-* **Repository Boundary:** Repositories define persistence contracts. Transactions and retries sit in UseCases; mapping and query construction belong in Infrastructure Adapters.
+- **Input Port:** The UseCase interface called by Presentation Adapters (Web/CLI/Batch). Controllers depend on this port.
+- **Output Port:** Contracts the Domain / UseCases require from the outside (e.g., repositories). Interfaces live inside, implementations live in Infrastructure Adapters.
+- **Repository Boundary:** Repositories define persistence contracts. Transactions and retries sit in UseCases; mapping and query construction belong in Infrastructure Adapters.
 
 ## Error Boundary Rules
 
-* **Infrastructure Adapters** convert driver errors (e.g., `sql.ErrNoRows`) to domain errors before they reach inner layers.
-* **Domain / UseCases** errors carry business or application meaning, not HTTP status codes or SQL sentinel errors.
-* **Presentation Adapters** convert application errors to transport errors (HTTP status, gRPC status, CLI exit codes).
+- **Infrastructure Adapters** convert driver errors (e.g., `sql.ErrNoRows`) to domain errors before they reach inner layers.
+- **Domain / UseCases** errors carry business or application meaning, not HTTP status codes or SQL sentinel errors.
+- **Presentation Adapters** convert application errors to transport errors (HTTP status, gRPC status, CLI exit codes).
 
 ## Data Boundary Rules
 
-* **UseCase Input/Output** should be explicit when it protects the inner policy from transport or persistence details.
-* **Domain objects** are not Presentation DTOs or ORM records. Avoid transport annotations, ORM tags, or generated API types in domain objects.
-* **Mapping responsibility** is consistent: Presentation maps request/response; Infrastructure maps persistence/external data; UseCases may map application DTOs.
+- **UseCase Input/Output** should be explicit when it protects the inner policy from transport or persistence details.
+- **Domain objects** are not Presentation DTOs or ORM records. Avoid transport annotations, ORM tags, or generated API types in domain objects.
+- **Mapping responsibility** is consistent: Presentation maps request/response; Infrastructure maps persistence/external data; UseCases may map application DTOs.
 
 ## Anti-Patterns
 
-* Domain leaks DB / HTTP / ORM / SDK / framework types.
-* UseCases directly perform SQL / HTTP / file I/O instead of depending on a boundary interface.
-* Presentation bypasses UseCases to run business workflow or persistence decisions directly.
-* Infrastructure Adapter code owns business decisions that belong in Domain or UseCases.
-* Transport DTOs, ORM records, or generated API models are reused as Domain objects.
-* Presentation and Infrastructure Adapters are merged in a way that makes their responsibilities hard to find.
+- Domain leaks DB / HTTP / ORM / SDK / framework types.
+- UseCases directly perform SQL / HTTP / file I/O instead of depending on a boundary interface.
+- Presentation bypasses UseCases to run business workflow or persistence decisions directly.
+- Infrastructure Adapter code owns business decisions that belong in Domain or UseCases.
+- Transport DTOs, ORM records, or generated API models are reused as Domain objects.
+- Presentation and Infrastructure Adapters are merged in a way that makes their responsibilities hard to find.
 
 ### Domain Events
 
@@ -394,10 +394,10 @@ The UseCase publishes the event after the transaction completes, and the Composi
 
 ### Go Implementation Notes
 
-* **SQL placeholders:** Drivers differ (`?`, `$1`, etc.). Choose what matches your driver.
-* **Initialisms:** In Go, initialisms like `SQL` are typically all-caps.
-* **Context values:** Use typed keys and avoid storing business data in `context`.
-* **DI frameworks:** For larger projects, consider using DI frameworks like [Google Wire](https://github.com/google/wire) or [Uber Fx](https://github.com/uber-go/fx) to manage dependency wiring automatically. However, start with manual DI in `main.go` — it's explicit, debuggable, and sufficient for most projects in this repository.
+- **SQL placeholders:** Drivers differ (`?`, `$1`, etc.). Choose what matches your driver.
+- **Initialisms:** In Go, initialisms like `SQL` are typically all-caps.
+- **Context values:** Use typed keys and avoid storing business data in `context`.
+- **DI frameworks:** For larger projects, consider using DI frameworks like [Google Wire](https://github.com/google/wire) or [Uber Fx](https://github.com/uber-go/fx) to manage dependency wiring automatically. However, start with manual DI in `main.go` — it's explicit, debuggable, and sufficient for most projects in this repository.
 
 ## Typical Directory Layout (Go)
 

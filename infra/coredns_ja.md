@@ -109,38 +109,38 @@ VM1 は親ドメイン `sokoide.com` を管理し、`foo.sokoide.com` 宛の問�
 
 1. 設定ファイルの作成
 
-    ```bash
-    mkdir -p ~/coredns_parent && cd ~/coredns_parent
-    cat <<'EOF' > Corefile
-    sokoide.com:10053 {
-        file db.sokoide.com
-        log
-        errors
-    }
+   ```bash
+   mkdir -p ~/coredns_parent && cd ~/coredns_parent
+   cat <<'EOF' > Corefile
+   sokoide.com:10053 {
+       file db.sokoide.com
+       log
+       errors
+   }
 
-    foo.sokoide.com:10053 {
-        # 子ドメインの問い合わせを VM2 へ転送
-        forward . 192.168.100.20:10053
-        log
-        errors
-    }
-    EOF
-    ```
+   foo.sokoide.com:10053 {
+       # 子ドメインの問い合わせを VM2 へ転送
+       forward . 192.168.100.20:10053
+       log
+       errors
+   }
+   EOF
+   ```
 
 2. ゾーンファイルの作成
 
-    ```bash
-    cat <<'EOF' > db.sokoide.com
-    $ORIGIN sokoide.com.
-    $TTL 3600
-    @   IN  SOA  ns.sokoide.com. root.sokoide.com. (
-            2024010101 7200 3600 1209600 3600 )
+   ```bash
+   cat <<'EOF' > db.sokoide.com
+   $ORIGIN sokoide.com.
+   $TTL 3600
+   @   IN  SOA  ns.sokoide.com. root.sokoide.com. (
+           2024010101 7200 3600 1209600 3600 )
 
-    @   IN  NS   ns.sokoide.com.
-    ns  IN  A    192.168.100.10
-    www IN  A    1.1.1.1
-    EOF
-    ```
+   @   IN  NS   ns.sokoide.com.
+   ns  IN  A    192.168.100.10
+   www IN  A    1.1.1.1
+   EOF
+   ```
 
 ### ✅ チェックポイント
 
@@ -154,31 +154,31 @@ VM2 はサブドメイン `foo.sokoide.com` の正解データを持ちます。
 
 1. 設定ファイルの作成
 
-    ```bash
-    mkdir -p ~/coredns_child && cd ~/coredns_child
-    cat <<'EOF' > Corefile
-    foo.sokoide.com:10053 {
-        file db.foo.sokoide.com
-        log
-        errors
-    }
-    EOF
-    ```
+   ```bash
+   mkdir -p ~/coredns_child && cd ~/coredns_child
+   cat <<'EOF' > Corefile
+   foo.sokoide.com:10053 {
+       file db.foo.sokoide.com
+       log
+       errors
+   }
+   EOF
+   ```
 
 2. ゾーンファイルの作成
 
-    ```bash
-    cat <<'EOF' > db.foo.sokoide.com
-    $ORIGIN foo.sokoide.com.
-    $TTL 3600
-    @   IN  SOA  ns1.foo.sokoide.com. root.foo.sokoide.com. (
-            2024010101 7200 3600 1209600 3600 )
+   ```bash
+   cat <<'EOF' > db.foo.sokoide.com
+   $ORIGIN foo.sokoide.com.
+   $TTL 3600
+   @   IN  SOA  ns1.foo.sokoide.com. root.foo.sokoide.com. (
+           2024010101 7200 3600 1209600 3600 )
 
-    @   IN  NS   ns1.foo.sokoide.com.
-    ns1  IN  A    192.168.100.20
-    test IN  A    2.2.2.2
-    EOF
-    ```
+   @   IN  NS   ns1.foo.sokoide.com.
+   ns1  IN  A    192.168.100.20
+   test IN  A    2.2.2.2
+   EOF
+   ```
 
 ### ✅ チェックポイント
 
@@ -206,18 +206,18 @@ coredns -conf Corefile
 
 1. **直接解決**: 親サーバーに `www.sokoide.com` を聞く
 
-    ```bash
-    dig @192.168.100.10 -p 10053 www.sokoide.com +short
-    # -> 1.1.1.1
-    ```
+   ```bash
+   dig @192.168.100.10 -p 10053 www.sokoide.com +short
+   # -> 1.1.1.1
+   ```
 
 2. **転送解決**: 親サーバーに `test.foo.sokoide.com` を聞く
 
-    ```bash
-    dig @192.168.100.10 -p 10053 test.foo.sokoide.com
-    ```
+   ```bash
+   dig @192.168.100.10 -p 10053 test.foo.sokoide.com
+   ```
 
-    **結果の確認**: `ANSWER SECTION` に `2.2.2.2` が表示され、`SERVER` が `192.168.100.10` になっていれば、親が子から答えを「代行取得」したことがわかります。
+   **結果の確認**: `ANSWER SECTION` に `2.2.2.2` が表示され、`SERVER` が `192.168.100.10` になっていれば、親が子から答えを「代行取得」したことがわかります。
 
 ---
 
@@ -226,9 +226,9 @@ coredns -conf Corefile
 1. `Ctrl+C` で CoreDNS を停止します。
 2. 作業ディレクトリを削除します。
 
-    ```bash
-    rm -rf ~/coredns_parent ~/coredns_child
-    ```
+   ```bash
+   rm -rf ~/coredns_parent ~/coredns_child
+   ```
 
 ---
 
@@ -258,10 +258,10 @@ coredns -conf Corefile
 
 - **重複起動**: 既に CoreDNS プロセスが動いています。
 
-    ```bash
-    ps aux | grep coredns
-    kill <PID>
-    ```
+  ```bash
+  ps aux | grep coredns
+  kill <PID>
+  ```
 
 ### 名前解決ができない (NXDOMAIN)
 
@@ -280,9 +280,9 @@ coredns -conf Corefile
 
 - `dnsutils` の代わりに `bind` パッケージをインストールしてください。
 
-    ```bash
-    brew install bind
-    ```
+  ```bash
+  brew install bind
+  ```
 
 - CoreDNS バイナリは Darwin 用のものをダウンロードしてください。
 

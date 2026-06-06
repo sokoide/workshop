@@ -18,12 +18,12 @@
 
 ## 登場人物と役割
 
-| 登場人物             | 実装・ツール例        | 役割                                   |
-| -------------------- | --------------------- | -------------------------------------- |
-| Resource Owner       | 私自身                | ログインを許可するユーザー             |
-| Client               | Go Client アプリ      | トークンを取得し、APIを叩くもの        |
-| Authorization Server | Keycloak              | ユーザーを確認し、トークンを発行する   |
-| Resource Server      | 私のREST API          | トークンを検証し、データ（資源）を渡す |
+| 登場人物             | 実装・ツール例   | 役割                                   |
+| -------------------- | ---------------- | -------------------------------------- |
+| Resource Owner       | 私自身           | ログインを許可するユーザー             |
+| Client               | Go Client アプリ | トークンを取得し、APIを叩くもの        |
+| Authorization Server | Keycloak         | ユーザーを確認し、トークンを発行する   |
+| Resource Server      | 私のREST API     | トークンを検証し、データ（資源）を渡す |
 
 ---
 
@@ -112,21 +112,21 @@ Keycloak 管理画面: `http://localhost:8080`
 2. Realm `workshop` を作成
 3. User を 1 人作成（例: `swe-user`）し、パスワードを設定
 4. Client を作成（例: `workshop-client`）
-    - Client authentication: `Off`（Public client）
-    - Standard flow: `On`
-    - Valid redirect URIs: `http://localhost:3000/callback`
+   - Client authentication: `Off`（Public client）
+   - Standard flow: `On`
+   - Valid redirect URIs: `http://localhost:3000/callback`
 5. 必要に応じて Client Scope `profile` `email` を付与
-    - `openid` は Keycloak の Client Scope 一覧に出ないことがあります
-    - `openid` は OIDC を使うための予約済みスコープで、通常は認可リクエスト側で `scope=openid` を指定します
+   - `openid` は Keycloak の Client Scope 一覧に出ないことがあります
+   - `openid` は OIDC を使うための予約済みスコープで、通常は認可リクエスト側で `scope=openid` を指定します
 6. Audience mapper を追加して、アクセストークンの `aud` に `workshop-client` を含める
-    - `Client scopes` > `roles` > `Mappers` > `Add mapper` > `By configuration` > `Audience`
-    - `Name`: `aud-workshop-client`
-    - `Included Client Audience`: `workshop-client`
-    - `Add to access token`: `On`
-    - `Add to ID token`: `Off`
-    - `Add to lightweight access token`: `Off`
-    - `Add to token introspection`: `On`
-    - これを入れないと、後続の Go API で `token has invalid audience` になります
+   - `Client scopes` > `roles` > `Mappers` > `Add mapper` > `By configuration` > `Audience`
+   - `Name`: `aud-workshop-client`
+   - `Included Client Audience`: `workshop-client`
+   - `Add to access token`: `On`
+   - `Add to ID token`: `Off`
+   - `Add to lightweight access token`: `Off`
+   - `Add to token introspection`: `On`
+   - これを入れないと、後続の Go API で `token has invalid audience` になります
 
 補足:
 

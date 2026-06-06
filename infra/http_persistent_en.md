@@ -52,10 +52,10 @@ There are multiple ways to immediately inform a client that "a state has changed
 
 1. **Bi-directional communication needed in browser** (Chat, Games) → **WebSocket**
 2. **Unidirectional notification to browser is sufficient** (News feeds, Stock updates) → **SSE (Server-Sent Events)**
-    - Implementation is very simple (`text/event-stream`), and automatic reconnection is supported by standard browsers.
+   - Implementation is very simple (`text/event-stream`), and automatic reconnection is supported by standard browsers.
 3. **High network fluctuation / Modern low-latency requirements** → **WebTransport (HTTP/3)**
 4. **Backend-to-Backend communication** → **gRPC Streaming**
-    - Type-safe (IDL/proto) with support for server, client, and bi-directional streaming.
+   - Type-safe (IDL/proto) with support for server, client, and bi-directional streaming.
 
 ---
 
@@ -192,73 +192,73 @@ sequenceDiagram
 
 1. **Navigate to the Repository**
 
-    ```bash
-    cd infra/assets/http_persistent_conn
-    ```
+   ```bash
+   cd infra/assets/http_persistent_conn
+   ```
 
 2. **Install Tools**
 
-    Install the system-level tools using `apt`, and use **Homebrew (Linuxbrew)** for development tools to ensure the latest versions and easy installation of `websocat`.
+   Install the system-level tools using `apt`, and use **Homebrew (Linuxbrew)** for development tools to ensure the latest versions and easy installation of `websocat`.
 
-    ```bash
-    # 1. Install system essentials via apt
-    sudo apt update
-    sudo apt install -y podman podman-compose git make openssl curl
+   ```bash
+   # 1. Install system essentials via apt
+   sudo apt update
+   sudo apt install -y podman podman-compose git make openssl curl
 
-    # 2. Install development tools via Homebrew
-    # If you haven't installed Homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    brew install websocat go protobuf grpcurl
-    ```
+   # 2. Install development tools via Homebrew
+   # If you haven't installed Homebrew: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   brew install websocat go protobuf grpcurl
+   ```
 
-    > [!IMPORTANT]
-    > Ensure both Homebrew and Go binary directories are in your `PATH`.
-    >
-    > ```bash
-    > # Example for ~/.bashrc or ~/.zshrc
-    > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-    > export PATH=$PATH:$(go env GOPATH)/bin
-    > ```
+   > [!IMPORTANT]
+   > Ensure both Homebrew and Go binary directories are in your `PATH`.
+   >
+   > ```bash
+   > # Example for ~/.bashrc or ~/.zshrc
+   > eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+   > export PATH=$PATH:$(go env GOPATH)/bin
+   > ```
 
-    Next, set up the Go-specific Protobuf plugins using `make setup`:
+   Next, set up the Go-specific Protobuf plugins using `make setup`:
 
-    ```bash
-    make setup
-    ```
+   ```bash
+   make setup
+   ```
 
-    ```bash
-    # (Tool paths appear; no output if already installed)
-    which protoc-gen-go grpcurl
-    ```
+   ```bash
+   # (Tool paths appear; no output if already installed)
+   which protoc-gen-go grpcurl
+   ```
 
 3. **Generate Self-Signed Certificate**
 
-    Since HTTP/2/3 require TLS/QUIC, create a local certificate.
+   Since HTTP/2/3 require TLS/QUIC, create a local certificate.
 
-    ```bash
-    make cert
-    ```
+   ```bash
+   make cert
+   ```
 
 4. **Generate Protobuf Code**
 
-    Generate Go stubs from `proto/greeter.proto`.
+   Generate Go stubs from `proto/greeter.proto`.
 
-    ```bash
-    make gen
-    ```
+   ```bash
+   make gen
+   ```
 
 5. **Start the Server**
 
-    ```bash
-    make run
-    ```
+   ```bash
+   make run
+   ```
 
-    Port List:
-    - `:8080` → HTTP/1.1 + WebSocket + SSE
-    - `:8443` → HTTP/2 (TLS)
-    - `:8444` → HTTP/3 (QUIC)
-    - `:50051` → gRPC (HTTP/2)
+   Port List:
+   - `:8080` → HTTP/1.1 + WebSocket + SSE
+   - `:8443` → HTTP/2 (TLS)
+   - `:8444` → HTTP/3 (QUIC)
+   - `:50051` → gRPC (HTTP/2)
 
-    Keep the server running in this terminal and use another terminal for the following steps.
+   Keep the server running in this terminal and use another terminal for the following steps.
 
 ---
 
@@ -284,33 +284,33 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 **Observation Points**:
 
 - **With Keep-Alive (Default)**:
-    1. **curl Logs**: Check for `Re-using existing connection! (#0) with host localhost` in the second request's log. This confirms the TCP connection is reused.
-    2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** connection to `:8080`.
+  1. **curl Logs**: Check for `Re-using existing connection! (#0) with host localhost` in the second request's log. This confirms the TCP connection is reused.
+  2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** connection to `:8080`.
 
-        ```bash
-        # Ubuntu 24.04: -a allows you to see connection remnants like TIME-WAIT
-        watch -n 0.1 "ss -ntp | grep :8080"
-        ```
+     ```bash
+     # Ubuntu 24.04: -a allows you to see connection remnants like TIME-WAIT
+     watch -n 0.1 "ss -ntp | grep :8080"
+     ```
 
-    3. **Criteria**: If only **one line** (e.g., TIME-WAIT) remains after both requests finish, it proves a single connection was reused.
+  3. **Criteria**: If only **one line** (e.g., TIME-WAIT) remains after both requests finish, it proves a single connection was reused.
 
-        > The Linux watcher above uses `ss -ntp`, so it suppresses TIME_WAIT entries by default. Run it again with `ss -ntap` or add `-a` if you want to observe TIME_WAIT. On macOS, you can also iterate:
-        >
-        > ```bash
-        > while true; do
-        >     clear
-        >     netstat -anp tcp | grep 8080 | grep -v TIME_WAIT
-        >     sleep 0.1
-        > done
-        > ```
-        >
-        > Removing `| grep -v TIME_WAIT` shows everything, including TIME_WAIT lines.
+     > The Linux watcher above uses `ss -ntp`, so it suppresses TIME_WAIT entries by default. Run it again with `ss -ntap` or add `-a` if you want to observe TIME_WAIT. On macOS, you can also iterate:
+     >
+     > ```bash
+     > while true; do
+     >     clear
+     >     netstat -anp tcp | grep 8080 | grep -v TIME_WAIT
+     >     sleep 0.1
+     > done
+     > ```
+     >
+     > Removing `| grep -v TIME_WAIT` shows everything, including TIME_WAIT lines.
 
 - **Without Keep-Alive (Connection: close)**:
-    1. **curl Logs**: Note that `Closing connection 0` appears after the first response, and `Re-using existing connection!` **does not appear** for the second request.
-    2. **Socket Status**: While monitoring with `ss`, you will see **two distinct connections** (with different client-side port numbers) being created and moving to completion (e.g., TIME-WAIT).
+  1. **curl Logs**: Note that `Closing connection 0` appears after the first response, and `Re-using existing connection!` **does not appear** for the second request.
+  2. **Socket Status**: While monitoring with `ss`, you will see **two distinct connections** (with different client-side port numbers) being created and moving to completion (e.g., TIME-WAIT).
 
-    _Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` or similar._
+  _Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` or similar._
 
 > **Note on Timeout**:
 > Servers typically have a **Keep-Alive Timeout**. If no request arrives within a certain period, the server sends a TCP disconnect (FIN). If the connection disappears during the exercise, simply send another request to perform a new handshake.
@@ -373,23 +373,23 @@ podman-compose up --build -d
 1. **Explicit Routing by Files**: The static `traefik.yml` + `traefik-dynamic.yml` pair ensures Traefik listens for `Host(`localhost`)` and forwards to `http://app:8080` without sharing `/run/podman/podman.sock`.
 2. **Host Port 18080 Access**: Compose binds host `18080:80`, so confirm Traefik → app communication using `websocat -v ws://localhost:18080/ws` or `curl http://localhost:18080/`.
 3. **Socket Monitoring (Platform Specific)**:
-    - **Linux**:
+   - **Linux**:
 
-        ```bash
-        watch -n 0.1 "ss -ntp | grep :18080"
-        ```
+     ```bash
+     watch -n 0.1 "ss -ntp | grep :18080"
+     ```
 
-    - **macOS**:
+   - **macOS**:
 
-        ```bash
-        while true; do
-            clear
-            lsof -nP -iTCP:18080 | grep 18080
-            sleep 0.1
-        done
-        ```
+     ```bash
+     while true; do
+         clear
+         lsof -nP -iTCP:18080 | grep 18080
+         sleep 0.1
+     done
+     ```
 
-        > The Linux watcher above uses `ss -ntp` to keep TIME_WAIT hidden. Re-run it with `ss -ntap` when you want to see TIME_WAIT entries.
+     > The Linux watcher above uses `ss -ntp` to keep TIME_WAIT hidden. Re-run it with `ss -ntap` when you want to see TIME_WAIT entries.
 
 4. **Transparency**: From the client's perspective, it behaves exactly like a direct connection.
 5. **Note**: Don't forget to cleanup with `podman-compose down`.
@@ -413,23 +413,23 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 1. **Multiplexing**: In the `curl` log, check for different odd stream IDs (e.g., `[HTTP/2] [1] GET /a`, `[HTTP/2] [3] GET /b`) running simultaneously.
 2. **Socket Monitoring**: Verify that the OS-level TCP socket remains **always single** even when multiple requests are flying.
 3. **Socket Monitoring (Platform Specific)**:
-    - **Linux**:
+   - **Linux**:
 
-        ```bash
-        watch -n 0.1 "ss -ntp | grep :8443"
-        ```
+     ```bash
+     watch -n 0.1 "ss -ntp | grep :8443"
+     ```
 
-    - **macOS**:
+   - **macOS**:
 
-        ```bash
-        while true; do
-            clear
-            lsof -nP -iTCP:8443 | grep 8443
-            sleep 0.1
-        done
-        ```
+     ```bash
+     while true; do
+         clear
+         lsof -nP -iTCP:8443 | grep 8443
+         sleep 0.1
+     done
+     ```
 
-        > The Linux watcher uses `ss -ntp`, which hides TIME_WAIT entries. Re-run it with `ss -ntap` if you need to observe queued sockets.
+     > The Linux watcher uses `ss -ntp`, which hides TIME_WAIT entries. Re-run it with `ss -ntap` if you need to observe queued sockets.
 
 ### STEP 4: HTTP/3 (QUIC) 0-RTT and Transition to UDP
 
@@ -460,9 +460,9 @@ curl --http3 -k -v https://localhost:8444/
 
 1. **Protocol Difference**: Check for `ALPN: h3` in the `curl` log.
 2. **Socket Monitoring (UDP)**:
-    - **Status Display**: Since UDP is a "connectionless" protocol.
-    - Linux: `sudo tcpdump -i lo -n port 8444`
-    - macos: `sudo tcpdump -i lo0 -n port 8444`
+   - **Status Display**: Since UDP is a "connectionless" protocol.
+   - Linux: `sudo tcpdump -i lo -n port 8444`
+   - macos: `sudo tcpdump -i lo0 -n port 8444`
 
 ### STEP 5: Diverse Streaming Experiences with gRPC (HTTP/2)
 
@@ -503,25 +503,25 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
 
 - Note that `grpcurl` starts a new process for each command, usually resulting in a new connection per call. The true power of gRPC (1-connection multiplexing) is maximized when reusing a long-lived `ClientConn` within an application.
 - **Socket Monitoring**:
-    1. **Linux**:
+  1. **Linux**:
 
-        ```bash
-        watch -n 0.1 "ss -ntp | grep :50051"
-        ```
+     ```bash
+     watch -n 0.1 "ss -ntp | grep :50051"
+     ```
 
-        > The Linux watcher hides TIME_WAIT entries by using `ss -ntp`. Run it again with `ss -ntap` if you want to examine them.
+     > The Linux watcher hides TIME_WAIT entries by using `ss -ntp`. Run it again with `ss -ntap` if you want to examine them.
 
-    2. **macOS**:
+  2. **macOS**:
 
-        ```bash
-        while true; do
-            clear
-            netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
-            sleep 0.1
-        done
-        ```
+     ```bash
+     while true; do
+         clear
+         netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
+         sleep 0.1
+     done
+     ```
 
-        > Remove `| grep -v TIME_WAIT` if you want to include TIME_WAIT entries in the output.
+     > Remove `| grep -v TIME_WAIT` if you want to include TIME_WAIT entries in the output.
 
 ### ✅ Verification Checkpoints
 
@@ -542,23 +542,23 @@ curl -v http://localhost:8080/sse
 1. **Content-Type**: Check for `text/event-stream`. Data arrives sequentially without closing the connection.
 2. **Lightweight**: Observe how it's implemented as a "long HTTP response" rather than complex framing like WebSocket.
 3. **Socket Monitoring (Platform Specific)**:
-    - **Linux**:
+   - **Linux**:
 
-        ```bash
-        watch -n 0.1 "ss -ntp | grep :8080"
-        ```
+     ```bash
+     watch -n 0.1 "ss -ntp | grep :8080"
+     ```
 
-        > The Linux watcher keeps TIME_WAIT hidden via `ss -ntp`. Re-run with `ss -ntap` if you want to include those entries.
+     > The Linux watcher keeps TIME_WAIT hidden via `ss -ntp`. Re-run with `ss -ntap` if you want to include those entries.
 
-    - **macOS**:
+   - **macOS**:
 
-        ```bash
-        while true; do
-            clear
-            lsof -nP -iTCP:8080 | grep 8080
-            sleep 0.1
-        done
-        ```
+     ```bash
+     while true; do
+         clear
+         lsof -nP -iTCP:8080 | grep 8080
+         sleep 0.1
+     done
+     ```
 
 ---
 
@@ -654,10 +654,10 @@ podman-compose down
 
 - The system `curl` does not support HTTP/3.
 
-    ```bash
-    brew install curl
-    # Use an alias or update PATH to prioritize the brew version
-    ```
+  ```bash
+  brew install curl
+  # Use an alias or update PATH to prioritize the brew version
+  ```
 
 ### gRPC Certificate Error
 

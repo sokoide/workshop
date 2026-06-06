@@ -68,47 +68,46 @@ The following configuration defines a **2-second timeout** and **3 retries** for
 
 ```yaml
 static_resources:
-    listeners:
-        - name: listener_0
-          address:
-              socket_address: { address: 0.0.0.0, port_value: 10000 }
-          filter_chains:
-              - filters:
-                    - name: envoy.filters.network.http_connection_manager
-                      typed_config:
-                          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-                          stat_prefix: ingress_http
-                          route_config:
-                              name: local_route
-                              virtual_hosts:
-                                  - name: local_service
-                                    domains: ["*"]
-                                    routes:
-                                        - match: { prefix: "/" }
-                                          route:
-                                              cluster: service_backend
-                                              timeout: 2s
-                                              retry_policy:
-                                                  retry_on: "5xx"
-                                                  num_retries: 3
-                          http_filters:
-                              - name: envoy.filters.http.router
-                                typed_config:
-                                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  listeners:
+    - name: listener_0
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 10000 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains: ["*"]
+                      routes:
+                        - match: { prefix: "/" }
+                          route:
+                            cluster: service_backend
+                            timeout: 2s
+                            retry_policy:
+                              retry_on: "5xx"
+                              num_retries: 3
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
-    clusters:
-        - name: service_backend
-          connect_timeout: 0.25s
-          type: STRICT_DNS
-          lb_policy: ROUND_ROBIN
-          load_assignment:
-              cluster_name: service_backend
-              endpoints:
-                  - lb_endpoints:
-                        - endpoint:
-                              address:
-                                  socket_address:
-                                      { address: backend, port_value: 80 }
+  clusters:
+    - name: service_backend
+      connect_timeout: 0.25s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: service_backend
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: backend, port_value: 80 }
 ```
 
 ### 2. Start Environment
@@ -216,9 +215,9 @@ podman compose down
 
 - **Syntax Error in envoy.yaml**: Check logs to identify the error.
 
-    ```bash
-    podman logs <container_id>
-    ```
+  ```bash
+  podman logs <container_id>
+  ```
 
 ### Cannot Connect to Backend (503 Service Unavailable)
 

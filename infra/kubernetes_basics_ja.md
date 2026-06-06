@@ -219,17 +219,17 @@ metadata:
     app: nginx
 spec:
   containers:
-  - name: nginx
-    image: nginx:1.27-alpine
-    ports:
-    - containerPort: 80
-    resources:
-      requests:
-        memory: "64Mi"
-        cpu: "250m"
-      limits:
-        memory: "128Mi"
-        cpu: "500m"
+    - name: nginx
+      image: nginx:1.27-alpine
+      ports:
+        - containerPort: 80
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "250m"
+        limits:
+          memory: "128Mi"
+          cpu: "500m"
 ```
 
 ```bash
@@ -281,22 +281,22 @@ spec:
         app: nginx
     spec:
       containers:
-      - name: nginx
-        image: nginx:1.27-alpine
-        ports:
-        - containerPort: 80
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 3
-          periodSeconds: 3
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 3
-          periodSeconds: 3
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 3
 ```
 
 ```bash
@@ -344,9 +344,9 @@ spec:
   selector:
     app: nginx
   ports:
-  - port: 80
-    targetPort: 80
-    protocol: TCP
+    - port: 80
+      targetPort: 80
+      protocol: TCP
   sessionAffinity: None
 ```
 
@@ -403,22 +403,27 @@ metadata:
   name: config-demo
 spec:
   containers:
-  - name: demo
-    image: busybox:1.37
-    command: ["sh", "-c", "echo $APP_ENV && cat /etc/config/config.json && sleep 3600"]
-    env:
-    - name: APP_ENV
-      valueFrom:
-        configMapKeyRef:
-          name: app-config
-          key: APP_ENV
-    volumeMounts:
-    - name: config-volume
-      mountPath: /etc/config
+    - name: demo
+      image: busybox:1.37
+      command:
+        [
+          "sh",
+          "-c",
+          "echo $APP_ENV && cat /etc/config/config.json && sleep 3600"
+        ]
+      env:
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_ENV
+      volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
   volumes:
-  - name: config-volume
-    configMap:
-      name: app-config
+    - name: config-volume
+      configMap:
+        name: app-config
 ```
 
 ```bash
@@ -461,15 +466,15 @@ metadata:
   name: secret-demo
 spec:
   containers:
-  - name: demo
-    image: busybox:1.37
-    command: ["sh", "-c", "echo $DB_PASSWORD && sleep 3600"]
-    env:
-    - name: DB_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: app-secret
-          key: DB_PASSWORD
+    - name: demo
+      image: busybox:1.37
+      command: ["sh", "-c", "echo $DB_PASSWORD && sleep 3600"]
+      env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secret
+              key: DB_PASSWORD
 ```
 
 ```bash
@@ -525,16 +530,21 @@ spec:
         app: data
     spec:
       volumes:
-      - name: data-volume
-        persistentVolumeClaim:
-          claimName: data-pvc
-      containers:
-      - name: writer
-        image: busybox:1.37
-        command: ["sh", "-c", "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600"]
-        volumeMounts:
         - name: data-volume
-          mountPath: /data
+          persistentVolumeClaim:
+            claimName: data-pvc
+      containers:
+        - name: writer
+          image: busybox:1.37
+          command:
+            [
+              "sh",
+              "-c",
+              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600"
+            ]
+          volumeMounts:
+            - name: data-volume
+              mountPath: /data
 ```
 
 ```bash
@@ -574,16 +584,16 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: nginx.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: nginx-service
-            port:
-              number: 80
+    - host: nginx.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-service
+                port:
+                  number: 80
 ```
 
 ```bash
@@ -841,7 +851,7 @@ spec:
   selector:
     app: usecase-layer
   ports:
-  - port: 8080
+    - port: 8080
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -851,12 +861,12 @@ spec:
   template:
     spec:
       containers:
-      - name: usecase
-        image: usecase-service:latest
-        env:
-        # Infra Layer の Service を DNS で解決
-        - name: REPO_ENDPOINT
-          value: "infra-service.default.svc.cluster.local:8080"
+        - name: usecase
+          image: usecase-service:latest
+          env:
+            # Infra Layer の Service を DNS で解決
+            - name: REPO_ENDPOINT
+              value: "infra-service.default.svc.cluster.local:8080"
 ```
 
 ---

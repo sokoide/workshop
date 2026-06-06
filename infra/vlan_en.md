@@ -180,16 +180,16 @@ sudo podman run -d --name b --network net-vlan20 --ip 192.168.20.20 alpine sleep
 
 1. **Connectivity**: Confirm Ping from A to B.
 
-    ```bash
-    sudo podman exec a ping -c 3 192.168.20.20
-    ```
+   ```bash
+   sudo podman exec a ping -c 3 192.168.20.20
+   ```
 
 2. **Blocking Routing**: Verify that Ping fails when blocked at the router.
 
-    ```bash
-    sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
-    sudo podman exec a ping -c 3 -W 1 192.168.20.20 # Should fail
-    ```
+   ```bash
+   sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
+   sudo podman exec a ping -c 3 -W 1 192.168.20.20 # Should fail
+   ```
 
 ---
 

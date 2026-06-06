@@ -177,10 +177,10 @@ make mq-down
 
 - `ticker` が起動しているか確認
 
-    ```bash
-    # 別ターミナルで
-    go run cmd/ticker/main.go
-    ```
+  ```bash
+  # 別ターミナルで
+  go run cmd/ticker/main.go
+  ```
 
 - Exchange が正しく作成されているか管理画面で確認
   - <http://localhost:15672> にアクセス (guest/guest)
@@ -197,15 +197,15 @@ make mq-down
 
 - RabbitMQ コンテナが起動しているか確認
 
-    ```bash
-    podman ps | grep rabbitmq
-    ```
+  ```bash
+  podman ps | grep rabbitmq
+  ```
 
 - ポート 5672 (AMQP) と 15672 (管理画面) が公開されているか確認
 
-    ```bash
-    podman port $(podman ps -q --filter "ancestor=rabbitmq")
-    ```
+  ```bash
+  podman port $(podman ps -q --filter "ancestor=rabbitmq")
+  ```
 
 ### 管理画面にアクセスできない
 
@@ -215,9 +215,9 @@ make mq-down
 
 - Management Plugin が有効になっているか確認
 
-    ```bash
-    podman logs $(podman ps -q --filter "ancestor=rabbitmq") | grep management
-    ```
+  ```bash
+  podman logs $(podman ps -q --filter "ancestor=rabbitmq") | grep management
+  ```
 
 - ファイアウォールでポート 15672 がブロックされていないか確認
 

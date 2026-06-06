@@ -77,35 +77,35 @@ infra/assets/traefik/
 version: "3"
 
 services:
-    # Traefik リバースプロキシ
-    traefik:
-        image: traefik:v2.10
-        command:
-            - "--api.insecure=true"
-            - "--providers.docker=true"
-            - "--providers.docker.exposedbydefault=false"
-            - "--entrypoints.web.address=:80"
-        ports:
-            - "80:80"
-            - "8080:8080" # Dashboard
-        volumes:
-            - /run/podman/podman.sock:/var/run/docker.sock:ro
+  # Traefik リバースプロキシ
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080" # Dashboard
+    volumes:
+      - /run/podman/podman.sock:/var/run/docker.sock:ro
 
-    # バックエンド A (Whoami)
-    whoami-a:
-        image: traefik/whoami
-        labels:
-            - "traefik.enable=true"
-            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-            - "traefik.http.services.whoami.loadbalancer.server.port=80"
+  # バックエンド A (Whoami)
+  whoami-a:
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
 
-    # バックエンド B (Whoami - 同一サービスとしてLB)
-    whoami-b:
-        image: traefik/whoami
-        labels:
-            - "traefik.enable=true"
-            - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-            - "traefik.http.services.whoami.loadbalancer.server.port=80"
+  # バックエンド B (Whoami - 同一サービスとしてLB)
+  whoami-b:
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+      - "traefik.http.services.whoami.loadbalancer.server.port=80"
 ```
 
 ### 2. コンテナの起動

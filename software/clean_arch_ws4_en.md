@@ -20,7 +20,7 @@ Add a restriction mode where "only the thread owner (first post author) can writ
 Business rule additions propagate from inside to outside, but each layer's change is **minimal and tied to its own responsibility**.
 
 | Layer            | Change                                                                                  | Role                          |
-| -------          | --------                                                                                | ------                        |
+| ---------------- | --------------------------------------------------------------------------------------- | ----------------------------- |
 | **Domain**       | Add `Thread.OwnerOnly` flag, `CanPost()` method, `ErrNotThreadOwner` error              | Define the rule               |
 | **UseCase**      | Add `thread.CanPost(in.Author)` call, set `thread.Owner = in.Author` on thread creation | Apply the rule, persist owner |
 | **Infra**        | Add `owner_only` and `owner` columns to `threads` table, update read/write              | Persist the change            |
@@ -356,9 +356,9 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 ## Key Points
 
 1. **Clear Rule Location**:
-    - Domain knows "what the rule is" (`CanPost` implementation)
-    - UseCase knows "when to apply the rule" (call timing)
-    - Presentation knows "how to display rule violations" (403 Forbidden)
-    - Infra knows "how to persist rule data" (owner_only + owner columns)
+   - Domain knows "what the rule is" (`CanPost` implementation)
+   - UseCase knows "when to apply the rule" (call timing)
+   - Presentation knows "how to display rule violations" (403 Forbidden)
+   - Infra knows "how to persist rule data" (owner_only + owner columns)
 2. **Inside→Outside Propagation**: Business rule changes start in Domain and propagate outward, but each layer's changes are limited to its own responsibility.
 3. **Minimal Changes**: Adding "invited users also OK" only requires changing `CanPost()` internals, provided invited users are managed within the Thread entity.

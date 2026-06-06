@@ -101,9 +101,9 @@ metadata:
   name: pod-reader
   namespace: development
 rules:
-- apiGroups: [""]
-  resources: ["pods", "pods/log"]
-  verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -111,9 +111,9 @@ metadata:
   name: read-pods
   namespace: development
 subjects:
-- kind: ServiceAccount
-  name: app-sa
-  namespace: development
+  - kind: ServiceAccount
+    name: app-sa
+    namespace: development
 roleRef:
   kind: Role
   name: pod-reader
@@ -127,9 +127,9 @@ metadata:
 spec:
   serviceAccountName: app-sa
   containers:
-  - name: tester
-    image: busybox:1.36
-    command: ["sh", "-c", "sleep 3600"]
+    - name: tester
+      image: busybox:1.36
+      command: ["sh", "-c", "sleep 3600"]
 ```
 
 ```bash
@@ -164,8 +164,8 @@ metadata:
 spec:
   podSelector: {}
   policyTypes:
-  - Ingress
-  - Egress
+    - Ingress
+    - Egress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -177,31 +177,31 @@ spec:
     matchLabels:
       app: web
   policyTypes:
-  - Ingress
-  - Egress
+    - Ingress
+    - Egress
   ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app: frontend
-    ports:
-    - protocol: TCP
-      port: 80
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 80
   egress:
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          name: kube-system
-    ports:
-    - protocol: UDP
-      port: 53
-  - to:
-    - podSelector:
-        matchLabels:
-          app: database
-    ports:
-    - protocol: TCP
-      port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app: database
+      ports:
+        - protocol: TCP
+          port: 5432
 ```
 
 ```bash
@@ -260,14 +260,14 @@ spec:
     seccompProfile:
       type: RuntimeDefault
   containers:
-  - name: app
-    image: nginx:1.25-alpine
-    securityContext:
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-        - ALL
-      readOnlyRootFilesystem: true
+    - name: app
+      image: nginx:1.25-alpine
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
 ```
 
 ```bash
@@ -323,17 +323,27 @@ spec:
         app: scalable
     spec:
       containers:
-      - name: app
-        image: polinux/stress
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "128Mi"
-          limits:
-            cpu: "500m"
-            memory: "512Mi"
-        command: ["stress"]
-        args: ["--cpu", "2", "--vm", "1", "--vm-bytes", "128M", "--timeout", "3600s"]
+        - name: app
+          image: polinux/stress
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          command: ["stress"]
+          args:
+            [
+              "--cpu",
+              "2",
+              "--vm",
+              "1",
+              "--vm-bytes",
+              "128M",
+              "--timeout",
+              "3600s"
+            ]
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -347,34 +357,34 @@ spec:
   minReplicas: 2
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 50
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
-      - type: Percent
-        value: 50
-        periodSeconds: 15
+        - type: Percent
+          value: 50
+          periodSeconds: 15
     scaleUp:
       stabilizationWindowSeconds: 0
       policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 15
-      - type: Pods
-        value: 4
-        periodSeconds: 15
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
       selectPolicy: Max
 ```
 
@@ -424,13 +434,13 @@ metadata:
   namespace: development
 spec:
   limits:
-  - default:
-      cpu: "500m"
-      memory: "512Mi"
-    defaultRequest:
-      cpu: "100m"
-      memory: "128Mi"
-    type: Container
+    - default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      type: Container
 ```
 
 ```bash

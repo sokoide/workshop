@@ -302,8 +302,8 @@ Ring watch/backoff/lifecycler loops run continuously in control-plane paths. Red
 4. Track cross-shard fan-out and keep it within explicit SLO limits.
 5. Separate control-plane stability from data-plane throughput budgets.
 6. Use static vs dynamic metadata structures intentionally:
-    - static-heavy: Sparse Table
-    - update-heavy: Segment Tree
+   - static-heavy: Sparse Table
+   - update-heavy: Segment Tree
 
 ---
 
