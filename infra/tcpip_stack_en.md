@@ -28,7 +28,7 @@ The essence of network communication is "Encapsulation." Higher-layer data is wr
 ### Components to Implement
 
 | Layer | Component      | File                    | Description                                  |
-| :---- | :------------- | :---------------------- | :------------------------------------------- |
+| :--- | :--- | :--- | :--- |
 | L1    | Raw Socket     | `pkg/rawsock/`          | Bypass kernel, communicate directly with NIC |
 | L2    | Ethernet Frame | `pkg/ethernet/frame.go` | MAC address-based frame handling             |
 | L3    | IPv4 Packet    | `pkg/ipv4/packet.go`    | IP address-based packet handling             |
@@ -386,7 +386,7 @@ int fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 ```
 
 | Argument | Value                | Meaning                           |
-| :------- | :------------------- | :-------------------------------- |
+| :--- | :--- | :--- |
 | Domain   | `AF_PACKET`          | Packet-level socket (L2)          |
 | Type     | `SOCK_RAW`           | Get raw packets including headers |
 | Protocol | `ETH_P_ALL` (0x0003) | Receive all protocol types        |
@@ -394,7 +394,7 @@ int fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 ##### Other Protocol Values
 
 | Protocol     | Value  | Description         |
-| :----------- | :----- | :------------------ |
+| :--- | :--- | :--- |
 | `ETH_P_ALL`  | 0x0003 | Receive all packets |
 | `ETH_P_IP`   | 0x0800 | Receive IPv4 only   |
 | `ETH_P_IPV6` | 0x86DD | Receive IPv6 only   |

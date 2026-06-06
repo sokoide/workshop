@@ -20,7 +20,7 @@ In this workshop, you will learn about **connection reuse and streaming**, which
 Re-establishing TCP connections (3-way handshake) and TLS connections (handshake) for every communication causes significant overhead, especially in high-latency environments.
 
 | Protocol      | Connection Handling     | Features                                                                                                                           |
-| :------------ | :---------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| :--- | :--- | :--- |
 | **HTTP/1.0**  | Short-lived             | Disconnect after each request. High overhead.                                                                                      |
 | **HTTP/1.1**  | Persistent (Keep-Alive) | Reuse connections. In practice, requests are processed serially, leading to **HoL Blocking** due to response waiting.              |
 | **WebSocket** | Bi-directional          | Upgraded from HTTP. Allows bi-directional sending, but **TCP-level HoL Blocking** remains.                                         |
@@ -320,7 +320,7 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 WebSocket starts with an **HTTP/1.1 `Upgrade` header**, but once established, it switches to **"Full-duplex communication"** where both parties can send data at any time, ignoring the HTTP request-response framework.
 
 | Feature                     | HTTP/1.1 (Keep-Alive)              | WebSocket                                  |
-| :-------------------------- | :--------------------------------- | :----------------------------------------- |
+| :--- | :--- | :--- |
 | **Communication Direction** | Client-initiated Request/Response  | Full-duplex (Either side can send anytime) |
 | **Data Unit**               | HTTP Message (Header + Body)       | Lightweight Frame (Binary/Text)            |
 | **Overhead**                | Headers required for every request | Minimal frame headers after connection     |
@@ -473,7 +473,7 @@ gRPC utilizes HTTP/2's long-lived connections and stream multiplexing.
 When using a single `ClientConn`, gRPC Unary offers significant advantages over HTTP/1.1 Keep-Alive:
 
 | Feature                 | HTTP/1.1 Keep-Alive                  | gRPC Unary (HTTP/2)                              |
-| :---------------------- | :----------------------------------- | :----------------------------------------------- |
+| :--- | :--- | :--- |
 | **Parallelism**         | Serial (Must wait for response)      | **Multiplexing**                                 |
 | **HoL Blocking**        | Likely at connection level           | **HTTP-layer HoL Mitigated** (TCP-level remains) |
 | **Resource Efficiency** | Parallelism needs multiple TCP conns | Many streams over **1 TCP connection**           |

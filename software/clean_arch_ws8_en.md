@@ -41,7 +41,7 @@ Presentation Adapters ---→ UseCases ---→ Domain
 ### Dependency Matrix
 
 | From / To                 | Domain  | UseCases | Adapters |
-| ------------------------- | ------- | -------- | -------- |
+| --- | --- | --- | --- |
 | Domain                    | yes     | no       | no       |
 | UseCases                  | yes     | yes      | no       |
 | Adapters (Presentation)   | limited | yes      | self     |

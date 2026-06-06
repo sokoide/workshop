@@ -70,7 +70,7 @@ In distributed systems, network failures and timeouts occur daily.
 ## HTTP Methods and Idempotency
 
 | Method | Idempotent | Description                                                          |
-| :----- | :--------- | :------------------------------------------------------------------- |
+| :--- | :--- | :--- |
 | GET    | ✅ Yes     | Retrieval only (no side effects)                                     |
 | HEAD   | ✅ Yes     | Header retrieval only (no side effects)                              |
 | PUT    | ✅ Yes     | Full replacement (same data results in same state)                   |
@@ -338,7 +338,7 @@ defer redis.Del(ctx, "lock:"+key)
 ### 2. Key Expiration Strategy
 
 | Use Case    | Recommended TTL | Reason                                  |
-| :---------- | :-------------- | :-------------------------------------- |
+| :--- | :--- | :--- |
 | Payments    | 48 hours        | Inquiry window after payment completion |
 | Inventory   | 15 minutes      | Cart session duration                   |
 | File Upload | 24 hours        | Grace period for upload completion      |

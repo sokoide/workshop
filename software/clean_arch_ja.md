@@ -58,7 +58,7 @@ graph TD
 ## オリジナルアーキテクチャとの対応
 
 | オリジナル Clean Architecture | このバリアントでの位置づけ                                          |
-| :---------------------------- | :------------------------------------------------------------------ |
+| :--- | :--- |
 | Entities                      | Domain                                                              |
 | Use Cases                     | UseCases                                                            |
 | Interface Adapters            | Adapters（Presentation + Infrastructure）                           |
@@ -67,7 +67,7 @@ graph TD
 > **補足:** この 3 層バリアントでは、従来の「Frameworks & Drivers」層は Adapters と Composition Root に吸収されています。Web フレームワーク、ルーティングライブラリ、DB ドライバーは Adapters 層内の実装詳細として扱われ、独立したアーキテクチャ層とはなりません。Composition Root（`main.go`）はすべての配線を行いますが、ビジネスロジックは一切含みません。
 
 | Hexagonal Architecture           | このバリアントでの位置づけ |
-| -------------------------------- | -------------------------- |
+| --- | --- |
 | Driving（Inbound）Adapters       | Presentation Adapters      |
 | Application（Ports & Use Cases） | UseCases                   |
 | Driven（Outbound）Adapters       | Infrastructure Adapters    |
@@ -126,7 +126,7 @@ UseCases または Domain が所有するポートを外部システムに接続
 ## 依存マトリクス
 
 | 依存元 ↓ →                 | Domain | UseCases | Adapters |
-| :------------------------: | :----: | :------: | :------: |
+| :---: | :---: | :---: | :---: |
 | Domain                     | yes    | no       | no       |
 | UseCases                   | yes    | yes      | no       |
 | Adapters（Presentation）   | cond.  | yes      | self     |

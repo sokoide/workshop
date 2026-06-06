@@ -58,7 +58,7 @@ graph TD
 ## Mapping to Original Architectures
 
 | Original Clean Architecture | This Variant's Placement                                            |
-| :-------------------------- | :------------------------------------------------------------------ |
+| :--- | :--- |
 | Entities                    | Domain                                                              |
 | Use Cases                   | UseCases                                                            |
 | Interface Adapters          | Adapters (Presentation + Infrastructure)                            |
@@ -67,7 +67,7 @@ graph TD
 > **Note:** In this 3-layer variant, the traditional "Frameworks & Drivers" layer is absorbed into Adapters and Composition Root. Web frameworks, routing libraries, and DB drivers are treated as implementation details within the Adapters layer, not as a separate architectural layer. The Composition Root (`main.go`) wires everything together but contains no business logic.
 
 | Hexagonal Architecture          | This Variant's Placement |
-| ------------------------------- | ------------------------ |
+| --- | --- |
 | Driving (Inbound) Adapters      | Presentation Adapters    |
 | Application (Ports & Use Cases) | UseCases                 |
 | Driven (Outbound) Adapters      | Infrastructure Adapters  |
@@ -126,7 +126,7 @@ Adapters that connect UseCases or Domain-owned ports to external systems.
 ## Dependency Matrix
 
 | From / To                 | Domain | UseCases | Adapters |
-| ------------------------- | ------ | -------- | -------- |
+| --- | --- | --- | --- |
 | Domain                    | yes    | no       | no       |
 | UseCases                  | yes    | yes      | no       |
 | Adapters (Presentation)   | cond.  | yes      | self     |

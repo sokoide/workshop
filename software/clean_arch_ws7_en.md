@@ -21,7 +21,7 @@ Authentication is a **cross-cutting concern** of the Presentation layer, impleme
 The following layers require **zero modifications**:
 
 | Layer       | Reason                                                                                                                |
-| ----------- | --------------------------------------------------------------------------------------------------------------------- |
+| --- | --- |
 | **Domain**  | Entities and Ports don't know "who" is operating. Authentication is a Presentation responsibility                     |
 | **UseCase** | `Execute(ctx, Input)` signature is unchanged. If authenticated user info is needed, just add a field to the Input DTO |
 | **Infra**   | DB access is unrelated to authentication                                                                              |

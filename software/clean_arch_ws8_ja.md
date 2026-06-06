@@ -41,7 +41,7 @@ Presentation Adapters ---→ UseCases ---→ Domain
 ### 依存マトリクス
 
 | 依存元 ↓ →                 | Domain  | UseCases | Adapters |
-| :------------------------: | :-----: | :------: | :------: |
+| :---: | :---: | :---: | :---: |
 | Domain                     | yes     | no       | no       |
 | UseCases                   | yes     | yes      | no       |
 | Adapters（Presentation）   | limited | yes      | self     |

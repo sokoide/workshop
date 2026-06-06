@@ -20,7 +20,7 @@ Add a restriction mode where "only the thread owner (first post author) can writ
 Business rule additions propagate from inside to outside, but each layer's change is **minimal and tied to its own responsibility**.
 
 | Layer            | Change                                                                                  | Role                          |
-| ---------------- | --------------------------------------------------------------------------------------- | ----------------------------- |
+| --- | --- | --- |
 | **Domain**       | Add `Thread.OwnerOnly` flag, `CanPost()` method, `ErrNotThreadOwner` error              | Define the rule               |
 | **UseCase**      | Add `thread.CanPost(in.Author)` call, set `thread.Owner = in.Author` on thread creation | Apply the rule, persist owner |
 | **Infra**        | Add `owner_only` and `owner` columns to `threads` table, update read/write              | Persist the change            |
