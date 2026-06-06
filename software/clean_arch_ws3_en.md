@@ -544,10 +544,13 @@ In this case, switching to gRPC requires **rewriting the entire function**.
 Try answering these questions yourself.
 
 ### Question 1: Protobuf and the Domain Layer
+
 What problems arise if you directly use Go structs generated from .proto files (e.g., `pb.Post`) as Domain layer entities? According to Clean Architecture, in which layer and how should the conversion be performed?
 
 ### Question 2: Differences in Error Handling
+
 In HTTP, returning `404 Not Found` is natural, but in gRPC, you use `status.NotFound`. In which layer should error conversion be performed? If you write "for HTTP" and "for gRPC" branching in the UseCase layer, what problems would occur?
 
 ### Question 3: Transaction Boundaries
+
 `CreateThreadUseCase` performs "thread creation" and "first post" in the same transaction. To which layer should this transaction control belong? If you start and end transactions in the Presentation layer (HTTP Handler), which Clean Architecture principle would be violated?

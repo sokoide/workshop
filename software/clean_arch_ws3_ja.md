@@ -541,10 +541,13 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 以下の問いに自分で答えてみてください。
 
 ### 問 1: Protobuf と Domain 層
+
 .proto ファイルから生成された Go の struct（例：`pb.Post`）を、Domain 層のエンティティとして直接使用するとどのような問題が生じますか？クリーンアーキテクチャ的には、どの層でどのように変換すべきですか？
 
 ### 問 2: エラーハンドリングの違い
+
 HTTP では `404 Not Found` を返すのが自然ですが、gRPC では `status.NotFound` を使います。エラーの変換はどの層で行うべきでしょうか？もし UseCase 層で「HTTP 用」「gRPC 用」の分岐を書くと、どのような問題が起きますか？
 
 ### 問 3: トランザクション境界
+
 `CreateThreadUseCase` は「スレッド作成」と「最初の投稿」を同じトランザクションで行います。このトランザクション制御はどの層に属するべきですか？もし Presentation 層（HTTP Handler）でトランザクションを開始・終了すると、クリーンアーキテクチャのどの原則に違反しますか？
