@@ -18,13 +18,13 @@
 
 ### 変更範囲の全体像
 
-| 層               | 変更内容                                                                                           | 役割                                                        |
-| --- | --- | --- |
-| **Domain**       | **変更なし**                                                                                       | —                                                           |
+| 層               | 変更内容                                                                                          | 役割                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Domain**       | **変更なし**                                                                                      | —                                                           |
 | **UseCase**      | `port.NotificationGateway` interface を新規定義、`CreatePostUseCase` に注入、投稿成功後に呼び出し | 「通知が必要である」という抽象の定義 + 通知のタイミング制御 |
-| **Infra**        | `infra/notification/slack_gateway.go` を新規作成                                                   | Slack API の具体実装                                        |
-| **Presentation** | **変更なし**                                                                                       | —                                                           |
-| **Entity**       | **変更なし**                                                                                       | —                                                           |
+| **Infra**        | `infra/notification/slack_gateway.go` を新規作成                                                  | Slack API の具体実装                                        |
+| **Presentation** | **変更なし**                                                                                      | —                                                           |
+| **Entity**       | **変更なし**                                                                                      | —                                                           |
 
 ### Step 1: UseCases 層 — 新しい Port の定義
 

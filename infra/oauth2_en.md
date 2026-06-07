@@ -19,7 +19,7 @@ After completing this workshop, you will be able to:
 ## Actors and Roles
 
 | Actor                | Example Implementation/Tool | Role                                             |
-| --- | --- | --- |
+| -------------------- | --------------------------- | ------------------------------------------------ |
 | Resource Owner       | Yourself                    | The user who signs in and grants access          |
 | Client               | Go Client App               | Something that obtains a token and calls the API |
 | Authorization Server | Keycloak                    | Verifies the user and issues tokens              |

