@@ -90,7 +90,7 @@
 - [セキュアコーディング Best Practices (Go)](./software/secure_coding_ja.md)
   - SQL インジェクション、パストラバーサル、パスワードハッシュ、競合状態、情報漏洩防止など日常のコーディングで気をつけるべき作法を解説
 - [Go キャッシュパターン入門](./software/go_cache_patterns_ja.md)
-  - Go の代表的なキャッシュパターンを整理（TTL/LRU/Cache-Aside/Redis/Write-Through、英語）
+  - Go の代表的なキャッシュパターンを整理（TTL/LRU/Cache-Aside/Redis/Write-Through、日本語）
 - [Succinct データ構造入門（Go視点）](./software/succinct_ja.md)
   - LOUDS を用いた省メモリな Trie 実装の解説
 - [Design Patterns](https://github.com/sokoide/design-patterns/README_ja.md)
