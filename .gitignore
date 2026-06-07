@@ -23,6 +23,7 @@ pb/
 .gemini/
 .omc/
 .serena/
+.antigravitycli/
 **/.serena/
 conductor/
 .ai-handoff.md
