@@ -19,6 +19,8 @@
   - VLAN サブインタフェース上に macvlan ネットワークを作成し、ルータコンテナで NAT/転送
 - [K8s Service (LoadBalancer) 実習：iptables で作る仮想ロードバランサ](./infra/k8s_lb_ja.md)
   - VIP 追加 + DNAT/SNAT で MetalLB・kube-proxy の動作原理を再現
+- [Load Balancer 実習：iptables と IPVS で作る仮想ロードバランサ](./infra/load_balancer_ja.md)
+  - iptables/IPVS を用いたロードバランシングアルゴリズム、NAT/DSR モード、ヘルスチェックを学習
 - [iSCSI と Kubernetes PersistentVolume 実習](./infra/iscsi_pv_ja.md)
   - iSCSI ターゲット/イニシエータを構築し、K8s PV/PVC でマウント・永続化を確認
 - [Terraform 実習：基礎から実践的な DNS サーバー構築まで](./infra/terraform_ja.md)
@@ -29,6 +31,8 @@
   - 手動で namespace/cgroup を作成し、`podman run` の裏側を再現
 - [Redis 実習：Sorted Sets で作るリアルタイム・ゲームランキング](./infra/cache_ja.md)
   - Redis の Sorted Sets を活用した高速なランキングシステム構築と、Sets による不正ユーザー管理を学習
+- [レート制限実習：Redis で作るリクエスト制限](./infra/rate_limiting_ja.md)
+  - Fixed Window、Sliding Window、Token Bucket アルゴリズムを Redis で実装
 - [メッセージキュー実習：RabbitMQ で学ぶ Pub/Sub とキューイング](./infra/rabbitmq_ja.md)
   - RabbitMQ の Topic Exchange を活用したリアルタイム仮想通貨監視システム構築
 - [シークレット管理実習：HashiCorp Vault による安全な API キー管理](./infra/secret_management_ja.md)
@@ -61,6 +65,8 @@
   - 意図的に脆弱なアプリを用い、代表的な Web 攻撃の仕組みと対策（エスケープ、トークン等）を学習
 - [サプライチェーンセキュリティ実習：依存ライブラリとコンテナイメージの脆弱性管理](./infra/supply_chain_security_ja.md)
   - govulncheck/Trivy で脆弱性検出、syft/grype で SBOM 生成、cosign でイメージ署名・検証を体験
+- [インフラ勉強会用語集](./infra/glossary_ja.md)
+  - 各ワークショップで登場する専門用語の簡潔な説明（ネットワーク、コンテナ、K8s、セキュリティ等）
 
 #### インフラ: 今後追加予定のコンテンツ
 
@@ -93,5 +99,7 @@
   - Go の代表的なキャッシュパターンを整理（TTL/LRU/Cache-Aside/Redis/Write-Through）
 - [Succinct データ構造入門（Go視点）](./software/succinct_ja.md)
   - LOUDS を用いた省メモリな Trie 実装の解説
+- [クリーンアーキテクチャ参考図（簡略版／英語）](./software/clean_arch.md)
+  - アーキテクチャ図と主要原則を凝縮したクイックリファレンス（英語）
 - [Design Patterns](https://github.com/sokoide/design-patterns/README_ja.md)
   - GoF デザインパターンの実装例と適用場面

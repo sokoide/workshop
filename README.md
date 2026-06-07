@@ -24,6 +24,8 @@ This repository provides hands-on technical workshops covering infrastructure an
   - Create macvlan networks on VLAN sub-interfaces and perform NAT/forwarding with router containers.
 - [K8s Service (LoadBalancer) Workshop: Virtual Load Balancer built with iptables](./infra/k8s_lb_en.md)
   - Replicate the operating principles of MetalLB and kube-proxy using VIP addition + DNAT/SNAT.
+- [Load Balancer Workshop: Building a Virtual LB with iptables and IPVS](./infra/load_balancer_en.md)
+  - Learn load balancing algorithms, NAT/DSR modes, and health checks using iptables and IPVS.
 - [iSCSI and Kubernetes PersistentVolume Workshop](./infra/iscsi_pv_en.md)
   - Build iSCSI targets/initiators and verify mounting/persistence with K8s PV/PVC.
 - [Terraform Workshop: From Basics to Practical DNS Server Construction](./infra/terraform_en.md)
@@ -34,6 +36,8 @@ This repository provides hands-on technical workshops covering infrastructure an
   - Replicate the magic behind `podman run` by manually creating namespaces/cgroups.
 - [Redis Workshop: Real-time Game Leaderboard with Sorted Sets](./infra/cache_en.md)
   - Build a high-performance leaderboard using Redis Sorted Sets and manage banned users with Sets.
+- [Rate Limiting Workshop: Request Throttling with Redis](./infra/rate_limiting_en.md)
+  - Implement Fixed Window, Sliding Window, and Token Bucket algorithms with Redis.
 - [Message Queue Workshop: Learning Pub/Sub and Queuing with RabbitMQ](./infra/rabbitmq_en.md)
   - Build a real-time crypto monitoring system using RabbitMQ Topic Exchange.
 - [Secret Management Workshop: Secure API Key Management with HashiCorp Vault](./infra/secret_management_en.md)
@@ -66,6 +70,8 @@ This repository provides hands-on technical workshops covering infrastructure an
   - Experience common web attacks and learn defense mechanisms (escaping, tokens, etc.) using an intentionally vulnerable application.
 - [Supply Chain Security Workshop: Dependency and Container Image Vulnerability Management](./infra/supply_chain_security_en.md)
   - Detect vulnerabilities with govulncheck/Trivy, generate SBOMs with syft/grype, and sign images with cosign.
+- [Infrastructure Workshop Glossary](./infra/glossary_en.md)
+  - Concise explanations of technical terms used across workshops (networking, containers, K8s, security, etc.).
 
 #### Infrastructure: Contents planned for the future
 
@@ -98,5 +104,7 @@ This repository provides hands-on technical workshops covering infrastructure an
   - Practical cache patterns: TTL, LRU, cache-aside, Redis, and write-through.
 - [Introduction to Succinct Data Structures (Go Perspective)](./software/succinct_en.md)
   - Guide to memory-efficient Trie implementation using LOUDS.
+- [Clean Architecture Reference (Simplified)](./software/clean_arch.md)
+  - Condensed architecture diagram and key principles — ideal as a quick reference.
 - [Design Patterns](https://github.com/sokoide/design-patterns/README.md)
   - Implementation examples and application scenarios of GoF design patterns.

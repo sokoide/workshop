@@ -46,7 +46,7 @@ project/
 ```bash
 # Format all markdown files
 make format
-```text
+```
 
 ### Go Projects (Individual Workshops)
 
@@ -65,7 +65,7 @@ go test ./... -cover
 
 # Format code
 go fmt ./...
-```text
+```
 
 ### Infrastructure Workshops
 
@@ -77,7 +77,7 @@ make redis-down      # Stop Redis container
 # RabbitMQ crypto (infra/assets/rabbitmq_crypto/)
 make mq-up           # Start RabbitMQ container
 make mq-down         # Stop RabbitMQ container
-```text
+```
 
 ## Testing Conventions
 
@@ -106,7 +106,7 @@ func TestFeature(t *testing.T) {
     }
     // Assertions...
 }
-```text
+```
 
 ## Go Code Style Conventions
 
