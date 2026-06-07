@@ -1,0 +1,12 @@
+# Markdown Similarity Check - Ignore File
+#
+# このファイルにリストされたファイルペアは類似度チェックから除外されます。
+#
+# フォーマット: 各行にファイル名（パス不含む）を1つずつ記述
+#
+# 例: README_ja.md と clean_arch_ws3_ja.md の重複は許容（参照関係）
+
+# BBS README関連 - 実習資料からの参照は許容
+README_ja.md
+clean_arch_ws3_ja.md
+clean_arch_ws3_en.md

@@ -11,57 +11,10 @@
 
 ### sage と age について
 
-2 ちゃんねる風掲示板特有の「スレッドの浮上」仕様です。
+BBS特有の「スレッドの浮上」仕様です。
+詳細な仕様、具体例、実装ロジックは [BBS README](../assets/bbs/README_ja.md#sage-と-age-について) を参照してください。
 
-| 用語     | 意味   | 挙動                                                |
-| :------- | :----- | :-------------------------------------------------- |
-| **age**  | 上げる | `LastPostedAt` を更新し、一覧の最上部に浮上させる   |
-| **sage** | 下げる | `LastPostedAt` を更新せず、スレッドの位置を変えない |
-
-**デフォルト動作:**
-
-- `sage: false` または省略 → **age**（スレッドが浮上）
-- `sage: true` → **sage**（浮上しない）
-
-**スレッド一覧の並び順:**
-
-```sql
-ORDER BY last_posted_at DESC  -- 最近レスがあったスレが上に来る
-```
-
-**具体例:**
-
-```bash
-# 1. Go スレ、Python スレ、Ruby スレが作成された状態
-#    一覧: Ruby(10:00) → Python(10:05) → Go(10:10)
-
-# 2. Ruby スレに age レス（sage: false）
-curl -X POST localhost:8080/api/threads/3/posts -d '{"author":"A","body":"hello"}'
-#    Ruby の LastPostedAt が現在時刻に更新 → 先頭へ
-#    一覧: Ruby(10:15) ← 浮上！ → Go(10:10) → Python(10:05)
-
-# 3. Python スレに sage レス（sage: true）
-curl -X POST localhost:8080/api/threads/2/posts -d '{"author":"B","body":"sage","sage":true}'
-#    Python の LastPostedAt は古いまま → 順位変わらず
-#    一覧: Ruby(10:15) → Go(10:10) → Python(10:05) ← そのまま
-```
-
-**使い分けの目安:**
-
-- **age**: 「会話が続いています」を目立たせたいとき
-- **sage**: 補足回答や、古いスレッドを無理に目立たせたくないとき
-
-**実装ロジック:**
-
-```go
-// Thread.Bump() - スレッドの最終投稿日時を更新
-func (t *Thread) Bump(postedAt time.Time, sage bool) {
-    t.PostCount++
-    if !sage {  // sage=false の場合のみ更新
-        t.LastPostedAt = postedAt
-    }
-}
-```
+> **概要**: `age`（上げる）はスレッドを一覧の最上部に浮上させ、`sage`（下げる）は浮上させない仕様です。
 
 ---
 
