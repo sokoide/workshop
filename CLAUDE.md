@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a collection of hands-on technical workshops covering infrastructure and software architecture topics. The repository serves as educational material with practical, executable examples.
 
-**Primary Language:** Go 1.26.2
+**Primary Language:** Go 1.26.4
 **Documentation:** Bilingual (English/Japanese)
 **Architecture Pattern:** Clean Architecture (3-layer variant: Adapters / UseCases / Domain)
 

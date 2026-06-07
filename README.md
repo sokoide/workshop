@@ -9,7 +9,7 @@
 
 This repository provides hands-on technical workshops covering infrastructure and software architecture topics.
 
-**Primary Language:** Go 1.26.2
+**Primary Language:** Go 1.26.4
 **Architecture Pattern:** [Clean Architecture (3-Layer Variant)](./software/clean_arch.md)
 
 ---
