@@ -29,10 +29,11 @@
 
 | レイヤー | コンポーネント | ファイル                | 実装内容                            |
 | :------- | :------------- | :---------------------- | :---------------------------------- |
-| L1       | Raw Socket     | `pkg/rawsock/`          | カーネルをバイパスしてNICと直接通信 |
+| L2       | Packet Socket  | `pkg/rawsock/`          | Ethernet フレームを送受信する Linux の AF_PACKET |
 | L2       | Ethernet Frame | `pkg/ethernet/frame.go` | MAC アドレスベースのフレーム処理    |
 | L3       | IPv4 Packet    | `pkg/ipv4/packet.go`    | IP アドレスベースのパケット処理     |
 | L4       | ICMP Message   | `pkg/icmp/message.go`   | Ping (Echo Request/Reply) の実装    |
+| L4       | UDP Message    | `pkg/udp/message.go`    | コネクションレスデータグラム        |
 | App      | Stack          | `main.go`               | 全体を統合するサーバー              |
 
 ---
@@ -50,7 +51,7 @@ sudo apt update && sudo apt install -y golang-go gcc tcpdump wireshark iproute2
 ### 2. プロジェクト構成
 
 ```bash
-mkdir -p tcpip_stack/pkg/{rawsock,ethernet,ipv4,icmp}
+mkdir -p tcpip_stack/pkg/{rawsock,ethernet,ipv4,icmp,udp}
 mkdir -p tcpip_stack/cmd/ping
 cd tcpip_stack
 go mod init github.com/sokoide/workshop/infra/assets/tcpip_stack
@@ -58,7 +59,7 @@ go mod init github.com/sokoide/workshop/infra/assets/tcpip_stack
 
 ### 3. 安全な実験場の作成 (Network Namespace)
 
-Raw Socket を用いた開発では、誤ったパケットを送出するとホスト OS のルーティングテーブルを混乱させるリスクがあります。Network Namespace で隔離環境を作ります。
+この実習では Linux の IP スタックが応答を横取りしないよう、`veth-host` には IP アドレスを設定しません。自作スタックだけが `192.168.100.1` を名乗り、Namespace 側に静的 ARP エントリを設定します。これは ARP の実装を後続課題として切り出すための意図的な省略です。
 
 ```bash
 # 1. 隔離された「砂場」を作成
@@ -74,26 +75,118 @@ sudo ip link set veth-ns netns workshop
 sudo ip link set veth-host up
 sudo ip netns exec workshop ip link set veth-ns up
 
-# 5. IPアドレスを割り当て
-sudo ip addr add 192.168.100.1/24 dev veth-host
+# 5. クライアント側だけに IP アドレスを割り当てる
 sudo ip netns exec workshop ip addr add 192.168.100.2/24 dev veth-ns
+
+# 6. 自作スタック側の MAC を ARP キャッシュに固定する
+STACK_MAC=$(cat /sys/class/net/veth-host/address)
+sudo ip netns exec workshop ip neigh replace 192.168.100.1 lladdr "$STACK_MAC" nud permanent dev veth-ns
 ```
 
 ### ✅ チェックポイント
 
 - [ ] `ip netns list` で `workshop` が表示される
-- [ ] `ip addr show veth-host` で `192.168.100.1` が割り当てられている
+- [ ] `ip addr show veth-host` に IPv4 アドレスがない
 - [ ] `sudo ip netns exec workshop ip addr show veth-ns` で `192.168.100.2` が割り当てられている
+- [ ] `sudo ip netns exec workshop ip neigh show` に `192.168.100.1` の permanent エントリがある
 
 ---
 
 ## 🚀 実装ステップ
 
-### STEP 1: Raw Socket (L1) - カーネルをバイパスする
+### STEP 0: 通信を観察する — カーネルが隠しているもの
 
 #### 目標
 
-通常のアプリケーションは `TCP/UDP Socket` を使いますが、これでは OS が L2/L3 ヘッダを自動生成してしまいます。自作スタックでは **AF_PACKET** を使い、NIC から直接「生データ」を読み書きします。
+実装に入る前に、普段見えない「通信の中身」を観察します。`curl` 1 行でアプリが得る情報と、`tcpdump` で見える生のパケット列を比較することで、この実習の意義（＝なぜパケットを自作するのか）を実感します。
+
+#### 1. アプリから見た通信（curl -v）
+
+ローカルに HTTP サーバを立ててリクエストを観察します。
+
+```bash
+# 別ターミナル: 最小のHTTPサーバを起動
+python3 -m http.server 8000
+
+# メインのターミナル: 詳細ログ付きでリクエスト
+curl -v http://localhost:8000/
+```
+
+`curl -v` が表示するのは、HTTP という「人間が読めるプロトコル」のやり取りです。
+
+```text
+*   Trying 127.0.0.1:8000...
+* Connected to localhost (127.0.0.1) port 8000 (#0)
+> GET / HTTP/1.1
+> Host: localhost:8000
+> User-Agent: curl/8.x
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Server: SimpleHTTP/0.6 Python/3.x
+< Content-Length: 1234
+<
+(以下、HTML本体)
+```
+
+ここには **TCP接続（3ウェイハンドシェイク）も、IPアドレスのカプセル化も、Ethernetフレームも見えません。** カーネルが全て隠してくれているからです。
+
+#### 2. カーネルが実際に送っているもの（tcpdump）
+
+同じリクエストをパケットレベルで観察します。
+
+```bash
+# 別ターミナル: ループバックを観察開始
+sudo tcpdump -i lo -nn -vv 'tcp port 8000'
+
+# もう一度リクエスト
+curl -s http://localhost:8000/ > /dev/null
+```
+
+```text
+13:00:01.123456 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    127.0.0.1.54321 > 127.0.0.1.8000: Flags [S], cksum 0xfe34, seq 123456789, win 65535
+13:00:01.123489 IP (... length 60)
+    127.0.0.1.8000 > 127.0.0.1.54321: Flags [S.], cksum 0xfe34, seq 987654321, ack 123456790, win 65535
+13:00:01.123501 IP (... length 52)
+    127.0.0.1.54321 > 127.0.0.1.8000: Flags [.], cksum 0xfe34, ack 1, win 65535
+13:00:01.123590 IP (... length 100)
+    127.0.0.1.54321 > 127.0.0.1.8000: Flags [P.], seq 1:49, ack 1, win 65535, length 48: HTTP, length: 48
+    GET / HTTP/1.1
+```
+
+これが「通信の正体」です。1 回の `curl` の裏で:
+
+- `[S]` `[S.]` `[.]` = **3ウェイハンドシェイク** (SYN, SYN-ACK, ACK)
+- `[P.]` = データ搭載パケット (PSH-ACK)
+- さらに ACK、FIN、FIN-ACK… と続く
+
+TCP は「信頼性」を保証するために、このような複雑な状態機械を動かしています。
+
+#### 学習ポイント
+
+- **アプリはカーネルに騙されている**: `curl` は「繋いだ／貰った」しか知らない。実際には何十ものパケットが往復している。
+- **TCPは巨大な状態機械**: シーケンス番号、ACK、再送、ウィンドウ制御… 本実習ではこの全体を自作するのは範囲を超えるため扱いません（[深掘りポイント](#-深掘りポイント)参照）。
+- **本実習が目指すもの**: もっとシンプルな **ICMP（Ping）** と **UDP** を自作することで、パケットの構造とカプセル化を根本から理解する。それらができれば、TCP がやっていることも「積み重ね」として見えてきます。
+
+#### ✅ チェックポイント
+
+- [ ] `curl -v` の出力から、TCP 接続確立（`Connected`）の行を確認した
+- [ ] `tcpdump` で `[S] [S.] [.]` の 3 パケット（3 ウェイハンドシェイク）を確認した
+- [ ] `curl` の 1 行が、実際には多数のパケットで構成されていることを理解した
+
+```bash
+# 後片付け: HTTPサーバを停止（別ターミナルで Ctrl-C、または以下で kill）
+pkill -f "python3 -m http.server 8000"
+```
+
+---
+
+### STEP 1: Packet Socket (L2) - Ethernet フレームを観察・送信する
+
+#### 目標
+
+通常のアプリケーションは `TCP/UDP Socket` を使い、OS が L2/L3 ヘッダを生成します。自作スタックでは **AF_PACKET** を使い、Linux の通常の IP/TCP/UDP 処理とは別に Ethernet フレームを受け取り、自分でヘッダを組み立てます。NIC ドライバやカーネル全体を迂回するわけではありません。
 
 #### 実装: C ヘッダファイル (`pkg/rawsock/rawsock.h`)
 
@@ -949,6 +1042,7 @@ import (
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/icmp"
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/rawsock"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/udp"
 )
 
 // Stack は TCP/IP スタックを表す
@@ -960,7 +1054,7 @@ type Stack struct {
 }
 
 // NewStack は新しいスタックを作成
-func NewStack(iface string) (*Stack, error) {
+func NewStack(iface string, srcIP net.IP) (*Stack, error) {
 	// Raw Socket を開く
 	sock, err := rawsock.Open(iface)
 	if err != nil {
@@ -974,26 +1068,10 @@ func NewStack(iface string) (*Stack, error) {
 		return nil, fmt.Errorf("get interface: %w", err)
 	}
 
-	// IP アドレスを取得
-	addrs, err := ifaceObj.Addrs()
-	if err != nil {
+	// IP はカーネルに設定せず、自作スタックの応答アドレスとして渡す。
+	if srcIP = srcIP.To4(); srcIP == nil {
 		sock.Close()
-		return nil, fmt.Errorf("get addresses: %w", err)
-	}
-
-	var srcIP net.IP
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-			if !ipnet.IP.IsLoopback() {
-				srcIP = ipnet.IP
-				break
-			}
-		}
-	}
-
-	if srcIP == nil {
-		sock.Close()
-		return nil, fmt.Errorf("no IPv4 address found for interface %s", iface)
+		return nil, fmt.Errorf("source IP must be IPv4")
 	}
 
 	return &Stack{
@@ -1056,12 +1134,19 @@ func (s *Stack) handlePacket(data []byte) error {
 		return err
 	}
 
-	// ICMP 以外は無視
-	if pkt.Protocol != ipv4.ProtocolICMP {
-		return nil
+// L4: プロトコル別に処理を分岐
+	switch pkt.Protocol {
+	case ipv4.ProtocolICMP:
+		return s.handleICMP(pkt, frame.SrcMAC)
+	case ipv4.ProtocolUDP:
+		return s.handleUDP(pkt, frame.SrcMAC)
+	default:
+		return nil // TCP等は今回は無視
 	}
+}
 
-	// L4: ICMP メッセージ解析
+// handleICMP は ICMP メッセージを処理（Ping への応答）
+func (s *Stack) handleICMP(pkt *ipv4.Packet, dstMAC net.HardwareAddr) error {
 	msg, err := icmp.Parse(pkt.Payload)
 	if err != nil {
 		return err
@@ -1070,7 +1155,24 @@ func (s *Stack) handlePacket(data []byte) error {
 	// Ping (Echo Request) に応答
 	if msg.IsEchoRequest() && pkt.DstIP.Equal(s.srcIP) {
 		log.Printf("Ping from %s: ID=%d Seq=%d", pkt.SrcIP, msg.ID, msg.Seq)
-		return s.sendEchoReply(pkt, msg, frame.SrcMAC)
+		return s.sendEchoReply(pkt, msg, dstMAC)
+	}
+
+	return nil
+}
+
+// handleUDP は UDP データグラムを処理（UDP Echo への応答）
+func (s *Stack) handleUDP(pkt *ipv4.Packet, dstMAC net.HardwareAddr) error {
+	msg, err := udp.Parse(pkt.Payload)
+	if err != nil {
+		return err
+	}
+
+	// UDP Echo (RFC 862, ポート7) への応答
+	// 宛先が自分のIPであり、Echo サービスポート宛である場合のみ応答
+	if pkt.DstIP.Equal(s.srcIP) && msg.DstPort == udp.EchoPort {
+		log.Printf("UDP Echo from %s:%d (len=%d)", pkt.SrcIP, msg.SrcPort, len(msg.Data))
+		return s.sendUDPReply(pkt, msg, dstMAC)
 	}
 
 	return nil
@@ -1123,6 +1225,49 @@ func (s *Stack) sendEchoReply(reqPkt *ipv4.Packet, reqMsg *icmp.Message, dstMAC 
 	return err
 }
 
+// sendUDPReply は UDP Echo Reply を送信（ICMP と並行な構造）
+// 受信したデータグラムの送信元/宛先を反転し、データをそのまま返す
+func (s *Stack) sendUDPReply(reqPkt *ipv4.Packet, reqMsg *udp.Message, dstMAC net.HardwareAddr) error {
+	// L4: UDP Echo Reply を作成（ポートを反転、データはそのまま）
+	reply := &udp.Message{
+		SrcPort: reqMsg.DstPort, // 受信時の宛先ポート = 応答の送信元
+		DstPort: reqMsg.SrcPort, // 受信時の送信元 = 応答の宛先
+		Data:    reqMsg.Data,
+	}
+
+	// UDP データグラムをバイト列に変換（チェックサムにはIP疑似ヘッダが必要）
+	udpData, err := reply.Marshal(s.srcIP, reqPkt.SrcIP)
+	if err != nil {
+		return fmt.Errorf("marshal udp: %w", err)
+	}
+
+	// L3: IPv4 パケットを作成
+	ipPkt := &ipv4.Packet{
+		Version:  4,
+		IHL:      20,
+		TOS:      0,
+		TTL:      64,
+		Protocol: ipv4.ProtocolUDP,
+		SrcIP:    s.srcIP,
+		DstIP:    reqPkt.SrcIP,
+		Payload:  udpData,
+	}
+	ipData := ipPkt.Marshal()
+
+	// L2: Ethernet フレームを作成
+	frame := &ethernet.Frame{
+		DstMAC:    dstMAC,
+		SrcMAC:    s.srcMAC,
+		EtherType: ethernet.TypeIPv4,
+		Payload:   ipData,
+	}
+	frameData := frame.Marshal()
+
+	// 送信
+	_, err = s.sock.Send(frameData)
+	return err
+}
+
 // Close はスタックを閉じる
 func (s *Stack) Close() error {
 	return s.sock.Close()
@@ -1130,15 +1275,16 @@ func (s *Stack) Close() error {
 
 func main() {
 	iface := flag.String("iface", "", "Network interface to bind (required)")
+	ip := flag.String("ip", "", "IPv4 address answered by this userspace stack (required)")
 	flag.Parse()
 
-	if *iface == "" {
+	if *iface == "" || *ip == "" {
 		fmt.Println("TCP/IP Protocol Stack Workshop")
-		fmt.Println("Usage: sudo go run main.go -iface <interface>")
+		fmt.Println("Usage: sudo go run main.go -iface <interface> -ip <IPv4>")
 		os.Exit(1)
 	}
 
-	stack, err := NewStack(*iface)
+	stack, err := NewStack(*iface, net.ParseIP(*ip))
 	if err != nil {
 		log.Fatalf("NewStack: %v", err)
 	}
@@ -1160,6 +1306,196 @@ func main() {
 
 ---
 
+### STEP 6: UDP Message (L4) - コネクションレス通信
+
+#### 目標
+
+ICMP に続いて、トランスポート層のもう一つの柱 **UDP (User Datagram Protocol)** を実装します。ICMP が Ping のような「診断」用途なのに対し、UDP はアプリケーションデータを運ぶための最小限のトランスポートです。DNS、DHCP、VoIP、メトリック収集などで使われます。
+
+UDP を自作スタックに載せることで、**「コネクション」を持たないプロトコルがいかにシンプルか**を、TCP の複雑さ（[STEP 0](#step-0-通信を観察する--カーネルが隠しているもの) のハンドシェイクを思い出してください）と対比して体感します。
+
+#### UDP と TCP/ICMP の違い
+
+| 観点         | ICMP       | UDP                      | TCP                           |
+| :----------- | :--------- | :----------------------- | :---------------------------- |
+| 接続         | なし       | なし（コネクションレス） | あり（3ウェイハンドシェイク） |
+| ポート       | なし       | あり（16bit）            | あり（16bit）                 |
+| 信頼性       | なし       | なし（届かなくてもOK）   | あり（再送・順序制御）        |
+| チェックサム | ヘッダのみ | **疑似ヘッダ + 全体**    | 疑似ヘッダ + 全体             |
+| 用途例       | Ping       | DNS, DHCP, メトリック    | HTTP, SSH, TLS                |
+
+UDP のチェックサムが **「疑似ヘッダ (Pseudo Header)」** を使う点が重要です。送信元・宛先 IP、プロトコル番号、UDP 長も検査対象に含めるため、誤った宛先に配送されたデータグラムを検出できます。攻撃者によるなりすましを防ぐ機構ではありません。
+
+#### UDP データグラム構造
+
+```text
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|         Source Port           |      Destination Port         |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|            Length             |          Checksum             |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                             Data                              |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+ヘッダは **わずか 8 バイト**（TCP ヘッダは最小 20 バイト）。シンプルさが UDP の本質です。
+
+#### 実装: UDP Message (`pkg/udp/message.go`)
+
+```go
+package udp
+
+import (
+	"encoding/binary"
+	"fmt"
+	"net"
+
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
+)
+
+const (
+	// UDP ヘッダサイズ（固定）
+	HeaderSize = 8
+
+	// EchoPort は UDP Echo サービス (RFC 862) のポート番号
+	EchoPort = 7
+)
+
+// Message は UDP データグラムを表す
+type Message struct {
+	SrcPort  uint16
+	DstPort  uint16
+	Length   uint16 // ヘッダ + データ長
+	Checksum uint16
+	Data     []byte
+}
+
+// Parse はバイト列から UDP データグラムを解析
+func Parse(data []byte) (*Message, error) {
+	if len(data) < HeaderSize {
+		return nil, fmt.Errorf("datagram too short: %d < %d", len(data), HeaderSize)
+	}
+
+	msg := &Message{
+		SrcPort:  binary.BigEndian.Uint16(data[0:2]),
+		DstPort:  binary.BigEndian.Uint16(data[2:4]),
+		Length:   binary.BigEndian.Uint16(data[4:6]),
+		Checksum: binary.BigEndian.Uint16(data[6:8]),
+	}
+
+	// ペイロードは宣言された長さから導出
+// Length はヘッダを含み、IPv4 では必ず 8 以上
+	payloadLen := int(msg.Length) - HeaderSize
+	if payloadLen < 0 || HeaderSize+payloadLen != len(data) {
+		return nil, fmt.Errorf("invalid length field: declared=%d actual=%d", msg.Length, len(data))
+	}
+	msg.Data = data[HeaderSize : HeaderSize+payloadLen]
+
+	return msg, nil
+}
+
+// Marshal はデータグラムをバイト列に変換する。
+// チェックサムには IPv4 の「疑似ヘッダ」が必要なため、送信元/宛先IPを受け取る。
+func (m *Message) Marshal(srcIP, dstIP net.IP) ([]byte, error) {
+	length := uint16(HeaderSize + len(m.Data))
+	buf := make([]byte, length)
+
+	binary.BigEndian.PutUint16(buf[0:2], m.SrcPort)
+	binary.BigEndian.PutUint16(buf[2:4], m.DstPort)
+	binary.BigEndian.PutUint16(buf[4:6], length)
+	// Checksum は後で計算
+
+	if len(m.Data) > 0 {
+		copy(buf[HeaderSize:], m.Data)
+	}
+
+	// チェックサム計算: 疑似ヘッダ + UDPデータグラム
+	// IPv4 では UDP チェックサムは必須ではないが、現代では実質必須
+	// （0 の場合は「計算しない」を意味するが、Linux等は常に計算する）
+	pkt := &ipv4.Packet{
+		SrcIP:   srcIP,
+		DstIP:   dstIP,
+		Protocol: ipv4.ProtocolUDP,
+		Payload: buf,
+	}
+	// PseudoHeader() が [SrcIP(4)][DstIP(4)][0][Proto(1)][Length(2)] = 12 バイトを返す
+	// これを UDP データグラムの先頭に付けてチェックサムを計算
+	pseudo := pkt.PseudoHeader()
+	// 注意: PseudoHeader は payload 長を使うので、buf の Length を参照させる
+	// ここでは buf が既に完全な UDP データグラムなので、payload として扱う
+	checksum := ipv4.Checksum(append(pseudo, buf...))
+	// チェックサム計算結果が 0x0000 の場合は 0xFFFF で送信（0 = 計算しない、と区別）
+	if checksum == 0 {
+		checksum = 0xFFFF
+	}
+	binary.BigEndian.PutUint16(buf[6:8], checksum)
+
+	return buf, nil
+}
+```
+
+#### 学習ポイント
+
+##### 疑似ヘッダ (Pseudo Header) の役割
+
+UDP/TCP のチェックサムは、UDP ヘッダだけではなく **IPヘッダの一部（送信元IP・宛先IP・プロトコル番号・長さ）** を含めて計算します。これを「疑似ヘッダ」と呼びます。
+
+```text
++--------+--------+--------+--------+
+|           Source IP Address       |   ← IPレイヤーの情報
++--------+--------+--------+--------+
+|        Destination IP Address     |   ← IPレイヤーの情報
++--------+--------+--------+--------+
+|  zero   | Protocol|  UDP Length   |   ← Protocol = 17 (UDP)
++--------+--------+--------+--------+
+|         Source Port              |
++--------+--------+--------+--------+
+|      (以下、実際のUDPデータグラム)  |
+```
+
+**なぜこれが必要か？** IP 層との境界で宛先やプロトコルを取り違えたデータグラムを、トランスポート層でも検出するためです。チェックサムを再計算できる攻撃者を防ぐ仕組みではありません。
+
+##### コネクションレスの意味
+
+UDP には ICMP と同様、**「接続確立」がありません。**
+
+- TCP: `connect()` → `SYN/SYN-ACK/ACK` → `send()` → `recv()` → `close()` (FIN...)
+- UDP: `sendto()` 一発で終わり
+
+受信側も「誰からの要求か」をセットアップ段階で知りません。UDP データグラムが届いた瞬間に、送信元 IP・ポート（IP ヘッダと UDP ヘッダから読み取る）を知ることになります。これが STEP 5 の `handleUDP` で `pkt.SrcIP` と `msg.SrcPort` を参照して応答先を決めている理由です。
+
+##### なぜ UDP なのか（応用）
+
+UDP をあえて選ぶのは「少しの損よりも速さが大事」な場面です:
+
+- **DNS**: 1 回の問い合わせに接続確立のコスト（RTT×1.5）を払いたくない
+- **DHCP**: 接続確立前（IP アドレスを持たない状態）で通信する必要がある
+- **メトリック/ログ収集**: 1 パケット失っても次が来ればよい
+- **VoIP/動画ストリーミング**: 再送よりリアルタイム性
+
+本実習の UDP Echo は学習用ですが、実プロトコルの土台として同じ構造が使われます。
+
+##### TCP とのコントラスト
+
+本教材で UDP を実装すると、TCP の「重さ」が際立ちます:
+
+- TCP はシーケンス番号管理・ACK・再送タイマー・輻輳制御・スライディングウィンドウ・接続状態機械（11 状態）を全て実装する必要がある
+- UDP は「ポート番号 + チェックサム」だけ。本ステップのコード量（約 90 行）と、TCP 実装に必要な数千行を比べてみてください
+
+この対比こそが「なぜ DNS は UDP なのか」「なぜ HTTP/3 は UDP 上に作られたのか」を理解する鍵になります（[深掘りポイント](#-深掘りポイント)参照）。
+
+#### ✅ チェックポイント
+
+- [ ] `pkg/udp/message.go` で `HeaderSize = 8` を定義した
+- [ ] `Marshal` が `srcIP, dstIP` を受け取り、それらを使った疑似ヘッダ込みのチェックサムを計算している
+- [ ] チェックサム結果が `0x0000` の場合に `0xFFFF` に置き換えている（0 = 計算しない、との区別）
+- [ ] 受信時は `Length` と、疑似ヘッダを含むチェックサムを検証してから応答する
+- [ ] STEP 5 の `handlePacket` が `ProtocolICMP` / `ProtocolUDP` で分岐し、両方に応答できる
+
+---
+
 ## 🧪 動作確認
 
 ### 1. ビルド
@@ -1173,7 +1509,7 @@ go build -o tcpip_stack main.go
 
 ```bash
 # 作成した veth のホスト側で起動
-sudo ./tcpip_stack -iface veth-host
+sudo ./tcpip_stack -iface veth-host -ip 192.168.100.1
 ```
 
 ### 3. Ping テスト
@@ -1191,6 +1527,40 @@ sudo ip netns exec workshop ping 192.168.100.1
 sudo tcpdump -i veth-host -nn -vv icmp
 ```
 
+### 5. UDP Echo テスト（返信本文まで検証）
+
+UDP Echo サービス（ポート 7）にデータを送ってみます。
+
+```bash
+# Namespace 内から送信し、同じデータが返信されたことを確認
+sudo ip netns exec workshop python3 - <<'PY'
+import socket
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.settimeout(1)
+sock.sendto(b"hello udp", ("192.168.100.1", 7))
+data, peer = sock.recvfrom(1024)
+assert data == b"hello udp", (data, peer)
+print(f"reply={data!r} from {peer}")
+PY
+```
+
+カスタムスタック側のログに `UDP Echo from 192.168.100.2:xxxxx (len=10)` のように表示されれば成功です。応答パケットは `tcpdump` で確認できます。
+
+```bash
+# 別ターミナル: UDP の往復を観察
+sudo tcpdump -i veth-host -nn -vv 'udp port 7'
+```
+
+```text
+13:00:05.123 IP 192.168.100.2.54321 > 192.168.100.1.7: UDP, length 10
+13:00:05.124 IP 192.168.100.1.7 > 192.168.100.2.54321: UDP, length 10
+```
+
+### 6. UDP を観察して壊す
+
+まず `tcpdump -XX` で 8 バイトの UDP ヘッダと payload を 16 進数で対応付けます。次に `pkg/udp` の単体テストで、チェックサムを 1 bit だけ反転したデータグラムが `VerifyChecksum` に拒否されることを確認します。正常系だけでなく「なぜ破棄されるか」を観察して初めて、疑似ヘッダの役割が具体化します。
+
 ---
 
 ## 📊 パケットフロー図
@@ -1198,18 +1568,18 @@ sudo tcpdump -i veth-host -nn -vv icmp
 ```text
 =================== Receive Path (Rx) ===================
 
-NIC --> Raw Socket --> Ethernet.Parse --> IPv4.Parse --> ICMP.Parse
-                           |  |  |
-                      [MAC Filter]      [IP Filter]    [Type Check]
-                           |  |  |
-                        Pass?              Pass?           Type=8?
-                           |  |  |
-                           v                  v               v
-                      Drop/Continue     Drop/Continue   Drop/Reply
+NIC --> Raw Socket --> Ethernet.Parse --> IPv4.Parse --> [ICMP.Parse | UDP.Parse]
+                           |  |  |                  |               |
+                      [MAC Filter]      [IP Filter]    [Proto Branch] [Proto Branch]
+                           |  |  |                  |               |
+                        Pass?              Pass?     Type=8?       Port=7?
+                           |  |  |                  |               |
+                           v                  v       v               v
+                      Drop/Continue     Drop/Continue Drop/Reply   Drop/Reply
 
 ==================== Send Path (Tx) ====================
 
-NIC <-- Raw Socket <-- Ethernet.Marshal <-- IPv4.Marshal <-- ICMP.Reply
+NIC <-- Raw Socket <-- Ethernet.Marshal <-- IPv4.Marshal <-- [ICMP.Reply | UDP.Reply]
 ```
 
 **凡例:**
@@ -1244,17 +1614,15 @@ Ping 要求が届いた時の処理フロー:
 ───────────────────────────
 ・Ethernet ペイロードから IPv4 ヘッダを解析
 ・抽出: SrcIP, DstIP, Protocol, TTL 等
-・[IP Filter]: Protocol が ICMP か確認
-  - Protocol = 1 (ICMP) → 継続
-  - それ以外 → 破棄（TCP/UDP は今回は無視）
-
-ステップ 4: ICMP.Parse
-───────────────────────────
-・IPv4 ペイロードから ICMP メッセージを解析
-・抽出: Type, Code, ID, Seq, Data
-・[Type Check]: Type が Echo Request (8) か確認
-  - Type = 8 → Echo Reply を生成して送信パスへ
+・[IP Filter]: DstIP が自分宛か、Protocol が対応済みか確認
+  - Protocol = 1 (ICMP) または 17 (UDP) → 継続
   - それ以外 → 破棄
+
+ステップ 4: L4.Parse
+───────────────────────────
+・Protocol=1 は ICMP、Protocol=17 は UDP として解析
+・UDP は Length とチェックサム（疑似ヘッダ込み）を検証
+・Type=8 または DstPort=7 の場合だけ Echo Reply を生成
 ```
 
 #### 2. 送信パス（右から左へ）
@@ -1296,7 +1664,7 @@ T1: Namespace 側で ping 192.168.100.1 実行
     v
 T2: Packet arrives (Echo Request)
     +---------------------------------------------------+
-    | Ethernet: Dst=FF:FF:FF:FF:FF:FF                |
+    | Ethernet: Dst=<veth-host の MAC>               |
     | IPv4:     Src=192.168.100.2, Dst=192.168.100.1 |
     | ICMP:     Type=8, ID=1234, Seq=1               |
     +---------------------------------------------------+
@@ -1304,7 +1672,7 @@ T2: Packet arrives (Echo Request)
     v  veth-host に到着
     |
 T3: Custom stack receives
-    | -> MAC Filter: broadcast -> Pass
+    | -> MAC Filter: 自分の MAC -> Pass
     | -> IP Filter:  DstIP is ours -> Pass
     | -> Type Check: Type=8 -> Generate Reply
     |
@@ -1336,15 +1704,29 @@ sudo ip netns delete workshop
 ## 💡 深掘りポイント
 
 1. **Zero-Copy**: CGO で `unsafe.Pointer` を使いコピーを回避
-2. **チェックサム**: RFC 1071 の 1 の補数和アルゴリズム
+2. **チェックサム**: RFC 1071 の 1 の補数和アルゴリズム。UDP/TCP では疑似ヘッダ込みで計算することで、IP レベルの改竄にも気付ける
 3. **エンディアン**: ネットワークバイトオーダ (Big Endian) の重要性
-4. **拡張性**: TCP/UDP を追加する場合の設計
+4. **ICMP と UDP の対比**: どちらもコネクションレスだが、UDP はポート概念と疑似ヘッダを持つ。アプリケーションデータを運ぶ「最小限のトランスポート」としての設計
+5. **TCP を実装するとしたら**: 本教材が ICMP と UDP にとどめた理由
+   - **3ウェイハンドシェイク**: SYN / SYN-ACK / ACK の状態遷移（CLOSED, SYN_SENT, SYN_RECEIVED, ESTABLISHED... 全 11 状態）
+   - **シーケンス番号と ACK**: 送信したバイト数を全て追跡し、相手がどこまで受信したかを把握
+   - **再送タイマー (RTO)**: パケットが届かなかった場合の再送。RTT 推定には Jacobson アルゴリズム等が必要
+   - **スライディングウィンドウ**: 相手の受信能力（ウィンドウサイズ）に合わせて送信量を調整
+   - **輻輳制御**: Slow Start, Congestion Avoidance, Fast Retransmit（TCP Reno / Cubic / BBR など）
+   - **コネクション終了**: 4 ウェイハンドシェイク（FIN/ACK/FIN/ACK）と TIME_WAIT 状態
+   - 参照実装としては、教育向け軽量スタックの **lwIP**（C 言語、数千行）、C++の **Seastar**、Linux カーネルの `net/ipv4/tcp_*.c` が参考になる
+6. **HTTP をしゃべるには**: 自作スタックで HTTP サーバを立てるには、まず TCP 完全実装（上記）が必要。その上で HTTP/1.1 のリクエストライン・ヘッダ・ボディのパーサを実装し、ステートマシンで Keep-Alive を管理する。HTTP/3 はさらに QUIC（UDP ベース）全体を実装する必要がある
+7. **次の学習目標**: 本教材で L1〜L4 の「受動応答」（Ping/Echo）を作った後は、能動的な送信（Ping クライアント、UDP クライアント）→ TCP 実装の順に進むのが自然
 
 ## 📚 参考文献
 
 - [RFC 791 (IPv4)](https://datatracker.ietf.org/doc/html/rfc791)
 - [RFC 792 (ICMP)](https://datatracker.ietf.org/doc/html/rfc792)
+- [RFC 768 (UDP)](https://datatracker.ietf.org/doc/html/rfc768)
+- [RFC 862 (Echo Protocol)](https://datatracker.ietf.org/doc/html/rfc862)
 - [RFC 1071 (Checksum)](https://datatracker.ietf.org/doc/html/rfc1071)
+- [RFC 793 (TCP)](https://datatracker.ietf.org/doc/html/rfc793) — 本教材では実装していないが、UDP との対比を読むのに有用
+- [lwIP - A Lightweight TCP/IP Stack](https://savannah.nongnu.org/projects/lwip/) — TCP 完全実装の教育用参照実装
 
 ---
 

@@ -29,10 +29,11 @@ The essence of network communication is "Encapsulation." Higher-layer data is wr
 
 | Layer | Component      | File                    | Description                                  |
 | :---- | :------------- | :---------------------- | :------------------------------------------- |
-| L1    | Raw Socket     | `pkg/rawsock/`          | Bypass kernel, communicate directly with NIC |
+| L2    | Packet Socket  | `pkg/rawsock/`          | Linux AF_PACKET access to Ethernet frames    |
 | L2    | Ethernet Frame | `pkg/ethernet/frame.go` | MAC address-based frame handling             |
 | L3    | IPv4 Packet    | `pkg/ipv4/packet.go`    | IP address-based packet handling             |
 | L4    | ICMP Message   | `pkg/icmp/message.go`   | Ping (Echo Request/Reply) implementation     |
+| L4    | UDP Message    | `pkg/udp/message.go`    | Connectionless application datagrams         |
 | App   | Stack          | `main.go`               | Server integrating all components            |
 
 ---
@@ -50,7 +51,7 @@ sudo apt update && sudo apt install -y golang-go gcc tcpdump wireshark iproute2
 ### 2. Project Structure
 
 ```bash
-mkdir -p tcpip_stack/pkg/{rawsock,ethernet,ipv4,icmp}
+mkdir -p tcpip_stack/pkg/{rawsock,ethernet,ipv4,icmp,udp}
 mkdir -p tcpip_stack/cmd/ping
 cd tcpip_stack
 go mod init github.com/sokoide/workshop/infra/assets/tcpip_stack
@@ -74,26 +75,31 @@ sudo ip link set veth-ns netns workshop
 sudo ip link set veth-host up
 sudo ip netns exec workshop ip link set veth-ns up
 
-# 5. Assign IP addresses. Set .1 for host side and .2 for namespace side
-sudo ip addr add 192.168.100.1/24 dev veth-host
+# 5. Assign an IP only to the client. The userspace stack owns .1, so Linux
+# must not also own and answer for it.
 sudo ip netns exec workshop ip addr add 192.168.100.2/24 dev veth-ns
+
+# 6. Skip ARP implementation for now with a static neighbor entry.
+STACK_MAC=$(cat /sys/class/net/veth-host/address)
+sudo ip netns exec workshop ip neigh replace 192.168.100.1 lladdr "$STACK_MAC" nud permanent dev veth-ns
 ```
 
 ### ✅ Verification Checkpoints
 
 - [ ] `workshop` netns exists via `ip netns list`.
-- [ ] `192.168.100.1` is assigned to `veth-host`.
+- [ ] `veth-host` has no IPv4 address.
 - [ ] `192.168.100.2` is assigned to `veth-ns` in the namespace.
+- [ ] A permanent neighbor entry exists for `192.168.100.1`.
 
 ---
 
 ## 🚀 Implementation Steps
 
-### STEP 1: Raw Socket (L1) - Bypassing the Kernel
+### STEP 1: Packet Socket (L2) - Observe and Send Ethernet Frames
 
 #### Goal
 
-Normal applications use `TCP/UDP Sockets`, but the OS automatically generates L2/L3 headers for them. In our custom stack, we use **AF_PACKET** to read/write "raw data" directly from the NIC.
+Normal applications use `TCP/UDP Sockets`, so the OS generates L2/L3 headers. This workshop uses **AF_PACKET** to receive Ethernet frames alongside the normal Linux IP stack and to build headers itself. It does not bypass the NIC driver or the whole kernel.
 
 #### Implementation: C Header File (`pkg/rawsock/rawsock.h`)
 
@@ -953,7 +959,7 @@ type Stack struct {
 }
 
 // NewStack creates a new TCP/IP stack
-func NewStack(iface string) (*Stack, error) {
+func NewStack(iface string, srcIP net.IP) (*Stack, error) {
 	// Open raw socket
 	sock, err := rawsock.Open(iface)
 	if err != nil {
@@ -967,26 +973,10 @@ func NewStack(iface string) (*Stack, error) {
 		return nil, fmt.Errorf("get interface: %w", err)
 	}
 
-	// Get IP address
-	addrs, err := ifaceObj.Addrs()
-	if err != nil {
+	// The caller supplies the IP so Linux does not also answer for it.
+	if srcIP = srcIP.To4(); srcIP == nil {
 		sock.Close()
-		return nil, fmt.Errorf("get addresses: %w", err)
-	}
-
-	var srcIP net.IP
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-			if !ipnet.IP.IsLoopback() {
-				srcIP = ipnet.IP
-				break
-			}
-		}
-	}
-
-	if srcIP == nil {
-		sock.Close()
-		return nil, fmt.Errorf("no IPv4 address found for interface %s", iface)
+		return nil, fmt.Errorf("source IP must be IPv4")
 	}
 
 	return &Stack{
@@ -1122,15 +1112,16 @@ func (s *Stack) Close() error {
 
 func main() {
 	iface := flag.String("iface", "", "Network interface to bind (required)")
+	ip := flag.String("ip", "", "IPv4 address answered by this userspace stack (required)")
 	flag.Parse()
 
-	if *iface == "" {
+	if *iface == "" || *ip == "" {
 		fmt.Println("TCP/IP Protocol Stack Workshop")
-		fmt.Println("Usage: sudo go run main.go -iface <interface>")
+		fmt.Println("Usage: sudo go run main.go -iface <interface> -ip <IPv4>")
 		os.Exit(1)
 	}
 
-	stack, err := NewStack(*iface)
+	stack, err := NewStack(*iface, net.ParseIP(*ip))
 	if err != nil {
 		log.Fatalf("NewStack: %v", err)
 	}
@@ -1152,6 +1143,22 @@ func main() {
 
 ---
 
+### STEP 6: UDP Message (L4) — Observe, Build, Verify
+
+UDP is the smallest useful transport protocol: ports identify applications and
+its fixed eight-byte header carries a length and checksum. It has no connection
+setup, retransmission, or ordering. The checksum covers the UDP datagram plus a
+pseudo-header (source/destination IPv4 addresses, protocol 17, and UDP length).
+That detects misdelivery, not an attacker who can recompute a checksum.
+
+Study it in this order: capture a kernel-generated datagram with `tcpdump -XX`;
+map the eight header bytes and payload; then run valid, invalid-length, and
+one-bit-corrupted checksum cases. Finally verify that the Echo client receives
+the same bytes it sent. `pkg/udp/message.go` performs parsing, checksum
+verification, and reply marshaling separately to make those boundaries visible.
+
+---
+
 ## 🧪 Testing
 
 ### 1. Build
@@ -1165,7 +1172,7 @@ go build -o tcpip_stack main.go
 
 ```bash
 # Start on the host side of the created veth
-sudo ./tcpip_stack -iface veth-host
+sudo ./tcpip_stack -iface veth-host -ip 192.168.100.1
 ```
 
 ### 3. Ping Test
@@ -1181,6 +1188,22 @@ sudo ip netns exec workshop ping 192.168.100.1
 
 ```bash
 sudo tcpdump -i veth-host -nn -vv icmp
+```
+
+### 5. UDP Echo Test
+
+```bash
+sudo ip netns exec workshop python3 - <<'PY'
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.settimeout(1)
+sock.sendto(b"hello udp", ("192.168.100.1", 7))
+data, peer = sock.recvfrom(1024)
+assert data == b"hello udp", (data, peer)
+print(f"reply={data!r} from {peer}")
+PY
+
+sudo tcpdump -i veth-host -nn -vv -XX 'udp port 7'
 ```
 
 ---
@@ -1288,7 +1311,7 @@ T1: Execute ping 192.168.100.1 from Namespace
     v
 T2: Packet arrives (Echo Request)
     +---------------------------------------------------+
-    | Ethernet: Dst=FF:FF:FF:FF:FF:FF                |
+    | Ethernet: Dst=<veth-host MAC>                  |
     | IPv4:     Src=192.168.100.2, Dst=192.168.100.1 |
     | ICMP:     Type=8, ID=1234, Seq=1               |
     +---------------------------------------------------+
@@ -1296,7 +1319,7 @@ T2: Packet arrives (Echo Request)
     v  Arrives at veth-host
     |
 T3: Custom stack receives
-    | -> MAC Filter: broadcast -> Pass
+    | -> MAC Filter: our MAC -> Pass
     | -> IP Filter:  DstIP is ours -> Pass
     | -> Type Check: Type=8 -> Generate Reply
     |

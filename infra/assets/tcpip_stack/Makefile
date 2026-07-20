@@ -26,7 +26,7 @@ build: deps
 run: build
 	@echo "Starting TCP/IP stack..."
 	@echo "Note: This requires raw socket permissions (sudo)"
-	sudo ./tcpip_stack -iface eth0
+	sudo ./tcpip_stack -iface eth0 -ip 192.168.1.10
 
 ping: deps
 	@echo "Building custom ping..."
@@ -58,10 +58,10 @@ setup-env:
 	sudo ip link set veth-ns netns workshop || true
 	sudo ip link set veth-host up
 	sudo ip netns exec workshop ip link set veth-ns up
-	sudo ip addr add 192.168.100.1/24 dev veth-host || true
 	sudo ip netns exec workshop ip addr add 192.168.100.2/24 dev veth-ns || true
+	sudo ip netns exec workshop ip neigh replace 192.168.100.1 lladdr $$(cat /sys/class/net/veth-host/address) nud permanent dev veth-ns
 	@echo "Environment setup complete."
-	@echo "veth-host: 192.168.100.1 (Host side)"
+	@echo "veth-host: no kernel IP (userspace stack owns 192.168.100.1)"
 	@echo "veth-ns:   192.168.100.2 (Namespace side)"
 
 # Remove network namespace environment
@@ -74,7 +74,7 @@ teardown-env:
 # Run in the veth environment
 run-veth: build
 	@echo "Starting TCP/IP stack on veth-host..."
-	sudo ./tcpip_stack -iface veth-host
+	sudo ./tcpip_stack -iface veth-host -ip 192.168.100.1
 
 # Ping from the namespace to the host stack
 ping-test:

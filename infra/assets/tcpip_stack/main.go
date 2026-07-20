@@ -18,6 +18,7 @@ import (
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/icmp"
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/rawsock"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/udp"
 )
 
 // Stack represents the TCP/IP stack
@@ -29,39 +30,23 @@ type Stack struct {
 }
 
 // NewStack creates a new TCP/IP stack
-func NewStack(iface string) (*Stack, error) {
+func NewStack(iface string, srcIP net.IP) (*Stack, error) {
 	sock, err := rawsock.Open(iface)
 	if err != nil {
 		return nil, fmt.Errorf("open raw socket: %w", err)
 	}
 
-	// Get interface MAC and IP
+	// Get the interface MAC. The IP address is deliberately supplied by the
+	// caller, so the Linux kernel does not also own and answer for it.
 	ifaceObj, err := net.InterfaceByName(iface)
 	if err != nil {
 		sock.Close()
 		return nil, fmt.Errorf("get interface: %w", err)
 	}
 
-	addrs, err := ifaceObj.Addrs()
-	if err != nil {
+	if srcIP = srcIP.To4(); srcIP == nil {
 		sock.Close()
-		return nil, fmt.Errorf("get addresses: %w", err)
-	}
-
-	var srcIP net.IP
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-			// Skip localhost
-			if !ipnet.IP.IsLoopback() {
-				srcIP = ipnet.IP
-				break
-			}
-		}
-	}
-
-	if srcIP == nil {
-		sock.Close()
-		return nil, fmt.Errorf("no IPv4 address found for interface %s", iface)
+		return nil, fmt.Errorf("source IP must be IPv4")
 	}
 
 	return &Stack{
@@ -132,27 +117,40 @@ func (s *Stack) handlePacket(data []byte) error {
 		return err
 	}
 
-	// Log non-ICMP packets for debugging
-	if pkt.Protocol != ipv4.ProtocolICMP {
-		log.Printf("Got %s -> %s", pkt.SrcIP, pkt.DstIP)
-	}
-
-	// Only handle ICMP for this implementation
-	if pkt.Protocol != ipv4.ProtocolICMP {
+	switch pkt.Protocol {
+	case ipv4.ProtocolICMP:
+		return s.handleICMP(pkt, frame.SrcMAC)
+	case ipv4.ProtocolUDP:
+		return s.handleUDP(pkt, frame.SrcMAC)
+	default:
 		return nil
 	}
+}
 
+func (s *Stack) handleICMP(pkt *ipv4.Packet, dstMAC net.HardwareAddr) error {
 	msg, err := icmp.Parse(pkt.Payload)
 	if err != nil {
 		return err
 	}
-
-	// Respond to Echo Request (ping)
 	if msg.IsEchoRequest() && pkt.DstIP.Equal(s.srcIP) {
 		log.Printf("Ping from %s: ID=%d Seq=%d", pkt.SrcIP, msg.ID, msg.Seq)
-		return s.sendEchoReply(pkt, msg, frame.SrcMAC)
+		return s.sendEchoReply(pkt, msg, dstMAC)
 	}
+	return nil
+}
 
+func (s *Stack) handleUDP(pkt *ipv4.Packet, dstMAC net.HardwareAddr) error {
+	msg, err := udp.Parse(pkt.Payload)
+	if err != nil {
+		return err
+	}
+	if err := udp.VerifyChecksum(pkt.Payload, pkt.SrcIP, pkt.DstIP); err != nil {
+		return err
+	}
+	if pkt.DstIP.Equal(s.srcIP) && msg.DstPort == udp.EchoPort {
+		log.Printf("UDP Echo from %s:%d (len=%d)", pkt.SrcIP, msg.SrcPort, len(msg.Data))
+		return s.sendUDPReply(pkt, msg, dstMAC)
+	}
 	return nil
 }
 
@@ -208,6 +206,23 @@ func (s *Stack) sendEchoReply(reqPkt *ipv4.Packet, reqMsg *icmp.Message, dstMAC 
 	return err
 }
 
+func (s *Stack) sendUDPReply(reqPkt *ipv4.Packet, reqMsg *udp.Message, dstMAC net.HardwareAddr) error {
+	reply := &udp.Message{SrcPort: reqMsg.DstPort, DstPort: reqMsg.SrcPort, Data: reqMsg.Data}
+	udpData, err := reply.Marshal(s.srcIP, reqPkt.SrcIP)
+	if err != nil {
+		return fmt.Errorf("marshal UDP: %w", err)
+	}
+
+	ipPkt := &ipv4.Packet{
+		TTL: 64, Protocol: ipv4.ProtocolUDP, SrcIP: s.srcIP, DstIP: reqPkt.SrcIP, Payload: udpData,
+	}
+	frame := &ethernet.Frame{
+		DstMAC: dstMAC, SrcMAC: s.srcMAC, EtherType: ethernet.TypeIPv4, Payload: ipPkt.Marshal(),
+	}
+	_, err = s.sock.Send(frame.Marshal())
+	return err
+}
+
 // Close closes the stack
 func (s *Stack) Close() error {
 	return s.sock.Close()
@@ -215,36 +230,16 @@ func (s *Stack) Close() error {
 
 func main() {
 	iface := flag.String("iface", "", "Network interface to bind (required)")
+	ip := flag.String("ip", "", "IPv4 address answered by this userspace stack (required)")
 	flag.Parse()
 
-	if *iface == "" {
+	if *iface == "" || *ip == "" {
 		fmt.Println("TCP/IP Protocol Stack Workshop")
-		fmt.Println("Usage: sudo go run main.go -iface <interface>")
-		fmt.Println("")
-		fmt.Println("Example:")
-		fmt.Println("  sudo go run main.go -iface eth0")
-		fmt.Println("")
-		fmt.Println("Available interfaces:")
-		ifaces, err := net.Interfaces()
-		if err == nil {
-			for _, i := range ifaces {
-				addrs, _ := i.Addrs()
-				addrStr := ""
-				for _, addr := range addrs {
-					if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-						addrStr = ipnet.IP.String()
-						break
-					}
-				}
-				if addrStr != "" {
-					fmt.Printf("  %s: %s (%s)\n", i.Name, addrStr, i.HardwareAddr)
-				}
-			}
-		}
+		fmt.Println("Usage: sudo go run main.go -iface <interface> -ip <IPv4>")
 		os.Exit(1)
 	}
 
-	stack, err := NewStack(*iface)
+	stack, err := NewStack(*iface, net.ParseIP(*ip))
 	if err != nil {
 		log.Fatalf("NewStack: %v", err)
 	}
