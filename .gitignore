@@ -21,6 +21,7 @@ pb/
 .claude/
 .codex/
 .gemini/
+.zcode/
 .omc/
 .serena/
 .antigravitycli/

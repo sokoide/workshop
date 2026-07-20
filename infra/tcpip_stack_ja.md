@@ -27,14 +27,14 @@
 
 ### 今回実装するコンポーネント
 
-| レイヤー | コンポーネント | ファイル                | 実装内容                            |
-| :------- | :------------- | :---------------------- | :---------------------------------- |
+| レイヤー | コンポーネント | ファイル                | 実装内容                                         |
+| :------- | :------------- | :---------------------- | :----------------------------------------------- |
 | L2       | Packet Socket  | `pkg/rawsock/`          | Ethernet フレームを送受信する Linux の AF_PACKET |
-| L2       | Ethernet Frame | `pkg/ethernet/frame.go` | MAC アドレスベースのフレーム処理    |
-| L3       | IPv4 Packet    | `pkg/ipv4/packet.go`    | IP アドレスベースのパケット処理     |
-| L4       | ICMP Message   | `pkg/icmp/message.go`   | Ping (Echo Request/Reply) の実装    |
-| L4       | UDP Message    | `pkg/udp/message.go`    | コネクションレスデータグラム        |
-| App      | Stack          | `main.go`               | 全体を統合するサーバー              |
+| L2       | Ethernet Frame | `pkg/ethernet/frame.go` | MAC アドレスベースのフレーム処理                 |
+| L3       | IPv4 Packet    | `pkg/ipv4/packet.go`    | IP アドレスベースのパケット処理                  |
+| L4       | ICMP Message   | `pkg/icmp/message.go`   | Ping (Echo Request/Reply) の実装                 |
+| L4       | UDP Message    | `pkg/udp/message.go`    | コネクションレスデータグラム                     |
+| App      | Stack          | `main.go`               | 全体を統合するサーバー                           |
 
 ---
 

@@ -27,14 +27,14 @@ The essence of network communication is "Encapsulation." Higher-layer data is wr
 
 ### Components to Implement
 
-| Layer | Component      | File                    | Description                                  |
-| :---- | :------------- | :---------------------- | :------------------------------------------- |
-| L2    | Packet Socket  | `pkg/rawsock/`          | Linux AF_PACKET access to Ethernet frames    |
-| L2    | Ethernet Frame | `pkg/ethernet/frame.go` | MAC address-based frame handling             |
-| L3    | IPv4 Packet    | `pkg/ipv4/packet.go`    | IP address-based packet handling             |
-| L4    | ICMP Message   | `pkg/icmp/message.go`   | Ping (Echo Request/Reply) implementation     |
-| L4    | UDP Message    | `pkg/udp/message.go`    | Connectionless application datagrams         |
-| App   | Stack          | `main.go`               | Server integrating all components            |
+| Layer | Component      | File                    | Description                               |
+| :---- | :------------- | :---------------------- | :---------------------------------------- |
+| L2    | Packet Socket  | `pkg/rawsock/`          | Linux AF_PACKET access to Ethernet frames |
+| L2    | Ethernet Frame | `pkg/ethernet/frame.go` | MAC address-based frame handling          |
+| L3    | IPv4 Packet    | `pkg/ipv4/packet.go`    | IP address-based packet handling          |
+| L4    | ICMP Message   | `pkg/icmp/message.go`   | Ping (Echo Request/Reply) implementation  |
+| L4    | UDP Message    | `pkg/udp/message.go`    | Connectionless application datagrams      |
+| App   | Stack          | `main.go`               | Server integrating all components         |
 
 ---
 
