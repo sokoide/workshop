@@ -8,7 +8,7 @@ In this workshop, you will learn the "Idempotency" pattern to safely retry opera
 
 ## Implementation Code
 
-The complete implementation for this workshop can be found in [`software/assets/idempotency/`](assets/idempotency/).
+An executable minimal sample is available in [`software/assets/idempotency/`](assets/idempotency/). It is a CLI that stores balances and idempotency keys in Redis.
 
 ```bash
 cd software/assets/idempotency
@@ -104,20 +104,16 @@ flowchart TD
 
 ---
 
-## Target Directory Structure
+## Sample Directory Structure
 
 ```text
 software/assets/idempotency/
-├── domain/                  # Entities and Interfaces
-│   ├── idempotency_key.go   # Entity for Idempotency Key
-│   └── repository.go        # Repository Interface
+├── domain/                  # Entities and ports
+│   └── repository.go        # Repository and idempotency-store interfaces
 ├── usecase/                 # Business Logic
 │   └── charge_usecase.go    # Charge Usecase
 ├── infra/                   # Infrastructure
-│   ├── db_repository.go     # DB Implementation
-│   └── idempotency_store.go # Redis/DB Implementation
-├── cmd/                     # CLI Entry Point
-│   └── main.go
+│   └── idempotency_store.go # Redis idempotency-store implementation
 └── main.go                  # Dependency Injection
 ```
 
@@ -125,27 +121,7 @@ software/assets/idempotency/
 
 ## Setup
 
-### 1. Start Database
-
-```bash
-# For Podman
-podman run -d --name idempotency-db \
-  -e POSTGRES_USER=user \
-  -e POSTGRES_PASSWORD=pass \
-  -e POSTGRES_DB=idempotency \
-  -p 5432:5432 \
-  docker.io/library/postgres:alpine
-
-# For Docker (alternative)
-docker run -d --name idempotency-db \
-  -e POSTGRES_USER=user \
-  -e POSTGRES_PASSWORD=pass \
-  -e POSTGRES_DB=idempotency \
-  -p 5432:5432 \
-  postgres:alpine
-```
-
-### 2. Start Redis (for Caching)
+### 1. Start Redis
 
 ```bash
 # For Podman
@@ -159,7 +135,7 @@ docker run -d --name idempotency-redis \
   redis:alpine
 ```
 
-### 3. Project Setup
+### 2. Project Setup
 
 ```bash
 cd software/assets/idempotency
@@ -168,7 +144,7 @@ go mod tidy
 
 ### ✅ Checkpoint
 
-- [ ] Confirmed PostgreSQL and Redis are running
+- [ ] Confirmed Redis is running
 
 ---
 
@@ -180,12 +156,12 @@ First, reproduce the problem using an implementation without idempotency.
 
 ```bash
 # Execute charge (Balance: 1000, Charge: 100)
-go run main.go -action charge -user user1 -amount 100
-# Balance: 900
+go run main.go -user user1 -amount 100
+# Result: &{Status:success Balance:900 Source:DB (Freshly Processed)}
 
 # Retry assuming a timeout
-go run main.go -action charge -user user1 -amount 100
-# Balance: 800 (Double charged!)
+go run main.go -user user1 -amount 100
+# Result: &{Status:success Balance:800 Source:DB (Freshly Processed)}
 ```
 
 **Issue**: The same transaction was processed twice, and the balance decreased twice.
@@ -199,15 +175,16 @@ go run main.go -action charge -user user1 -amount 100
 Use a client-generated unique key to achieve idempotency.
 
 ```bash
+# Generate the key once in the same shell.
+key=$(uuidgen)
+
 # Charge with Idempotency Key
-go run main.go -action charge -user user1 -amount 100 \
-  -idempotency-key $(uuidgen)
-# Balance: 900, Key: abc123-def456-...
+go run main.go -user user2 -amount 100 -idempotency-key "$key"
+# Result: &{Status:success Balance:900 Source:DB (Freshly Processed)}
 
 # Retry with the same key
-go run main.go -action charge -user user1 -amount 100 \
-  -idempotency-key abc123-def456-...
-# Balance: 900 (Unchanged), returns same result as before
+go run main.go -user user2 -amount 100 -idempotency-key "$key"
+# Result: &{Status:success Balance:900 Source:Cache (Idempotent)}
 ```
 
 ### ✅ Checkpoint
@@ -215,37 +192,29 @@ go run main.go -action charge -user user1 -amount 100 \
 - [ ] Confirmed processing is not duplicated when retrying with the same Idempotency Key
 - [ ] Confirmed new processing occurs for a different Key
 
-### STEP 3: Implement Idempotency Store
+### STEP 3: Inspect the Idempotency Store
 
-Implement a store to cache processing results.
+The sample stores processing results in Redis for 24 hours, using the `idemp:` key prefix.
 
 **Go Code Structure:**
 
 ```go
-// Domain: Entity definition
-type IdempotencyKey struct {
-    Key       string
-    UserID    string
-    Result    []byte  // JSON result of processing
-    CreatedAt time.Time
-}
-
-// Infra: Redis implementation
+// Infra: Redis implementation (simplified from the sample)
 type RedisIdempotencyStore struct {
     client *redis.Client
-    ttl    time.Duration  // Typically 24-48 hours
+    ttl    time.Duration  // 24 hours in the sample
 }
 
 func (s *RedisIdempotencyStore) GetResult(ctx context.Context, key string) ([]byte, error) {
-    val, err := s.client.Get(ctx, "idempotency:"+key).Bytes()
+    val, err := s.client.Get(ctx, "idemp:"+key).Bytes()
     if err == redis.Nil {
-        return nil, ErrKeyNotFound
+        return nil, nil
     }
     return val, err
 }
 
 func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, result []byte) error {
-    return s.client.Set(ctx, "idempotency:"+key, result, s.ttl).Err()
+    return s.client.Set(ctx, "idemp:"+key, result, s.ttl).Err()
 }
 ```
 
@@ -254,9 +223,9 @@ func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, resu
 - [ ] Confirmed processing results are saved in Redis
 - [ ] Confirmed Key is cleared after TTL expiration
 
-### STEP 4: Complete Charge Processing with Idempotency
+### STEP 4: Read the Idempotent Charge Processing
 
-Implement using Clean Architecture.
+The sample's `ChargeUsecase.Execute` retrieves a result, obtains a Redis `SETNX` lock, updates the balance, and saves the result in that order.
 
 ```go
 // Usecase: Business logic
@@ -267,7 +236,7 @@ type ChargeUsecase struct {
 
 func (uc *ChargeUsecase) Execute(ctx context.Context, req ChargeRequest) (*ChargeResponse, error) {
     // 1. Check Idempotency Key
-    if cached, err := uc.idempotencyStore.GetResult(ctx, req.IdempotencyKey); err == nil {
+    if cached, err := uc.idempotencyStore.GetResult(ctx, req.IdempotencyKey); err == nil && cached != nil {
         // Return cached result
         return deserializeResponse(cached), nil
     }
@@ -324,7 +293,7 @@ sequenceDiagram
     API-->>C1: 200 OK
 ```
 
-**Implementation**: Use Redis `SETNX` (Set if Not eXists)
+The sample also uses Redis `SETNX` (Set if Not eXists) and returns an error when the same key is already being processed. The following is a production-oriented example that also uses an ownership token.
 
 ```go
 // Acquire exclusive lock
@@ -360,8 +329,8 @@ result, err := uc.chargeWithIdempotency(ctx, req)
 ## Cleanup
 
 ```bash
-podman stop idempotency-db idempotency-redis
-podman rm idempotency-db idempotency-redis
+podman stop idempotency-redis
+podman rm idempotency-redis
 ```
 
 ---
@@ -394,13 +363,13 @@ podman rm idempotency-db idempotency-redis
 - **Lock TTL**: Always set a TTL (typically 30s) on locks.
 - **Deadlock Detection**: Implement backoff and retry if processing time exceeds TTL.
 
-### Inconsistency between Cache and DB
+### Redis and Persistent-DB Inconsistency
 
-**Symptoms**: Result exists in cache but not reflected in DB.
+**Symptoms**: Redis has a result but the persistent DB does not reflect it.
 
 **Causes and Solutions:**
 
-- **Transaction Boundaries**: Save to cache after DB commit.
+- **Transaction Boundaries**: In production, save the result after the DB commit. This sample is minimal and uses Redis as the balance store too; it does not cover atomicity with a persistent DB.
   - ❌ Cache save → DB commit (risk of cache-only success)
   - ✅ DB commit → Cache save (safe to retry if only DB succeeds)
 
@@ -410,11 +379,10 @@ podman rm idempotency-db idempotency-redis
 
 ### macOS
 
-You can also install PostgreSQL and Redis directly via Homebrew.
+You can also install Redis directly via Homebrew.
 
 ```bash
-brew install postgresql@14 redis
-brew services start postgresql@14
+brew install redis
 brew services start redis
 ```
 

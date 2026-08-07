@@ -1,4 +1,4 @@
-package port
+package usecase
 
 import (
 	"context"
@@ -6,6 +6,9 @@ import (
 	"github.com/sokoide/cleanarch1/internal/domain/entity"
 )
 
+// Repository ports are owned by the application workflows that need them.
+// Infrastructure adapters implement these interfaces without leaking database
+// details into the UseCase or Domain layers.
 type BoardRepository interface {
 	FindAll(ctx context.Context) ([]*entity.Board, error)
 	FindByName(ctx context.Context, name string) (*entity.Board, error)

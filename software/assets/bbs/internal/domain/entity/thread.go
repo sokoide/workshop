@@ -23,7 +23,7 @@ func NewThread(boardID int64, title string, owner string) (*Thread, error) {
 		return nil, domain.ErrEmptyTitle
 	}
 	if owner == "" {
-		return nil, errors.New("owner must not be empty")
+		owner = DefaultAuthor
 	}
 	now := time.Now()
 	return &Thread{

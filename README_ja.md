@@ -91,6 +91,12 @@
   - Slack 通知を新しい Port/Adapter パターンで追加
 - [クリーンアーキテクチャ実習 (WS7): 認証の追加](./software/clean_arch_ws7_ja.md)
   - JWT Bearer Token 認証を Framework 層の横断的関心として追加
+- [クリーンアーキテクチャ実習 (WS8): 最小構成で本質を理解する](./software/clean_arch_ws8_ja.md)
+  - 小さな挨拶アプリで依存ルールを追い、ビジネスルールとインフラの差し替えを実践
+- [冪等性パターン：安全な再試行を実現する設計](./software/idempotency_ja.md)
+  - Idempotency Key で重複処理を防ぎ、並行実行、有効期限、障害処理のトレードオフを学習
+- [Go 言語におけるメッセージキューパターン](./software/go_mq_patterns_ja.md)
+  - チャネル、Fan-out、Worker Pool、Kafka、Retry/DLQ を実行可能な Go の例で比較
 - [SOLID principles (Goで学ぶ設計原則)](./software/solid_ja.md)
   - S/O/L/I/D を Go の実例と Clean Architecture の対応で理解
 - [セキュアコーディング Best Practices (Go)](./software/secure_coding_ja.md)

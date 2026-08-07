@@ -5,7 +5,6 @@ import (
 
 	"github.com/sokoide/cleanarch1/internal/domain"
 	"github.com/sokoide/cleanarch1/internal/domain/entity"
-	"github.com/sokoide/cleanarch1/internal/domain/port"
 )
 
 type ListThreadsInputPort interface {
@@ -13,11 +12,11 @@ type ListThreadsInputPort interface {
 }
 
 type ListThreadsUseCase struct {
-	boardRepo  port.BoardRepository
-	threadRepo port.ThreadRepository
+	boardRepo  BoardRepository
+	threadRepo ThreadRepository
 }
 
-func NewListThreadsUseCase(boardRepo port.BoardRepository, threadRepo port.ThreadRepository) *ListThreadsUseCase {
+func NewListThreadsUseCase(boardRepo BoardRepository, threadRepo ThreadRepository) *ListThreadsUseCase {
 	return &ListThreadsUseCase{boardRepo: boardRepo, threadRepo: threadRepo}
 }
 
@@ -47,13 +46,13 @@ type CreateThreadInputPort interface {
 }
 
 type CreateThreadUseCase struct {
-	boardRepo  port.BoardRepository
-	threadRepo port.ThreadRepository
-	postRepo   port.PostRepository
+	boardRepo  BoardRepository
+	threadRepo ThreadRepository
+	postRepo   PostRepository
 	tm         TransactionManager
 }
 
-func NewCreateThreadUseCase(boardRepo port.BoardRepository, threadRepo port.ThreadRepository, postRepo port.PostRepository, tm TransactionManager) *CreateThreadUseCase {
+func NewCreateThreadUseCase(boardRepo BoardRepository, threadRepo ThreadRepository, postRepo PostRepository, tm TransactionManager) *CreateThreadUseCase {
 	return &CreateThreadUseCase{boardRepo: boardRepo, threadRepo: threadRepo, postRepo: postRepo, tm: tm}
 }
 

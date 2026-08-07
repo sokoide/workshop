@@ -111,6 +111,8 @@ cp /etc/resolv.conf rootfs/etc/resolv.conf
 
    ```bash
    sudo unshare --pid --fork --mount /bin/sh
+   # 新しい Mount namespace のマウントイベントをホストへ伝播させない
+   mount --make-rprivate /
    chroot rootfs /bin/sh
    mount -t proc proc /proc
    ps # コンテナ内のプロセスだけが見える
@@ -151,16 +153,22 @@ sudo ip link set veth-child netns container1
 # ホスト側 IP 設定
 sudo ip addr add 10.0.0.1/24 dev veth-host
 sudo ip link set veth-host up
+# namespace 側 IP 設定
+sudo ip -n container1 link set lo up
+sudo ip -n container1 addr add 10.0.0.2/24 dev veth-child
+sudo ip -n container1 link set veth-child up
+sudo ip netns exec container1 ping -c 3 10.0.0.1
 ```
 
 ### ✅ チェックポイント
 
 - [ ] `ip netns list` で `container1` が存在することを確認した
 - [ ] `ip addr show veth-host` で 10.0.0.1 が割り当てられていることを確認した
+- [ ] namespace 内から `ping -c 3 10.0.0.1` が成功した
 
 ### STEP 5: Go 言語によるランタイムの実装
 
-`syscall` パッケージを使用して、これまでの操作をプログラム化します（詳細は `main.go` 参照）。
+`syscall` パッケージを使用して、名前空間作成をプログラム化します。次の抜粋は**名前空間を作る部分だけ**です。`chroot`、`/proc` のマウント、cgroup 設定、UID/GID マッピング、capability の削除、seccomp を含まないため、実運用の OCI runtime としては不十分です。
 
 ```go
 cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -194,6 +202,8 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 **原因と対処**:
 
 - **権限不足**: ユーザー名前空間以外の名前空間の作成には root 権限が必要です。
+
+  user namespace を組み合わせれば非 root で作成できる構成もありますが、UID/GID マッピングが別途必要です。この実習は挙動を明確にするため `sudo` を前提にします。
 
   ```bash
   sudo ./mycontainer

@@ -28,15 +28,15 @@ All Go projects in this repository follow Clean Architecture principles with dep
 ┌─────────────▼───────────────────────────────────────┐
 │  Domain Layer                                       │
 │  - Entities, Value Objects, Domain Services         │
-│  - Domain Errors, Domain-owned Ports                │
+│  - Domain Errors, domain-policy Ports only          │
 │  - NO external dependencies                         │
 └─────────────────────────────────────────────────────┘
 ```
 
 ### Key Principles
 
-- **Domain Layer**: Pure Go with zero external dependencies. Contains entities, domain services, domain errors, and domain-owned ports.
-- **UseCases Layer**: Orchestration only. Coordinates Domain objects and boundary interfaces. Defines input/output DTOs and UseCase-owned ports. Unaware of external implementation details.
+- **Domain Layer**: Pure Go with zero external dependencies. Contains entities, domain services, domain errors, and only ports that express a domain policy.
+- **UseCases Layer**: Orchestration only. Coordinates Domain objects and boundary interfaces. Defines input/output DTOs and application-owned ports, including persistence repositories and transaction runners. Unaware of external implementation details.
 - **Adapters Layer = side-effect boundary**: All I/O, external integrations, and framework interactions confined here.
   - **Presentation Adapters (Inbound)**: HTTP/gRPC/CLI handlers, controllers, presenters, request/response mapping.
   - **Infrastructure Adapters (Outbound)**: Repository implementations, external API gateways, DB models, error conversion.

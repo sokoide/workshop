@@ -17,14 +17,14 @@ type Post struct {
 	CreatedAt time.Time
 }
 
-const defaultAuthor = "名無しさん"
+const DefaultAuthor = "名無しさん"
 
 func NewPost(threadID int64, number int, author, body string, sage bool) (*Post, error) {
 	if strings.TrimSpace(body) == "" {
 		return nil, domain.ErrEmptyBody
 	}
 	if author == "" {
-		author = defaultAuthor
+		author = DefaultAuthor
 	}
 	return &Post{
 		ThreadID:  threadID,

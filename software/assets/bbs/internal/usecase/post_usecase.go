@@ -5,7 +5,6 @@ import (
 
 	"github.com/sokoide/cleanarch1/internal/domain"
 	"github.com/sokoide/cleanarch1/internal/domain/entity"
-	"github.com/sokoide/cleanarch1/internal/domain/port"
 )
 
 type ListPostsInputPort interface {
@@ -13,10 +12,10 @@ type ListPostsInputPort interface {
 }
 
 type ListPostsUseCase struct {
-	postRepo port.PostRepository
+	postRepo PostRepository
 }
 
-func NewListPostsUseCase(postRepo port.PostRepository) *ListPostsUseCase {
+func NewListPostsUseCase(postRepo PostRepository) *ListPostsUseCase {
 	return &ListPostsUseCase{postRepo: postRepo}
 }
 
@@ -38,12 +37,12 @@ type CreatePostInputPort interface {
 }
 
 type CreatePostUseCase struct {
-	threadRepo port.ThreadRepository
-	postRepo   port.PostRepository
+	threadRepo ThreadRepository
+	postRepo   PostRepository
 	tm         TransactionManager
 }
 
-func NewCreatePostUseCase(threadRepo port.ThreadRepository, postRepo port.PostRepository, tm TransactionManager) *CreatePostUseCase {
+func NewCreatePostUseCase(threadRepo ThreadRepository, postRepo PostRepository, tm TransactionManager) *CreatePostUseCase {
 	return &CreatePostUseCase{threadRepo: threadRepo, postRepo: postRepo, tm: tm}
 }
 

@@ -32,12 +32,12 @@ graph TD
     subgraph UseCaseLayer [UseCases]
         UC[UseCase]
         UC_Port[UseCase Input Port]
+        UO[UseCase Output Ports<br/>Repository / Gateway / TxRunner]
     end
 
     subgraph DomainLayer [Domain]
         DS[Domain Service]
         E[Entity]
-        RI[Repository Interface]
         DE[Domain Error]
     end
 
@@ -48,7 +48,8 @@ graph TD
     UC --> DomainLayer
 
     %% Outbound dependencies
-    RI_Impl -- "implements" --> RI
+    RI_Impl -- "implements" --> UO
+    GW_Impl -- "implements" --> UO
     RI_Impl --> DB
     GW_Impl --> DB
 ```
@@ -86,7 +87,7 @@ The heart of the application, representing the business rules themselves.
 - **Entity / Aggregate / Value Object:** Business "objects" or "concepts."
 - **Domain Service:** Knowledge or logic that spans multiple entities.
 - **Domain Error:** Errors defined in domain vocabulary.
-- **Domain Port (Interface):** Repository and other ports only when the abstraction is part of the domain language.
+- **Domain Port (Interface):** Only when the abstraction is part of the domain language. Persistence repositories and external-tool ports belong to UseCases.
 - **No external dependencies:** No DB, HTTP, ORM, SDK, web framework, or generated transport types.
 - **Note on `context.Context`:** Domain interfaces in Go commonly accept `context.Context` as the first parameter for cancellation and deadline propagation. This is a **pragmatic exception** to the "no external dependencies" rule, justified specifically because `context.Context` carries cancellation and deadline signals — a Go runtime concern, not a business dependency. The exception does not extend to other standard library packages (e.g., `net/http`, `database/sql`). Domain MUST NOT read custom values from context — that responsibility belongs to Infrastructure Adapters.
 
@@ -117,7 +118,7 @@ Adapters that deliver application behavior to users or external callers.
 
 Adapters that connect UseCases or Domain-owned ports to external systems.
 
-- **Repository Impl:** Implements the interface defined in the Domain or UseCases layer. Mapping and query construction live here.
+- **Repository Impl:** Implements persistence interfaces defined in the UseCases layer. Mapping and query construction live here.
 - **Gateway Impl:** Implementation of external API clients, notification, search, payment, etc.
 - **Error Conversion:** Converts driver errors (e.g., `sql.ErrNoRows`) to domain errors before they reach inner layers.
 
@@ -324,19 +325,19 @@ func LongRunningProcess(ctx context.Context) error {
 ## Port Ownership Guidance
 
 - **Domain Port:** When the abstraction is part of the "Domain Language" and is essential for the domain model to fulfill its core business rules.
-  - _Examples:_ `UserRepository.FindByID` (essential for re-constituting entities).
+  - _Examples:_ Domain-decision ports such as `PricingPolicy` or `FraudDetector`.
   - _Heuristic:_ "Would the domain model be incomplete or unable to enforce its invariants without this capability?"
 - **UseCase Port:** When the abstraction is a "Tool" required to complete an application-specific procedure.
   - _Examples:_ `NotificationGateway.SendWelcomeEmail` (a side-effect of a workflow), `IdentityGateway.IsMember` (authorization check against external provider), `TransactionManager.RunInTransaction` (application-level transaction boundary).
   - _Heuristic:_ "Is this a requirement of the application workflow rather than the core business logic itself?"
-- **Repository ports — Domain or UseCase?** Repository interfaces (e.g., `BoardRepository`, `ThreadRepository`) may live in the Domain layer when their operations express core domain language (e.g., "find an entity by ID" is essential for reconstituting aggregates). In contrast, `TransactionManager` controls application-level transaction boundaries — an orchestration concern, not a domain concept — and belongs in the UseCase layer. The distinction: _if removing the interface would break the domain model's ability to enforce invariants, it's a Domain Port; otherwise, it's a UseCase Port._
+- **Repository Ports:** Persistence is a capability needed to complete an application workflow, so interfaces such as `BoardRepository` and `ThreadRepository` live in the UseCase layer. `TransactionManager` likewise controls an application transaction boundary and is a UseCase Port.
 - Concrete implementations live in **Infrastructure Adapters** regardless of which inner layer owns the interface.
 
 ### Input Port Interface Policy
 
 Input Ports (UseCase interfaces called by Presentation Adapters) should be defined **when the UseCase is consumed by multiple Presentation types** (e.g., HTTP + gRPC + CLI) or when you want to explicitly decouple the handler from the concrete UseCase struct for testing. For single-protocol applications, defining an interface for every UseCase adds unnecessary boilerplate — the Presentation can depend on the concrete UseCase struct directly, and Go's structural typing still allows swapping when needed.
 
-**Guideline:** Define Input Port interfaces where they add value (multi-protocol support, test isolation). Do not create them by default for every UseCase. The BBS project in this repository defines Input Ports (`CreatePostInputPort`, etc.) because WS3 adds gRPC alongside HTTP — making them a justified multi-protocol pattern.
+**Guideline:** Define Input Port interfaces where they add value (multi-protocol support, test isolation). Do not create them by default for every UseCase. The BBS project in this repository defines Input Ports (`CreatePostInputPort`, etc.) to keep its HTTP Handlers independently testable from UseCase implementations. The current BBS includes HTTP only; it does not include a gRPC implementation.
 
 ## Ports and Repository Boundary
 

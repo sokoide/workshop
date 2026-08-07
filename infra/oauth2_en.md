@@ -388,7 +388,7 @@ sequenceDiagram
     K-->>C: access_token / id_token
     C->>A: Authorization: Bearer access_token
     A-->>C: /api/profile result
-    C-->>U: Render token and API response as JSON
+    C-->>U: Render token-retrieval result and API response as JSON
 ```
 
 What the client app does:
@@ -400,12 +400,14 @@ What the client app does:
 5. It validates `state` to protect against CSRF
 6. It exchanges `code` and `code_verifier` at the token endpoint to obtain an `access_token`
 7. It sends that `access_token` to the Go API as `Authorization: Bearer ...`
-8. It returns the API response as JSON
+8. It does not return token contents to the browser; it renders whether a token was received and the Go API response as JSON
 
 Why PKCE is used:
 
 - Even if someone steals the `code`, they still cannot exchange it without the matching `code_verifier`
 - Public clients cannot safely keep a client secret, so `Authorization Code + PKCE` is used
+
+> **Do not display or log tokens**: an access token is a bearer credential. Confirming successful retrieval does not require returning its contents. This sample returns only `token_received` and keeps the token in the server-side session.
 
 Endpoints in this sample:
 
@@ -447,7 +449,7 @@ Expected behavior:
 
 - The browser is redirected to the Keycloak login page
 - After login, the browser returns to the Go client app's `/callback`
-- The response shows `access_token` as JSON
+- The response shows `token_received: true` and the API response (not the access token itself)
 - It also shows the `/api/profile` response
 - If you see `token has invalid audience`, the Audience mapper is missing in Keycloak
 

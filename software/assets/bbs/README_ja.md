@@ -57,13 +57,13 @@ curl http://localhost:8080/api/boards
 ### スレッド一覧の取得
 
 ```bash
-curl http://localhost:8080/api/boards/program/threads
+curl http://localhost:8080/api/boards/programming/threads
 ```
 
 ### スレッドの作成
 
 ```bash
-curl -X POST http://localhost:8080/api/boards/program/threads \
+curl -X POST http://localhost:8080/api/boards/programming/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"Go言語スレ","author":"gopher","body":"Go最高！"}'
 ```
@@ -83,6 +83,8 @@ curl -X POST http://localhost:8080/api/threads/1/posts \
 ```
 
 ※ `sage: true` を指定すると、スレッドの最終更新日時（`last_posted_at`）が更新されません（age られません）。
+
+`author` を省略すると、スレッド作成・レス投稿のどちらでも `名無しさん` が使われます。`owner_only: true` のスレッドでは、作成時に確定した投稿者名だけが投稿できます。
 
 ## アーキテクチャ構成図
 
@@ -107,20 +109,20 @@ graph TB
         UC["*_usecase.go<br/>List/Create UseCases"]
         DTO["dto.go<br/>入出力データ構造"]
         UCPort["Input Port interfaces<br/>(各UseCaseファイル内)"]
+        UCOutputPort["repository.go / transaction.go<br/>UseCase Output Ports"]
     end
 
     subgraph DomainLayer ["Domain"]
         Entity["entity/*.go<br/>板・スレ・レス"]
-        DPort["port/*.go<br/>Domain Port (Repository)"]
         Err["error.go<br/>ドメインエラー"]
     end
 
     Client["Client (curl / browser)"] -->|HTTP| MW --> Router --> Handler
     Handler -->|Execute| UC
     UC -->|Interface| UCPort
-    UC -->|Interface| DPort
+    UC -->|Interface| UCOutputPort
     UCPort -.->|Implementation| TM
-    DPort -.->|Implementation| Repo
+    UCOutputPort -.->|Implementation| Repo
     Repo --> Model --> SQLite
 
     Main["cmd/bbs/main.go<br/>Composition Root"] -.->|DI| Handler
@@ -141,7 +143,7 @@ graph TB
 ビジネスルールの中核です。
 
 - **Entity**: `Board`, `Thread`, `Post`。ビジネスロジック（例：sage による age 判定、バリデーション）を保持。
-- **Port**: リポジトリやトランザクションのインターフェース。
+- **Port**: ドメイン判断そのものを表す場合にのみ定義します。この BBS の Repository と TransactionManager は、アプリケーションワークフローが所有する UseCase Port です。
 - **Error**: アプリケーション全体で共有されるドメイン例外。
 
 ### 2. UseCases 層 (Domain にのみ依存)
@@ -149,6 +151,7 @@ graph TB
 アプリケーション固有のビジネスシナリオを調整（オーケストレーション）します。
 
 - `CreateThreadUseCase` など、複数のエンティティやリポジトリを組み合わせて一連の処理を実行。
+- `repository.go` と `transaction.go` で、永続化 Repository とトランザクション境界の Output Port を所有。
 - `dto.go` で定義された DTO を使用してデータの受け渡しを行い、他レイヤーとの結合を疎にします。
 
 ### 3. Adapters 層 (UseCases, Domain, 外部ライブラリに依存)
@@ -176,7 +179,7 @@ Clean Architecture の核心は **依存関係の方向が一方向（外側→�
 Framework (HTTP/gRPC)  →  UseCase (アプリケーション手順)  →  Domain (ビジネスルール)
                               ↓                                   ↑
                          Infra Adapter (DB/外部API) ──────────────┘
-                              (Domain の Port Interface を実装)
+                              (UseCase の Output Port を実装)
 ```
 
 内側の層は外側の層について **何も知らない** ため、外側の変更が内側に波及することはありません。
@@ -403,7 +406,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 参考までに、永続化層の変更パターンも示します。
 
-#### 変更が必要な層: Infra Adapter Layer のみ
+#### 変更が必要な層: Infra Adapter と Composition Root
 
 | 変更対象                    | 変更内容                                                       |
 | --------------------------- | -------------------------------------------------------------- |
@@ -411,14 +414,15 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 | 各 `*_repo.go`              | SQL 文法の差異（`?` → `$1`、`AUTOINCREMENT` → `SERIAL`）を修正 |
 | `transaction.go`            | `sql.Tx` の扱いは同じだが、接続文字列等の設定を変更            |
 | `model.go`                  | PostgreSQL 用の型マッピングに調整                              |
+| `cmd/bbs/main.go`           | DB ドライバー、接続設定、具象 Repository の組み立てを変更      |
 
 #### 変更が不要な層
 
-| 層            | 理由                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**    | Port Interface（`BoardRepository`, `TransactionManager`）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
-| **UseCase**   | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし                                            |
-| **Framework** | Handler は UseCase を呼ぶだけで、DB の種類を知らない                                                                            |
+| 層               | 理由                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| **Domain**       | 永続化の Port や DB 固有型を持たないため変更不要                                                       |
+| **UseCase**      | Output Port（`BoardRepository`, `TransactionManager`）に依存するため、具象実装が置き換わっても変更不要 |
+| **Presentation** | Handler は UseCase を呼ぶだけで、DB の種類を知らない                                                   |
 
 Composition Root（`cmd/bbs/main.go`）だけが具象実装の差し替え箇所を知っています:
 
@@ -464,10 +468,10 @@ Slack なのか Email なのか LINE なのか、UseCase は知りません（Do
 
 ```go
 type CreatePostUseCase struct {
-    threadRepo port.ThreadRepository
-    postRepo   port.PostRepository
-    tm         port.TransactionManager
-    notifier   port.NotificationGateway  // ← 追加
+    threadRepo ThreadRepository
+    postRepo   PostRepository
+    tm         TransactionManager
+    notifier   NotificationGateway  // ← 追加
 }
 
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
@@ -710,15 +714,15 @@ Framework Test: モック UseCase → 403 が返る                     （DBも
 
 ### まとめ: 変更の種類と影響範囲
 
-| 変更の種類                        | 影響する層                           | 触らない層                 |
-| --------------------------------- | ------------------------------------ | -------------------------- |
-| 通信方式の変更（HTTP → gRPC）     | Framework                            | Domain, UseCase, Infra     |
-| DB の変更（SQLite → PostgreSQL）  | Infra                                | Domain, UseCase, Framework |
-| ビジネスルールの追加・変更        | Domain, UseCase                      | Framework, Infra           |
-| 外部サービス統合（Slack通知など） | Domain (Port), UseCase, Infra (新規) | Entity, Framework          |
-| 認証の追加（JWTなど）             | Framework                            | Domain, UseCase, Infra     |
+| 変更の種類                         | 影響する層                                      | 触らない層                     |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------ |
+| 通信方式の変更（HTTP → gRPC）      | Presentation Adapter, Composition Root          | Domain, UseCase, Infra Adapter |
+| DB の変更（SQLite → PostgreSQL）   | Infra Adapter, Composition Root                 | Domain, UseCase, Presentation  |
+| ビジネスルールの追加・変更         | Domain, UseCase                                 | Presentation, Infra Adapter    |
+| 外部サービス統合（Slack 通知など） | UseCase (Port), Infra Adapter, Composition Root | Entity, Presentation           |
+| Transport 認証の追加（JWT など）   | Presentation Adapter, Composition Root          | Domain, UseCase, Infra Adapter |
 
-**DB が変われば Infra だけ、通信方式が変われば Framework だけ、ビジネスルールが変われば Domain と UseCase だけ。**
+**DB が変われば Infra Adapter と組み立て、通信方式が変われば Presentation Adapter と組み立て、ビジネスルールが変われば Domain と UseCase。**
 この「影響範囲の局所化」が Clean Architecture のメンテナンス性の源泉です。
 
 各層は **自分の責務だけ** を持ち、自分の変更理由だけに応答して変わります。
@@ -730,8 +734,8 @@ Framework Test: モック UseCase → 403 が返る                     （DBも
 .
 ├── cmd/bbs/            # エントリポイント (Composition Root)
 ├── internal/
-│   ├── domain/         # ドメイン層 (Entity, Port, Error)
-│   ├── usecase/        # ユースケース層 (Interactors, DTO, Input Port)
+│   ├── domain/         # ドメイン層 (Entity, Error)
+│   ├── usecase/        # ユースケース層 (Interactors, DTO, Input/Output Port)
 │   └── adapters/       # アダプタ層
 │       ├── presentation/   # Presentation Adapters (HTTP Handler, Router, Middleware)
 │       │   └── http/

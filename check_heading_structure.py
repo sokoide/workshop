@@ -5,6 +5,7 @@ Extracts heading hierarchy (# ## ###) and compares section counts.
 """
 
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple, Dict
 from collections import defaultdict
@@ -15,11 +16,30 @@ def extract_headings(content: str) -> List[Tuple[int, str, str]]:
     Extract headings from markdown content.
     Returns list of (level, line_text, heading_text) tuples.
     """
-    heading_pattern = re.compile(r'^(#{1,6})\s+(.+)$', re.MULTILINE)
+    heading_pattern = re.compile(r'^(#{1,6})\s+(.+)$')
+    fence_pattern = re.compile(r'^\s*(`{3,}|~{3,})')
     headings = []
-    for match in heading_pattern.finditer(content):
+    active_fence = None
+
+    for line in content.splitlines():
+        fence_match = fence_pattern.match(line)
+        if fence_match:
+            marker = fence_match.group(1)
+            marker_char = marker[0]
+            if active_fence is None:
+                active_fence = (marker_char, len(marker))
+            elif marker_char == active_fence[0] and len(marker) >= active_fence[1]:
+                active_fence = None
+            continue
+
+        if active_fence is not None:
+            continue
+
+        match = heading_pattern.match(line)
+        if not match:
+            continue
         level = len(match.group(1))
-        line_text = match.group(0)
+        line_text = line
         heading_text = match.group(2)
         headings.append((level, line_text, heading_text))
     return headings
@@ -36,39 +56,25 @@ def count_sections(headings: List[Tuple[int, str, str]]) -> Dict[int, int]:
 def find_bilingual_pairs(repo_root: Path) -> List[Tuple[Path, Path]]:
     """Find en/ja markdown file pairs."""
     ja_files = sorted(repo_root.rglob("*_ja.md"))
-    en_files = sorted(repo_root.rglob("*_en.md"))
     pairs = []
-
-    # Create a lookup for en files
-    en_lookup = {}
-    for en_file in en_files:
-        if "node_modules" in str(en_file) or ".git" in str(en_file):
-            continue
-        # For tcpip_stack_en.md, store key as "tcpip_stack"
-        key = en_file.stem.replace("_en", "")
-        en_lookup[key] = en_file
 
     for ja_file in ja_files:
         # Skip node_modules and .git
         if "node_modules" in str(ja_file) or ".git" in str(ja_file):
             continue
 
-        # Try to find matching en file
-        ja_stem = ja_file.stem.replace("_ja", "")
+        ja_stem = ja_file.stem.removesuffix("_ja")
 
-        # Method 1: Check en_lookup for _en pattern
-        if ja_stem in en_lookup:
-            pairs.append((en_lookup[ja_stem], ja_file))
-            continue
-
-        # Method 2: Check for plain .md pattern (e.g., clean_arch.md)
-        en_file = ja_file.parent / f"{ja_stem}.md"
-        if en_file.exists() and en_file.is_file():
+        # Prefer the sibling *_en.md file. Keeping the lookup directory-local
+        # avoids pairing files with identical stems from different workshops.
+        en_file = ja_file.with_name(f"{ja_stem}_en.md")
+        if en_file.is_file():
             pairs.append((en_file, ja_file))
             continue
 
-        # Check if English version exists
-        if en_file.exists() and en_file != ja_file:
+        # Some pairs use an unsuffixed English file (for example README.md).
+        en_file = ja_file.parent / f"{ja_stem}.md"
+        if en_file.is_file():
             pairs.append((en_file, ja_file))
 
     return pairs
@@ -118,10 +124,10 @@ def analyze_pair(en_file: Path, ja_file: Path) -> Dict:
 
 def main():
     """Main function to analyze all bilingual pairs."""
-    repo_root = Path("/Users/scott/repo/sokoide/workshop")
+    repo_root = Path(__file__).resolve().parent
 
     print("# Heading Structure Synchronization Report")
-    print(f"Generated: 2026-06-07")
+    print(f"Generated: {datetime.now().astimezone().isoformat(timespec='seconds')}")
     print(f"Repository: {repo_root}")
     print()
 

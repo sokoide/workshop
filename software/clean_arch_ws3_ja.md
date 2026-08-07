@@ -1,18 +1,18 @@
 # クリーンアーキテクチャ実習 (WS3): 通信プロトコルの差し替え
 
 この実習では、BBS（2 ちゃんねる風掲示板）の REST API を gRPC に移行します。
-**Presentation 層だけを変更**し、Domain・UseCase・Infra が一切変更不要であることを体験します。
+**Presentation Adapter** を差し替え、それを組み立てる **Composition Root** を更新します。Domain・UseCase・Infrastructure Adapters は変更しません。
 
 ## BBS アプリの概要
 
-題材とする BBS は、掲示板（Board）→ スレッド（Thread）→ 投稿（Post）の 3 階層を持つシンプルな掲示板アプリです。REST API の詳細や操作方法は [BBS README](../assets/bbs/README_ja.md) を参照してください。
+題材とする BBS は、掲示板（Board）→ スレッド（Thread）→ 投稿（Post）の 3 階層を持つシンプルな掲示板アプリです。REST API の詳細や操作方法は [BBS README](assets/bbs/README_ja.md) を参照してください。
 
-> **本実習の焦点:** 既存の REST API を **gRPC** に移行します。**Presentation 層（HTTP Handler / Router）だけを変更**し、Domain・UseCase・Infra 層が一切変更不要であることを体験します。
+> **本実習の焦点:** 既存の REST API を **gRPC** に移行します。Presentation Adapter（Handler / Router）と Composition Root の配線を変更し、Domain・UseCase・Infrastructure Adapters は変更しません。
 
 ### sage と age について
 
 BBS 特有の「スレッドの浮上」仕様です。
-詳細な仕様、具体例、実装ロジックは [BBS README](../assets/bbs/README_ja.md#sage-と-age-について) を参照してください。
+詳細な仕様、具体例、実装ロジックは [BBS README](assets/bbs/README_ja.md#sage-と-age-について) を参照してください。
 
 > **概要**: `age`（上げる）はスレッドを一覧の最上部に浮上させ、`sage`（下げる）は浮上させない仕様です。
 
@@ -239,7 +239,7 @@ Presentation Adapters ──→ UseCases ──→ Domain
 
 | 層          | 理由                                                                             |
 | ----------- | -------------------------------------------------------------------------------- |
-| **Domain**  | Entity（Board, Thread, Post）、Port Interface は通信プロトコルに依存しないため   |
+| **Domain**  | Entity（Board, Thread, Post）と Domain Error は通信プロトコルに依存しないため    |
 | **UseCase** | `Execute(ctx, Input) (Output, error)` のシグネチャが不変。DTO もプロトコル非依存 |
 | **Infra**   | Repository 実装（SQLクエリ、エラー変換）は通信方式と無関係                       |
 
@@ -483,7 +483,7 @@ func CreateThread(w http.ResponseWriter, r *http.Request) {
 
 ## この実習のポイント
 
-1. **影響範囲の局所化**: Presentation 層だけで完結。UseCase の `Execute` 呼び出しは一切変わらない。
+1. **影響範囲の局所化**: Presentation Adapter と Composition Root の配線だけで完結。UseCase の `Execute` 呼び出しは一切変わらない。
 2. **プロトコルの違いは「変換」の違い**: HTTP も gRPC も「入力を DTO に詰め替えて UseCase を呼ぶ」構造は同じ。
 3. **差し替えの容易さ**: 本番は gRPC、社内ツール用は HTTP、テスト用は CLI —— どれも UseCase を共有可能。
 

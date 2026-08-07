@@ -76,6 +76,8 @@ openssl genrsa -out rootCA.key 4096
 
 # 1.2 自己署名ルート証明書を作成 (有効期限10年)
 openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 3650 -out rootCA.crt \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" \
   -subj "/C=JP/ST=Tokyo/L=Minato/O=Workshop/CN=Workshop Root CA"
 ```
 
@@ -94,6 +96,9 @@ openssl req -new -key server.key -out server.csr \
 # 2.3 SAN 設定ファイルの作成 (現代のブラウザでは必須)
 cat <<EOF > server.ext
 subjectAltName = @alt_names
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
 [alt_names]
 DNS.1 = server.workshop.local
 DNS.2 = localhost
@@ -105,6 +110,18 @@ tls:
   certificates:
     - certFile: /certs/server.crt
       keyFile: /certs/server.key
+http:
+  routers:
+    workshop:
+      rule: Host(`server.workshop.local`)
+      entryPoints: [websecure]
+      service: workshop
+      tls: {}
+  services:
+    workshop:
+      loadBalancer:
+        servers:
+          - url: http://tls-backend:8000
 EOF
 
 # 2.5 CA による署名
@@ -132,11 +149,13 @@ openssl verify -CAfile rootCA.crt server.crt
 # 1. ドメイン名のローカル解決設定
 echo "127.0.0.1 server.workshop.local" | sudo tee -a /etc/hosts
 
-# 2. バックエンド Web サーバーの起動 (Python)
-python3 -m http.server 8000 &
+# 2. 実習用ネットワーク上でバックエンドを起動
+podman network create tls-workshop
+podman run -d --name tls-backend --network tls-workshop \
+  docker.io/library/python:3-alpine python3 -m http.server 8000
 
 # 3. Traefik 起動 (証明書をマウント)
-sudo podman run -d --name traefik -p 443:443 \
+podman run -d --name traefik --network tls-workshop -p 8443:443 \
   -v .:/certs:ro \
   -v ./dynamic_conf.yaml:/etc/traefik/dynamic_conf.yaml:ro \
   docker.io/library/traefik:v3.1 \
@@ -148,11 +167,13 @@ sudo podman run -d --name traefik -p 443:443 \
 
 ```bash
 # CA 証明書を指定せずにアクセス (失敗するはず)
-curl https://server.workshop.local
+curl https://server.workshop.local:8443
 
 # 自作のルート CA 証明書を指定してアクセス (成功するはず)
-curl --cacert rootCA.crt https://server.workshop.local
+curl --cacert rootCA.crt https://server.workshop.local:8443
 ```
+
+両コンテナを `tls-workshop` に接続するため、Traefik はコンテナ名 `tls-backend` でバックエンドを名前解決できます。Linux ホストと macOS/Windows 上の Podman VM における host network の違いも避けられます。
 
 ---
 
@@ -170,8 +191,8 @@ curl --cacert rootCA.crt https://server.workshop.local
 ## 片付け
 
 ```bash
-sudo podman rm -f traefik
-pkill -f "python3 -m http.server"  # Python サーバーの停止（該当プロセスのみ停止）
+podman rm -f traefik tls-backend
+podman network rm tls-workshop
 rm rootCA.* server.* dynamic_conf.yaml
 ```
 
@@ -181,6 +202,7 @@ rm rootCA.* server.* dynamic_conf.yaml
 
 - [OpenSSL Documentation](https://www.openssl.org/docs/)
 - [Traefik TLS Documentation](https://doc.traefik.io/traefik/https/tls/)
+- [RFC 5280: Internet X.509 Public Key Infrastructure Certificate and CRL Profile](https://www.rfc-editor.org/rfc/rfc5280)
 
 ---
 

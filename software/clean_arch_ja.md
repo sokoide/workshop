@@ -32,12 +32,12 @@ graph TD
     subgraph UseCaseLayer [UseCases]
         UC[UseCase]
         UC_Port[UseCase Input Port]
+        UO[UseCase Output Ports<br/>Repository / Gateway / TxRunner]
     end
 
     subgraph DomainLayer [Domain]
         DS[Domain Service]
         E[Entity]
-        RI[Repository Interface]
         DE[Domain Error]
     end
 
@@ -48,7 +48,8 @@ graph TD
     UC --> DomainLayer
 
     %% 出力側の依存
-    RI_Impl -- "implements" --> RI
+    RI_Impl -- "implements" --> UO
+    GW_Impl -- "implements" --> UO
     RI_Impl --> DB
     GW_Impl --> DB
 ```
@@ -86,7 +87,7 @@ graph TD
 - **Entity / Aggregate / Value Object:** ビジネス上の「物」や「概念」。
 - **Domain Service:** 複数のエンティティに跨る知識やロジック。
 - **Domain Error:** ドメイン語彙で定義されたエラー。
-- **Domain Port（Interface）:** 抽象がドメイン言語の一部である場合にのみ、リポジトリ等のポートを定義。
+- **Domain Port（Interface）:** 抽象がドメイン言語の一部である場合にのみ定義。永続化 Repository や外部ツールの port は UseCases が所有する。
 - **外部依存なし:** DB、HTTP、ORM、SDK、Web フレームワーク、生成されたトランスポート型への依存なし。
 - **`context.Context` に関する注記:** Go の Domain インターフェースでは、キャンセルやデッドライン伝搬のために `context.Context` を第一引数に取ることが一般的です。これは「外部依存なし」ルールに対する **プラグマティックな例外** ですが、その正当化根拠は `context.Context` がキャンセル・デッドラインシグナルという Go ランタイムの関心事を運ぶことに限定されます。この例外は他の標準ライブラリパッケージ（例: `net/http`, `database/sql`）には及びません。Domain は context からカスタム値を読み取ってはなりません — その責務は Infrastructure Adapters にあります。
 
@@ -117,7 +118,7 @@ graph TD
 
 UseCases または Domain が所有するポートを外部システムに接続するアダプター。
 
-- **Repository Impl:** Domain 層や UseCases 層で定義されたインターフェースを実装します。データのマッピングやクエリ組み立て、DB エラーの変換を行います。
+- **Repository Impl:** UseCases 層で定義された永続化インターフェースを実装します。データのマッピングやクエリ組み立て、DB エラーの変換を行います。
 - **Gateway Impl:** 外部 API クライアント、通知、検索、決済などの実装。
 - **エラー変換:** ドライバエラー（例: `sql.ErrNoRows`）を内側の層に渡す前にドメインエラーに変換。
 
@@ -321,19 +322,19 @@ func LongRunningProcess(ctx context.Context) error {
 ## Port 所有権のガイダンス
 
 - **Domain Port:** 抽象が「ドメイン言語」の一部であり、ドメインモデルがコアビジネスルールを満たすために不可欠な場合。
-  - _例:_ `UserRepository.FindByID`（エンティティの再構成に不可欠）。
+  - _例:_ `PricingPolicy`、`FraudDetector` のようなドメイン判断そのものを表す port。
   - _判断基準:_ 「この能力なしではドメインモデルが不完全か、不変条件を強制できないか？」
 - **UseCase Port:** 抽象がアプリケーション固有の手順を完了するための「道具」である場合。
   - _例:_ `NotificationGateway.SendWelcomeEmail`（ワークフローの副作用）、`IdentityGateway.IsMember`（外部プロバイダに対する認可チェック）、`TransactionManager.RunInTransaction`（アプリケーションレベルのトランザクション境界）。
   - _判断基準:_ 「これはコアビジネスロジックではなく、アプリケーションワークフロー要件か？」
-- **Repository Port — Domain か UseCase か？** Repository インターフェース（例: `BoardRepository`, `ThreadRepository`）は、その操作がコアドメイン言語を表現する場合（例: 「エンティティを ID で見つける」は集約の再構成に不可欠）、Domain 層に置いても構いません。対照的に、`TransactionManager` はアプリケーションレベルのトランザクション境界を制御するものであり、オーケストレーションの関心事であってドメイン概念ではないため、UseCase 層に属します。判断基準: _インターフェースを除去したとき、ドメインモデルが不変条件を強制できなくなるなら Domain Port。そうでなければ UseCase Port。_
+- **Repository Port:** 永続化はアプリケーションワークフローを完了するための能力なので、`BoardRepository` や `ThreadRepository` は UseCase 層に置きます。`TransactionManager` も同様に、アプリケーションのトランザクション境界を制御する UseCase Port です。
 - 具象実装は、どの内側レイヤーがインターフェースを所有していても **Infrastructure Adapters** に置きます。
 
 ### Input Port インターフェースの方針
 
 Input Port（Presentation Adapters から呼ばれる UseCase のインターフェース）は、**UseCase が複数の Presentation 種別（HTTP + gRPC + CLI など）から利用される場合**、またはテスト容易性のための明示的な分離が必要な場合に定義します。単一プロトコルのアプリケーションでは、すべての UseCase にインターフェースを定義することは不要なボイラープレートとなります。Go の構造的型付けにより、Presentation が具象 UseCase 構造体に直接依存していても、必要に応じて差し替えは可能です。
 
-**ガイドライン:** Input Port インターフェースは価値を生む場所（マルチプロトコル対応、テスト分離）でのみ定義してください。デフォルトで全 UseCase に作成する必要はありません。このリポジトリの BBS プロジェクトでは、WS3 で HTTP に加えて gRPC が追加されるため、Input Port（`CreatePostInputPort` 等）の定義は正当化されるマルチプロトコルパターンです。
+**ガイドライン:** Input Port インターフェースは価値を生む場所（マルチプロトコル対応、テスト分離）でのみ定義してください。デフォルトで全 UseCase に作成する必要はありません。このリポジトリの BBS プロジェクトでは、HTTP Handler を UseCase 実装から分離してテスト可能にするため、Input Port（`CreatePostInputPort` 等）を定義しています。現時点の BBS は HTTP のみであり、gRPC 実装は含みません。
 
 ## ポート設計とリポジトリ境界
 

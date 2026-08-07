@@ -211,12 +211,11 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{
-		"message":      "login completed",
-		"token_type":   tokenResp.TokenType,
-		"scope":        tokenResp.Scope,
-		"access_token": tokenResp.AccessToken,
-		"id_token":     tokenResp.IDToken,
-		"api_result":   apiResult,
+		"message":        "login completed",
+		"token_type":     tokenResp.TokenType,
+		"scope":          tokenResp.Scope,
+		"token_received": true,
+		"api_result":     apiResult,
 	}); err != nil {
 		log.Printf("callback response encode failed: %v", err)
 	}

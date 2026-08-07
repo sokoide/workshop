@@ -23,10 +23,13 @@ func TestNewThread(t *testing.T) {
 		}
 	})
 
-	t.Run("empty owner", func(t *testing.T) {
-		_, err := NewThread(1, "title", "")
-		if err == nil {
-			t.Error("expected error for empty owner")
+	t.Run("empty owner uses the default author", func(t *testing.T) {
+		thread, err := NewThread(1, "title", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if thread.Owner != DefaultAuthor {
+			t.Errorf("Owner = %q, want %q", thread.Owner, DefaultAuthor)
 		}
 	})
 }

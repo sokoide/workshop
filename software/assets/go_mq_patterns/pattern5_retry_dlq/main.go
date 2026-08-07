@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 )
@@ -105,7 +106,7 @@ func (q *RetryableQueue) processRetry() {
 			}
 			// Calculate backoff delay
 			delay := time.Duration(float64(q.config.RetryInterval) *
-				float64(msg.Attempts) * q.config.BackoffFactor)
+				math.Pow(q.config.BackoffFactor, float64(msg.Attempts-1)))
 
 			select {
 			case <-time.After(delay):

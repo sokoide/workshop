@@ -2,8 +2,6 @@ package usecase
 
 import (
 	"context"
-
-	"github.com/sokoide/cleanarch1/internal/domain/port"
 )
 
 type ListBoardsInputPort interface {
@@ -11,10 +9,10 @@ type ListBoardsInputPort interface {
 }
 
 type ListBoardsUseCase struct {
-	boardRepo port.BoardRepository
+	boardRepo BoardRepository
 }
 
-func NewListBoardsUseCase(boardRepo port.BoardRepository) *ListBoardsUseCase {
+func NewListBoardsUseCase(boardRepo BoardRepository) *ListBoardsUseCase {
 	return &ListBoardsUseCase{boardRepo: boardRepo}
 }
 

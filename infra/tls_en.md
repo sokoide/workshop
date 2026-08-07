@@ -76,6 +76,8 @@ openssl genrsa -out rootCA.key 4096
 
 # 1.2 Create a self-signed root certificate (valid for 10 years)
 openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 3650 -out rootCA.crt \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" \
   -subj "/C=JP/ST=Tokyo/L=Minato/O=Workshop/CN=Workshop Root CA"
 ```
 
@@ -94,6 +96,9 @@ openssl req -new -key server.key -out server.csr \
 # 2.3 Create a SAN configuration file (mandatory for modern browsers)
 cat <<EOF > server.ext
 subjectAltName = @alt_names
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
 [alt_names]
 DNS.1 = server.workshop.local
 DNS.2 = localhost
@@ -105,6 +110,18 @@ tls:
   certificates:
     - certFile: /certs/server.crt
       keyFile: /certs/server.key
+http:
+  routers:
+    workshop:
+      rule: Host(`server.workshop.local`)
+      entryPoints: [websecure]
+      service: workshop
+      tls: {}
+  services:
+    workshop:
+      loadBalancer:
+        servers:
+          - url: http://tls-backend:8000
 EOF
 
 # 2.5 Sign the certificate with the CA
@@ -132,11 +149,13 @@ Configure an actual HTTPS server using the created certificate.
 # 1. Configure local hostname resolution
 echo "127.0.0.1 server.workshop.local" | sudo tee -a /etc/hosts
 
-# 2. Start backend Web Server (Python)
-python3 -m http.server 8000 &
+# 2. Start the backend on a dedicated workshop network
+podman network create tls-workshop
+podman run -d --name tls-backend --network tls-workshop \
+  docker.io/library/python:3-alpine python3 -m http.server 8000
 
 # 3. Start Traefik (mounting the certificates)
-sudo podman run -d --name traefik -p 443:443 \
+podman run -d --name traefik --network tls-workshop -p 8443:443 \
   -v .:/certs:ro \
   -v ./dynamic_conf.yaml:/etc/traefik/dynamic_conf.yaml:ro \
   docker.io/library/traefik:v3.1 \
@@ -148,11 +167,13 @@ sudo podman run -d --name traefik -p 443:443 \
 
 ```bash
 # Access without CA certificate (expected to fail)
-curl https://server.workshop.local
+curl https://server.workshop.local:8443
 
 # Access by specifying your custom Root CA certificate (expected to succeed)
-curl --cacert rootCA.crt https://server.workshop.local
+curl --cacert rootCA.crt https://server.workshop.local:8443
 ```
+
+Both containers join `tls-workshop`, so Traefik resolves the backend by its container name, `tls-backend`. This also avoids host-network differences between native Linux and Podman's macOS/Windows VM.
 
 ---
 
@@ -170,8 +191,8 @@ This ensures security through infrastructure layer changes alone, without needin
 ## Cleanup
 
 ```bash
-sudo podman rm -f traefik
-pkill -f "python3 -m http.server"  # Stop Python server (only matching processes)
+podman rm -f traefik tls-backend
+podman network rm tls-workshop
 rm rootCA.* server.* dynamic_conf.yaml
 ```
 
@@ -181,3 +202,85 @@ rm rootCA.* server.* dynamic_conf.yaml
 
 - [OpenSSL Documentation](https://www.openssl.org/docs/)
 - [Traefik TLS Documentation](https://doc.traefik.io/traefik/https/tls/)
+- [RFC 5280: Internet X.509 Public Key Infrastructure Certificate and CRL Profile](https://www.rfc-editor.org/rfc/rfc5280)
+
+---
+
+## Troubleshooting
+
+### curl Reports a Certificate Error
+
+**Symptom**: `curl: (60) SSL certificate problem: unable to get local issuer certificate`
+
+**Causes and solutions**:
+
+- Confirm that the CA certificate is specified correctly.
+
+  ```bash
+  curl --cacert rootCA.crt https://server.workshop.local
+  ```
+
+- Confirm that the server certificate was signed by the CA.
+
+  ```bash
+  openssl verify -CAfile rootCA.crt server.crt
+  # Expected output: server.crt: OK
+  ```
+
+### Traefik Exits Immediately
+
+**Symptom**: The Traefik container exits immediately.
+
+**Causes and solutions**:
+
+- Confirm the certificate file paths.
+
+  ```bash
+  ls -la rootCA.crt server.crt server.key
+  ```
+
+- Check the syntax of `dynamic_conf.yaml`.
+
+  ```bash
+  cat dynamic_conf.yaml
+  ```
+
+- Check the Traefik logs.
+
+  ```bash
+  sudo podman logs traefik
+  ```
+
+### Certificate Verification Fails
+
+**Symptom**: `openssl verify` returns an error.
+
+**Causes and solutions**:
+
+- Confirm that the Subject Alternative Name (SAN) is configured.
+
+  ```bash
+  openssl x509 -in server.crt -noout -text | grep -A1 "Subject Alternative Name"
+  ```
+
+- Confirm that the hostname matches.
+
+  ```bash
+  grep server.workshop.local /etc/hosts
+  ```
+
+---
+
+## Environment Notes
+
+### macOS
+
+The OpenSSL commands are the same, but running Traefik with Podman requires its Linux VM environment.
+
+- When using Docker Desktop for Mac, check the port-forwarding settings.
+- `brew install openssl` installs a current OpenSSL version.
+
+### Windows
+
+- Run the workshop in Ubuntu on WSL2.
+- Run the commands in a WSL2 terminal, not PowerShell.

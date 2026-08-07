@@ -218,7 +218,7 @@ flowchart TD
 ### Key Implementation Details
 
 - Buffered channels for async publishing
-- Built-in blocking behavior for backpressure
+- Non-blocking publishing that returns an error when the buffer is full
 - Clean shutdown via channel close
 - Zero external dependencies
 
@@ -451,7 +451,7 @@ flowchart TD
 
 3. **Handle Failure**
    - Check retry count against max
-   - Apply exponential backoff
+   - Apply exponential backoff (the base delay for the first retry, then multiply by the factor)
    - Requeue or move to DLQ
 
 4. **Dead Letter Queue**

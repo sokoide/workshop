@@ -111,6 +111,8 @@ Experience manual isolation using the `unshare` command.
 
    ```bash
    sudo unshare --pid --fork --mount /bin/sh
+   # Do not propagate mount events from this new mount namespace to the host.
+   mount --make-rprivate /
    chroot rootfs /bin/sh
    mount -t proc proc /proc
    ps # Only processes inside the container are visible
@@ -146,16 +148,22 @@ sudo ip link set veth-child netns container1
 # Host side IP setup
 sudo ip addr add 10.0.0.1/24 dev veth-host
 sudo ip link set veth-host up
+# Configure the namespace side.
+sudo ip -n container1 link set lo up
+sudo ip -n container1 addr add 10.0.0.2/24 dev veth-child
+sudo ip -n container1 link set veth-child up
+sudo ip netns exec container1 ping -c 3 10.0.0.1
 ```
 
 ### ✅ Verification Checkpoints
 
 - [ ] Confirmed `container1` netns exists via `ip netns list`.
 - [ ] Confirmed `10.0.0.1` is assigned to `veth-host`.
+- [ ] Confirmed `ping -c 3 10.0.0.1` succeeds from the namespace.
 
 ### STEP 5: Implement Container in Go
 
-Automate the previous operations using the `syscall` package (see `main.go` for details).
+Use the `syscall` package to automate namespace creation. This excerpt covers **only namespace creation**. It does not implement `chroot`, mounting `/proc`, cgroup setup, UID/GID mappings, capability dropping, or seccomp, so it is not a production OCI runtime.
 
 ```go
 cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -189,6 +197,8 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 **Causes and Solutions**:
 
 - **Insufficient Permissions**: Creating namespaces other than the user namespace requires root privileges.
+
+  Some configurations can create namespaces without root by combining a user namespace with UID/GID mappings. This workshop uses `sudo` to keep the behavior explicit.
 
   ```bash
   sudo ./mycontainer

@@ -396,7 +396,7 @@ podman-compose up --build -d
 
 ### STEP 3: HTTP/2 Multiplexing
 
-HTTP/2 creates multiple virtual "streams" within a single TCP connection to process requests in **complete parallel**.
+HTTP/2 multiplexes multiple logical streams **concurrently** within one TCP connection. It does not guarantee that application handlers run in parallel: server concurrency limits, prioritization, and flow control still apply, and a lost TCP packet can still delay the entire connection at the transport layer (transport HoL).
 
 ```bash
 # Force HTTP/2 to download multiple files
@@ -446,6 +446,8 @@ curl --version | grep HTTP3
 > **Why abandon TCP? (Resolving TCP-level HoL Blocking)**:
 > TCP treats all data as a "single pipe" and performs order guarantee for the entire stream. QUIC performs order guarantee on a **"per-stream"** basis. If a packet for one stream is lost, only that stream waits for retransmission, while other streams continue without being blocked. This is the technical essence of resolving HoL Blocking.
 
+**0-RTT caution**: 0-RTT is an optimization available only when there was prior communication with the peer, and the server may still reject it. Early data can be replayed on the network, so limit it to idempotent operations such as GET, never state-changing requests.
+
 ```bash
 # Access via HTTP/3
 curl --http3 -k -v https://localhost:8444/
@@ -460,7 +462,7 @@ curl --http3 -k -v https://localhost:8444/
 
 1. **Protocol Difference**: Check for `ALPN: h3` in the `curl` log.
 2. **Socket Monitoring (UDP)**:
-   - **Status Display**: Since UDP is a "connectionless" protocol.
+   - UDP itself is connectionless, but QUIC is a **connection-oriented** transport that manages an encrypted handshake and connection state over UDP datagrams.
    - Linux: `sudo tcpdump -i lo -n port 8444`
    - macos: `sudo tcpdump -i lo0 -n port 8444`
 
@@ -641,6 +643,7 @@ podman-compose down
 
 - **Challenge WebTransport**: Evaluate it as an alternative to WebSocket, comparing its multi-stream and low-latency (datagram) capabilities.
 - **Load Balancer Configuration**: Investigate how L4 LBs and L7 LBs handle persistent connections differently (e.g., connection imbalance issues).
+- Read [RFC 9000: QUIC](https://www.rfc-editor.org/rfc/rfc9000) and [RFC 8470: Using Early Data in HTTP](https://www.rfc-editor.org/rfc/rfc8470), then classify which operations may accept 0-RTT.
 
 ---
 

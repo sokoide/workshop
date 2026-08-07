@@ -9,7 +9,8 @@
 
 This repository provides hands-on technical workshops covering infrastructure and software architecture topics.
 
-**Primary Language:** Go 1.26.4
+**Primary Language:** Go (the required version varies by workshop; check each
+`go.mod`)
 **Architecture Pattern:** [Clean Architecture (3-Layer Variant)](./software/clean_arch.md)
 
 ---
@@ -96,6 +97,12 @@ This repository provides hands-on technical workshops covering infrastructure an
   - Add Slack notifications using the new Port/Adapter pattern.
 - [Clean Architecture Workshop (WS7): Adding Authentication](./software/clean_arch_ws7_en.md)
   - Add JWT Bearer Token authentication as a cross-cutting concern in the Framework layer.
+- [Clean Architecture Workshop (WS8): Understanding the Essentials with a Minimal Example](./software/clean_arch_ws8_en.md)
+  - Trace the dependency rule through a small greeting application, then practice replacing business and infrastructure details.
+- [Idempotency Pattern: Designing Safe Retries](./software/idempotency_en.md)
+  - Prevent duplicate operations with idempotency keys and examine concurrency, expiration, and failure-handling trade-offs.
+- [Message Queue Patterns in Go](./software/go_mq_patterns_en.md)
+  - Compare channels, fan-out, worker pools, Kafka, and retry/dead-letter queue patterns with runnable Go examples.
 - [SOLID Principles (with Go examples)](./software/solid_en.md)
   - Learn S/O/L/I/D with practical Go examples and Clean Architecture mapping.
 - [Secure Coding Best Practices (Go)](./software/secure_coding_en.md)

@@ -1,13 +1,13 @@
 # Clean Architecture Workshop (WS3): Swapping Communication Protocols
 
 In this workshop, you will migrate the BBS (2channel-style bulletin board) REST API to gRPC.
-You will modify **only the Presentation layer**, confirming that Domain, UseCase, and Infra remain completely untouched.
+You will replace the **Presentation Adapter** and update the **Composition Root** that wires it, while leaving Domain, UseCase, and Infrastructure Adapters untouched.
 
 ## BBS App Overview
 
-The BBS in this workshop is a simple 3-tier bulletin board: Boards → Threads → Posts. For detailed REST API specifications and usage examples, refer to the [BBS README](../assets/bbs/README.md).
+The BBS in this workshop is a simple 3-tier bulletin board: Boards → Threads → Posts. For detailed REST API specifications and usage examples, refer to the [BBS README (Japanese)](assets/bbs/README_ja.md).
 
-> **Workshop Focus**: This workshop focuses on migrating the existing REST API to **gRPC**. You will modify **only the Presentation layer** (HTTP Handler / Router), confirming that Domain, UseCase, and Infra remain completely untouched.
+> **Workshop Focus**: This workshop migrates the existing REST API to **gRPC** by replacing the Presentation Adapter (Handler / Router) and its Composition Root wiring. Domain, UseCase, and Infrastructure Adapters remain untouched.
 
 ### About "sage" and Thread Bumping
 
@@ -290,7 +290,7 @@ The following layers require **zero modifications**:
 
 | Layer       | Reason                                                                                            |
 | ----------- | ------------------------------------------------------------------------------------------------- |
-| **Domain**  | Entities (Board, Thread, Post), Port Interfaces do not depend on any communication protocol       |
+| **Domain**  | Entities (Board, Thread, Post) and domain errors do not depend on any communication protocol      |
 | **UseCase** | `Execute(ctx, Input) (Output, error)` signature is unchanged. DTOs are protocol-agnostic          |
 | **Infra**   | Repository implementations (SQL queries, error conversion) are unrelated to communication methods |
 
@@ -533,7 +533,7 @@ In this case, switching to gRPC requires **rewriting the entire function**.
 
 ## Key Points
 
-1. **Localized Impact**: Only the Presentation layer changes. UseCase's `Execute` call remains untouched.
+1. **Localized Impact**: Changes stay in the Presentation Adapter and Composition Root wiring. UseCase's `Execute` call remains untouched.
 2. **Protocol Differences Are "Conversion" Differences**: Both HTTP and gRPC follow the same "convert input to DTO → call UseCase" structure.
 3. **Easy Swapping**: Production uses gRPC, internal tools use HTTP, tests use CLI — all sharing the same UseCases.
 

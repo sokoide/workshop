@@ -394,6 +394,8 @@ podman-compose up --build -d
 
 ### STEP 3: HTTP/2 のマルチプレキシング（多重化）
 
+HTTP/2 は 1 本の TCP 接続内で複数の論理ストリームを**並行して多重化**します。これはアプリケーション処理そのものが並列になることを保証しません。サーバーの同時実行数・優先度・フロー制御にも左右され、TCP のパケット損失による接続全体の待ち（transport HoL）は残ります。
+
 ```bash
 # HTTP/2 を強制して複数のファイルをダウンロード
 curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
@@ -442,6 +444,8 @@ curl --version | grep HTTP3
 > **なぜ TCP をやめたのか？ (TCP レベル of HoL Blocking 解消)**:
 > TCP は順序保証を全データに対して一括で行う「一本のパイプ」です。QUIC は、順序保証を「ストリーム単位」で行うため、パケットロスが起きた「特定のストリーム」だけを再送し、他のストリームは止めることなく流し続けることができます。これが HoL Blocking 解消の技術的本質です。
 
+**0-RTT の注意**: 0-RTT は以前に接続した相手に限り使える最適化で、サーバーが受け入れるかは別です。early data はネットワーク上で再送（replay）され得るため、状態変更を伴うリクエストには使わず、GET などの冪等な操作に限定します。
+
 ```bash
 # HTTP/3 でアクセス
 curl --http3 -k -v https://localhost:8444/
@@ -456,7 +460,7 @@ curl --http3 -k -v https://localhost:8444/
 
 1. **プロトコルの違い**: `curl` のログで `ALPN: h3` を確認。
 2. **Socket 監視 (UDP)**:
-   - UDP は接続（Handshake）を行わない「コネクションレス」なプロトコルでです。
+   - UDP 自体はコネクションレスですが、QUIC は UDP データグラム上で暗号ハンドシェイクと接続状態を管理する**接続指向**のトランスポートです。
    - Linux: `sudo tcpdump -i lo -n port 8444`
    - macos: `sudo tcpdump -i lo0 -n port 8444`
 
@@ -637,6 +641,7 @@ podman-compose down
 
 - **WebTransport への挑戦**: HTTP/3 (QUIC) ベースで、信頼性（Streams）と低遅延（Datagrams）を 1 つの接続で使い分けられる選択肢です。既存 WebSocket との差分を比較しながら評価してみてください。
 - **Load Balancer の設定**: L4 LB と L7 LB で、永続接続の扱いがどう変わるか（コネクションの偏り問題）を調査する。
+- [RFC 9000: QUIC](https://www.rfc-editor.org/rfc/rfc9000) と [RFC 8470: Using Early Data in HTTP](https://www.rfc-editor.org/rfc/rfc8470) を読み、0-RTT を許可できる操作を整理する。
 
 ---
 

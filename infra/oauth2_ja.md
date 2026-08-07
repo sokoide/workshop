@@ -388,7 +388,7 @@ sequenceDiagram
     K-->>C: access_token / id_token
     C->>A: Authorization: Bearer access_token
     A-->>C: /api/profile の結果
-    C-->>U: token と API 応答を JSON 表示
+    C-->>U: token の取得結果と API 応答を JSON 表示
 ```
 
 この Client app がやっていること:
@@ -400,12 +400,14 @@ sequenceDiagram
 5. `state` が一致することを確認して CSRF を防ぐ
 6. `code` と `code_verifier` を使って token エンドポイントで `access_token` を取得する
 7. 取得した `access_token` を `Authorization: Bearer ...` として Go API に渡す
-8. Go API の応答を、そのまま JSON で表示する
+8. token 本文はブラウザへ返さず、取得できたかどうかと Go API の応答を JSON で表示する
 
 PKCE の意味:
 
 - `code` だけ盗まれても、対応する `code_verifier` を持っていないと token 交換できないようにする仕組みです
 - Public client では client secret を安全に持てないため、`Authorization Code + PKCE` を使います
+
+> **token を画面・ログへ出さない**: access token は bearer credential です。取得できたことを確認するために token 本文を返す必要はありません。このサンプルも `token_received` のみを返し、token はサーバー側セッションに保持します。
 
 このサンプルのエンドポイント:
 
@@ -447,7 +449,7 @@ go run main.go
 
 - Keycloak のログイン画面へリダイレクトされる
 - ログイン後、Go Client App の `/callback` に戻る
-- JSON で `access_token` が表示される
+- JSON で `token_received: true` と API 応答が表示される（access token 本文は表示されない）
 - あわせて `/api/profile` の呼び出し結果も返る
 - もし `token has invalid audience` が出る場合は、Keycloak の Audience mapper 設定漏れです
 

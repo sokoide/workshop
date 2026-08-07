@@ -8,7 +8,7 @@
 
 ## 実装コード
 
-この実習の完全な実装は [`software/assets/idempotency/`](assets/idempotency/) にあります。
+この実習の実行可能な最小サンプルは [`software/assets/idempotency/`](assets/idempotency/) にあります。Redis に残高と冪等性キーを保存する CLI です。
 
 ```bash
 cd software/assets/idempotency
@@ -104,20 +104,16 @@ flowchart TD
 
 ---
 
-## 想定ディレクトリ構造
+## サンプルのディレクトリ構造
 
 ```text
 software/assets/idempotency/
-├── domain/                  # エンティティとインターフェース
-│   ├── idempotency_key.go   # 冪等性キーのエンティティ
-│   └── repository.go        # リポジトリインターフェース
+├── domain/                  # エンティティとポート
+│   └── repository.go        # リポジトリと冪等性ストアのインターフェース
 ├── usecase/                 # ビジネスロジック
 │   └── charge_usecase.go    # 課金処理ユースケース
 ├── infra/                   # インフラストラクチャ
-│   ├── db_repository.go     # データベース実装
-│   └── idempotency_store.go # Redis/DB 実装
-├── cmd/                     # CLI エントリーポイント
-│   └── main.go
+│   └── idempotency_store.go # Redis の冪等性ストア実装
 └── main.go                  # 依存注入
 ```
 
@@ -125,27 +121,7 @@ software/assets/idempotency/
 
 ## 準備
 
-### 1. データベースの起動
-
-```bash
-# Podman の場合
-podman run -d --name idempotency-db \
-  -e POSTGRES_USER=user \
-  -e POSTGRES_PASSWORD=pass \
-  -e POSTGRES_DB=idempotency \
-  -p 5432:5432 \
-  docker.io/library/postgres:alpine
-
-# Docker の場合（読み替え）
-docker run -d --name idempotency-db \
-  -e POSTGRES_USER=user \
-  -e POSTGRES_PASSWORD=pass \
-  -e POSTGRES_DB=idempotency \
-  -p 5432:5432 \
-  postgres:alpine
-```
-
-### 2. Redis の起動（キャッシュ用）
+### 1. Redis の起動
 
 ```bash
 # Podman の場合
@@ -159,7 +135,7 @@ docker run -d --name idempotency-redis \
   redis:alpine
 ```
 
-### 3. プロジェクトのセットアップ
+### 2. プロジェクトのセットアップ
 
 ```bash
 cd software/assets/idempotency
@@ -168,7 +144,7 @@ go mod tidy
 
 ### ✅ チェックポイント
 
-- [ ] PostgreSQL と Redis が起動していることを確認した
+- [ ] Redis が起動していることを確認した
 
 ---
 
@@ -180,12 +156,12 @@ go mod tidy
 
 ```bash
 # 課金処理を実行（残高: 1000円、支払い: 100円）
-go run main.go -action charge -user user1 -amount 100
-# 残高: 900円
+go run main.go -user user1 -amount 100
+# Result: &{Status:success Balance:900 Source:DB (Freshly Processed)}
 
 # タイムアウトを想定して再試行
-go run main.go -action charge -user user1 -amount 100
-# 残高: 800円（二重課金！）
+go run main.go -user user1 -amount 100
+# Result: &{Status:success Balance:800 Source:DB (Freshly Processed)}
 ```
 
 **問題**: 同じ取引が 2 回処理され、残高が 2 回減少しました。
@@ -199,15 +175,16 @@ go run main.go -action charge -user user1 -amount 100
 クライアント生成の一意キーを使用して冪等性を実現します。
 
 ```bash
+# 同じシェルでキーを一度だけ生成する
+key=$(uuidgen)
+
 # Idempotency Key を指定して課金
-go run main.go -action charge -user user1 -amount 100 \
-  -idempotency-key $(uuidgen)
-# 残高: 900円、キー: abc123-def456-...
+go run main.go -user user2 -amount 100 -idempotency-key "$key"
+# Result: &{Status:success Balance:900 Source:DB (Freshly Processed)}
 
 # 同じキーで再試行
-go run main.go -action charge -user user1 -amount 100 \
-  -idempotency-key abc123-def456-...
-# 残高: 900円（変わらず）、前回と同じ結果を返す
+go run main.go -user user2 -amount 100 -idempotency-key "$key"
+# Result: &{Status:success Balance:900 Source:Cache (Idempotent)}
 ```
 
 ### ✅ チェックポイント
@@ -215,37 +192,29 @@ go run main.go -action charge -user user1 -amount 100 \
 - [ ] 同じ Idempotency Key で再試行しても、処理が重複しないことを確認した
 - [ ] 異なる Key では新しい処理が行われることを確認した
 
-### STEP 3: 冪等性ストアの実装
+### STEP 3: 冪等性ストアを確認
 
-処理結果をキャッシュするストアを実装します。
+サンプルでは Redis に処理結果を 24 時間保存します。キーの接頭辞は `idemp:` です。
 
 **Go コードの構造:**
 
 ```go
-// Domain: エンティティ定義
-type IdempotencyKey struct {
-    Key       string
-    UserID    string
-    Result    []byte  // 処理結果のJSON
-    CreatedAt time.Time
-}
-
-// Infra: Redis 実装
+// Infra: Redis 実装（サンプルを簡略化）
 type RedisIdempotencyStore struct {
     client *redis.Client
-    ttl    time.Duration  // 通常 24-48 時間
+    ttl    time.Duration  // サンプルでは 24 時間
 }
 
 func (s *RedisIdempotencyStore) GetResult(ctx context.Context, key string) ([]byte, error) {
-    val, err := s.client.Get(ctx, "idempotency:"+key).Bytes()
+    val, err := s.client.Get(ctx, "idemp:"+key).Bytes()
     if err == redis.Nil {
-        return nil, ErrKeyNotFound
+        return nil, nil
     }
     return val, err
 }
 
 func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, result []byte) error {
-    return s.client.Set(ctx, "idempotency:"+key, result, s.ttl).Err()
+    return s.client.Set(ctx, "idemp:"+key, result, s.ttl).Err()
 }
 ```
 
@@ -254,9 +223,9 @@ func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, resu
 - [ ] Redis に処理結果が保存されていることを確認した
 - [ ] TTL 期限切れ後に Key がクリアされることを確認した
 
-### STEP 4: 冪等性付き課金処理の完成
+### STEP 4: 冪等性付き課金処理を読む
 
-クリーンアーキテクチャで実装します。
+サンプルの `ChargeUsecase.Execute` は、結果の取得、Redis の `SETNX` によるロック、残高更新、結果保存の順に実行します。
 
 ```go
 // Usecase: ビジネスロジック
@@ -267,7 +236,7 @@ type ChargeUsecase struct {
 
 func (uc *ChargeUsecase) Execute(ctx context.Context, req ChargeRequest) (*ChargeResponse, error) {
     // 1. Idempotency Key をチェック
-    if cached, err := uc.idempotencyStore.GetResult(ctx, req.IdempotencyKey); err == nil {
+    if cached, err := uc.idempotencyStore.GetResult(ctx, req.IdempotencyKey); err == nil && cached != nil {
         // キャッシュされた結果を返す
         return deserializeResponse(cached), nil
     }
@@ -324,7 +293,7 @@ sequenceDiagram
     API-->>C1: 200 OK
 ```
 
-**実装方法**: Redis の `SETNX`（Set if Not eXists）を使用
+サンプルも Redis の `SETNX`（Set if Not eXists）を使い、同じキーが処理中ならエラーを返します。次の実装は本番向けに所有者トークンも使う例です。
 
 ```go
 // 排他ロックの取得
@@ -360,8 +329,8 @@ result, err := uc.chargeWithIdempotency(ctx, req)
 ## 片付け
 
 ```bash
-podman stop idempotency-db idempotency-redis
-podman rm idempotency-db idempotency-redis
+podman stop idempotency-redis
+podman rm idempotency-redis
 ```
 
 ---
@@ -394,13 +363,13 @@ podman rm idempotency-db idempotency-redis
 - **Lock の TTL**: ロックには必ず TTL（通常 30 秒）を設定してください
 - **デッドロック検出**: 処理時間が TTL を超える場合は、バックオフと再試行を実装してください
 
-### キャッシュと DB の不整合
+### Redis と永続 DB の不整合
 
-**症状**: キャッシュには結果があるが、DB には反映されていない
+**症状**: Redis には結果があるが、永続 DB には反映されていない
 
 **原因と対処:**
 
-- **トランザクションの境界**: DB コミット後、キャッシュ保存を行ってください
+- **トランザクションの境界**: 本番では DB コミット後に結果を保存してください。このサンプルは Redis を残高ストアとしても使う最小例であり、永続 DB との原子性は扱いません。
   - ❌ キャッシュ保存 → DB コミット（キャッシュだけが成功する可能性）
   - ✅ DB コミット → キャッシュ保存（DB だけが成功しても再試行可能）
 
@@ -410,11 +379,10 @@ podman rm idempotency-db idempotency-redis
 
 ### macOS の場合
 
-Homebrew で PostgreSQL と Redis を直接インストールすることも可能です。
+Homebrew で Redis を直接インストールすることも可能です。
 
 ```bash
-brew install postgresql@14 redis
-brew services start postgresql@14
+brew install redis
 brew services start redis
 ```
 
