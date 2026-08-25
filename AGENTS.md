@@ -32,4 +32,3 @@ Every workshop has `_ja.md` and `_en.md` pairs. They must stay in sync structura
 - `make format` uses `pnpm dlx` if available, otherwise `npx`. Both need network on first run.
 - `package.json` pins `prettier@^3.8.3` — older prettier versions may behave differently.
 - Infrastructure workshops with containers (`redis-up`, `mq-up`) need Podman running.
-- `.ai-handoff.md` is git-ignored but required by session protocol — read it on session start.
