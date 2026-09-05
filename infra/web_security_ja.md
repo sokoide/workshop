@@ -1048,13 +1048,13 @@ CORS: レスポンスの読み取りを制限（情報の防御）
 // ✅ プリフライト発生
 fetch(url, {
   method: "PUT", // PUT/DELETE/PATCH
-  headers: { "X-Custom": "value" }, // カスタムヘッダー
+  headers: { "X-Custom": "value" } // カスタムヘッダー
 });
 
 // ❌ プリフライトなし（シンプルなリクエスト）
 fetch(url, {
   method: "POST",
-  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  headers: { "Content-Type": "application/x-www-form-urlencoded" }
 });
 ```
 

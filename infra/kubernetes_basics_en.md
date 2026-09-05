@@ -388,7 +388,7 @@ spec:
         [
           "sh",
           "-c",
-          "echo $APP_ENV && cat /etc/config/config.json && sleep 3600",
+          "echo $APP_ENV && cat /etc/config/config.json && sleep 3600"
         ]
       env:
         - name: APP_ENV
@@ -519,7 +519,7 @@ spec:
             [
               "sh",
               "-c",
-              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600",
+              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600"
             ]
           volumeMounts:
             - name: data-volume

@@ -352,7 +352,7 @@ spec:
               "--vm-bytes",
               "128M",
               "--timeout",
-              "3600s",
+              "3600s"
             ]
 ---
 apiVersion: autoscaling/v2

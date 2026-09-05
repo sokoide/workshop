@@ -347,7 +347,7 @@ podman rm idempotency-redis
 
 - **Transaction Boundaries**: In production, save the balance change and idempotency result in one transaction or atomic operation. This sample updates them separately, so it demonstrates the normal retry path, not failure-atomic charging.
   - ❌ Cache save → DB commit (risk of cache-only success)
-  - ✅ DB commit → Cache save (safe to retry if only DB succeeds)
+  - ⚠️ DB commit → Cache save (if the result save fails, a retry can double-charge)
 
 ---
 
