@@ -88,18 +88,18 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[リクエスト受信] --> B{Idempotency Key は?}
-    B -- No --> C[新規リクエストとして処理]
-    C --> D[処理結果を保存]
-    D --> E[Key でキャッシュ]
-    E --> F[レスポンス返却]
-
-    B -- Yes --> G{Key に対応する<br>結果は存在?}
-    G -- No --> H[処理中: 他のリクエストが<br>同じ Key で処理中]
-    H --> I[待機して再チェック]
-    I --> G
-
-    G -- Yes --> J[キャッシュされた<br>結果を返却]
+    A[Request] --> B{Has key?}
+    B -- No --> C[Update balance]
+    C --> R[Return result]
+    B -- Yes --> D{Stored result?}
+    D -- Yes --> E[Validate original request and return result]
+    D -- No --> F{Acquire lock?}
+    F -- No --> G[Return in-progress error]
+    F -- Yes --> H{Recheck result}
+    H -- Found --> E
+    H -- Missing --> I[Update balance]
+    I --> J[Save request and result]
+    J --> R
 ```
 
 ---
@@ -227,33 +227,9 @@ func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, resu
 
 サンプルの `ChargeUsecase.Execute` は、結果の取得、Redis の `SETNX` によるロック、残高更新、結果保存の順に実行します。
 
-```go
-// Usecase: ビジネスロジック
-type ChargeUsecase struct {
-    repo          AccountRepository
-    idempotencyStore IdempotencyStore
-}
+[ユースケース](assets/idempotency/usecase/charge_usecase.go)と[Redis ロックアダプター](assets/idempotency/infra/idempotency_store.go)を読みます。実行可能なサンプルはユーザーと正の金額を検証し、結果確認、所有者トークンによるロック取得、結果の再確認、残高更新、リクエストと結果の保存を行います。同じキーを異なる要求で使うとエラーになります。Redis やデコードのエラー時も処理を停止します。
 
-func (uc *ChargeUsecase) Execute(ctx context.Context, req ChargeRequest) (*ChargeResponse, error) {
-    // 1. Idempotency Key をチェック
-    if cached, err := uc.idempotencyStore.GetResult(ctx, req.IdempotencyKey); err == nil && cached != nil {
-        // キャッシュされた結果を返す
-        return deserializeResponse(cached), nil
-    }
-
-    // 2. 新規処理を実行
-    result, err := uc.processCharge(ctx, req)
-    if err != nil {
-        return nil, err
-    }
-
-    // 3. 結果を保存
-    serialized, _ := serializeResponse(result)
-    uc.idempotencyStore.SaveResult(ctx, req.IdempotencyKey, serialized)
-
-    return result, nil
-}
-```
+保存結果に元のリクエストを含める形式に変更しています。旧版の保存結果は成功応答として扱わず拒否するため、新しい演習には新しいキーを使ってください。
 
 ### ✅ チェックポイント
 
@@ -293,15 +269,15 @@ sequenceDiagram
     API-->>C1: 200 OK
 ```
 
-サンプルも Redis の `SETNX`（Set if Not eXists）を使い、同じキーが処理中ならエラーを返します。次の実装は本番向けに所有者トークンも使う例です。
+サンプルも Redis の `SETNX`（Set if Not eXists）を使い、同じキーが処理中ならエラーを返します。サンプルは次のように所有者トークンを使います。障害時と並行処理の制約は引き続き存在します。
 
 ```go
-// 排他ロックの取得
-locked, _ := redis.SetNX(ctx, "lock:"+key, "1", 30*time.Second).Result()
-if !locked {
-    return nil, ErrRequestInProgress
-}
-defer redis.Del(ctx, "lock:"+key)
+token, err := store.Lock(ctx, key)
+if err != nil { return nil, err }
+if token == "" { return nil, ErrRequestInProgress }
+// The adapter atomically compares the token before deleting the lock.
+// See Execute for bounded cleanup after request cancellation.
+defer store.Unlock(context.WithoutCancel(ctx), key, token)
 ```
 
 ### 2. Key の有効期限戦略
@@ -369,9 +345,9 @@ podman rm idempotency-redis
 
 **原因と対処:**
 
-- **トランザクションの境界**: 本番では DB コミット後に結果を保存してください。このサンプルは Redis を残高ストアとしても使う最小例であり、永続 DB との原子性は扱いません。
+- **トランザクションの境界**: 本番では残高変更と冪等性結果を同じトランザクションまたは原子的な操作で保存してください。このサンプルは別々に更新するため、通常の再試行を示すもので、障害時の原子性は保証しません。
   - ❌ キャッシュ保存 → DB コミット（キャッシュだけが成功する可能性）
-  - ✅ DB コミット → キャッシュ保存（DB だけが成功しても再試行可能）
+  - ⚠️ DB コミット → キャッシュ保存（結果保存が失敗すると、再試行で二重課金になる可能性）
 
 ---
 
@@ -389,3 +365,5 @@ brew services start redis
 ### Windows の場合
 
 WSL2 上の Ubuntu で Podman を使用することを推奨します。
+
+**サンプルの制約**: 残高更新と結果保存は別操作です。結果保存の失敗は処理結果が不確かなエラーとして返すため、再試行前に残高を照合してください。所有者トークンは期限切れの所有者による新しいロックの削除を防ぎますが、期限切れ後の古い処理による書き込みまでは防ぎません。同じ口座へ異なるキーで並行処理する場合も競合します。本番の課金には、残高と結果の原子的な保存、口座単位の競合制御、永続的な要求記録が必要です。

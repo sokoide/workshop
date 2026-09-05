@@ -83,7 +83,7 @@ E-commerce platforms cache product details to survive flash sales without meltin
 ##### 1. Write-Through
 
 - Writes go to cache and database synchronously
-- Strong consistency
+- Consistency requires coordination of concurrent writes and cache fills
 - Increased write latency
 
 ##### 2. Write-Back
@@ -228,7 +228,7 @@ flowchart TD
 
 ### Key Implementation Details
 
-- `sync.RWMutex` protects concurrent access
+- `sync.Mutex` protects concurrent access
 - Each entry stores:
   - value
   - expiration timestamp
@@ -322,7 +322,7 @@ Designed to prevent **cache stampede** scenarios where many concurrent cache mis
 flowchart TD
     A[Request] --> B{Cache hit?}
     B -- yes --> C[Return cached value]
-    B -- no --> D[singleflight.Do]
+    B -- no --> D[singleflight.DoChan]
     D --> E[Fetch from source]
     E --> F[Populate cache + TTL]
     F --> C
@@ -472,7 +472,7 @@ flowchart TD
 
 ### Advantages
 
-- Guaranteed cache consistency
+- Cache consistency when every access uses the same synchronized wrapper
 - No stale reads after writes
 - Simple mental model for data state
 
@@ -485,3 +485,5 @@ flowchart TD
 ### Write-Through Reference Implementation
 
 `software/assets/go_cache_patterns/pattern5_write_through/main.go`
+
+The TTL and LRU caches copy byte slices on both insertion and retrieval. Expiry checks and deletion share one lock, so cleanup cannot delete a concurrent replacement. Singleflight waiters can cancel independently; the first caller still supplies the shared fetch context. The write-through example serializes reads and writes through one wrapper; direct writes to the backing store or another wrapper are outside this guarantee.

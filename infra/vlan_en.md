@@ -209,3 +209,48 @@ sudo ip link delete $IF.20
 1. **VLANs** allow logical partitioning of physical interfaces.
 2. **macvlan** enables a network configuration where containers are directly connected to physical switches.
 3. A **Linux router** can be easily built with just `ip_forward` and `iptables`.
+
+---
+
+## Troubleshooting
+
+### Containers Cannot Communicate
+
+If `ping` fails, check IP forwarding and the router's forwarding rules.
+
+```bash
+sudo podman exec router sysctl net.ipv4.ip_forward
+# Expected: net.ipv4.ip_forward = 1
+sudo podman exec router iptables -L FORWARD -v -n
+```
+
+### Podman Network Creation Fails
+
+Verify that VLAN subinterfaces exist and that Podman runs in rootful mode.
+
+```bash
+ip link show | grep "$IF"
+sudo podman info | grep rootless
+# Expected: rootless: false
+```
+
+### Internet Access Through NAT Fails
+
+Inspect the router's default route and MASQUERADE rule.
+
+```bash
+sudo podman exec router ip route
+sudo podman exec router iptables -t nat -L POSTROUTING -v -n
+```
+
+The default route must point to a reachable upstream gateway for your environment.
+
+## Environment Notes
+
+### For macOS Users
+
+VLAN and macvlan require a Linux kernel. Run the exercise in a Linux VM or a cloud Ubuntu instance, with access to its network interfaces.
+
+### For Windows Users
+
+Use Ubuntu on WSL2 if its networking supports the required interfaces, or use a cloud Ubuntu instance.

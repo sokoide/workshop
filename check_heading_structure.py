@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
 Check heading structure synchronization between en/ja bilingual pairs.
-Extracts heading hierarchy (# ## ###) and compares section counts.
+Compares ATX heading level order (# ## ###), with section counts for diagnostics.
 """
 
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple, Dict
 from collections import defaultdict
+from tools.markdown_files import markdown_files
 
 
 def extract_headings(content: str) -> List[Tuple[int, str, str]]:
@@ -16,8 +18,8 @@ def extract_headings(content: str) -> List[Tuple[int, str, str]]:
     Extract headings from markdown content.
     Returns list of (level, line_text, heading_text) tuples.
     """
-    heading_pattern = re.compile(r'^(#{1,6})\s+(.+)$')
-    fence_pattern = re.compile(r'^\s*(`{3,}|~{3,})')
+    heading_pattern = re.compile(r'^ {0,3}(#{1,6})(?:[ \t]+(.*)|$)')
+    fence_pattern = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
     headings = []
     active_fence = None
 
@@ -27,8 +29,11 @@ def extract_headings(content: str) -> List[Tuple[int, str, str]]:
             marker = fence_match.group(1)
             marker_char = marker[0]
             if active_fence is None:
-                active_fence = (marker_char, len(marker))
-            elif marker_char == active_fence[0] and len(marker) >= active_fence[1]:
+                if marker_char != '`' or '`' not in fence_match.group(2):
+                    active_fence = (marker_char, len(marker))
+            elif (marker_char == active_fence[0]
+                  and len(marker) >= active_fence[1]
+                  and not fence_match.group(2).strip()):
                 active_fence = None
             continue
 
@@ -40,7 +45,7 @@ def extract_headings(content: str) -> List[Tuple[int, str, str]]:
             continue
         level = len(match.group(1))
         line_text = line
-        heading_text = match.group(2)
+        heading_text = match.group(2) or ''
         headings.append((level, line_text, heading_text))
     return headings
 
@@ -55,14 +60,10 @@ def count_sections(headings: List[Tuple[int, str, str]]) -> Dict[int, int]:
 
 def find_bilingual_pairs(repo_root: Path) -> List[Tuple[Path, Path]]:
     """Find en/ja markdown file pairs."""
-    ja_files = sorted(repo_root.rglob("*_ja.md"))
+    ja_files = [path for path in markdown_files(repo_root) if path.name.endswith('_ja.md')]
     pairs = []
 
     for ja_file in ja_files:
-        # Skip node_modules and .git
-        if "node_modules" in str(ja_file) or ".git" in str(ja_file):
-            continue
-
         ja_stem = ja_file.stem.removesuffix("_ja")
 
         # Prefer the sibling *_en.md file. Keeping the lookup directory-local
@@ -85,7 +86,7 @@ def analyze_pair(en_file: Path, ja_file: Path) -> Dict:
     try:
         en_content = en_file.read_text(encoding="utf-8")
         ja_content = ja_file.read_text(encoding="utf-8")
-    except Exception as e:
+    except (OSError, UnicodeError) as e:
         return {
             "en": str(en_file),
             "ja": str(ja_file),
@@ -118,6 +119,7 @@ def analyze_pair(en_file: Path, ja_file: Path) -> Dict:
         "ja_headings": len(ja_headings),
         "en_sections": en_sections,
         "ja_sections": ja_sections,
+        "structure_mismatch": [h[0] for h in en_headings] != [h[0] for h in ja_headings],
         "mismatches": mismatches
     }
 
@@ -136,7 +138,7 @@ def main():
 
     if not pairs:
         print("No bilingual pairs found.")
-        return
+        return 0
 
     # Analyze all pairs
     results = []
@@ -149,11 +151,13 @@ def main():
         if "error" in result:
             print(f"⚠️  ERROR: {result['en']} / {result['ja']}")
             print(f"   {result['error']}\n")
-        elif result["mismatches"]:
+        elif result["structure_mismatch"]:
             mismatches_found.append(result)
             rel_en = result["en"].replace(str(repo_root) + "/", "")
             rel_ja = result["ja"].replace(str(repo_root) + "/", "")
             print(f"⚠️  MISMATCH: {rel_en} <-> {rel_ja}")
+            if not result['mismatches']:
+                print('   Heading counts match, but heading level order differs.')
 
             for mm in result["mismatches"]:
                 level_marks = "#" * mm["level"]
@@ -190,6 +194,8 @@ def main():
                 indicator = " 🔴" if diff != 0 else ""
                 print(f"| {level} | {en_count} | {ja_count} | {diff:+d} |{indicator}")
 
+    return 1 if mismatches_found or any('error' in result for result in results) else 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

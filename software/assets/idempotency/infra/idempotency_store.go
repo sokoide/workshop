@@ -2,6 +2,8 @@ package infra
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -28,10 +30,27 @@ func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, resu
 	return s.client.Set(ctx, "idemp:"+key, result, s.ttl).Err()
 }
 
-func (s *RedisIdempotencyStore) Lock(ctx context.Context, key string) (bool, error) {
-	return s.client.SetNX(ctx, "lock:"+key, "1", 30*time.Second).Result()
+// Lock returns an ownership token, or an empty string if another request owns the lock.
+func (s *RedisIdempotencyStore) Lock(ctx context.Context, key string) (string, error) {
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(random[:])
+	ok, err := s.client.SetNX(ctx, "lock:"+key, token, 30*time.Second).Result()
+	if err != nil || !ok {
+		return "", err
+	}
+	return token, nil
 }
 
-func (s *RedisIdempotencyStore) Unlock(ctx context.Context, key string) error {
-	return s.client.Del(ctx, "lock:"+key).Err()
+var unlockScript = redis.NewScript(`
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+ return redis.call('DEL', KEYS[1])
+end
+return 0
+`)
+
+func (s *RedisIdempotencyStore) Unlock(ctx context.Context, key, token string) error {
+	return unlockScript.Run(ctx, s.client, []string{"lock:" + key}, token).Err()
 }

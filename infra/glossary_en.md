@@ -250,6 +250,104 @@ SISMEMBER banned_users player2  # 1 (true)
 
 ---
 
+## Load Balancer Terms
+
+### Load Balancer
+
+A device or program that distributes traffic across servers to improve availability and scalability. The load balancer itself also needs redundancy to avoid becoming a single point of failure.
+
+### VIP (Virtual IP)
+
+A virtual IP address used as the stable client-facing endpoint of a load balancer.
+
+### DNAT (Destination NAT)
+
+Rewrites the destination address, such as translating a VIP to a backend server address.
+
+```text
+192.168.10.100:80 (VIP) → 192.168.20.10:80 (Backend)
+```
+
+### SNAT (Source NAT)
+
+Rewrites the source address so that backend responses return through the intended router or load balancer.
+
+### Round Robin
+
+Assigns requests to servers in turn.
+
+### Least Connections
+
+Assigns new connections to the server with the fewest active connections.
+
+### ipvs (IP Virtual Server)
+
+Linux kernel facilities for transport-layer load balancing.
+
+### DSR (Direct Server Return)
+
+Backends send replies directly to clients. The load balancer forwards requests but does not process the return traffic.
+
+---
+
+## Rate Limiting Terms
+
+### Rate Limiting
+
+Restricts the request rate to prevent overload and share capacity fairly.
+
+### Fixed Window
+
+Counts requests in fixed time intervals. It is simple, but traffic can spike at window boundaries.
+
+### Sliding Window
+
+Measures requests over a moving interval. A sliding log tracks individual requests; a weighted counter approximates the count using adjacent windows.
+
+### Token Bucket
+
+Consumes tokens from a bucket refilled at a configured rate, allowing bounded bursts while limiting the sustained rate.
+
+```text
+[Capacity: 10] [Refill rate: 1/second]
+Each request consumes one token.
+```
+
+### Throttling
+
+Limits the frequency or rate of operations, such as bandwidth usage or API calls.
+
+---
+
+## Idempotency Terms
+
+### Idempotency
+
+Repeating an operation has the same intended effect as performing it once.
+
+```text
+x = 5  (idempotent)
+x++    (not idempotent)
+```
+
+### Idempotency Key
+
+A client-generated identifier reused on retries so the server can detect duplicate operations.
+
+```text
+Header: Idempotency-Key: uuid-v4
+```
+
+### Retry
+
+Attempts a failed operation again. Repeating non-idempotent operations may duplicate side effects.
+
+### Dead Letter Queue
+
+Stores messages that could not be processed for later inspection or controlled retries.
+
+---
+
 ## Protocol Terms
 
 ### TCP/IP Stack

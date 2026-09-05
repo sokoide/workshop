@@ -729,6 +729,8 @@ func WithdrawDB(db *sql.DB, userID int, amount int) error {
 
 ## Post-Workshop Quiz
 
+### Quiz
+
 1. **Why is it dangerous to build SQL with `fmt.Sprintf`?**
    - <details><summary>Answer</summary>If user input contains SQL special characters (such as single quotes), unintended SQL can be executed. Placeholders treat parameters as data, preventing them from affecting SQL syntax.</details>
 

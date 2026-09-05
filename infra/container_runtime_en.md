@@ -118,6 +118,11 @@ Experience manual isolation using the `unshare` command.
    ps # Only processes inside the container are visible
    ```
 
+### ✅ Verification Checkpoints
+
+- [ ] `echo $$` reports PID 1 inside the namespace.
+- [ ] `ps` does not show host processes.
+
 ### STEP 3: Apply Resource Control (Cgroups v2)
 
 Limit memory to 50MB and confirm that the process is killed when exceeded.

@@ -720,6 +720,8 @@ Source code → Build → Test → Package → Deploy
 
 ## Post-Workshop Quiz
 
+### Quiz
+
 1. **What does `govulncheck` detect?**
    - <details><summary>Answer</summary>Known vulnerabilities (CVEs registered in the Go Vulnerability Database) in Go's standard library and third-party modules. It analyzes call chains and reports only the functions that are actually affected.</details>
 

@@ -18,13 +18,18 @@ type RedisAccountRepo struct {
 }
 
 func (r *RedisAccountRepo) Get(ctx context.Context, id string) (*domain.Account, error) {
-	val, err := r.client.Get(ctx, "balance:"+id).Result()
-	if err == redis.Nil {
-		// Initialize with 1000
-		r.client.Set(ctx, "balance:"+id, "1000", 0)
-		return &domain.Account{ID: id, Balance: 1000}, nil
+	// SetNX avoids overwriting a balance initialized by another client.
+	if err := r.client.SetNX(ctx, "balance:"+id, "1000", 0).Err(); err != nil {
+		return nil, err
 	}
-	balance, _ := strconv.Atoi(val)
+	val, err := r.client.Get(ctx, "balance:"+id).Result()
+	if err != nil {
+		return nil, err
+	}
+	balance, err := strconv.Atoi(val)
+	if err != nil {
+		return nil, fmt.Errorf("invalid stored balance: %w", err)
+	}
 	return &domain.Account{ID: id, Balance: balance}, nil
 }
 
@@ -39,6 +44,7 @@ func main() {
 	flag.Parse()
 
 	rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
+	defer rdb.Close()
 	ctx := context.Background()
 
 	store := infra.NewRedisIdempotencyStore(rdb)

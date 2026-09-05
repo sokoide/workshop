@@ -228,7 +228,7 @@ flowchart TD
 
 ### 主な実装詳細
 
-- `sync.RWMutex` で並行アクセスを保護
+- `sync.Mutex` で並行アクセスを保護
 - 各エントリの保持内容：
   - 値
   - 有効期限のタイムスタンプ
@@ -322,7 +322,7 @@ flowchart TD
 flowchart TD
     A[リクエスト] --> B{キャッシュヒット?}
     B -- Yes --> C[キャッシュ値を返す]
-    B -- No --> D[singleflight.Do]
+    B -- No --> D[singleflight.DoChan]
     D --> E[ソースから取得]
     E --> F[キャッシュ保存 + TTL]
     F --> C
@@ -485,3 +485,5 @@ flowchart TD
 ### ライトスルーのリファレンス実装
 
 `software/assets/go_cache_patterns/pattern5_write_through/main.go`
+
+TTL と LRU キャッシュは保存時・取得時にバイト列をコピーします。期限判定と削除を同じロック内で行い、並行更新された値を削除しないようにします。Singleflight の待機は呼び出しごとにキャンセルできますが、共有取得のコンテキストは最初の呼び出しのものです。Write-through の読み書きは同じラッパーで直列化します。ストアへの直接書き込みや別ラッパー経由の更新は保証の対象外です。

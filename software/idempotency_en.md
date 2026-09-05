@@ -88,18 +88,18 @@ In distributed systems, network failures and timeouts occur daily.
 
 ```mermaid
 flowchart TD
-    A[Receive Request] --> B{Has Idempotency Key?}
-    B -- No --> C[Process as New Request]
-    C --> D[Save Process Result]
-    D --> E[Cache by Key]
-    E --> F[Return Response]
-
-    B -- Yes --> G{Does Result Exist for Key?}
-    G -- No --> H[Processing: Another request<br>is processing with same Key]
-    H --> I[Wait and Re-check]
-    I --> G
-
-    G -- Yes --> J[Return Cached Result]
+    A[Request] --> B{Has key?}
+    B -- No --> C[Update balance]
+    C --> R[Return result]
+    B -- Yes --> D{Stored result?}
+    D -- Yes --> E[Validate original request and return result]
+    D -- No --> F{Acquire lock?}
+    F -- No --> G[Return in-progress error]
+    F -- Yes --> H{Recheck result}
+    H -- Found --> E
+    H -- Missing --> I[Update balance]
+    I --> J[Save request and result]
+    J --> R
 ```
 
 ---
@@ -227,33 +227,9 @@ func (s *RedisIdempotencyStore) SaveResult(ctx context.Context, key string, resu
 
 The sample's `ChargeUsecase.Execute` retrieves a result, obtains a Redis `SETNX` lock, updates the balance, and saves the result in that order.
 
-```go
-// Usecase: Business logic
-type ChargeUsecase struct {
-    repo          AccountRepository
-    idempotencyStore IdempotencyStore
-}
+Read the [usecase](assets/idempotency/usecase/charge_usecase.go) and [Redis lock adapter](assets/idempotency/infra/idempotency_store.go). The executable sample validates the user and positive amount, checks the result, acquires an ownership token, rechecks the result, updates the balance, and saves both request and response. Reusing a key for a different request is rejected. Redis and decoding errors stop processing.
 
-func (uc *ChargeUsecase) Execute(ctx context.Context, req ChargeRequest) (*ChargeResponse, error) {
-    // 1. Check Idempotency Key
-    if cached, err := uc.idempotencyStore.GetResult(ctx, req.IdempotencyKey); err == nil && cached != nil {
-        // Return cached result
-        return deserializeResponse(cached), nil
-    }
-
-    // 2. Execute new process
-    result, err := uc.processCharge(ctx, req)
-    if err != nil {
-        return nil, err
-    }
-
-    // 3. Save result
-    serialized, _ := serializeResponse(result)
-    uc.idempotencyStore.SaveResult(ctx, req.IdempotencyKey, serialized)
-
-    return result, nil
-}
-```
+The stored result now includes the original request. Results saved by older versions are rejected rather than treated as successful responses; use a fresh key for a new exercise.
 
 ### ✅ Checkpoint
 
@@ -293,15 +269,15 @@ sequenceDiagram
     API-->>C1: 200 OK
 ```
 
-The sample also uses Redis `SETNX` (Set if Not eXists) and returns an error when the same key is already being processed. The following is a production-oriented example that also uses an ownership token.
+The sample also uses Redis `SETNX` (Set if Not eXists) and returns an error when the same key is already being processed. The sample uses an ownership token as shown below; the failure and concurrency limits still apply.
 
 ```go
-// Acquire exclusive lock
-locked, _ := redis.SetNX(ctx, "lock:"+key, "1", 30*time.Second).Result()
-if !locked {
-    return nil, ErrRequestInProgress
-}
-defer redis.Del(ctx, "lock:"+key)
+token, err := store.Lock(ctx, key)
+if err != nil { return nil, err }
+if token == "" { return nil, ErrRequestInProgress }
+// The adapter atomically compares the token before deleting the lock.
+// See Execute for bounded cleanup after request cancellation.
+defer store.Unlock(context.WithoutCancel(ctx), key, token)
 ```
 
 ### 2. Key Expiration Strategy
@@ -369,7 +345,7 @@ podman rm idempotency-redis
 
 **Causes and Solutions:**
 
-- **Transaction Boundaries**: In production, save the result after the DB commit. This sample is minimal and uses Redis as the balance store too; it does not cover atomicity with a persistent DB.
+- **Transaction Boundaries**: In production, save the balance change and idempotency result in one transaction or atomic operation. This sample updates them separately, so it demonstrates the normal retry path, not failure-atomic charging.
   - ❌ Cache save → DB commit (risk of cache-only success)
   - ✅ DB commit → Cache save (safe to retry if only DB succeeds)
 
@@ -389,3 +365,5 @@ brew services start redis
 ### Windows
 
 Recommended to run on Ubuntu via WSL2.
+
+**Sample limits**: Balance updates and result storage are separate operations. A result-save failure is reported as an uncertain outcome; reconcile the balance before retrying. An ownership token prevents an expired owner from deleting a newer lock, but does not stop stale writes after lock expiry. Different keys for the same account can also race. Production charging needs an atomic balance/result transaction, account-level concurrency control, and durable request records.

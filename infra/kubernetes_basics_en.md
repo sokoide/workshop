@@ -110,6 +110,32 @@ graph TB
 
 ---
 
+### Directory Structure
+
+```text
+~/k8s-workshop/
+├── manifests/           # Kubernetes manifests
+│   ├── 01-pod.yaml
+│   ├── 02-deployment.yaml
+│   ├── 03-service.yaml
+│   ├── 04-configmap.yaml
+│   ├── 05-secret.yaml
+│   ├── 06-pvc.yaml
+│   └── 07-ingress.yaml
+├── helm/                # Helm charts
+│   └── myapp/
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       └── templates/
+├── app/                 # Sample application
+│   ├── main.go
+│   ├── Dockerfile
+│   └── config/
+└── scripts/             # Utility scripts
+```
+
+---
+
 ## Preparation
 
 ### ✅ Prerequisites
@@ -145,6 +171,14 @@ kind create cluster --name k8s-workshop
 # Verify connectivity
 kubectl get nodes
 ```
+
+---
+
+### ✅ Checklist
+
+- [ ] `kubectl version --client` displays the client version.
+- [ ] `kind get clusters` lists the `workshop` cluster.
+- [ ] `kubectl get nodes` shows the nodes as Ready.
 
 ---
 
@@ -354,7 +388,7 @@ spec:
         [
           "sh",
           "-c",
-          "echo $APP_ENV && cat /etc/config/config.json && sleep 3600"
+          "echo $APP_ENV && cat /etc/config/config.json && sleep 3600",
         ]
       env:
         - name: APP_ENV
@@ -485,7 +519,7 @@ spec:
             [
               "sh",
               "-c",
-              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600"
+              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600",
             ]
           volumeMounts:
             - name: data-volume

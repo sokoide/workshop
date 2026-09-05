@@ -9,6 +9,16 @@
 
 このリポジトリは、さまざまな技術トピックに関する実習用の資料を保管します。
 
+## メンテナンス
+
+`pnpm install` または `npm install` で Markdown ツールを導入します（Python 3.9 以上も必要です）。
+`make format` は同じファイル一覧に Prettier、markdownlint、textlint を適用します。
+`CLAUDE.md`、依存関係のキャッシュ、ツールのメタデータは除外し、ツールが失敗すると処理を停止します。
+`make test-tools` で保守スクリプトをテストし、`make check-headings` で日英ペアの見出しレベルの順序を比較します。
+後者は不一致や読み取りエラーで非ゼロ終了します。翻訳の正確さや、対となるファイルの欠落は検証しません。
+
+`make check-go` で全 Go モジュールのビルド、静的検査、race 検出付きテストを実行します。ログとスキップの詳細は `.cache/go-validation/` に保存します。`make check-go GO_CHECK_FLAGS=--require-integration` はテストのスキップや Linux 専用部分の未検証も失敗として扱います。Raw Socket の実行には Linux と CGO、RabbitMQ と Vault の統合テストには各サービスが必要です。
+
 ## 内容
 
 ### インフラ関連

@@ -4,6 +4,16 @@
 
 > **💡 用語集**: この実習で登場する[RBAC](glossary_ja.md#security)や[NetworkPolicy](glossary_ja.md#security)、[HPA](glossary_ja.md#kubernetes)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
+## なぜソフトウェアエンジニアが Kubernetes 運用を学ぶのか？
+
+アプリケーションコードを書くことに加え、本番での動作と安全性を理解することも重要です。
+
+1. **設計段階からのセキュリティ**: RBAC と NetworkPolicy を理解し、最小権限の原則をアプリケーションの設計に組み込みます。
+2. **予測可能なスケーリング**: HPA/VPA の仕組みを理解し、リソースの浪費や性能のボトルネックを避けます。
+3. **運用への理解**: GitOps（ArgoCD）とバックアップ（Velero）を学び、デプロイから災害復旧までのライフサイクルに対応します。
+
+---
+
 ## ゴール
 
 本番運用レベルの Kubernetes 構成を習得し、セキュアでスケーラブルなクラスタを構築できるようになります。
@@ -342,7 +352,7 @@ spec:
               "--vm-bytes",
               "128M",
               "--timeout",
-              "3600s"
+              "3600s",
             ]
 ---
 apiVersion: autoscaling/v2

@@ -171,3 +171,54 @@ podman rm workshop-redis
 
 - [Redis Documentation: Sorted Sets](https://redis.io/docs/data-types/sorted-sets/)
 - [go-redis Guide](https://redis.uptrace.dev/)
+
+---
+
+## Troubleshooting
+
+### Cannot Connect to Redis
+
+For `dial tcp: connection refused`, verify that Redis is running and port 6379 is published.
+
+```bash
+podman ps --filter name=workshop-redis
+podman port workshop-redis
+```
+
+### Program Panics
+
+If the program reports `runtime error: invalid memory address`, inspect the stack trace and check that connection errors are handled before using the Redis client. Start Redis before running the sample.
+
+```bash
+make redis-up
+# Or restart an existing container:
+podman start workshop-redis
+```
+
+### Scores Are Not Reflected
+
+Inspect the ranking and ban list directly, using the key names configured in the sample.
+
+```bash
+podman exec -it workshop-redis redis-cli
+# In redis-cli:
+ZREVRANGE game_leaderboard 0 -1 WITHSCORES
+SMEMBERS banned_users
+```
+
+## Environment Notes
+
+### For macOS Users
+
+You can use Podman or install Redis locally with Homebrew.
+
+```bash
+brew install redis
+brew services start redis
+```
+
+Use `localhost:6379` when connecting to local Redis.
+
+### For Windows Users
+
+Use Podman in Ubuntu on WSL2, or replace `podman` with `docker` when using Docker Desktop.

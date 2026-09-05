@@ -15,6 +15,17 @@ This repository provides hands-on technical workshops covering infrastructure an
 
 ---
 
+## Maintenance
+
+Install the Markdown tools with `pnpm install` or `npm install` (Python 3.9+ is also required).
+Run `make format` to apply Prettier, markdownlint, and textlint using the same file list;
+`CLAUDE.md`, dependency caches, and tool metadata are excluded. Tool failures stop the command.
+Run `make test-tools` for maintenance script tests and `make check-headings` to compare
+heading level order in English/Japanese pairs. The latter exits nonzero for mismatches
+or read errors; it does not verify translation accuracy or detect missing counterpart files.
+
+Run `make check-go` to build, vet, and race-test all Go modules. Logs and skipped-test details are saved in `.cache/go-validation/`. Use `make check-go GO_CHECK_FLAGS=--require-integration` to fail on skipped tests or missing Linux-only checks. Raw socket execution requires Linux with CGO; RabbitMQ and Vault integration tests require their services.
+
 ## Contents
 
 ### Infrastructure

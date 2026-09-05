@@ -1,5 +1,3 @@
-//go:build linux
-
 package ipv4
 
 import (
@@ -22,8 +20,8 @@ const (
 	ProtocolIPv6 = 41
 
 	// Flags
-	FlagDF = 0x01 // Don't Fragment
-	FlagMF = 0x02 // More Fragments
+	FlagDF = 0x02 // Don't Fragment (wire bit 14)
+	FlagMF = 0x01 // More Fragments (wire bit 13)
 )
 
 // Packet represents an IPv4 packet
@@ -56,6 +54,9 @@ func Parse(data []byte) (*Packet, error) {
 	}
 
 	ihl := (data[0] & 0x0F) * 4
+	if ihl < HeaderSize {
+		return nil, fmt.Errorf("invalid IHL: %d < %d", ihl, HeaderSize)
+	}
 	if len(data) < int(ihl) {
 		return nil, fmt.Errorf("packet too short for IHL: %d < %d", len(data), ihl)
 	}
@@ -65,6 +66,9 @@ func Parse(data []byte) (*Packet, error) {
 	}
 	if int(totalLen) > len(data) {
 		return nil, fmt.Errorf("packet too short for total length: %d < %d", len(data), totalLen)
+	}
+	if Checksum(data[:ihl]) != 0 {
+		return nil, fmt.Errorf("invalid IPv4 header checksum")
 	}
 
 	flagsFragment := binary.BigEndian.Uint16(data[6:8])
@@ -96,13 +100,13 @@ func (p *Packet) Marshal() []byte {
 	ihl := HeaderSize
 	if len(p.Options) > 0 {
 		// IHL is in 32-bit words
-		ihl = HeaderSize + len(p.Options)
+		ihl = HeaderSize + (len(p.Options)+3)/4*4
 	}
 
 	payloadLen := len(p.Payload)
 	totalLen := ihl + payloadLen
 
-	buf := make([]byte, ihl)
+	buf := make([]byte, totalLen)
 
 	// Version and IHL
 	buf[0] = (4 << 4) | (uint8(ihl/4) & 0x0F)
@@ -130,9 +134,8 @@ func (p *Packet) Marshal() []byte {
 	binary.BigEndian.PutUint16(buf[10:12], checksum)
 
 	// Add payload
-	result := append(buf, p.Payload...)
-
-	return result
+	copy(buf[ihl:], p.Payload)
+	return buf
 }
 
 // Checksum calculates the IPv4 header checksum

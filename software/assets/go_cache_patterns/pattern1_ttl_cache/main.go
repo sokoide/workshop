@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"time"
@@ -12,7 +13,7 @@ type cacheEntry struct {
 }
 
 type TTLCache struct {
-	mu    sync.RWMutex
+	mu    sync.Mutex
 	items map[string]cacheEntry
 }
 
@@ -23,23 +24,21 @@ func NewTTLCache() *TTLCache {
 func (c *TTLCache) Set(key string, value []byte, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.items[key] = cacheEntry{value: value, expiresAt: time.Now().Add(ttl)}
+	c.items[key] = cacheEntry{value: bytes.Clone(value), expiresAt: time.Now().Add(ttl)}
 }
 
 func (c *TTLCache) Get(key string) ([]byte, bool) {
-	c.mu.RLock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	entry, ok := c.items[key]
-	c.mu.RUnlock()
 	if !ok {
 		return nil, false
 	}
-	if time.Now().After(entry.expiresAt) {
-		c.mu.Lock()
+	if !time.Now().Before(entry.expiresAt) {
 		delete(c.items, key)
-		c.mu.Unlock()
 		return nil, false
 	}
-	return entry.value, true
+	return bytes.Clone(entry.value), true
 }
 
 func main() {

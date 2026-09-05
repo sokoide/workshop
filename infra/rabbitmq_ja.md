@@ -113,7 +113,7 @@ go run cmd/ticker/main.go
 ### ✅ チェックポイント
 
 - [ ] ターミナルに送信ログ（Routing Key 等）が表示されていることを確認した
-- [ ] 管理画面の `Exchanges` タブで `crypto.exchange` のグラフが動き出したことを確認した
+- [ ] 管理画面の `Exchanges` タブで `crypto_market` のグラフが動き出したことを確認した
 
 ### STEP 2: 全取引のロギング (Topic: `market.#`)
 
@@ -184,7 +184,7 @@ make mq-down
 
 - Exchange が正しく作成されているか管理画面で確認
   - <http://localhost:15672> にアクセス (guest/guest)
-  - 「Admin」→「Exchanges」タブで `crypto.exchange` が存在するか確認
+  - 「Exchanges」タブで `crypto_market` が存在するか確認
 
 - Queue が正しくバインドされているか確認
   - 「Queues」タブで各コンシューマーのキューが存在するか確認

@@ -65,6 +65,11 @@ graph LR
     C -- "points to physical entity" --> D[(iSCSI LUN on VM2)];
 ```
 
+### Key Points
+
+- **Logical layer (Kubernetes)**: A Pod requests storage through a PVC without needing to know whether the backing storage uses iSCSI.
+- **Physical layer (OS)**: VM1's Linux kernel communicates with VM2 over TCP and exposes the storage as a block device such as `/dev/sdb`. Kubernetes mounts that storage for the Pod.
+
 ### Directory Structure
 
 ```text

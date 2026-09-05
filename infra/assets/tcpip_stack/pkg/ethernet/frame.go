@@ -1,5 +1,3 @@
-//go:build linux
-
 package ethernet
 
 import (
@@ -19,13 +17,13 @@ const (
 	MaxFrameSize = 1514
 
 	// EtherType values
-	TypeIPv4  = 0x0800
-	TypeARP   = 0x0806
-	TypeIPv6  = 0x86DD
-	TypeVLAN  = 0x8100
-	TypeQinQ  = 0x88A8
-	TypeMPLS  = 0x8847
-	TypeLLDP  = 0x88CC
+	TypeIPv4 = 0x0800
+	TypeARP  = 0x0806
+	TypeIPv6 = 0x86DD
+	TypeVLAN = 0x8100
+	TypeQinQ = 0x88A8
+	TypeMPLS = 0x8847
+	TypeLLDP = 0x88CC
 )
 
 // Frame represents an Ethernet II frame

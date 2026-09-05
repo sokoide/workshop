@@ -17,6 +17,6 @@ type AccountRepository interface {
 type IdempotencyStore interface {
 	GetResult(ctx context.Context, key string) ([]byte, error)
 	SaveResult(ctx context.Context, key string, result []byte) error
-	Lock(ctx context.Context, key string) (bool, error)
-	Unlock(ctx context.Context, key string) error
+	Lock(ctx context.Context, key string) (string, error)
+	Unlock(ctx context.Context, key, token string) error
 }

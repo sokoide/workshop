@@ -1,5 +1,3 @@
-//go:build linux
-
 package icmp
 
 import (
@@ -11,26 +9,26 @@ import (
 
 const (
 	// Type values
-	EchoReply     = 0
+	EchoReply              = 0
 	DestinationUnreachable = 3
-	SourceQuench   = 4
-	Redirect       = 5
-	EchoRequest    = 8
-	TimeExceeded   = 11
-	ParameterProblem = 12
-	Timestamp      = 13
-	TimestampReply = 14
+	SourceQuench           = 4
+	Redirect               = 5
+	EchoRequest            = 8
+	TimeExceeded           = 11
+	ParameterProblem       = 12
+	Timestamp              = 13
+	TimestampReply         = 14
 
 	// DestinationUnreachable codes
-	NetUnreachable = 0
-	HostUnreachable = 1
+	NetUnreachable      = 0
+	HostUnreachable     = 1
 	ProtocolUnreachable = 2
-	PortUnreachable = 3
+	PortUnreachable     = 3
 	FragmentationNeeded = 4
-	SourceRouteFailed = 5
+	SourceRouteFailed   = 5
 
 	// TimeExceeded codes
-	TTLExceeded = 0
+	TTLExceeded                    = 0
 	FragmentReassemblyTimeExceeded = 1
 )
 
@@ -40,9 +38,9 @@ type Message struct {
 	Code     uint8
 	Checksum uint16
 	// Type-specific fields
-	ID       uint16
-	Seq      uint16
-	Data     []byte
+	ID   uint16
+	Seq  uint16
+	Data []byte
 	// For error messages
 	OriginalPacket []byte
 }
@@ -51,6 +49,9 @@ type Message struct {
 func Parse(data []byte) (*Message, error) {
 	if len(data) < 8 {
 		return nil, fmt.Errorf("message too short: %d < 8", len(data))
+	}
+	if ipv4.Checksum(data) != 0 {
+		return nil, fmt.Errorf("invalid ICMP checksum")
 	}
 
 	msg := &Message{
@@ -63,6 +64,9 @@ func Parse(data []byte) (*Message, error) {
 
 	if len(data) > 8 {
 		msg.Data = data[8:]
+		if msg.IsError() {
+			msg.OriginalPacket = data[8:]
+		}
 	}
 
 	return msg, nil
@@ -124,30 +128,37 @@ func NewEchoReply(id, seq uint16, data []byte) *Message {
 // NewDestinationUnreachable creates a new Destination Unreachable message
 func NewDestinationUnreachable(code uint8, originalPacket []byte) *Message {
 	// Include original IP header + first 8 bytes
-	dataLen := len(originalPacket)
-	if dataLen > 8 {
-		dataLen = 8
-	}
+	dataLen := quotedPacketLength(originalPacket)
 
 	return &Message{
-		Type:          DestinationUnreachable,
-		Code:          code,
+		Type:           DestinationUnreachable,
+		Code:           code,
 		OriginalPacket: originalPacket[:dataLen],
 	}
 }
 
 // NewTimeExceeded creates a new Time Exceeded message
 func NewTimeExceeded(code uint8, originalPacket []byte) *Message {
-	dataLen := len(originalPacket)
-	if dataLen > 8 {
-		dataLen = 8
-	}
+	dataLen := quotedPacketLength(originalPacket)
 
 	return &Message{
-		Type:          TimeExceeded,
-		Code:          code,
+		Type:           TimeExceeded,
+		Code:           code,
 		OriginalPacket: originalPacket[:dataLen],
 	}
+}
+
+// ICMP errors quote the original IPv4 header (including options) and up to
+// eight payload bytes. Keep truncated inputs bounded by the supplied buffer.
+func quotedPacketLength(packet []byte) int {
+	if len(packet) < ipv4.HeaderSize {
+		return len(packet)
+	}
+	headerLength := int(packet[0]&0x0f) * 4
+	if headerLength < ipv4.HeaderSize {
+		headerLength = ipv4.HeaderSize
+	}
+	return min(len(packet), headerLength+8)
 }
 
 // IsEchoRequest checks if this is an Echo Request
@@ -208,6 +219,8 @@ func typeToString(t uint8) string {
 // ValidateChecksum validates the ICMP checksum
 func (m *Message) ValidateChecksum() bool {
 	data := m.Marshal()
+	// Marshal computes a fresh checksum; validation must use the received one.
+	binary.BigEndian.PutUint16(data[2:4], m.Checksum)
 	calculated := ipv4.Checksum(data)
 	return calculated == 0
 }

@@ -116,6 +116,11 @@ func (s *Stack) handlePacket(data []byte) error {
 	if err != nil {
 		return err
 	}
+	// Reassembly is outside this workshop's scope. Do not treat a fragment as
+	// a complete ICMP message or UDP datagram.
+	if pkt.IsFragmented() {
+		return fmt.Errorf("fragmented IPv4 packets are unsupported")
+	}
 
 	switch pkt.Protocol {
 	case ipv4.ProtocolICMP:

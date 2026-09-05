@@ -705,68 +705,76 @@ import (
 )
 
 const (
-	// 最小ヘッダサイズ（オプション除く）
+	// HeaderSize is the minimum IPv4 header size
 	HeaderSize = 20
 
-	// 最大パケットサイズ
+	// MaxPacketSize is the maximum IPv4 packet size (65535)
 	MaxPacketSize = 65535
 
-	// プロトコル番号
+	// Protocol numbers
 	ProtocolICMP = 1
 	ProtocolTCP  = 6
 	ProtocolUDP  = 17
+	ProtocolIPv6 = 41
 
-	// フラグ
-	FlagDF = 0x01 // フラグメント禁止
-	FlagMF = 0x02 // まだ後続フラグメントあり
+	// Flags
+	FlagDF = 0x02 // Don't Fragment (wire bit 14)
+	FlagMF = 0x01 // More Fragments (wire bit 13)
 )
 
-// Packet は IPv4 パケットを表す
+// Packet represents an IPv4 packet
 type Packet struct {
-	Version        uint8  // 常に 4
-	IHL            uint8  // Internet Header Length（4 bytes 単位）
-	TOS            uint8  // Type of Service
-	TotalLength    uint16 // ヘッダ + ペイロード長
-	ID             uint16 // 識別子（フラグメント再構築用）
+	Version        uint8
+	IHL            uint8 // Internet Header Length in 32-bit words
+	TOS            uint8 // Type of Service
+	TotalLength    uint16
+	ID             uint16
 	Flags          uint8
-	FragmentOffset uint16 // フラグメントオフセット（8 bytes 単位）
-	TTL            uint8  // Time to Live（ホップ数制限）
-	Protocol       uint8  // 上位プロトコル
-	Checksum       uint16 // ヘッダチェックサム
+	FragmentOffset uint16 // In 8-byte units
+	TTL            uint8  // Time to Live
+	Protocol       uint8
+	Checksum       uint16
 	SrcIP          net.IP
 	DstIP          net.IP
-	Options        []byte // IP オプション（通常は未使用）
+	Options        []byte
 	Payload        []byte
 }
 
-// Parse はバイト列から IPv4 パケットを解析
+// Parse parses an IPv4 packet from bytes
 func Parse(data []byte) (*Packet, error) {
 	if len(data) < HeaderSize {
 		return nil, fmt.Errorf("packet too short: %d < %d", len(data), HeaderSize)
 	}
 
-	// バージョンチェック
 	version := data[0] >> 4
 	if version != 4 {
 		return nil, fmt.Errorf("not IPv4: version=%d", version)
 	}
 
-	// IHL (Internet Header Length) は 4 bytes 単位
 	ihl := (data[0] & 0x0F) * 4
+	if ihl < HeaderSize {
+		return nil, fmt.Errorf("invalid IHL: %d < %d", ihl, HeaderSize)
+	}
 	if len(data) < int(ihl) {
 		return nil, fmt.Errorf("packet too short for IHL: %d < %d", len(data), ihl)
 	}
+	totalLen := binary.BigEndian.Uint16(data[2:4])
+	if totalLen < uint16(ihl) {
+		return nil, fmt.Errorf("invalid total length: %d < ihl=%d", totalLen, ihl)
+	}
+	if int(totalLen) > len(data) {
+		return nil, fmt.Errorf("packet too short for total length: %d < %d", len(data), totalLen)
+	}
+	if Checksum(data[:ihl]) != 0 {
+		return nil, fmt.Errorf("invalid IPv4 header checksum")
+	}
 
-	// Flags と Fragment Offset は 16bit にパックされている
-	//   Flags: 上位 3bit
-	//   Fragment Offset: 下位 13bit
 	flagsFragment := binary.BigEndian.Uint16(data[6:8])
-
 	pkt := &Packet{
 		Version:        version,
 		IHL:            ihl,
 		TOS:            data[1],
-		TotalLength:    binary.BigEndian.Uint16(data[2:4]),
+		TotalLength:    totalLen,
 		ID:             binary.BigEndian.Uint16(data[4:6]),
 		Flags:          uint8((flagsFragment >> 13) & 0x07),
 		FragmentOffset: flagsFragment & 0x1FFF,
@@ -775,7 +783,7 @@ func Parse(data []byte) (*Packet, error) {
 		Checksum:       binary.BigEndian.Uint16(data[10:12]),
 		SrcIP:          net.IP(data[12:16]),
 		DstIP:          net.IP(data[16:20]),
-		Payload:        data[ihl:], // ペイロードは IHL 以降
+		Payload:        data[ihl:totalLen],
 	}
 
 	if ihl > HeaderSize {
@@ -785,81 +793,100 @@ func Parse(data []byte) (*Packet, error) {
 	return pkt, nil
 }
 
-// Marshal はパケットをバイト列に変換
+// Marshal converts the packet to bytes
 func (p *Packet) Marshal() []byte {
 	ihl := HeaderSize
 	if len(p.Options) > 0 {
-		ihl = HeaderSize + len(p.Options)
+		// IHL is in 32-bit words
+		ihl = HeaderSize + (len(p.Options)+3)/4*4
 	}
 
 	payloadLen := len(p.Payload)
 	totalLen := ihl + payloadLen
 
-	buf := make([]byte, ihl)
+	buf := make([]byte, totalLen)
 
-	// Version (4bit) + IHL (4bit)
+	// Version and IHL
 	buf[0] = (4 << 4) | (uint8(ihl/4) & 0x0F)
 	buf[1] = p.TOS
 	binary.BigEndian.PutUint16(buf[2:4], uint16(totalLen))
 	binary.BigEndian.PutUint16(buf[4:6], p.ID)
 
-	// Flags (3bit) + Fragment Offset (13bit)
+	// Flags and Fragment Offset
 	flagsFragment := (uint16(p.Flags) << 13) | (p.FragmentOffset & 0x1FFF)
 	binary.BigEndian.PutUint16(buf[6:8], flagsFragment)
 
 	buf[8] = p.TTL
 	buf[9] = p.Protocol
-	// Checksum は後で計算
-
-	// IP アドレス（4bytes に変換）
+	// Checksum at [10:12] - will be calculated
 	copy(buf[12:16], p.SrcIP.To4())
 	copy(buf[16:20], p.DstIP.To4())
 
-	// オプション
+	// Options
 	if len(p.Options) > 0 {
 		copy(buf[20:], p.Options)
 	}
 
-	// チェックサム計算
+	// Calculate and set checksum
 	checksum := Checksum(buf[:ihl])
 	binary.BigEndian.PutUint16(buf[10:12], checksum)
 
-	// ペイロード追加
-	result := append(buf, p.Payload...)
-
-	return result
+	// Add payload
+	copy(buf[ihl:], p.Payload)
+	return buf
 }
 
-// Checksum は IPv4 ヘッダのチェックサムを計算
-// RFC 1071: 16bit の 1 の補数和の 1 の補数
+// Checksum calculates the IPv4 header checksum
 func Checksum(data []byte) uint16 {
 	sum := uint32(0)
 
-	// 16bit 単位で加算
+	// Sum all 16-bit words
 	for i := 0; i < len(data)-1; i += 2 {
 		sum += uint32(binary.BigEndian.Uint16(data[i : i+2]))
 	}
 
-	// 奇数長の場合の処理
+	// Handle odd length
 	if len(data)%2 == 1 {
 		sum += uint32(data[len(data)-1]) << 8
 	}
 
-	// 32bit → 16bit に畳み込み（キャリーを加算）
+	// Fold 32-bit sum to 16 bits
 	for sum>>16 > 0 {
 		sum = (sum & 0xFFFF) + (sum >> 16)
 	}
 
-	// 1 の補数を返す
 	return ^uint16(sum)
 }
 
-// IsFragmented はパケットがフラグメント化されているかを判定
+// String returns a string representation of the packet
+func (p *Packet) String() string {
+	protoName := protocolToString(p.Protocol)
+	return fmt.Sprintf("IPv4: Src=%s Dst=%s Proto=%d(%s) TTL=%d Len=%d ID=%d",
+		p.SrcIP, p.DstIP, p.Protocol, protoName, p.TTL, p.TotalLength, p.ID)
+}
+
+// protocolToString converts protocol number to string
+func protocolToString(proto uint8) string {
+	switch proto {
+	case ProtocolICMP:
+		return "ICMP"
+	case ProtocolTCP:
+		return "TCP"
+	case ProtocolUDP:
+		return "UDP"
+	case ProtocolIPv6:
+		return "IPv6"
+	default:
+		return fmt.Sprintf("Unknown(%d)", proto)
+	}
+}
+
+// IsFragmented checks if the packet is fragmented
 func (p *Packet) IsFragmented() bool {
 	return p.FragmentOffset != 0 || p.Flags&FlagMF != 0
 }
 
-// PseudoHeader は TCP/UDP チェックサム計算用の疑似ヘッダを生成
+// PseudoHeader computes the pseudo-header for checksum calculation
 func (p *Packet) PseudoHeader() []byte {
 	buf := make([]byte, 12)
 	copy(buf[0:4], p.SrcIP.To4())
@@ -875,7 +902,7 @@ func (p *Packet) PseudoHeader() []byte {
 
 - **IHL (Internet Header Length)**: ヘッダ長を 4 bytes 単位で表現（通常は 5 = 20 bytes）
 - **TTL**: ループ防止用。ルータを通過するたびに減算され、0 で破棄
-- **チェックサム**: ヘッダの破損を検出。現実装は送信時に計算し、受信時は主に長さ・形式を検証（ヘッダチェックサム値そのものの照合は未実装）
+- **チェックサム**: ヘッダの破損を検出。実装は送信時に計算し、受信時に IHL・全長とともに検証する
 
 ### ✅ チェックポイント
 
@@ -917,27 +944,50 @@ import (
 )
 
 const (
-	// ICMP タイプ
+	// Type values
 	EchoReply              = 0
 	DestinationUnreachable = 3
+	SourceQuench           = 4
+	Redirect               = 5
 	EchoRequest            = 8
 	TimeExceeded           = 11
+	ParameterProblem       = 12
+	Timestamp              = 13
+	TimestampReply         = 14
+
+	// DestinationUnreachable codes
+	NetUnreachable      = 0
+	HostUnreachable     = 1
+	ProtocolUnreachable = 2
+	PortUnreachable     = 3
+	FragmentationNeeded = 4
+	SourceRouteFailed   = 5
+
+	// TimeExceeded codes
+	TTLExceeded                    = 0
+	FragmentReassemblyTimeExceeded = 1
 )
 
-// Message は ICMP メッセージを表す
+// Message represents an ICMP message
 type Message struct {
 	Type     uint8
 	Code     uint8
 	Checksum uint16
-	ID       uint16 // Echo Request/Reply 用
-	Seq      uint16 // Echo Request/Reply 用
-	Data     []byte
+	// Type-specific fields
+	ID   uint16
+	Seq  uint16
+	Data []byte
+	// For error messages
+	OriginalPacket []byte
 }
 
-// Parse はバイト列から ICMP メッセージを解析
+// Parse parses an ICMP message from bytes
 func Parse(data []byte) (*Message, error) {
 	if len(data) < 8 {
 		return nil, fmt.Errorf("message too short: %d < 8", len(data))
+	}
+	if ipv4.Checksum(data) != 0 {
+		return nil, fmt.Errorf("invalid ICMP checksum")
 	}
 
 	msg := &Message{
@@ -950,33 +1000,46 @@ func Parse(data []byte) (*Message, error) {
 
 	if len(data) > 8 {
 		msg.Data = data[8:]
+		if msg.IsError() {
+			msg.OriginalPacket = data[8:]
+		}
 	}
 
 	return msg, nil
 }
 
-// Marshal はメッセージをバイト列に変換
+// Marshal converts the message to bytes
 func (m *Message) Marshal() []byte {
-	buf := make([]byte, 8+len(m.Data))
+	// Minimum size is 8 bytes
+	minLen := 8
+	if m.Type == DestinationUnreachable || m.Type == TimeExceeded || m.Type == ParameterProblem {
+		// Error messages have the original IP header + 8 bytes
+		minLen = 8 + len(m.OriginalPacket)
+	} else {
+		minLen = 8 + len(m.Data)
+	}
 
+	buf := make([]byte, minLen)
 	buf[0] = m.Type
 	buf[1] = m.Code
-	// Checksum は後で計算
+	// Checksum at [2:4] - will be calculated
 	binary.BigEndian.PutUint16(buf[4:6], m.ID)
 	binary.BigEndian.PutUint16(buf[6:8], m.Seq)
 
 	if len(m.Data) > 0 {
 		copy(buf[8:], m.Data)
+	} else if len(m.OriginalPacket) > 0 {
+		copy(buf[8:], m.OriginalPacket)
 	}
 
-	// チェックサム計算（IPv4 と同じアルゴリズム）
+	// Calculate checksum (excluding checksum field itself)
 	checksum := ipv4.Checksum(buf)
 	binary.BigEndian.PutUint16(buf[2:4], checksum)
 
 	return buf
 }
 
-// NewEchoRequest は ICMP Echo Request を作成
+// NewEchoRequest creates a new ICMP Echo Request
 func NewEchoRequest(id, seq uint16, data []byte) *Message {
 	return &Message{
 		Type: EchoRequest,
@@ -987,7 +1050,7 @@ func NewEchoRequest(id, seq uint16, data []byte) *Message {
 	}
 }
 
-// NewEchoReply は ICMP Echo Reply を作成
+// NewEchoReply creates a new ICMP Echo Reply
 func NewEchoReply(id, seq uint16, data []byte) *Message {
 	return &Message{
 		Type: EchoReply,
@@ -998,14 +1061,104 @@ func NewEchoReply(id, seq uint16, data []byte) *Message {
 	}
 }
 
-// IsEchoRequest は Echo Request かどうかを判定
+// NewDestinationUnreachable creates a new Destination Unreachable message
+func NewDestinationUnreachable(code uint8, originalPacket []byte) *Message {
+	// Include original IP header + first 8 bytes
+	dataLen := quotedPacketLength(originalPacket)
+
+	return &Message{
+		Type:           DestinationUnreachable,
+		Code:           code,
+		OriginalPacket: originalPacket[:dataLen],
+	}
+}
+
+// NewTimeExceeded creates a new Time Exceeded message
+func NewTimeExceeded(code uint8, originalPacket []byte) *Message {
+	dataLen := quotedPacketLength(originalPacket)
+
+	return &Message{
+		Type:           TimeExceeded,
+		Code:           code,
+		OriginalPacket: originalPacket[:dataLen],
+	}
+}
+
+// ICMP errors quote the original IPv4 header (including options) and up to
+// eight payload bytes. Keep truncated inputs bounded by the supplied buffer.
+func quotedPacketLength(packet []byte) int {
+	if len(packet) < ipv4.HeaderSize {
+		return len(packet)
+	}
+	headerLength := int(packet[0]&0x0f) * 4
+	if headerLength < ipv4.HeaderSize {
+		headerLength = ipv4.HeaderSize
+	}
+	return min(len(packet), headerLength+8)
+}
+
+// IsEchoRequest checks if this is an Echo Request
 func (m *Message) IsEchoRequest() bool {
 	return m.Type == EchoRequest
 }
 
-// IsEchoReply は Echo Reply かどうかを判定
+// IsEchoReply checks if this is an Echo Reply
 func (m *Message) IsEchoReply() bool {
 	return m.Type == EchoReply
+}
+
+// IsError checks if this is an error message
+func (m *Message) IsError() bool {
+	return m.Type == DestinationUnreachable ||
+		m.Type == TimeExceeded ||
+		m.Type == Redirect ||
+		m.Type == SourceQuench ||
+		m.Type == ParameterProblem
+}
+
+// String returns a string representation of the message
+func (m *Message) String() string {
+	typeName := typeToString(m.Type)
+	if m.IsEchoRequest() || m.IsEchoReply() {
+		return fmt.Sprintf("ICMP: Type=%d(%s) ID=%d Seq=%d DataLen=%d",
+			m.Type, typeName, m.ID, m.Seq, len(m.Data))
+	}
+	return fmt.Sprintf("ICMP: Type=%d(%s) Code=%d", m.Type, typeName, m.Code)
+}
+
+// typeToString converts ICMP type to string
+func typeToString(t uint8) string {
+	switch t {
+	case EchoReply:
+		return "Echo Reply"
+	case DestinationUnreachable:
+		return "Dest Unreachable"
+	case SourceQuench:
+		return "Source Quench"
+	case Redirect:
+		return "Redirect"
+	case EchoRequest:
+		return "Echo Request"
+	case TimeExceeded:
+		return "Time Exceeded"
+	case ParameterProblem:
+		return "Parameter Problem"
+	case Timestamp:
+		return "Timestamp"
+	case TimestampReply:
+		return "Timestamp Reply"
+	default:
+		return fmt.Sprintf("Unknown(%d)", t)
+	}
+}
+
+// ValidateChecksum validates the ICMP checksum
+func (m *Message) ValidateChecksum() bool {
+	data := m.Marshal()
+	// Marshal computes a fresh checksum; validation must use the received one.
+	binary.BigEndian.PutUint16(data[2:4], m.Checksum)
+	calculated := ipv4.Checksum(data)
+	return calculated == 0
 }
 ```
 
@@ -1029,6 +1182,7 @@ func (m *Message) IsEchoReply() bool {
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -1036,6 +1190,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ethernet"
@@ -1045,7 +1200,7 @@ import (
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/udp"
 )
 
-// Stack は TCP/IP スタックを表す
+// Stack represents the TCP/IP stack
 type Stack struct {
 	sock   *rawsock.Socket
 	iface  string
@@ -1053,22 +1208,21 @@ type Stack struct {
 	srcIP  net.IP
 }
 
-// NewStack は新しいスタックを作成
+// NewStack creates a new TCP/IP stack
 func NewStack(iface string, srcIP net.IP) (*Stack, error) {
-	// Raw Socket を開く
 	sock, err := rawsock.Open(iface)
 	if err != nil {
 		return nil, fmt.Errorf("open raw socket: %w", err)
 	}
 
-	// インターフェース情報を取得
+	// Get the interface MAC. The IP address is deliberately supplied by the
+	// caller, so the Linux kernel does not also own and answer for it.
 	ifaceObj, err := net.InterfaceByName(iface)
 	if err != nil {
 		sock.Close()
 		return nil, fmt.Errorf("get interface: %w", err)
 	}
 
-	// IP はカーネルに設定せず、自作スタックの応答アドレスとして渡す。
 	if srcIP = srcIP.To4(); srcIP == nil {
 		sock.Close()
 		return nil, fmt.Errorf("source IP must be IPv4")
@@ -1082,24 +1236,33 @@ func NewStack(iface string, srcIP net.IP) (*Stack, error) {
 	}, nil
 }
 
-// Run はパケット処理ループを開始
+// Run starts the packet processing loop
 func (s *Stack) Run(ctx context.Context) error {
 	buf := make([]byte, 65536)
 	log.Printf("Listening on %s (%s, MAC: %s)", s.iface, s.srcIP, s.srcMAC)
+	var closeOnce sync.Once
+	go func() {
+		<-ctx.Done()
+		closeOnce.Do(func() {
+			_ = s.sock.Close()
+		})
+	}()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
-			// パケット受信
 			n, err := s.sock.Recv(buf)
 			if err != nil {
-				log.Printf("recv error: %v", err)
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+				}
 				continue
 			}
 
-			// バイト列をコピー（次の受信で上書きされるため）
 			packetData := make([]byte, n)
 			copy(packetData, buf[:n])
 
@@ -1110,95 +1273,95 @@ func (s *Stack) Run(ctx context.Context) error {
 	}
 }
 
-// handlePacket は受信パケットを処理
+// handlePacket processes a single packet
 func (s *Stack) handlePacket(data []byte) error {
-	// L2: Ethernet フレーム解析
+	// Parse Ethernet frame
 	frame, err := ethernet.Parse(data)
 	if err != nil {
 		return err
 	}
 
-	// 自分宛でないパケットは無視
+	// Filter: Only process packets for our MAC or broadcast/multicast
 	if !s.shouldProcessFrame(frame) {
 		return nil
 	}
 
-	// IPv4 以外は無視
+	// Handle IPv4
 	if frame.EtherType != ethernet.TypeIPv4 {
 		return nil
 	}
 
-	// L3: IPv4 パケット解析
 	pkt, err := ipv4.Parse(frame.Payload)
 	if err != nil {
 		return err
 	}
+	// Reassembly is outside this workshop's scope. Do not treat a fragment as
+	// a complete ICMP message or UDP datagram.
+	if pkt.IsFragmented() {
+		return fmt.Errorf("fragmented IPv4 packets are unsupported")
+	}
 
-// L4: プロトコル別に処理を分岐
 	switch pkt.Protocol {
 	case ipv4.ProtocolICMP:
 		return s.handleICMP(pkt, frame.SrcMAC)
 	case ipv4.ProtocolUDP:
 		return s.handleUDP(pkt, frame.SrcMAC)
 	default:
-		return nil // TCP等は今回は無視
+		return nil
 	}
 }
 
-// handleICMP は ICMP メッセージを処理（Ping への応答）
 func (s *Stack) handleICMP(pkt *ipv4.Packet, dstMAC net.HardwareAddr) error {
 	msg, err := icmp.Parse(pkt.Payload)
 	if err != nil {
 		return err
 	}
-
-	// Ping (Echo Request) に応答
 	if msg.IsEchoRequest() && pkt.DstIP.Equal(s.srcIP) {
 		log.Printf("Ping from %s: ID=%d Seq=%d", pkt.SrcIP, msg.ID, msg.Seq)
 		return s.sendEchoReply(pkt, msg, dstMAC)
 	}
-
 	return nil
 }
 
-// handleUDP は UDP データグラムを処理（UDP Echo への応答）
 func (s *Stack) handleUDP(pkt *ipv4.Packet, dstMAC net.HardwareAddr) error {
 	msg, err := udp.Parse(pkt.Payload)
 	if err != nil {
 		return err
 	}
-
-	// UDP Echo (RFC 862, ポート7) への応答
-	// 宛先が自分のIPであり、Echo サービスポート宛である場合のみ応答
+	if err := udp.VerifyChecksum(pkt.Payload, pkt.SrcIP, pkt.DstIP); err != nil {
+		return err
+	}
 	if pkt.DstIP.Equal(s.srcIP) && msg.DstPort == udp.EchoPort {
 		log.Printf("UDP Echo from %s:%d (len=%d)", pkt.SrcIP, msg.SrcPort, len(msg.Data))
 		return s.sendUDPReply(pkt, msg, dstMAC)
 	}
-
 	return nil
 }
 
-// shouldProcessFrame はフレームを処理すべきか判定
+// shouldProcessFrame checks if we should process this frame
 func (s *Stack) shouldProcessFrame(frame *ethernet.Frame) bool {
-	if frame.DstMAC.String() == s.srcMAC.String() {
-		return true // ユニキャスト
+	// Process if addressed to us
+	if bytes.Equal(frame.DstMAC, s.srcMAC) {
+		return true
 	}
+	// Process if broadcast
 	if ethernet.IsBroadcast(frame.DstMAC) {
-		return true // ブロードキャスト
+		return true
 	}
+	// Process if multicast
 	if ethernet.IsMulticast(frame.DstMAC) {
-		return true // マルチキャスト
+		return true
 	}
 	return false
 }
 
-// sendEchoReply は ICMP Echo Reply を送信
+// sendEchoReply sends an ICMP Echo Reply
 func (s *Stack) sendEchoReply(reqPkt *ipv4.Packet, reqMsg *icmp.Message, dstMAC net.HardwareAddr) error {
-	// L4: ICMP Echo Reply を作成
+	// Build ICMP Echo Reply
 	reply := icmp.NewEchoReply(reqMsg.ID, reqMsg.Seq, reqMsg.Data)
 	icmpData := reply.Marshal()
 
-	// L3: IPv4 パケットを作成
+	// Build IP packet
 	ipPkt := &ipv4.Packet{
 		Version:  4,
 		IHL:      20,
@@ -1209,66 +1372,42 @@ func (s *Stack) sendEchoReply(reqPkt *ipv4.Packet, reqMsg *icmp.Message, dstMAC 
 		DstIP:    reqPkt.SrcIP,
 		Payload:  icmpData,
 	}
+
 	ipData := ipPkt.Marshal()
 
-	// L2: Ethernet フレームを作成
+	// Build Ethernet frame
 	frame := &ethernet.Frame{
 		DstMAC:    dstMAC,
 		SrcMAC:    s.srcMAC,
 		EtherType: ethernet.TypeIPv4,
 		Payload:   ipData,
 	}
+
 	frameData := frame.Marshal()
 
-	// 送信
+	// Send
 	_, err := s.sock.Send(frameData)
 	return err
 }
 
-// sendUDPReply は UDP Echo Reply を送信（ICMP と並行な構造）
-// 受信したデータグラムの送信元/宛先を反転し、データをそのまま返す
 func (s *Stack) sendUDPReply(reqPkt *ipv4.Packet, reqMsg *udp.Message, dstMAC net.HardwareAddr) error {
-	// L4: UDP Echo Reply を作成（ポートを反転、データはそのまま）
-	reply := &udp.Message{
-		SrcPort: reqMsg.DstPort, // 受信時の宛先ポート = 応答の送信元
-		DstPort: reqMsg.SrcPort, // 受信時の送信元 = 応答の宛先
-		Data:    reqMsg.Data,
-	}
-
-	// UDP データグラムをバイト列に変換（チェックサムにはIP疑似ヘッダが必要）
+	reply := &udp.Message{SrcPort: reqMsg.DstPort, DstPort: reqMsg.SrcPort, Data: reqMsg.Data}
 	udpData, err := reply.Marshal(s.srcIP, reqPkt.SrcIP)
 	if err != nil {
-		return fmt.Errorf("marshal udp: %w", err)
+		return fmt.Errorf("marshal UDP: %w", err)
 	}
 
-	// L3: IPv4 パケットを作成
 	ipPkt := &ipv4.Packet{
-		Version:  4,
-		IHL:      20,
-		TOS:      0,
-		TTL:      64,
-		Protocol: ipv4.ProtocolUDP,
-		SrcIP:    s.srcIP,
-		DstIP:    reqPkt.SrcIP,
-		Payload:  udpData,
+		TTL: 64, Protocol: ipv4.ProtocolUDP, SrcIP: s.srcIP, DstIP: reqPkt.SrcIP, Payload: udpData,
 	}
-	ipData := ipPkt.Marshal()
-
-	// L2: Ethernet フレームを作成
 	frame := &ethernet.Frame{
-		DstMAC:    dstMAC,
-		SrcMAC:    s.srcMAC,
-		EtherType: ethernet.TypeIPv4,
-		Payload:   ipData,
+		DstMAC: dstMAC, SrcMAC: s.srcMAC, EtherType: ethernet.TypeIPv4, Payload: ipPkt.Marshal(),
 	}
-	frameData := frame.Marshal()
-
-	// 送信
-	_, err = s.sock.Send(frameData)
+	_, err = s.sock.Send(frame.Marshal())
 	return err
 }
 
-// Close はスタックを閉じる
+// Close closes the stack
 func (s *Stack) Close() error {
 	return s.sock.Close()
 }
@@ -1316,13 +1455,13 @@ UDP を自作スタックに載せることで、**「コネクション」を�
 
 #### UDP と TCP/ICMP の違い
 
-| 観点         | ICMP       | UDP                      | TCP                           |
-| :----------- | :--------- | :----------------------- | :---------------------------- |
-| 接続         | なし       | なし（コネクションレス） | あり（3ウェイハンドシェイク） |
-| ポート       | なし       | あり（16bit）            | あり（16bit）                 |
-| 信頼性       | なし       | なし（届かなくてもOK）   | あり（再送・順序制御）        |
-| チェックサム | ヘッダのみ | **疑似ヘッダ + 全体**    | 疑似ヘッダ + 全体             |
-| 用途例       | Ping       | DNS, DHCP, メトリック    | HTTP, SSH, TLS                |
+| 観点         | ICMP                | UDP                      | TCP                           |
+| :----------- | :------------------ | :----------------------- | :---------------------------- |
+| 接続         | なし                | なし（コネクションレス） | あり（3ウェイハンドシェイク） |
+| ポート       | なし                | あり（16bit）            | あり（16bit）                 |
+| 信頼性       | なし                | なし（届かなくてもOK）   | あり（再送・順序制御）        |
+| チェックサム | ICMP メッセージ全体 | **疑似ヘッダ + 全体**    | 疑似ヘッダ + 全体             |
+| 用途例       | Ping                | DNS, DHCP, メトリック    | HTTP, SSH, TLS                |
 
 UDP のチェックサムが **「疑似ヘッダ (Pseudo Header)」** を使う点が重要です。送信元・宛先 IP、プロトコル番号、UDP 長も検査対象に含めるため、誤った宛先に配送されたデータグラムを検出できます。攻撃者によるなりすましを防ぐ機構ではありません。
 
@@ -1344,97 +1483,7 @@ UDP のチェックサムが **「疑似ヘッダ (Pseudo Header)」** を使う
 
 #### 実装: UDP Message (`pkg/udp/message.go`)
 
-```go
-package udp
-
-import (
-	"encoding/binary"
-	"fmt"
-	"net"
-
-	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
-)
-
-const (
-	// UDP ヘッダサイズ（固定）
-	HeaderSize = 8
-
-	// EchoPort は UDP Echo サービス (RFC 862) のポート番号
-	EchoPort = 7
-)
-
-// Message は UDP データグラムを表す
-type Message struct {
-	SrcPort  uint16
-	DstPort  uint16
-	Length   uint16 // ヘッダ + データ長
-	Checksum uint16
-	Data     []byte
-}
-
-// Parse はバイト列から UDP データグラムを解析
-func Parse(data []byte) (*Message, error) {
-	if len(data) < HeaderSize {
-		return nil, fmt.Errorf("datagram too short: %d < %d", len(data), HeaderSize)
-	}
-
-	msg := &Message{
-		SrcPort:  binary.BigEndian.Uint16(data[0:2]),
-		DstPort:  binary.BigEndian.Uint16(data[2:4]),
-		Length:   binary.BigEndian.Uint16(data[4:6]),
-		Checksum: binary.BigEndian.Uint16(data[6:8]),
-	}
-
-	// ペイロードは宣言された長さから導出
-// Length はヘッダを含み、IPv4 では必ず 8 以上
-	payloadLen := int(msg.Length) - HeaderSize
-	if payloadLen < 0 || HeaderSize+payloadLen != len(data) {
-		return nil, fmt.Errorf("invalid length field: declared=%d actual=%d", msg.Length, len(data))
-	}
-	msg.Data = data[HeaderSize : HeaderSize+payloadLen]
-
-	return msg, nil
-}
-
-// Marshal はデータグラムをバイト列に変換する。
-// チェックサムには IPv4 の「疑似ヘッダ」が必要なため、送信元/宛先IPを受け取る。
-func (m *Message) Marshal(srcIP, dstIP net.IP) ([]byte, error) {
-	length := uint16(HeaderSize + len(m.Data))
-	buf := make([]byte, length)
-
-	binary.BigEndian.PutUint16(buf[0:2], m.SrcPort)
-	binary.BigEndian.PutUint16(buf[2:4], m.DstPort)
-	binary.BigEndian.PutUint16(buf[4:6], length)
-	// Checksum は後で計算
-
-	if len(m.Data) > 0 {
-		copy(buf[HeaderSize:], m.Data)
-	}
-
-	// チェックサム計算: 疑似ヘッダ + UDPデータグラム
-	// IPv4 では UDP チェックサムは必須ではないが、現代では実質必須
-	// （0 の場合は「計算しない」を意味するが、Linux等は常に計算する）
-	pkt := &ipv4.Packet{
-		SrcIP:   srcIP,
-		DstIP:   dstIP,
-		Protocol: ipv4.ProtocolUDP,
-		Payload: buf,
-	}
-	// PseudoHeader() が [SrcIP(4)][DstIP(4)][0][Proto(1)][Length(2)] = 12 バイトを返す
-	// これを UDP データグラムの先頭に付けてチェックサムを計算
-	pseudo := pkt.PseudoHeader()
-	// 注意: PseudoHeader は payload 長を使うので、buf の Length を参照させる
-	// ここでは buf が既に完全な UDP データグラムなので、payload として扱う
-	checksum := ipv4.Checksum(append(pseudo, buf...))
-	// チェックサム計算結果が 0x0000 の場合は 0xFFFF で送信（0 = 計算しない、と区別）
-	if checksum == 0 {
-		checksum = 0xFFFF
-	}
-	binary.BigEndian.PutUint16(buf[6:8], checksum)
-
-	return buf, nil
-}
-```
+[実行可能な UDP 実装](assets/tcpip_stack/pkg/udp/message.go)と[テスト](assets/tcpip_stack/pkg/udp/message_test.go)を読みます。`Parse`、`VerifyChecksum`、`Marshal` が長さの検証、チェックサム照合、応答の生成を分担します。教材内に実装の別コピーを持たず、このソースを直接使用してください。
 
 #### 学習ポイント
 
@@ -1470,7 +1519,7 @@ UDP には ICMP と同様、**「接続確立」がありません。**
 
 UDP をあえて選ぶのは「少しの損よりも速さが大事」な場面です:
 
-- **DNS**: 1 回の問い合わせに接続確立のコスト（RTT×1.5）を払いたくない
+- **DNS**: 1 回の問い合わせにトランスポート接続確立のコストを払いたくない
 - **DHCP**: 接続確立前（IP アドレスを持たない状態）で通信する必要がある
 - **メトリック/ログ収集**: 1 パケット失っても次が来ればよい
 - **VoIP/動画ストリーミング**: 再送よりリアルタイム性
@@ -1482,7 +1531,7 @@ UDP をあえて選ぶのは「少しの損よりも速さが大事」な場面�
 本教材で UDP を実装すると、TCP の「重さ」が際立ちます:
 
 - TCP はシーケンス番号管理・ACK・再送タイマー・輻輳制御・スライディングウィンドウ・接続状態機械（11 状態）を全て実装する必要がある
-- UDP は「ポート番号 + チェックサム」だけ。本ステップのコード量（約 90 行）と、TCP 実装に必要な数千行を比べてみてください
+- UDP は「ポート番号 + チェックサム」だけ。TCP で必要になる接続状態、再送、フロー制御、輻輳制御との違いを確認してください
 
 この対比こそが「なぜ DNS は UDP なのか」「なぜ HTTP/3 は UDP 上に作られたのか」を理解する鍵になります（[深掘りポイント](#-深掘りポイント)参照）。
 
@@ -1741,7 +1790,7 @@ sudo ip netns delete workshop
 - root 権限で実行しているか確認
 
   ```bash
-  sudo ./tcpip_stack -iface veth-host
+  sudo ./tcpip_stack -iface veth-host -ip 192.168.100.1
   ```
 
 - `CAP_NET_RAW` ケーパビリティがないか確認
@@ -1803,7 +1852,7 @@ sudo ip netns delete workshop
 
 ### macOS の場合
 
-**この実習は macOS では動作しません。**
+**Raw Socket を使うアプリケーションの実行には Linux が必要です。** 純粋なパケット解析のテストは macOS でも実行できます。
 
 理由:
 
@@ -1818,7 +1867,7 @@ sudo ip netns delete workshop
 
 ### Windows の場合
 
-**この実習は Windows では動作しません。**
+**Raw Socket を使うアプリケーションの実行には Linux が必要です。** 純粋な Go のパケット解析テストには Raw Socket は不要です。
 
 理由:
 

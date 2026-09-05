@@ -60,6 +60,41 @@ Kubernetes Pods are created and deleted dynamically, and their IP addresses chan
 
 The Router container takes on the roles of "LB + Node + kube-proxy" all in one.
 
+### Packet Flow and Component Mapping
+
+The workshop's `iptables` configuration reproduces the following Kubernetes component roles.
+
+```mermaid
+graph LR
+    subgraph Public_Net [VLAN 10: Public Network]
+        Client[Client Container A<br>192.168.10.10]
+    end
+
+    subgraph Router [Router Container (Simulating K8s Node)]
+        direction TB
+        VIP[VIP: 192.168.10.100<br>(MetalLB Speaker)]
+
+        subgraph KubeProxy [kube-proxy Role]
+            DNAT(DNAT: Dest -> Pod IP<br>Service LoadBalancer)
+            SNAT(SNAT: Src -> Router IP<br>Masquerade)
+        end
+    end
+
+    subgraph Pod_Net [VLAN 20: Pod Network]
+        Pod[Pod Container B<br>192.168.20.20]
+    end
+
+    Client -- "1. Access VIP" --> VIP
+    VIP -- "2. Forward" --> DNAT
+    DNAT -- "3. Route to Pod" --> Pod
+    Pod -. "4. Reply" .-> SNAT
+    SNAT -. "5. Restore Src" .-> Client
+```
+
+- **VIP (MetalLB)**: Accept traffic for `192.168.10.100` through ARP advertisement.
+- **DNAT (kube-proxy)**: Rewrite the destination from the VIP to the Pod IP (`192.168.20.20`).
+- **SNAT (kube-proxy)**: Rewrite the source to the router address (`192.168.20.1`) so replies return through the router.
+
 ### Layer Structure and Directory
 
 (Since this workshop primarily involves `iptables` commands, there is no specific directory structure, but it inherits the configuration from the VLAN workshop.)

@@ -1,5 +1,3 @@
-//go:build linux
-
 // Package udp parses, validates, and marshals IPv4 UDP datagrams.
 package udp
 

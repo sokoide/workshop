@@ -55,6 +55,8 @@ func (c *memoryCache) Set(key string, value record) {
 }
 
 type writeThroughCache struct {
+	// Serialize the complete store/cache operation, including read-through fills.
+	mu    sync.Mutex
 	store *memoryStore
 	cache *memoryCache
 }
@@ -64,6 +66,8 @@ func newWriteThroughCache(store *memoryStore, cache *memoryCache) *writeThroughC
 }
 
 func (w *writeThroughCache) Put(key string, value record) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if err := w.store.Put(key, value); err != nil {
 		return err
 	}
@@ -72,6 +76,8 @@ func (w *writeThroughCache) Put(key string, value record) error {
 }
 
 func (w *writeThroughCache) Get(key string) (record, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if value, ok := w.cache.Get(key); ok {
 		return value, true
 	}

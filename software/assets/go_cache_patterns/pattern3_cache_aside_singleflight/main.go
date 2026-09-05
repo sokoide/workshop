@@ -15,7 +15,7 @@ type cacheItem struct {
 }
 
 type inMemoryCache struct {
-	mu    sync.RWMutex
+	mu    sync.Mutex
 	items map[string]cacheItem
 }
 
@@ -24,16 +24,14 @@ func newInMemoryCache() *inMemoryCache {
 }
 
 func (c *inMemoryCache) Get(key string) (string, bool) {
-	c.mu.RLock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	item, ok := c.items[key]
-	c.mu.RUnlock()
 	if !ok {
 		return "", false
 	}
-	if time.Now().After(item.expiresAt) {
-		c.mu.Lock()
+	if !time.Now().Before(item.expiresAt) {
 		delete(c.items, key)
-		c.mu.Unlock()
 		return "", false
 	}
 	return item.value, true
@@ -81,12 +79,15 @@ func NewCacheAside(cache *inMemoryCache, store *slowStore, ttl time.Duration) *C
 }
 
 func (c *CacheAside) Get(ctx context.Context, key string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	if value, ok := c.cache.Get(key); ok {
 		return value, nil
 	}
 
 	// singleflight collapses concurrent cache misses into one store fetch.
-	value, err, _ := c.group.Do(key, func() (interface{}, error) {
+	result := c.group.DoChan(key, func() (interface{}, error) {
 		if value, ok := c.cache.Get(key); ok {
 			return value, nil
 		}
@@ -97,10 +98,15 @@ func (c *CacheAside) Get(ctx context.Context, key string) (string, error) {
 		c.cache.Set(key, fresh, c.cacheT)
 		return fresh, nil
 	})
-	if err != nil {
-		return "", err
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case r := <-result:
+		if r.Err != nil {
+			return "", r.Err
+		}
+		return r.Val.(string), nil
 	}
-	return value.(string), nil
 }
 
 func main() {

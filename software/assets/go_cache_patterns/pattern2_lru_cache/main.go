@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"container/list"
 	"fmt"
 	"sync"
@@ -35,7 +36,7 @@ func (c *LRUCache) Get(key string) ([]byte, bool) {
 		return nil, false
 	}
 	c.order.MoveToFront(element)
-	return element.Value.(lruEntry).value, true
+	return bytes.Clone(element.Value.(lruEntry).value), true
 }
 
 func (c *LRUCache) Put(key string, value []byte) {
@@ -43,12 +44,12 @@ func (c *LRUCache) Put(key string, value []byte) {
 	defer c.mu.Unlock()
 
 	if element, ok := c.items[key]; ok {
-		element.Value = lruEntry{key: key, value: value}
+		element.Value = lruEntry{key: key, value: bytes.Clone(value)}
 		c.order.MoveToFront(element)
 		return
 	}
 
-	element := c.order.PushFront(lruEntry{key: key, value: value})
+	element := c.order.PushFront(lruEntry{key: key, value: bytes.Clone(value)})
 	c.items[key] = element
 
 	if c.order.Len() > c.capacity {

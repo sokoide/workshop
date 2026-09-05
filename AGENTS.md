@@ -29,6 +29,7 @@ Every workshop has `_ja.md` and `_en.md` pairs. They must stay in sync structura
 
 ## Gotchas
 
-- `make format` uses `pnpm dlx` if available, otherwise `npx`. Both need network on first run.
+- `make format` uses installed binaries in `node_modules/.bin` and Python 3.9+. Run `pnpm install` or `npm install` first; formatting itself does not download tools.
+- `make test-tools` tests the maintenance scripts. `make check-headings` checks heading level order in bilingual pairs and exits nonzero on mismatches or read errors.
 - `package.json` pins `prettier@^3.8.3` — older prettier versions may behave differently.
 - Infrastructure workshops with containers (`redis-up`, `mq-up`) need Podman running.

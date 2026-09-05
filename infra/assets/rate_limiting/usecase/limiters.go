@@ -19,18 +19,20 @@ func NewFixedWindowLimiter(c *redis.Client, l int64, w time.Duration) *FixedWind
 	return &FixedWindowLimiter{client: c, limit: l, window: w}
 }
 
-func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, error) {
-	windowSec := int64(f.window.Seconds())
-	key := fmt.Sprintf("rl:fixed:%s:%d", userID, time.Now().Unix()/windowSec)
+var fixedWindowScript = redis.NewScript(`
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return count
+`)
 
-	count, err := f.client.Incr(ctx, key).Result()
-	if err != nil {
-		return false, err
+func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, error) {
+	if f.limit <= 0 || f.window < time.Millisecond {
+		return false, fmt.Errorf("positive limit and window of at least 1ms are required")
 	}
-	if count == 1 {
-		f.client.Expire(ctx, key, f.window)
-	}
-	return count <= f.limit, nil
+	windowMS := f.window.Milliseconds()
+	key := fmt.Sprintf("rl:fixed:%s:%d", userID, time.Now().UnixMilli()/windowMS)
+	count, err := fixedWindowScript.Run(ctx, f.client, []string{key}, windowMS).Int64()
+	return err == nil && count <= f.limit, err
 }
 
 type SlidingWindowLimiter struct {
@@ -43,29 +45,25 @@ func NewSlidingWindowLimiter(c *redis.Client, l int64, w time.Duration) *Sliding
 	return &SlidingWindowLimiter{client: c, limit: l, window: w}
 }
 
+var slidingWindowScript = redis.NewScript(`
+local previous = tonumber(redis.call('GET', KEYS[2]) or '0')
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1] * 2) end
+local weight = 1 - tonumber(ARGV[2]) / tonumber(ARGV[1])
+if previous * weight + current <= tonumber(ARGV[3]) then return 1 end
+return 0
+`)
+
 func (s *SlidingWindowLimiter) Allow(ctx context.Context, userID string) (bool, error) {
-	now := time.Now().Unix()
-	windowSec := int64(s.window.Seconds())
-	currWindow := now / windowSec
-	prevWindow := currWindow - 1
-
-	keyCurr := fmt.Sprintf("rl:sliding:%s:%d", userID, currWindow)
-	keyPrev := fmt.Sprintf("rl:sliding:%s:%d", userID, prevWindow)
-
-	currCount, err := s.client.Incr(ctx, keyCurr).Result()
-	if err != nil {
-		return false, err
+	if s.limit <= 0 || s.window < time.Millisecond || s.window > time.Duration(math.MaxInt64/2) {
+		return false, fmt.Errorf("positive limit and window between 1ms and half the maximum duration are required")
 	}
-	if currCount == 1 {
-		s.client.Expire(ctx, keyCurr, s.window*2)
-	}
-
-	prevCount, _ := s.client.Get(ctx, keyPrev).Int64()
-	elapsed := float64(now % windowSec)
-	weight := 1.0 - (elapsed / float64(windowSec))
-	weightedCount := float64(prevCount)*weight + float64(currCount)
-
-	return weightedCount <= float64(s.limit), nil
+	now := time.Now().UnixMilli()
+	windowMS := s.window.Milliseconds()
+	current := now / windowMS
+	keys := []string{fmt.Sprintf("rl:sliding:%s:%d", userID, current), fmt.Sprintf("rl:sliding:%s:%d", userID, current-1)}
+	allowed, err := slidingWindowScript.Run(ctx, s.client, keys, windowMS, now%windowMS, s.limit).Int64()
+	return allowed == 1 && err == nil, err
 }
 
 type TokenBucketLimiter struct {
@@ -78,27 +76,24 @@ func NewTokenBucketLimiter(c *redis.Client, cap int64, r float64) *TokenBucketLi
 	return &TokenBucketLimiter{client: c, capacity: cap, rate: r}
 }
 
+var tokenBucketScript = redis.NewScript(`
+local capacity, rate = tonumber(ARGV[1]), tonumber(ARGV[2])
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) + tonumber(clock[2]) / 1000000
+local tokens = tonumber(redis.call('HGET', KEYS[1], 'tokens') or capacity)
+local last = tonumber(redis.call('HGET', KEYS[1], 'updated') or now)
+tokens = math.min(capacity, tokens + math.max(0, now - last) * rate)
+local allowed = 0
+if tokens >= 1 then tokens = tokens - 1; allowed = 1 end
+redis.call('HSET', KEYS[1], 'tokens', tokens, 'updated', now)
+redis.call('PEXPIRE', KEYS[1], math.ceil(capacity / rate * 1000))
+return allowed
+`)
+
 func (t *TokenBucketLimiter) Allow(ctx context.Context, userID string) (bool, error) {
-	keyTokens := fmt.Sprintf("rl:tb:tokens:%s", userID)
-	keyTs := fmt.Sprintf("rl:tb:ts:%s", userID)
-
-	now := time.Now().UnixNano()
-	val, _ := t.client.Get(ctx, keyTokens).Float64()
-	lastTs, _ := t.client.Get(ctx, keyTs).Int64()
-
-	if lastTs == 0 {
-		val = float64(t.capacity)
-	} else {
-		elapsed := float64(now-lastTs) / float64(time.Second)
-		val = math.Min(float64(t.capacity), val+(elapsed*t.rate))
+	if t.capacity <= 0 || t.rate <= 0 || math.IsNaN(t.rate) || math.IsInf(t.rate, 0) || float64(t.capacity)/t.rate*1000 >= float64(math.MaxInt64) {
+		return false, fmt.Errorf("positive capacity and finite positive refill rate with representable expiry are required")
 	}
-
-	if val >= 1.0 {
-		pipe := t.client.Pipeline()
-		pipe.Set(ctx, keyTokens, val-1.0, 0)
-		pipe.Set(ctx, keyTs, now, 0)
-		_, err := pipe.Exec(ctx)
-		return err == nil, err
-	}
-	return false, nil
+	allowed, err := tokenBucketScript.Run(ctx, t.client, []string{"rl:tb:" + userID}, t.capacity, t.rate).Int64()
+	return allowed == 1 && err == nil, err
 }

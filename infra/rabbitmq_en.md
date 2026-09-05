@@ -110,6 +110,11 @@ go run cmd/ticker/main.go
 
 _Note: It will keep publishing messages with keys like `market.btc.usd`._
 
+### ✅ Verification Checkpoints
+
+- [ ] The ticker terminal shows published messages and routing keys.
+- [ ] The management UI's Exchanges tab shows activity for `crypto_market`.
+
 ### STEP 2: Log All Transactions (Topic: `market.#`)
 
 Use the `#` wildcard to subscribe to all currency pairs.
@@ -124,6 +129,14 @@ Start consumers matching specific conditions in separate terminals.
 
 - **JPY-pair only**: `go run cmd/japandesk/main.go` (Key: `market.*.jpy`)
 - **Large BTC trades**: `go run cmd/alert/main.go` (Key: `market.btc.#`)
+
+---
+
+### ✅ Verification Checkpoints
+
+- [ ] `logger` receives all currency pairs.
+- [ ] `japandesk` receives only routing keys ending in `.jpy`.
+- [ ] `alert` receives only routing keys beginning with `market.btc`.
 
 ---
 
@@ -153,3 +166,51 @@ make mq-down
 
 - [RabbitMQ Tutorial - Topic Exchange (Go)](https://www.rabbitmq.com/tutorials/tutorial-five-go.html)
 - [AMQP 0-9-1 Model Explained](https://www.rabbitmq.com/tutorials/amqp-concepts.html)
+
+---
+
+## Troubleshooting
+
+### Consumers Receive No Messages
+
+Ensure the ticker is running in another terminal:
+
+```bash
+go run cmd/ticker/main.go
+```
+
+Open <http://localhost:15672> with `guest/guest`. In Exchanges, verify that `crypto_market` exists. In Queues, inspect the consumer queues and their bindings.
+
+### Connection Errors
+
+For `dial tcp: connection refused`, check that the container is running and ports 5672 (AMQP) and 15672 (management) are published.
+
+```bash
+podman ps --filter name=workshop-mq
+podman port workshop-mq
+```
+
+### Cannot Open the Management UI
+
+Check that the management plugin is enabled and that your firewall allows port 15672.
+
+```bash
+podman logs workshop-mq
+```
+
+## Environment Notes
+
+### For macOS Users
+
+RabbitMQ can also be installed locally with Homebrew.
+
+```bash
+brew install rabbitmq
+brew services start rabbitmq
+```
+
+For this local setup, use <http://localhost:15672> and the default `guest/guest` credentials.
+
+### For Windows Users
+
+Use Podman in Ubuntu on WSL2, or replace `podman` with `docker` for Docker Desktop. Windows Firewall may need to allow ports 5672 and 15672.

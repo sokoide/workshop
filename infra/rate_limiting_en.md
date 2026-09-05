@@ -218,14 +218,7 @@ go run main.go -algorithm fixed-window -user user1 -limit 5 -window 10s
 
 **Implementation Highlights:**
 
-```go
-// Redis key example: rate_limit:{userID}:{window_start}
-// Dividing Unix time by windowSeconds ensures the same key is used within the same window
-// Example: window=10s, both 10:00:05 and 10:00:08 result in the same key "rate_limit:user1:123456789"
-key := fmt.Sprintf("rate_limit:%s:%d", userID, time.Now().Unix()/windowSeconds)
-count, _ := redis.Incr(ctx, key).Result()
-redis.Expire(ctx, key, windowDuration)
-```
+Read the corresponding algorithm in [limiters.go](assets/rate_limiting/usecase/limiters.go), including its Lua script and error handling.
 
 ### ✅ Checkpoint
 
@@ -234,7 +227,7 @@ redis.Expire(ctx, key, windowDuration)
 
 ### STEP 2: Implement Sliding Window
 
-Accurately count requests in the last N seconds.
+Approximate the count over the last N seconds using a weighted counter for the current and previous windows.
 
 ```bash
 # Max 5 requests in the last 10 seconds
@@ -243,17 +236,7 @@ go run main.go -algorithm sliding-window -user user2 -limit 5 -window 10s
 
 **Implementation Highlights:**
 
-```go
-// Calculate weight of the previous window
-now := time.Now().Unix()
-oldWindowStart := now - windowSeconds
-oldWindowCount := redis.Get(ctx, key(oldWindowStart))
-
-// Calculate current count using linear interpolation
-elapsed := now % windowSeconds
-weightedOldCount := float64(oldWindowCount) * (1 - float64(elapsed)/float64(windowSeconds))
-currentCount := weightedOldCount + currentWindowCount
-```
+Read the corresponding algorithm in [limiters.go](assets/rate_limiting/usecase/limiters.go), including its Lua script and error handling.
 
 ### ✅ Checkpoint
 
@@ -271,19 +254,7 @@ go run main.go -algorithm token-bucket -user user3 -capacity 10 -rate 1
 
 **Implementation Highlights:**
 
-```go
-// Calculate tokens from the last refill time
-lastRefill := redis.Get(ctx, "last_refill:"+userID)
-elapsed := now - lastRefill
-tokensToAdd := elapsed * refillRate
-currentTokens := min(capacity, previousTokens + tokensToAdd)
-
-if currentTokens >= requestedTokens {
-    // Consume tokens
-    redis.Set(ctx, "tokens:"+userID, currentTokens - requestedTokens)
-    return true
-}
-```
+Read the corresponding algorithm in [limiters.go](assets/rate_limiting/usecase/limiters.go), including its Lua script and error handling.
 
 ### ✅ Checkpoint
 
@@ -407,3 +378,5 @@ brew services start redis
 ### Windows
 
 Recommended to run on Ubuntu via WSL2.
+
+The [executable limiters](assets/rate_limiting/usecase/limiters.go) use Lua to make each decision and state update atomic on a single Redis server. Counter increments include expiry; token refill and consumption use the Redis server clock in one script. Invalid parameters and Redis failures return errors. Windows must be at least 1ms, and limits, bucket capacity, and refill rate must be positive. The sliding counter includes denied attempts and approximates a sliding log. Its two-key script assumes a standalone Redis server, not Redis Cluster.

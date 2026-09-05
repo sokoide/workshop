@@ -218,14 +218,7 @@ go run main.go -algorithm fixed-window -user user1 -limit 5 -window 10s
 
 **実装のポイント:**
 
-```go
-// Redis キーの例: rate_limit:{userID}:{window_start}
-// Unix時間をwindowSecondsで割ることで、同じ時間枠内では同じキーになる
-// 例: window=10s の場合、10:00:05 と 10:00:08 は同じキー "rate_limit:user1:123456789"
-key := fmt.Sprintf("rate_limit:%s:%d", userID, time.Now().Unix()/windowSeconds)
-count, _ := redis.Incr(ctx, key).Result()
-redis.Expire(ctx, key, windowDuration)
-```
+[limiters.go](assets/rate_limiting/usecase/limiters.go) の対応するアルゴリズムを、Lua スクリプトとエラー処理も含めて確認してください。
 
 ### ✅ チェックポイント
 
@@ -234,7 +227,7 @@ redis.Expire(ctx, key, windowDuration)
 
 ### STEP 2: スライディング窓の実装
 
-直近 N 秒間のリクエスト数を正確にカウントします。
+現在と直前の窓のカウンターを重み付けし、直近 N 秒間のリクエスト数を近似します。
 
 ```bash
 # 直近10秒間に最大5リクエスト
@@ -243,17 +236,7 @@ go run main.go -algorithm sliding-window -user user2 -limit 5 -window 10s
 
 **実装のポイント:**
 
-```go
-// 直前の窓の重みを計算
-now := time.Now().Unix()
-oldWindowStart := now - windowSeconds
-oldWindowCount := redis.Get(ctx, key(oldWindowStart))
-
-// 線形補間で現在のカウントを計算
-elapsed := now % windowSeconds
-weightedOldCount := float64(oldWindowCount) * (1 - float64(elapsed)/float64(windowSeconds))
-currentCount := weightedOldCount + currentWindowCount
-```
+[limiters.go](assets/rate_limiting/usecase/limiters.go) の対応するアルゴリズムを、Lua スクリプトとエラー処理も含めて確認してください。
 
 ### ✅ チェックポイント
 
@@ -271,19 +254,7 @@ go run main.go -algorithm token-bucket -user user3 -capacity 10 -rate 1
 
 **実装のポイント:**
 
-```go
-// 最終補充時刻からトークンを計算
-lastRefill := redis.Get(ctx, "last_refill:"+userID)
-elapsed := now - lastRefill
-tokensToAdd := elapsed * refillRate
-currentTokens := min(capacity, previousTokens + tokensToAdd)
-
-if currentTokens >= requestedTokens {
-    // トークンを消費
-    redis.Set(ctx, "tokens:"+userID, currentTokens - requestedTokens)
-    return true
-}
-```
+[limiters.go](assets/rate_limiting/usecase/limiters.go) の対応するアルゴリズムを、Lua スクリプトとエラー処理も含めて確認してください。
 
 ### ✅ チェックポイント
 
@@ -407,3 +378,5 @@ brew services start redis
 ### Windows の場合
 
 WSL2 上の Ubuntu で Podman を使用することを推奨します。
+
+[実行可能なリミッター](assets/rate_limiting/usecase/limiters.go)は Lua を使い、判定と状態更新を単一 Redis サーバー内で原子的に行います。カウンター加算と有効期限設定をまとめ、トークンの補充と消費には Redis サーバーの時刻を使います。不正な設定値や Redis 障害はエラーとして返します。窓は 1ms 以上、上限・バケット容量・補充レートは正数が必要です。スライディングカウンターは拒否した試行も数え、スライディングログを近似します。2 キーを扱うこのスクリプトは Redis Cluster ではなく単体 Redis を前提とします。

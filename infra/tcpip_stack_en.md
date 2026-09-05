@@ -95,6 +95,52 @@ sudo ip netns exec workshop ip neigh replace 192.168.100.1 lladdr "$STACK_MAC" n
 
 ## 🚀 Implementation Steps
 
+### STEP 0: Observe Communication — What the Kernel Hides
+
+#### Goal
+
+Before implementing packets, compare an application's HTTP exchange with the packets sent by the kernel.
+
+#### 1. Communication from the Application's View (curl -v)
+
+Start a local server in another terminal, then make a request.
+
+```bash
+python3 -m http.server 8000
+# In the client terminal:
+curl -v http://localhost:8000/
+```
+
+The output shows connection status, request and response headers, and the response body. It does not show individual TCP segments or their headers.
+
+#### 2. What the Kernel Actually Sends (tcpdump)
+
+Capture the same request on Linux loopback.
+
+```bash
+sudo tcpdump -i lo -nn -vv 'tcp port 8000'
+# In the client terminal:
+curl -s http://localhost:8000/ > /dev/null
+```
+
+Look for `[S]`, `[S.]`, and `[.]`: SYN, SYN-ACK, and ACK establish the TCP connection. Data, acknowledgements, and connection teardown follow. The loopback capture shows IP/TCP traffic; Ethernet framing is examined later on the veth interfaces.
+
+#### Key Learning Points
+
+- The socket API hides packet exchange from the application.
+- TCP maintains sequence numbers, acknowledgements, retransmission, and connection state. Implementing all of TCP is beyond this workshop.
+- Building ICMP Echo and UDP demonstrates packet structure and encapsulation with fewer protocol states.
+
+#### ✅ Verification Checkpoints
+
+- [ ] Find the `Connected` line in `curl -v` output.
+- [ ] Identify the three-way handshake in `tcpdump`.
+- [ ] Confirm that one HTTP request involves multiple packets.
+
+Stop the HTTP server with Ctrl-C in its terminal.
+
+---
+
 ### STEP 1: Packet Socket (L2) - Observe and Send Ethernet Frames
 
 #### Goal
@@ -449,6 +495,13 @@ setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
 
 ---
 
+### ✅ Verification Checkpoints
+
+- [ ] `pkg/rawsock/rawsock.c` calls `socket(AF_PACKET, SOCK_RAW, ...)`.
+- [ ] Opening a raw socket fails without root or the required capability.
+
+---
+
 ### STEP 2: Ethernet Frame (L2) - MAC Address-Based Communication
 
 #### Goal
@@ -616,37 +669,38 @@ import (
 )
 
 const (
-	// Minimum header size (no options)
+	// HeaderSize is the minimum IPv4 header size
 	HeaderSize = 20
 
-	// Maximum packet size
+	// MaxPacketSize is the maximum IPv4 packet size (65535)
 	MaxPacketSize = 65535
 
 	// Protocol numbers
 	ProtocolICMP = 1
 	ProtocolTCP  = 6
 	ProtocolUDP  = 17
+	ProtocolIPv6 = 41
 
 	// Flags
-	FlagDF = 0x01 // Don't Fragment
-	FlagMF = 0x02 // More Fragments
+	FlagDF = 0x02 // Don't Fragment (wire bit 14)
+	FlagMF = 0x01 // More Fragments (wire bit 13)
 )
 
 // Packet represents an IPv4 packet
 type Packet struct {
-	Version        uint8  // Always 4
-	IHL            uint8  // Internet Header Length (4-byte units)
-	TOS            uint8  // Type of Service
-	TotalLength    uint16 // Header + Payload
-	ID             uint16 // Identifier (for fragment reassembly)
+	Version        uint8
+	IHL            uint8 // Internet Header Length in 32-bit words
+	TOS            uint8 // Type of Service
+	TotalLength    uint16
+	ID             uint16
 	Flags          uint8
-	FragmentOffset uint16 // Fragment offset (8-byte units)
-	TTL            uint8  // Time to Live (hop limit)
-	Protocol       uint8  // Upper layer protocol
-	Checksum       uint16 // Header checksum
+	FragmentOffset uint16 // In 8-byte units
+	TTL            uint8  // Time to Live
+	Protocol       uint8
+	Checksum       uint16
 	SrcIP          net.IP
 	DstIP          net.IP
-	Options        []byte // IP options (usually not used)
+	Options        []byte
 	Payload        []byte
 }
 
@@ -656,28 +710,35 @@ func Parse(data []byte) (*Packet, error) {
 		return nil, fmt.Errorf("packet too short: %d < %d", len(data), HeaderSize)
 	}
 
-	// Version check
 	version := data[0] >> 4
 	if version != 4 {
 		return nil, fmt.Errorf("not IPv4: version=%d", version)
 	}
 
-	// IHL (Internet Header Length) is in 4-byte units
 	ihl := (data[0] & 0x0F) * 4
+	if ihl < HeaderSize {
+		return nil, fmt.Errorf("invalid IHL: %d < %d", ihl, HeaderSize)
+	}
 	if len(data) < int(ihl) {
 		return nil, fmt.Errorf("packet too short for IHL: %d < %d", len(data), ihl)
 	}
+	totalLen := binary.BigEndian.Uint16(data[2:4])
+	if totalLen < uint16(ihl) {
+		return nil, fmt.Errorf("invalid total length: %d < ihl=%d", totalLen, ihl)
+	}
+	if int(totalLen) > len(data) {
+		return nil, fmt.Errorf("packet too short for total length: %d < %d", len(data), totalLen)
+	}
+	if Checksum(data[:ihl]) != 0 {
+		return nil, fmt.Errorf("invalid IPv4 header checksum")
+	}
 
-	// Flags and Fragment Offset are packed into 16 bits
-	//   Flags: upper 3 bits
-	//   Fragment Offset: lower 13 bits
 	flagsFragment := binary.BigEndian.Uint16(data[6:8])
-
 	pkt := &Packet{
 		Version:        version,
 		IHL:            ihl,
 		TOS:            data[1],
-		TotalLength:    binary.BigEndian.Uint16(data[2:4]),
+		TotalLength:    totalLen,
 		ID:             binary.BigEndian.Uint16(data[4:6]),
 		Flags:          uint8((flagsFragment >> 13) & 0x07),
 		FragmentOffset: flagsFragment & 0x1FFF,
@@ -686,7 +747,7 @@ func Parse(data []byte) (*Packet, error) {
 		Checksum:       binary.BigEndian.Uint16(data[10:12]),
 		SrcIP:          net.IP(data[12:16]),
 		DstIP:          net.IP(data[16:20]),
-		Payload:        data[ihl:], // Payload starts after IHL
+		Payload:        data[ihl:totalLen],
 	}
 
 	if ihl > HeaderSize {
@@ -700,29 +761,28 @@ func Parse(data []byte) (*Packet, error) {
 func (p *Packet) Marshal() []byte {
 	ihl := HeaderSize
 	if len(p.Options) > 0 {
-		ihl = HeaderSize + len(p.Options)
+		// IHL is in 32-bit words
+		ihl = HeaderSize + (len(p.Options)+3)/4*4
 	}
 
 	payloadLen := len(p.Payload)
 	totalLen := ihl + payloadLen
 
-	buf := make([]byte, ihl)
+	buf := make([]byte, totalLen)
 
-	// Version (4 bits) + IHL (4 bits)
+	// Version and IHL
 	buf[0] = (4 << 4) | (uint8(ihl/4) & 0x0F)
 	buf[1] = p.TOS
 	binary.BigEndian.PutUint16(buf[2:4], uint16(totalLen))
 	binary.BigEndian.PutUint16(buf[4:6], p.ID)
 
-	// Flags (3 bits) + Fragment Offset (13 bits)
+	// Flags and Fragment Offset
 	flagsFragment := (uint16(p.Flags) << 13) | (p.FragmentOffset & 0x1FFF)
 	binary.BigEndian.PutUint16(buf[6:8], flagsFragment)
 
 	buf[8] = p.TTL
 	buf[9] = p.Protocol
-	// Checksum will be calculated
-
-	// IP addresses (convert to 4 bytes)
+	// Checksum at [10:12] - will be calculated
 	copy(buf[12:16], p.SrcIP.To4())
 	copy(buf[16:20], p.DstIP.To4())
 
@@ -731,18 +791,16 @@ func (p *Packet) Marshal() []byte {
 		copy(buf[20:], p.Options)
 	}
 
-	// Calculate checksum
+	// Calculate and set checksum
 	checksum := Checksum(buf[:ihl])
 	binary.BigEndian.PutUint16(buf[10:12], checksum)
 
 	// Add payload
-	result := append(buf, p.Payload...)
-
-	return result
+	copy(buf[ihl:], p.Payload)
+	return buf
 }
 
 // Checksum calculates the IPv4 header checksum
-// RFC 1071: 16-bit ones' complement sum of ones' complement
 func Checksum(data []byte) uint16 {
 	sum := uint32(0)
 
@@ -756,13 +814,35 @@ func Checksum(data []byte) uint16 {
 		sum += uint32(data[len(data)-1]) << 8
 	}
 
-	// Fold 32-bit sum to 16 bits (add carry)
+	// Fold 32-bit sum to 16 bits
 	for sum>>16 > 0 {
 		sum = (sum & 0xFFFF) + (sum >> 16)
 	}
 
-	// Return ones' complement
 	return ^uint16(sum)
+}
+
+// String returns a string representation of the packet
+func (p *Packet) String() string {
+	protoName := protocolToString(p.Protocol)
+	return fmt.Sprintf("IPv4: Src=%s Dst=%s Proto=%d(%s) TTL=%d Len=%d ID=%d",
+		p.SrcIP, p.DstIP, p.Protocol, protoName, p.TTL, p.TotalLength, p.ID)
+}
+
+// protocolToString converts protocol number to string
+func protocolToString(proto uint8) string {
+	switch proto {
+	case ProtocolICMP:
+		return "ICMP"
+	case ProtocolTCP:
+		return "TCP"
+	case ProtocolUDP:
+		return "UDP"
+	case ProtocolIPv6:
+		return "IPv6"
+	default:
+		return fmt.Sprintf("Unknown(%d)", proto)
+	}
 }
 
 // IsFragmented checks if the packet is fragmented
@@ -770,7 +850,7 @@ func (p *Packet) IsFragmented() bool {
 	return p.FragmentOffset != 0 || p.Flags&FlagMF != 0
 }
 
-// PseudoHeader generates pseudo-header for TCP/UDP checksum calculation
+// PseudoHeader computes the pseudo-header for checksum calculation
 func (p *Packet) PseudoHeader() []byte {
 	buf := make([]byte, 12)
 	copy(buf[0:4], p.SrcIP.To4())
@@ -786,7 +866,14 @@ func (p *Packet) PseudoHeader() []byte {
 
 - **IHL (Internet Header Length)**: Header length in 4-byte units (usually 5 = 20 bytes)
 - **TTL**: Loop prevention. Decremented at each router, discarded when 0
-- **Checksum**: Detects header corruption. In the current implementation, it is calculated on send; on receive, we mainly validate length/format (header checksum value verification itself is not implemented yet)
+- **Checksum**: Detects header corruption. The implementation computes it on send and validates it on receive, together with IHL and total length
+
+---
+
+### ✅ Verification Checkpoints
+
+- [ ] The checksum function handles the Internet checksum.
+- [ ] The wire IHL field represents header length in four-byte words.
 
 ---
 
@@ -823,11 +910,28 @@ import (
 )
 
 const (
-	// ICMP types
+	// Type values
 	EchoReply              = 0
 	DestinationUnreachable = 3
+	SourceQuench           = 4
+	Redirect               = 5
 	EchoRequest            = 8
 	TimeExceeded           = 11
+	ParameterProblem       = 12
+	Timestamp              = 13
+	TimestampReply         = 14
+
+	// DestinationUnreachable codes
+	NetUnreachable      = 0
+	HostUnreachable     = 1
+	ProtocolUnreachable = 2
+	PortUnreachable     = 3
+	FragmentationNeeded = 4
+	SourceRouteFailed   = 5
+
+	// TimeExceeded codes
+	TTLExceeded                    = 0
+	FragmentReassemblyTimeExceeded = 1
 )
 
 // Message represents an ICMP message
@@ -835,15 +939,21 @@ type Message struct {
 	Type     uint8
 	Code     uint8
 	Checksum uint16
-	ID       uint16 // For Echo Request/Reply
-	Seq      uint16 // For Echo Request/Reply
-	Data     []byte
+	// Type-specific fields
+	ID   uint16
+	Seq  uint16
+	Data []byte
+	// For error messages
+	OriginalPacket []byte
 }
 
 // Parse parses an ICMP message from bytes
 func Parse(data []byte) (*Message, error) {
 	if len(data) < 8 {
 		return nil, fmt.Errorf("message too short: %d < 8", len(data))
+	}
+	if ipv4.Checksum(data) != 0 {
+		return nil, fmt.Errorf("invalid ICMP checksum")
 	}
 
 	msg := &Message{
@@ -856,6 +966,9 @@ func Parse(data []byte) (*Message, error) {
 
 	if len(data) > 8 {
 		msg.Data = data[8:]
+		if msg.IsError() {
+			msg.OriginalPacket = data[8:]
+		}
 	}
 
 	return msg, nil
@@ -863,19 +976,29 @@ func Parse(data []byte) (*Message, error) {
 
 // Marshal converts the message to bytes
 func (m *Message) Marshal() []byte {
-	buf := make([]byte, 8+len(m.Data))
+	// Minimum size is 8 bytes
+	minLen := 8
+	if m.Type == DestinationUnreachable || m.Type == TimeExceeded || m.Type == ParameterProblem {
+		// Error messages have the original IP header + 8 bytes
+		minLen = 8 + len(m.OriginalPacket)
+	} else {
+		minLen = 8 + len(m.Data)
+	}
 
+	buf := make([]byte, minLen)
 	buf[0] = m.Type
 	buf[1] = m.Code
-	// Checksum will be calculated
+	// Checksum at [2:4] - will be calculated
 	binary.BigEndian.PutUint16(buf[4:6], m.ID)
 	binary.BigEndian.PutUint16(buf[6:8], m.Seq)
 
 	if len(m.Data) > 0 {
 		copy(buf[8:], m.Data)
+	} else if len(m.OriginalPacket) > 0 {
+		copy(buf[8:], m.OriginalPacket)
 	}
 
-	// Calculate checksum (same algorithm as IPv4)
+	// Calculate checksum (excluding checksum field itself)
 	checksum := ipv4.Checksum(buf)
 	binary.BigEndian.PutUint16(buf[2:4], checksum)
 
@@ -904,6 +1027,42 @@ func NewEchoReply(id, seq uint16, data []byte) *Message {
 	}
 }
 
+// NewDestinationUnreachable creates a new Destination Unreachable message
+func NewDestinationUnreachable(code uint8, originalPacket []byte) *Message {
+	// Include original IP header + first 8 bytes
+	dataLen := quotedPacketLength(originalPacket)
+
+	return &Message{
+		Type:           DestinationUnreachable,
+		Code:           code,
+		OriginalPacket: originalPacket[:dataLen],
+	}
+}
+
+// NewTimeExceeded creates a new Time Exceeded message
+func NewTimeExceeded(code uint8, originalPacket []byte) *Message {
+	dataLen := quotedPacketLength(originalPacket)
+
+	return &Message{
+		Type:           TimeExceeded,
+		Code:           code,
+		OriginalPacket: originalPacket[:dataLen],
+	}
+}
+
+// ICMP errors quote the original IPv4 header (including options) and up to
+// eight payload bytes. Keep truncated inputs bounded by the supplied buffer.
+func quotedPacketLength(packet []byte) int {
+	if len(packet) < ipv4.HeaderSize {
+		return len(packet)
+	}
+	headerLength := int(packet[0]&0x0f) * 4
+	if headerLength < ipv4.HeaderSize {
+		headerLength = ipv4.HeaderSize
+	}
+	return min(len(packet), headerLength+8)
+}
+
 // IsEchoRequest checks if this is an Echo Request
 func (m *Message) IsEchoRequest() bool {
 	return m.Type == EchoRequest
@@ -912,6 +1071,60 @@ func (m *Message) IsEchoRequest() bool {
 // IsEchoReply checks if this is an Echo Reply
 func (m *Message) IsEchoReply() bool {
 	return m.Type == EchoReply
+}
+
+// IsError checks if this is an error message
+func (m *Message) IsError() bool {
+	return m.Type == DestinationUnreachable ||
+		m.Type == TimeExceeded ||
+		m.Type == Redirect ||
+		m.Type == SourceQuench ||
+		m.Type == ParameterProblem
+}
+
+// String returns a string representation of the message
+func (m *Message) String() string {
+	typeName := typeToString(m.Type)
+	if m.IsEchoRequest() || m.IsEchoReply() {
+		return fmt.Sprintf("ICMP: Type=%d(%s) ID=%d Seq=%d DataLen=%d",
+			m.Type, typeName, m.ID, m.Seq, len(m.Data))
+	}
+	return fmt.Sprintf("ICMP: Type=%d(%s) Code=%d", m.Type, typeName, m.Code)
+}
+
+// typeToString converts ICMP type to string
+func typeToString(t uint8) string {
+	switch t {
+	case EchoReply:
+		return "Echo Reply"
+	case DestinationUnreachable:
+		return "Dest Unreachable"
+	case SourceQuench:
+		return "Source Quench"
+	case Redirect:
+		return "Redirect"
+	case EchoRequest:
+		return "Echo Request"
+	case TimeExceeded:
+		return "Time Exceeded"
+	case ParameterProblem:
+		return "Parameter Problem"
+	case Timestamp:
+		return "Timestamp"
+	case TimestampReply:
+		return "Timestamp Reply"
+	default:
+		return fmt.Sprintf("Unknown(%d)", t)
+	}
+}
+
+// ValidateChecksum validates the ICMP checksum
+func (m *Message) ValidateChecksum() bool {
+	data := m.Marshal()
+	// Marshal computes a fresh checksum; validation must use the received one.
+	binary.BigEndian.PutUint16(data[2:4], m.Checksum)
+	calculated := ipv4.Checksum(data)
+	return calculated == 0
 }
 ```
 
@@ -935,6 +1148,7 @@ Integrate all components to build a server that responds to Ping requests.
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -942,12 +1156,14 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ethernet"
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/icmp"
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/ipv4"
 	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/rawsock"
+	"github.com/sokoide/workshop/infra/assets/tcpip_stack/pkg/udp"
 )
 
 // Stack represents the TCP/IP stack
@@ -960,20 +1176,19 @@ type Stack struct {
 
 // NewStack creates a new TCP/IP stack
 func NewStack(iface string, srcIP net.IP) (*Stack, error) {
-	// Open raw socket
 	sock, err := rawsock.Open(iface)
 	if err != nil {
 		return nil, fmt.Errorf("open raw socket: %w", err)
 	}
 
-	// Get interface info
+	// Get the interface MAC. The IP address is deliberately supplied by the
+	// caller, so the Linux kernel does not also own and answer for it.
 	ifaceObj, err := net.InterfaceByName(iface)
 	if err != nil {
 		sock.Close()
 		return nil, fmt.Errorf("get interface: %w", err)
 	}
 
-	// The caller supplies the IP so Linux does not also answer for it.
 	if srcIP = srcIP.To4(); srcIP == nil {
 		sock.Close()
 		return nil, fmt.Errorf("source IP must be IPv4")
@@ -991,19 +1206,29 @@ func NewStack(iface string, srcIP net.IP) (*Stack, error) {
 func (s *Stack) Run(ctx context.Context) error {
 	buf := make([]byte, 65536)
 	log.Printf("Listening on %s (%s, MAC: %s)", s.iface, s.srcIP, s.srcMAC)
+	var closeOnce sync.Once
+	go func() {
+		<-ctx.Done()
+		closeOnce.Do(func() {
+			_ = s.sock.Close()
+		})
+	}()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
-			// Receive packet
 			n, err := s.sock.Recv(buf)
 			if err != nil {
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+				}
 				continue
 			}
 
-			// Copy bytes (will be overwritten by next receive)
 			packetData := make([]byte, n)
 			copy(packetData, buf[:n])
 
@@ -1016,69 +1241,93 @@ func (s *Stack) Run(ctx context.Context) error {
 
 // handlePacket processes a single packet
 func (s *Stack) handlePacket(data []byte) error {
-	// L2: Parse Ethernet frame
+	// Parse Ethernet frame
 	frame, err := ethernet.Parse(data)
 	if err != nil {
 		return err
 	}
 
-	// Ignore packets not addressed to us
+	// Filter: Only process packets for our MAC or broadcast/multicast
 	if !s.shouldProcessFrame(frame) {
 		return nil
 	}
 
-	// Ignore non-IPv4
+	// Handle IPv4
 	if frame.EtherType != ethernet.TypeIPv4 {
 		return nil
 	}
 
-	// L3: Parse IPv4 packet
 	pkt, err := ipv4.Parse(frame.Payload)
 	if err != nil {
 		return err
 	}
-
-	// Ignore non-ICMP
-	if pkt.Protocol != ipv4.ProtocolICMP {
-		return nil
+	// Reassembly is outside this workshop's scope. Do not treat a fragment as
+	// a complete ICMP message or UDP datagram.
+	if pkt.IsFragmented() {
+		return fmt.Errorf("fragmented IPv4 packets are unsupported")
 	}
 
-	// L4: Parse ICMP message
+	switch pkt.Protocol {
+	case ipv4.ProtocolICMP:
+		return s.handleICMP(pkt, frame.SrcMAC)
+	case ipv4.ProtocolUDP:
+		return s.handleUDP(pkt, frame.SrcMAC)
+	default:
+		return nil
+	}
+}
+
+func (s *Stack) handleICMP(pkt *ipv4.Packet, dstMAC net.HardwareAddr) error {
 	msg, err := icmp.Parse(pkt.Payload)
 	if err != nil {
 		return err
 	}
-
-	// Respond to Ping (Echo Request)
 	if msg.IsEchoRequest() && pkt.DstIP.Equal(s.srcIP) {
 		log.Printf("Ping from %s: ID=%d Seq=%d", pkt.SrcIP, msg.ID, msg.Seq)
-		return s.sendEchoReply(pkt, msg, frame.SrcMAC)
+		return s.sendEchoReply(pkt, msg, dstMAC)
 	}
+	return nil
+}
 
+func (s *Stack) handleUDP(pkt *ipv4.Packet, dstMAC net.HardwareAddr) error {
+	msg, err := udp.Parse(pkt.Payload)
+	if err != nil {
+		return err
+	}
+	if err := udp.VerifyChecksum(pkt.Payload, pkt.SrcIP, pkt.DstIP); err != nil {
+		return err
+	}
+	if pkt.DstIP.Equal(s.srcIP) && msg.DstPort == udp.EchoPort {
+		log.Printf("UDP Echo from %s:%d (len=%d)", pkt.SrcIP, msg.SrcPort, len(msg.Data))
+		return s.sendUDPReply(pkt, msg, dstMAC)
+	}
 	return nil
 }
 
 // shouldProcessFrame checks if we should process this frame
 func (s *Stack) shouldProcessFrame(frame *ethernet.Frame) bool {
-	if frame.DstMAC.String() == s.srcMAC.String() {
-		return true // Unicast
+	// Process if addressed to us
+	if bytes.Equal(frame.DstMAC, s.srcMAC) {
+		return true
 	}
+	// Process if broadcast
 	if ethernet.IsBroadcast(frame.DstMAC) {
-		return true // Broadcast
+		return true
 	}
+	// Process if multicast
 	if ethernet.IsMulticast(frame.DstMAC) {
-		return true // Multicast
+		return true
 	}
 	return false
 }
 
 // sendEchoReply sends an ICMP Echo Reply
 func (s *Stack) sendEchoReply(reqPkt *ipv4.Packet, reqMsg *icmp.Message, dstMAC net.HardwareAddr) error {
-	// L4: Create ICMP Echo Reply
+	// Build ICMP Echo Reply
 	reply := icmp.NewEchoReply(reqMsg.ID, reqMsg.Seq, reqMsg.Data)
 	icmpData := reply.Marshal()
 
-	// L3: Create IPv4 packet
+	// Build IP packet
 	ipPkt := &ipv4.Packet{
 		Version:  4,
 		IHL:      20,
@@ -1089,19 +1338,38 @@ func (s *Stack) sendEchoReply(reqPkt *ipv4.Packet, reqMsg *icmp.Message, dstMAC 
 		DstIP:    reqPkt.SrcIP,
 		Payload:  icmpData,
 	}
+
 	ipData := ipPkt.Marshal()
 
-	// L2: Create Ethernet frame
+	// Build Ethernet frame
 	frame := &ethernet.Frame{
 		DstMAC:    dstMAC,
 		SrcMAC:    s.srcMAC,
 		EtherType: ethernet.TypeIPv4,
 		Payload:   ipData,
 	}
+
 	frameData := frame.Marshal()
 
 	// Send
 	_, err := s.sock.Send(frameData)
+	return err
+}
+
+func (s *Stack) sendUDPReply(reqPkt *ipv4.Packet, reqMsg *udp.Message, dstMAC net.HardwareAddr) error {
+	reply := &udp.Message{SrcPort: reqMsg.DstPort, DstPort: reqMsg.SrcPort, Data: reqMsg.Data}
+	udpData, err := reply.Marshal(s.srcIP, reqPkt.SrcIP)
+	if err != nil {
+		return fmt.Errorf("marshal UDP: %w", err)
+	}
+
+	ipPkt := &ipv4.Packet{
+		TTL: 64, Protocol: ipv4.ProtocolUDP, SrcIP: s.srcIP, DstIP: reqPkt.SrcIP, Payload: udpData,
+	}
+	frame := &ethernet.Frame{
+		DstMAC: dstMAC, SrcMAC: s.srcMAC, EtherType: ethernet.TypeIPv4, Payload: ipPkt.Marshal(),
+	}
+	_, err = s.sock.Send(frame.Marshal())
 	return err
 }
 
@@ -1143,19 +1411,67 @@ func main() {
 
 ---
 
-### STEP 6: UDP Message (L4) — Observe, Build, Verify
+### STEP 6: UDP Message (L4) — Connectionless Communication
 
-UDP is the smallest useful transport protocol: ports identify applications and
-its fixed eight-byte header carries a length and checksum. It has no connection
-setup, retransmission, or ordering. The checksum covers the UDP datagram plus a
-pseudo-header (source/destination IPv4 addresses, protocol 17, and UDP length).
-That detects misdelivery, not an attacker who can recompute a checksum.
+#### Goal
 
-Study it in this order: capture a kernel-generated datagram with `tcpdump -XX`;
-map the eight header bytes and payload; then run valid, invalid-length, and
-one-bit-corrupted checksum cases. Finally verify that the Echo client receives
-the same bytes it sent. `pkg/udp/message.go` performs parsing, checksum
-verification, and reply marshaling separately to make those boundaries visible.
+Implement UDP to carry application data without connection setup. Contrast it with the TCP handshake observed in STEP 0 and the diagnostic role of ICMP Echo.
+
+#### How UDP Differs from TCP and ICMP
+
+| Property                         | ICMP                | UDP                               | TCP                              |
+| :------------------------------- | :------------------ | :-------------------------------- | :------------------------------- |
+| Connection setup                 | None                | None                              | Handshake                        |
+| Ports                            | None                | 16-bit ports                      | 16-bit ports                     |
+| Delivery and ordering guarantees | None                | None                              | Retransmission and ordering      |
+| Checksum coverage                | Entire ICMP message | Pseudo-header and entire datagram | Pseudo-header and entire segment |
+| Examples                         | Ping                | DNS, DHCP, metrics                | HTTP/1.1, SSH                    |
+
+The pseudo-header helps detect accidental misdelivery. It does not authenticate a sender who can recompute the checksum.
+
+#### UDP Datagram Structure
+
+```text
++----------------------+----------------------+
+| Source Port (16 bits) | Destination Port (16) |
++----------------------+----------------------+
+| Length (16 bits)     | Checksum (16 bits)    |
++----------------------+----------------------+
+| Data                                        |
++---------------------------------------------+
+```
+
+The header is eight bytes. Length includes both header and data.
+
+#### Implementation: UDP Message (`pkg/udp/message.go`)
+
+Read the [executable UDP implementation](assets/tcpip_stack/pkg/udp/message.go) and its [tests](assets/tcpip_stack/pkg/udp/message_test.go). `Parse`, `VerifyChecksum`, and `Marshal` separate length validation, checksum verification, and reply construction. Use this source directly to avoid maintaining a second copy of the implementation in the tutorial.
+
+#### Key Learning Points
+
+##### The Pseudo-Header's Role
+
+Checksum input includes source and destination IPv4 addresses, a zero byte, protocol number 17, and UDP length, followed by the datagram. A computed checksum of zero is transmitted as `0xffff`; a transmitted zero means the IPv4 sender omitted the checksum.
+
+##### What Connectionless Means
+
+UDP sends with `sendto()` without a transport handshake. The receiver obtains the reply address from the packet's source IP and UDP source port.
+
+##### Why Use UDP?
+
+DNS can avoid transport connection setup for a small query. DHCP needs to communicate before normal address configuration. Metrics and real-time media may prefer timely delivery over retransmission. Applications must implement any reliability they require.
+
+##### Contrast with TCP
+
+TCP additionally requires connection state, sequence numbers, acknowledgements, retransmission, flow control, and congestion control. UDP leaves these policies to the application or a higher-level protocol.
+
+#### ✅ Verification Checkpoints
+
+- [ ] `HeaderSize` is 8.
+- [ ] `Marshal` uses the source and destination IPs in its checksum.
+- [ ] A computed zero checksum is encoded as `0xffff`.
+- [ ] Invalid lengths and corrupted checksums are rejected before replying.
+- [ ] The stack dispatches ICMP and UDP separately.
 
 ---
 
@@ -1205,6 +1521,12 @@ PY
 
 sudo tcpdump -i veth-host -nn -vv -XX 'udp port 7'
 ```
+
+---
+
+### 6. Observe and Corrupt UDP
+
+Use `tcpdump -XX` to map the eight-byte UDP header and payload to the captured bytes. Then run the `pkg/udp` tests: flipping a checksum bit must make `VerifyChecksum` reject the datagram. Verify both accepted and rejected messages.
 
 ---
 
@@ -1360,3 +1682,60 @@ sudo ip netns delete workshop
 - [RFC 791 (IPv4)](https://datatracker.ietf.org/doc/html/rfc791)
 - [RFC 792 (ICMP)](https://datatracker.ietf.org/doc/html/rfc792)
 - [RFC 1071 (Checksum)](https://datatracker.ietf.org/doc/html/rfc1071)
+
+---
+
+## 🔧 Troubleshooting
+
+### Cannot Open a Raw Socket
+
+Run with root privileges or grant `CAP_NET_RAW`, and specify both the interface and userspace IP.
+
+```bash
+sudo ./tcpip_stack -iface veth-host -ip 192.168.100.1
+# Alternative to running as root:
+getcap ./tcpip_stack
+sudo setcap cap_net_raw+ep ./tcpip_stack
+```
+
+### Ping Does Not Work
+
+Ensure the stack is running, inspect the interface, and confirm the namespace's permanent neighbor entry from setup.
+
+```bash
+ip link show veth-host
+ip addr show veth-host
+sudo ip netns exec workshop ip neigh show
+sudo ip netns exec workshop ping 192.168.100.1
+sudo tcpdump -i veth-host -nn -vv icmp
+```
+
+### Build Errors
+
+The raw socket adapter requires Linux, CGO, and a C compiler.
+
+```bash
+gcc --version
+go env CGO_ENABLED
+sudo apt install build-essential linux-libc-dev
+```
+
+## 💻 Environment Notes
+
+### For macOS Users
+
+The raw socket application requires Linux `AF_PACKET`, which macOS does not provide. Run it in a Linux VM or Linux container with the required network capabilities. Pure packet parsing tests can run on macOS.
+
+### For Windows Users
+
+The raw socket application requires Linux. Use Ubuntu on WSL2 or a Linux VM. Pure Go packet parsing tests do not require raw sockets.
+
+### For WSL2 Users
+
+Check your Linux environment and the required networking features:
+
+```bash
+uname -r
+```
+
+If raw sockets or namespace setup are unavailable in your environment, use a Linux VM.
