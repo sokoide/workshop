@@ -4,7 +4,7 @@
 評価軸: **Easy to follow(追従容易) / Simple(単純) / Concise(簡潔) / Correct(正確)**
 作成日: 2026-10-07(全文レビュー: infra 27 本・software 16 本・assets 19 ディレクトリ)
 
-> この文書は計画である。Phase 0（重大修正）は実施済み、Phase 1（テンプレート）は `docs/TEMPLATE.md` として作成済み、Phase 2（全ワークショップへのテンプレート適用、43 ペア）も実施済み（コミット c01cd31）。Phase 3（正確性検証パス: コマンド実機検証・asset コードバグ修正 3 件・ドキュメント約 30 件修正、コミット 015b6dc）、Phase 4（簡潔性パス: tcpip_stack・web_security 分割、重複削除、カタログ化、コミット 2fb96b0）も実施済み。Phase 5 以降は未実施。
+> この文書は計画である。Phase 0（重大修正）は実施済み、Phase 1（テンプレート）は `docs/TEMPLATE.md` として作成済み、Phase 2（全ワークショップへのテンプレート適用、43 ペア）も実施済み（コミット c01cd31）。Phase 3（正確性検証パス: コマンド実機検証・asset コードバグ修正 3 件・ドキュメント約 30 件修正、コミット 015b6dc）、Phase 4（簡潔性パス: tcpip_stack・web_security 分割、重複削除、カタログ化、コミット 2fb96b0）、Phase 5（学習パス整備: WS1/WS2 実行可能化・README 難易度別再構成、コミット bccd480）も実施済み。Phase 6 以降は未実施。
 
 ---
 
