@@ -1,6 +1,10 @@
 # HTTP 永続接続実習：Keep-Alive, WebSocket, HTTP/2, gRPC, HTTP/3
 
-> **用語について**: 本実習で扱う「永続接続」は、HTTP 仕様（RFC 7230 等）で定義されている **"Persistent Connections"** の訳語です。データベース等の「データの永続性 (Persistency/Persistence)」とは異なり、**一つの TCP 接続、または QUIC が提供する論理的な接続**を維持して複数のリクエストで再利用することを指します。
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux (Ubuntu 24.04。apt と Homebrew/Linuxbrew を使用)
+>
+> > **用語について**: 本実習で扱う「永続接続」は、HTTP 仕様（RFC 7230 等）で定義されている **"Persistent Connections"** の訳語です。データベース等の「データの永続性 (Persistency/Persistence)」とは異なり、**一つの TCP 接続、または QUIC が提供する論理的な接続**を維持して複数のリクエストで再利用することを指します。
 
 この実習では、モダンな Web アプリケーションの基盤となる **コネクション（接続）の再利用とストリーミング** について学びます。
 HTTP/1.1 から最新の HTTP/3 まで、どのように接続を効率化しているのかを、実際に手を動かしながら理解します。
@@ -11,6 +15,14 @@ HTTP/1.1 から最新の HTTP/3 まで、どのように接続を効率化して
 - **WebSocket** による双方向・全二重通信を体験する
 - **HTTP/2** のマルチプレキシング（多重化）によるリソース取得の効率化を理解する
 - **gRPC** (HTTP/2 ベース) の Unary と Streaming の違いを理解する
+
+## 前提条件
+
+- [ ] Linux (Ubuntu 24.04 推奨)。sudo (apt) と Homebrew (Linuxbrew) が使えること
+- [ ] Go 1.22 以降（`go version`）、`podman` + `podman-compose`、`openssl`、`curl`、`make`
+- [ ] `websocat`、`grpcurl`、`protoc` + `protoc-gen-go` — 「準備」のステップで導入します（`brew install websocat go protobuf grpcurl`、その後 `make setup`）
+- [ ] STEP 4 のために HTTP/3 対応ビルドの `curl`（`curl --version | grep HTTP3`）
+- 推奨: TCP ハンドシェイクと接続のライフサイクルの基礎は [TCP/IP プロトコルスタック実習](tcpip_stack_ja.md) を参照
 
 ---
 
@@ -338,6 +350,7 @@ WebSocket は **HTTP/1.1 の `Upgrade` ヘッダー** を利用して開始さ�
     sleep 1
 done
 ) | websocat -v ws://localhost:8080/ws
+# Expected output: ログに "HTTP/1.1 101 Switching Protocols" が表示され、その後 "message 1" ... "message 5" がエコーとして返る
 ```
 
 ### ✅ チェックポイント
@@ -493,6 +506,7 @@ grpcurl -plaintext -d '{"name": "req2"}' localhost:50051 pb.Greeter/SayHello
 
 # 2. Server Streaming のテスト（サーバーが 5 件の応答を逐次返す）
 grpcurl -plaintext -d '{"name": "stream"}' localhost:50051 pb.Greeter/SayHelloStream
+# Expected output: 5 つのレスポンスが別々の行に逐次表示される
 
 # 3. Bidirectional Streaming のテスト（双方向で送り合う）
 # (Ctrl+D で入力を終了)
@@ -534,6 +548,7 @@ grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 p
 ```bash
 # HTTP/1.1 ポートに対して SSE をリクエスト
 curl -v http://localhost:8080/sse
+# Expected output: Content-Type: text/event-stream が返り、イベントデータが逐次届く
 ```
 
 **観察ポイント**:
@@ -624,6 +639,16 @@ graph LR
 - **サーバー / インフラ**: 大手 CDN 経由のトラフィックでは非常に高い比率を占めています。Nginx やクラウドロードバランサも数年前から安定版としてサポートしています。
 - **モバイル**: 5G などの移動中ネットワークでは、QUIC の Connection ID による接続継続性が有効に働くケースが多く報告されています。
 
+## 学んだこと
+
+- Keep-Alive が 1 本の TCP 接続を複数の HTTP/1.1 リクエストで再利用する仕組みと、`Connection: close` による違い
+- WebSocket が HTTP 接続を全二重通信にアップグレードする仕組み
+- HTTP/2 が 1 本の TCP 接続上でストリームを多重化する仕組みと、TCP レベルの HoL Blocking が残る理由
+- HTTP/3 (QUIC) がストリーム単位の順序保証で HoL Blocking を解消する仕組みと、0-RTT の適用可否の判断
+- イベント配信における gRPC・WebSocket・SSE の使い分け
+
+**次のステップ**: これらの接続をインフラ側から制御する視点は、[サービスメッシュ基礎実習 (Envoy)](envoy_ja.md) を参照してください。
+
 ---
 
 ## 片付け
@@ -642,6 +667,15 @@ podman-compose down
 - **WebTransport への挑戦**: HTTP/3 (QUIC) ベースで、信頼性（Streams）と低遅延（Datagrams）を 1 つの接続で使い分けられる選択肢です。既存 WebSocket との差分を比較しながら評価してみてください。
 - **Load Balancer の設定**: L4 LB と L7 LB で、永続接続の扱いがどう変わるか（コネクションの偏り問題）を調査する。
 - [RFC 9000: QUIC](https://www.rfc-editor.org/rfc/rfc9000) と [RFC 8470: Using Early Data in HTTP](https://www.rfc-editor.org/rfc/rfc8470) を読み、0-RTT を許可できる操作を整理する。
+
+---
+
+## 参考文献
+
+- [RFC 9112: HTTP/1.1](https://www.rfc-editor.org/rfc/rfc9112)
+- [RFC 9113: HTTP/2](https://www.rfc-editor.org/rfc/rfc9113)
+- [RFC 9114: HTTP/3](https://www.rfc-editor.org/rfc/rfc9114)
+- [RFC 6455: The WebSocket Protocol](https://www.rfc-editor.org/rfc/rfc6455)
 
 ---
 

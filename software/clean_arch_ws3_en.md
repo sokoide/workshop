@@ -1,5 +1,11 @@
 # Clean Architecture Workshop (WS3): Swapping Communication Protocols
 
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+, any OS (grpcurl required; protoc toolchain for Step 2)
+>
+> > **💡 Glossary**: For technical terms such as [Clean Architecture](../infra/glossary_en.md#architecture), [Interface](../infra/glossary_en.md#go), and [Context](../infra/glossary_en.md#go), please refer to the [Glossary](../infra/glossary_en.md).
+
 In this workshop, you will migrate the BBS (2channel-style bulletin board) REST API to gRPC.
 You will replace the **Presentation Adapter** and update the **Composition Root** that wires it, while leaving Domain, UseCase, and Infrastructure Adapters untouched.
 
@@ -274,6 +280,14 @@ Presentation Adapters ──→ UseCases ──→ Domain
         implements ports owned by UseCases or Domain
 ```
 
+Checklist before starting:
+
+- [ ] Completed [WS1](./clean_arch_ws1_en.md) and [WS2](./clean_arch_ws2_en.md) (or you are comfortable with ports and the Composition Root)
+- [ ] Go 1.22+ installed — verify with `go version`
+- [ ] The BBS project builds: `cd software/assets/bbs && go build ./...` exits with no output
+- [ ] `grpcurl` installed (`grpcurl --version`) — see [grpcurl releases](https://github.com/fullstorydev/grpcurl/releases)
+- [ ] For Step 2 only: `protoc`, `protoc-gen-go`, and `protoc-gen-go-grpc` installed — see [gRPC Go quick start](https://grpc.io/docs/languages/go/quickstart/)
+
 ## Workshop Scenario
 
 You need to migrate the REST API to gRPC without touching any business logic.
@@ -328,6 +342,12 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
 
 **Key observation**: The `Execute` call does not depend on HTTP or gRPC.
 
+### ✅ Checkpoint
+
+- [ ] You located the "input conversion → UseCase call → output conversion" structure in the HTTP handler
+- [ ] You confirmed the `Execute` call line contains nothing HTTP-specific (except `r.Context()`)
+- [ ] `go build ./...` still passes in `software/assets/bbs` (nothing changed yet)
+
 ### Step 2: Create Protobuf Definitions
 
 Create gRPC type definitions. This is a new file — no existing code is modified.
@@ -378,6 +398,12 @@ message Post {
     google.protobuf.Timestamp created_at = 7;
 }
 ```
+
+### ✅ Checkpoint
+
+- [ ] `api/proto/bbs.proto` is a **new file** — no existing file was modified (`git status` shows only the new .proto)
+- [ ] Code generation succeeds: `protoc --go_out=. --go-grpc_out=. api/proto/bbs.proto` exits with no output
+- [ ] Generated `*.pb.go` files appear under your chosen output directory and `go build ./...` passes
 
 ### Step 3: Implement the gRPC Handler
 
@@ -454,6 +480,13 @@ out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
 
 The UseCase call is completely identical. Only the conversion target (JSON → protobuf) and error mapping (HTTP status → gRPC status) differ.
 
+### ✅ Checkpoint
+
+- [ ] `bbs_server.go` is a **new file** under `internal/adapters/presentation/grpc/` — Domain, UseCase, and Infra are untouched (`git status` confirms)
+- [ ] `BBSServer` depends on `usecase.ThreadCreator` / `usecase.ThreadLister` **interfaces**, not concrete usecase structs
+- [ ] Error conversion lives only here: `domain.ErrBoardNotFound → codes.NotFound`, unknown errors → `codes.Internal` with a generic message
+- [ ] `go build ./...` passes
+
 ### Step 4: Switch the Entry Point
 
 Change the startup method from HTTP to gRPC in the Composition Root.
@@ -493,21 +526,44 @@ func main() {
 }
 ```
 
+### ✅ Checkpoint
+
+- [ ] Only the server startup block changed in `main.go` — the DI wiring (repositories, usecases) is untouched
+- [ ] `go build -o bbs ./cmd/bbs/` still passes after the switch
+
 ### Step 5: Verify
 
 ```bash
 # Build
 go build -o bbs ./cmd/bbs/
+# Expected output: (none — the bbs binary appears in the working directory)
 
-# Start
+# Start (keep it running in another terminal)
 ./bbs
+# Expected output: the server starts and listens on :9090
 
 # Test with gRPC client (using grpcurl)
 grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
+# Expected output: JSON listing the seeded boards, e.g.
+# {
+#   "board": [
+#     { "id": "1", "name": "programming", "description": "Programming General" },
+#     ...
+#   ]
+# }
 
 grpcurl -plaintext -d '{"board_name":"program","title":"Go thread","author":"gopher","body":"Go is great!"}' \
     localhost:9090 bbs.BBSService/CreateThread
+# Expected output: JSON containing the created "thread" (postCount: "1")
+# and the first "post" (number: "1")
 ```
+
+### ✅ Checkpoint
+
+- [ ] `grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards` returns the board list as JSON
+- [ ] `CreateThread` via gRPC creates the thread and returns both the thread and the first post
+- [ ] You confirmed no file outside the Presentation Adapter and `main.go` changed: `git diff --stat` lists only presentation/grpc files, generated .pb.go files, and `cmd/bbs/main.go`
+- [ ] `go test ./...` passes in `software/assets/bbs`
 
 ---
 
@@ -552,3 +608,39 @@ In HTTP, returning `404 Not Found` is natural, but in gRPC, you use `status.NotF
 ### Question 3: Transaction Boundaries
 
 `CreateThreadUseCase` performs "thread creation" and "first post" in the same transaction. To which layer should this transaction control belong? If you start and end transactions in the Presentation layer (HTTP Handler), which Clean Architecture principle would be violated?
+
+---
+
+## What you learned
+
+- Swapping the transport protocol only touches the **Presentation Adapter** and the **Composition Root** wiring — the `Execute(ctx, Input) (Output, error)` call is byte-for-byte identical between HTTP and gRPC handlers.
+- Protocol differences are pure **conversion**: JSON vs protobuf on input, HTTP status vs gRPC status codes on errors.
+- Errors cross boundaries translated at each layer: driver errors → domain errors (Infra), domain errors → transport errors (Presentation).
+- Protobuf-generated structs stay out of the Domain layer; Presentation adapters map them to/from UseCase DTOs.
+
+**Next**: [WS4: Adding Business Rules](./clean_arch_ws4_en.md) — add an owner-only posting rule and watch the change propagate from Domain outward.
+
+---
+
+## Cleanup
+
+```bash
+# Stop the gRPC server (Ctrl+C in its terminal), then:
+cd software/assets/bbs
+make clean   # removes the bbs binary and bbs.db
+```
+
+Or manually:
+
+```bash
+rm -f software/assets/bbs/bbs software/assets/bbs/bbs.db
+```
+
+---
+
+## References
+
+- [gRPC Documentation](https://grpc.io/docs/)
+- [Protocol Buffers Language Specification](https://protobuf.dev/programming-guides/proto3/)
+- [grpcurl — GitHub](https://github.com/fullstorydev/grpcurl)
+- [gRPC Go Quick Start](https://grpc.io/docs/languages/go/quickstart/)

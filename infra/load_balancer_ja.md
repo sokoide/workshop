@@ -1,9 +1,16 @@
 # Load Balancer 実習：iptables で作る仮想ロードバランサ
 
 > **⏱️ 所要時間**: 約 45 分
-> **⚠️ 注意**: この実習は Linux 環境（または WSL2）を推奨します。macOS の Docker Desktop では制限があります。
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux（root/sudo、ipvsadm、iptables。WSL2 可、macOS の Docker Desktop では制限あり）
 
 この実習では、Linux の `iptables` と `ipvs`（IP Virtual Server）を使用して、Kubernetes や HAProxy の背後で動作するロードバランサの仕組みを理解します。
+
+## 前提条件
+
+- [ ] root/sudo 権限のある Linux（または WSL2）
+- [ ] `ipvsadm`・`iptables`・`curl` がインストール済み（無い場合は準備セクションで導入）
+- [ ] 推奨: 先に [`tcpip_stack_ja.md`](tcpip_stack_ja.md)（NAT/DNAT の基礎）
 
 > **💡 用語集**: この実習で登場する[Load Balancer](glossary_ja.md#network)や[DNAT](glossary_ja.md#network)、[Round Robin](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
@@ -426,6 +433,15 @@ podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.12:80 -g -w 1  # 
 ```
 
 ---
+
+## 学んだこと
+
+- 仮想ロードバランサに必要なのはカーネルの 3 機能だけ: **VIP アドレス**、宛先を書き換える **DNAT**、バックエンドを選ぶ **スケジューラ**。
+- `ipvs` はサービス単位でコネクション状態を保持するため、ラウンドロビン中でも確立済みセッションは同じバックエンドに張り付く。
+- スケジューリング方式（rr / lc / sh）は、公平性・バックエンド負荷考慮・セッション固定のトレードオフである。
+- これは Kubernetes の kube-proxy が使い得る仕組みと同じ — 手を動かして kube-proxy のメンタルモデルを構築した。
+
+**次のステップ**: [`k8s_lb_ja.md`](k8s_lb_ja.md) で podman/VLAN 環境における同じパターン、または [`envoy_ja.md`](envoy_ja.md) でアプリケーション層（L7）のロードバランサ。
 
 ## 片付け
 

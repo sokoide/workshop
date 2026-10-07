@@ -1,6 +1,20 @@
 # OAuth2 Workshop: Learning Authorization Flows with Microsoft Entra ID and Go
 
+> **⏱️ Estimated Time**: Approx. 120 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: An Azure subscription (admin consent may be required), `az` CLI, Go 1.22+, a browser
+
 In this workshop, you will use **Microsoft Entra ID** as the authorization server and a **Go REST API** as the resource server to understand OAuth 2.0 / OpenID Connect in real-world scenarios.
+
+## Prerequisites
+
+- [ ] An Azure subscription you can create resources in (a free trial works)
+- [ ] `az` CLI installed and logged in (`az login`)
+- [ ] Go 1.22+ installed (`go version`)
+- [ ] Permission to register applications in Entra ID (otherwise, ask your administrator)
+- [ ] Recommended first: [`oauth2_en.md`](oauth2_en.md) (the same flows on a local Keycloak)
+
+> **💰 Cost note**: App registrations themselves are free. However, the **M2M pattern requires an Azure resource with Managed Identity enabled** (e.g., App Service / VM), which may incur charges. Delete resources you created just for this workshop when you are done (see Cleanup).
 
 This guide covers two main patterns:
 
@@ -740,6 +754,19 @@ Attempted credentials:
 - [ ] Add API Permission to the Client App.
 - [ ] Grant Admin Consent (if required).
 - [ ] Validate `scp` in the API server.
+
+---
+
+## Cleanup
+
+The Azure resources created for this workshop should be removed so nothing keeps running (and billing) after you finish:
+
+1. **Delete the App registrations**: Entra admin center → App registrations → `workshop-api` and `workshop-client` → Delete (check the checkbox for the permanent delete confirmation).
+2. **Remove the App Role assignment** from the Managed Identity (if assigned): the assignment disappears with the app registration, but verify in the resource's **Identity** blade.
+3. **Delete the Azure resource** you enabled Managed Identity on, if it was created only for this workshop (e.g., `az group delete --name <resource-group>`).
+4. **Stop the local Go API server** with `Ctrl+C`.
+
+> **Note**: App registrations are free, but App Service / VM instances are not — step 3 is the one that stops actual charges.
 
 ---
 

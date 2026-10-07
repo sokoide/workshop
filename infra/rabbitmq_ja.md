@@ -1,5 +1,9 @@
 # RabbitMQ 実習：Topic Exchange で作るリアルタイム・仮想通貨監視システム
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux | macOS (Podman または Docker)
+
 この実習では、メッセージブローカー **RabbitMQ** の強力な機能である **Topic Exchange** を使用して、リアルタイムに流れる取引データを柔軟にフィルタリング・処理するシステムを構築します。
 
 > **💡 用語集**: この実習で登場する専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -32,6 +36,14 @@ sequenceDiagram
 1. **Pub/Sub パターン**: 送信者と受信者の完全な分離。
 2. **Topic Exchange**: ドット区切りのキーによる高度なルーティング。
 3. **ワイルドカードのマッチング**: `*`（1 単語）と `#`（複数単語）の使い分け。
+
+## 前提条件
+
+- [ ] **Podman** 4.x 以上（Docker でも可 — `podman` を `docker` に置き換えてください）
+- [ ] **Go** 1.25 以上（`go version` で確認）
+- [ ] **make**（`make mq-up` / `make mq-down` で使用）
+- [ ] ターミナル 4 画面以上（ticker + 3 つのコンシューマー）
+- [ ] 推奨: [用語集](glossary_ja.md#mq) のメッセージキュー関連用語を一読しておく
 
 ---
 
@@ -81,6 +93,7 @@ infra/assets/rabbitmq_crypto/
 ```bash
 cd infra/assets/rabbitmq_crypto
 make mq-up
+# Expected output: `podman run -d` によりコンテナ ID が 1 行表示される
 ```
 
 ### ✅ チェックポイント
@@ -106,6 +119,7 @@ go mod tidy
 
 ```bash
 go run cmd/ticker/main.go
+# Expected output: "Ticker starting... (Ctrl+C to stop)" が表示され、0.5 秒ごとに送信が続く
 ```
 
 ※ `market.btc.usd` などのキーでメッセージを投げ続けます。
@@ -121,6 +135,8 @@ go run cmd/ticker/main.go
 
 ```bash
 go run cmd/logger/main.go
+# Expected output: "Logger starting (market.#)..." の後、0.5 秒ごとに
+# JSON 形式の取引メッセージが 1 行ずつ表示される
 ```
 
 ### STEP 3: 条件付きフィルタリング
@@ -151,6 +167,16 @@ type TradePublisher interface {
 この設計により、将来的にメッセージブローカーを Kafka や NATS に変更する場合でも、ビジネスロジック（Usecase）を一切修正せずに、インフラ層の実装を差し替えるだけで対応可能です。
 
 ---
+
+## 学んだこと
+
+- メッセージキューによる送信者と受信者の分離（非同期通信とバッファリング）
+- Topic Exchange がドット区切りのルーティングキーでメッセージを振り分ける仕組み
+- バインディングにおける `*`（1 単語）と `#`（0 語以上）の使い分け
+- ドメイン層で定義したパブリッシャーインターフェースでブローカーを隠蔽する Clean Architecture
+- RabbitMQ 管理画面を使ったルーティング動作の確認方法
+
+次のステップ: [冪等性パターン実習](../software/idempotency_ja.md) でコンシューマーのリトライ安全性を学ぶか、[シャーディング解説](sharding_ja.md) でブローカーのスケールアウトを学びましょう。
 
 ## 片付け
 

@@ -1,6 +1,16 @@
 # Zero Trust Architecture Workshop: A Deep Dive into "Always Verify" with mTLS and Service Mesh
 
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: Linux / macOS (kind, kubectl, istioctl 1.20+; ~4 GB RAM for the cluster)
+
 In this workshop, you will implement the core Zero Trust Architecture (ZTA) principle of "Never Trust, Always Verify" in a real system using **Istio Service Mesh** and **SPIRE/SPIFFE**.
+
+## Prerequisites
+
+- [ ] kind and kubectl installed (`kind version`, `kubectl version --client`)
+- [ ] `istioctl` 1.20+ downloaded (installed in Section 4 if missing)
+- [ ] Recommended first: [`kubernetes_basics_en.md`](kubernetes_basics_en.md) and [`tls_en.md`](tls_en.md) (certificates/mTLS fundamentals)
 
 > **💡 Glossary**: For technical terms such as [Zero Trust](glossary_en.md#security), [mTLS](glossary_en.md#security), [Service Mesh](glossary_en.md#security), and [SPIRE](glossary_en.md#security), please refer to the [Glossary](glossary_en.md).
 
@@ -285,6 +295,15 @@ kind delete cluster --name zero-trust-workshop
 ```
 
 ---
+
+## Troubleshooting
+
+| Symptom                                                   | Cause                                                   | Fix                                                                                                           |
+| --------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Pod stuck in `ContainerCreating` after enabling injection | Istio sidecar image still pulling                       | `kubectl get pods -w` and wait; check `istioctl proxy-status`                                                 |
+| `istioctl: command not found`                             | istioctl not on PATH                                    | Download per [Istio docs](https://istio.io/latest/docs/setup/getting-started/#download) and re-open the shell |
+| Requests fail with `connection reset` between workloads   | mTLS mode mismatch (PERMISSIVE vs STRICT)               | `kubectl get peerauthentication -A` and align the mesh policy                                                 |
+| `403 Forbidden` from a workload                           | AuthorizationPolicy denies the caller's SPIFFE identity | `istioctl proxy-config authz <pod>` to inspect active policies                                                |
 
 ## References
 

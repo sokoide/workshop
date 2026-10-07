@@ -1,6 +1,10 @@
 # Web Security Workshop: XSS, CSRF, Clickjacking, and CORS
 
-> **⚠️ This workshop consists of 4 independent sections (XSS / CSRF / Clickjacking / CORS). Consider splitting into multiple sessions based on available time.**
+> **⏱️ Estimated Time**: Approx. 120 minutes (4 independent sections — splitting into multiple sessions is recommended)
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux / macOS (Go 1.22+, a browser; containers run locally)
+>
+> > **⚠️ This workshop consists of 4 independent sections (XSS / CSRF / Clickjacking / CORS). Consider splitting into multiple sessions based on available time.**
 
 ## Purpose
 
@@ -1429,6 +1433,16 @@ An attacker tricks a user into executing a malicious script themselves, often by
    - <details><summary>Answer</summary>Origin Reflection allows any origin to access the response. Combined with `Access-Control-Allow-Credentials: true`, it enables an attacker site to steal sensitive data using the victim's session Cookie.</details>
 
 ---
+
+## What you learned
+
+- **XSS**: unescaped output lets attacker JavaScript run in your origin; `html/template` auto-escaping and CSP are the defense pair.
+- **CSRF**: the browser auto-attaches cookies — same-site cookies and one-time tokens make forged requests detectable.
+- **Clickjacking**: your page can be framed and click-stolen unless you send the right headers (`X-Frame-Options` / `frame-ancestors`).
+- **CORS**: a misconfigured `Access-Control-Allow-Origin: *` with credentials turns a protection into an open door; allow-list specific origins.
+- Every attack here was reproduced with a deliberately vulnerable app — the fixes you applied are the same ones production code needs.
+
+**Next**: [`secure_coding_en.md`](../software/secure_coding_en.md) for implementation-level pitfalls (SQL injection, path traversal, race conditions), and [`oauth2_en.md`](oauth2_en.md) for token-based authorization.
 
 ## Cleanup
 

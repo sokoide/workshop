@@ -1,5 +1,9 @@
 # Container Runtime Workshop: Understanding Containers through Namespaces and Cgroups
 
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: Linux only (root/sudo)
+
 In this workshop, you will learn how containers are built and restricted by manually manipulating Linux's standard features: **namespaces** and **cgroups**. Finally, you will create your own container runtime using the Go language.
 
 > **💡 Glossary**: Please refer to [namespaces](glossary_en.md#container) and [cgroups](glossary_en.md#container) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -29,6 +33,15 @@ graph TD
 2. **Resource Control via Cgroups**: Limiting CPU and memory usage.
 3. **Networking via veth**: Establishing communication between an isolated space and the host.
 4. **Implementation in Go**: Coding the container startup process using system calls.
+
+## Prerequisites
+
+- [ ] **Linux** host with cgroups v2 (kernel 5.8+; check with `mount | grep cgroup2` or `stat -fc %T /sys/fs/cgroup/` — should print `cgroup2fs`)
+- [ ] **`sudo` privileges** — namespace and cgroup operations require root
+- [ ] **Podman** 4.x or later (used only to extract the rootfs)
+- [ ] **Go** 1.22 or later (`go version`)
+- [ ] **iproute2** (`ip` command) for the veth networking step
+- [ ] Not usable on macOS/Windows natively — use WSL2, Lima/Colima, or a cloud Ubuntu instance
 
 ---
 
@@ -94,6 +107,8 @@ podman export tmp-alpine > rootfs.tar
 podman rm tmp-alpine
 mkdir -p rootfs && tar -xf rootfs.tar -C rootfs
 cp /etc/resolv.conf rootfs/etc/resolv.conf
+ls -F rootfs/bin/sh
+# Expected output: rootfs/bin/sh
 ```
 
 ### ✅ Verification Checkpoints
@@ -116,6 +131,7 @@ Experience manual isolation using the `unshare` command.
    chroot rootfs /bin/sh
    mount -t proc proc /proc
    ps # Only processes inside the container are visible
+   # Expected output: only the shell (PID 1) and ps itself — no host processes
    ```
 
 ### ✅ Verification Checkpoints
@@ -135,6 +151,10 @@ echo 0 | sudo tee /sys/fs/cgroup/workshop/memory.swap.max
 
 # Register process (Write the PID identified in another terminal)
 echo $TARGET_PID | sudo tee /sys/fs/cgroup/workshop/cgroup.procs
+
+# Verify
+cat /sys/fs/cgroup/workshop/memory.max
+# Expected output: 52428800
 ```
 
 ### ✅ Verification Checkpoints
@@ -158,6 +178,7 @@ sudo ip -n container1 link set lo up
 sudo ip -n container1 addr add 10.0.0.2/24 dev veth-child
 sudo ip -n container1 link set veth-child up
 sudo ip netns exec container1 ping -c 3 10.0.0.1
+# Expected output: 3 packets transmitted, 3 received, 0% packet loss
 ```
 
 ### ✅ Verification Checkpoints
@@ -183,6 +204,32 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 1. Containers are "restricted processes" realized through a combination of Linux kernel features.
 2. **Namespaces** control the "view" and **Cgroups** control the "resources."
 3. Understanding low-layer mechanisms leads to a deeper grasp of Podman and Kubernetes behavior.
+
+Next step: see these primitives orchestrated at scale in the [Kubernetes Basics Workshop](kubernetes_basics_en.md), or how container-based environments are provisioned as code in the [Terraform Workshop](terraform_en.md).
+
+---
+
+## Cleanup
+
+```bash
+# Remove the network namespace and veth pair (veth-child disappears with the netns)
+sudo ip netns del container1
+# veth-host may already be gone with the netns — ignore the "Cannot find device" error
+sudo ip link del veth-host || true
+
+# Remove the workshop cgroup (works only when no process is registered in it)
+sudo rmdir /sys/fs/cgroup/workshop
+
+# Remove the working directory (rootfs and the compiled binary)
+rm -rf ~/container-handson
+```
+
+Verification:
+
+```bash
+ip netns list | grep container1   # Expected output: (no match)
+ls /sys/fs/cgroup/workshop        # Expected output: "No such file or directory"
+```
 
 ---
 

@@ -1,5 +1,9 @@
 # Succinct データ構造入門（Go視点）
 
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: Advanced
+> **💻 環境**: Go 1.22+、OS 不問
+
 Succinct（簡潔）データ構造は、単なるデータ圧縮ではなく、**圧縮された状態のまま（デシリアライズせずに）データを検索・操作できる**手法です。データが持つ本来の情報量（情報理論的下界）に近いサイズで表現しつつ、`rank/select/access` といった操作を高速に行います。
 
 この資料では、まず通常の `Trie` を見てから、`LOUDS` で「木をビット列に変える」流れを追います。先に結論を書くと、Succinct の本質は **ポインタの森を、連続した配列とビット列に置き換えること** です。
@@ -733,3 +737,21 @@ Mozc などの IME では、特性に合わせてデータ構造を使い分け�
 - **Succinct (LOUDS)**: 木そのものをビットにする「究極の省メモリ」
 - Go では、用途（API ルーティングなら Radix、固定辞書なら DAT、数億語なら LOUDS）に合わせて適切な武器を選ぶのが重要。
 - いきなり完全実装せず、`BitVector -> rank/select -> LOUDS` の順に段階導入する。
+
+---
+
+## 学んだこと
+
+- Succinct 構造と圧縮の違い: 復元可能なデータを `n + o(n)` ビットで直接操作するとはどういうことか
+- ポインタを連続配列（Double Array）やビット列（LOUDS）に置き換えることで、メモリと CPU キャッシュの両方が改善する理由
+- ビットベクトル上の `rank`/`select` が、木の走査をビット演算に還元する仕組み
+- トレードオフの整理: ルーティングには Radix Tree、固定辞書には Double Array、数億語規模には LOUDS
+- 段階的な導入パス: いきなり完全実装せず `BitVector -> rank/select -> LOUDS` の順に進める
+
+---
+
+## 参考文献
+
+- [Mozc: Google 日本語入力（LOUDS の実社会での活用例）](https://github.com/google/mozc)
+- [Apache Lucene FST（有限状態トランスデューサ辞書）](https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/util/fst/package-summary.html)
+- [Go スライス: 使い方と内部構造](https://go.dev/blog/slices-intro)

@@ -1,5 +1,9 @@
 # サービスメッシュ基礎実習：Envoy サイドカーで理解する L7 トラフィック制御
 
+> **⏱️ 所要時間**: 約 45 分
+> **🎯 レベル**: 中級
+> **💻 環境**: 任意（コンテナが動作すれば可）
+
 この実習では、モダンなサービスメッシュのデータプレーンとして事実上の標準となっている **Envoy Proxy** を使用し、アプリケーションコードを変更することなく、高度なトラフィック制御（リトライ、タイムアウト、サーキットブレーカー）を実現する方法を学びます。
 
 > **💡 用語集**: この実習で登場する[サイドカーパターン](glossary_ja.md#architecture)や[L7 トラフィック制御](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -12,6 +16,13 @@
 - Envoy の設定ファイル（リスナー、クラスター、ルート）の構造を理解する
 - ネットワーク障害をシミュレートし、リトライやタイムアウトによる回復力を確認する
 - Envoy Admin インターフェースを使用して統計情報を確認する
+
+## 前提条件
+
+- [ ] Podman（`podman version`）または Docker、および `podman compose` / `docker compose`
+- [ ] `curl`
+- [ ] HTTP ステータスコード（200 / 500 / 504）の基礎知識
+- 推奨: [リバースプロキシ実習 (Traefik)](traefik_ja.md) — エッジルーティングを先に学んでからサイドカーによる内部トラフィック制御へ進む流れです
 
 ---
 
@@ -134,6 +145,7 @@ Envoy（ポート 10000）経由でバックエンドにアクセスできるこ
 
 ```bash
 curl -v http://localhost:10000/
+# Expected output: HTTP/1.1 200 OK。レスポンスヘッダーに `server: envoy` が含まれる
 ```
 
 レスポンスヘッダーに `server: envoy` が含まれていることを確認してください。これは Envoy を経由した証拠です。
@@ -149,6 +161,7 @@ curl -v http://localhost:10000/
 
 ```bash
 curl -v http://localhost:10000/sleep/3
+# Expected output: 約 2 秒後に HTTP/1.1 504 Gateway Timeout
 ```
 
 **結果**: Envoy が 2 秒経過した時点で接続を切り、`504 Gateway Timeout` を返すことを確認します。これにより、バックエンドの不調が原因でクライアントが無限に待たされるのを防ぎます。
@@ -164,6 +177,7 @@ curl -v http://localhost:10000/sleep/3
 
 ```bash
 curl -v http://localhost:10000/error/500
+# Expected output: HTTP/1.1 500 Internal Server Error（Envoy が最大 3 回リトライしてから返す）
 ```
 
 Envoy のログまたは統計情報（Admin IF）を確認すると、実際にはバックエンドに対して複数回のリクエストが送信されたことがわかります。一時的なネットワークエラーであれば、ユーザーにはエラーを見せずに成功させることができます。
@@ -188,6 +202,15 @@ Envoy の内部状態を確認します。
 クリーンアーキテクチャにおける「Framework & Drivers」層（詳細）として Envoy を捉えることができます。
 ビジネスロジック（Usecase/Domain）は、ネットワークの不安定さやリトライ制御といった「インフラの詳細」から守られ、純粋なロジックに集中できます。インフラストラクチャの責務をコードからサイドカーへ委譲する究極の形です。
 
+## 学んだこと
+
+- サイドカーパターンにより、リトライやタイムアウトといったトラフィック制御をアプリケーションコードから分離する方法
+- Envoy 設定ファイルの構造：listener → route → cluster
+- タイムアウトとリトライのポリシーが、遅延・障害のあるバックエンドからクライアントを守る仕組み
+- Admin インターフェース（`/stats`）を通じた Envoy の挙動の観察方法
+
+**次のステップ**: これらの接続がプロトコルレベルでどう動くかは、[HTTP 永続接続実習](http_persistent_ja.md) を参照してください。
+
 ---
 
 ## 片付け
@@ -202,6 +225,13 @@ podman compose down
 
 - **Circuit Breaking**: 大量のエラー発生時にシステム全体を守る遮断機能
 - **Istio**: Envoy をコントロールプレーンで集中管理するサービスメッシュ製品へのステップアップ
+
+---
+
+## 参考文献
+
+- [Envoy Documentation](https://www.envoyproxy.io/docs/envoy/latest/)
+- [Envoy Admin Interface](https://www.envoyproxy.io/docs/envoy/latest/operations/admin)
 
 ---
 

@@ -1,6 +1,12 @@
 # Kubernetes 運用・セキュリティ実習：本番運用のための高度な機能
 
+> **⏱️ 所要時間**: 約 120 分
+> **🎯 レベル**: 上級
+> **💻 環境**: Linux / macOS（kind、kubectl。Helm と ArgoCD は実習中にインストール）
+
 このワークショップでは、Kubernetes クラスタの本番運用に必要なセキュリティ、スケーリング、監視の高度な機能を学びます。
+
+**前提ワークショップ**: まず [`kubernetes_basics_ja.md`](kubernetes_basics_ja.md) を完了させてください（クラスタ作成、Deployment、Service、Helm）。
 
 > **💡 用語集**: この実習で登場する[RBAC](glossary_ja.md#security)や[NetworkPolicy](glossary_ja.md#security)、[HPA](glossary_ja.md#kubernetes)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
@@ -593,6 +599,21 @@ kubectl get all -n development
 - [ ] Loki/Elasticsearch でログ集約
 - [ ] Tempo/Jaeger で分散トレース
 - [ ] Alertmanager でアラート
+
+---
+
+## 片付け
+
+```bash
+# 前提条件で作成した kind クラスタを削除（RBAC、NetworkPolicy、
+# HPA、監視、ArgoCD など本実習で作成したすべてが消えます）
+kind delete cluster --name ops-workshop
+# Expected output: Deleted nodes: ["ops-workshop-control-plane"] (message varies by kind version)
+
+# 確認
+kind get clusters
+# Expected output: (no output、または他のクラスタのみ)
+```
 
 ---
 

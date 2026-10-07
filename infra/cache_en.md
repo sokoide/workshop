@@ -1,5 +1,9 @@
 # Redis Workshop: Real-time Game Leaderboard with Sorted Sets
 
+> **⏱️ Estimated Time**: Approx. 45 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux (Podman), Go 1.22+
+
 In this workshop, you will build a "Real-time Game Leaderboard System" capable of handling millions of users using Redis's powerful data structure, **Sorted Sets (ZSET)**.
 
 > **💡 Glossary**: Please refer to the [Sorted Set (ZSET)](glossary_en.md#cache) or [Sets](glossary_en.md#cache) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -147,6 +151,17 @@ Business rules (UseCase layer) only know the rule: **"Banned users must not appe
 - **Infra**: Implements the interface using `go-redis`.
 
 This configuration ensures that even if you change the storage from Redis to another high-speed database in the future, the core business logic (UseCase) remains untouched.
+
+---
+
+## What you learned
+
+- How Sorted Sets (ZSET) deliver O(log N) ranked inserts and range queries
+- How to model business rules (banned users) inside the UseCase layer, independent of the cache
+- How the Domain-defined `LeaderboardRepository` interface keeps Redis swappable
+- How to run and clean up a Redis container with Podman and verify connectivity
+
+**Next step**: deepen the caching theory behind this workshop in [Caching Patterns in Go](../software/go_cache_patterns_en.md).
 
 ---
 

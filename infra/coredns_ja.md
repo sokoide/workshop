@@ -1,5 +1,9 @@
 # CoreDNS 実習：親子 DNS サーバーを構築して名前解決を理解する
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux（VM 2 台。`dig` が必要）
+
 ソフトウェアエンジニア向けに、DNS の基本的な仕組み（権威サーバー、フォワーディング、委譲）を、**CoreDNS** を使って実際に構築しながら学びます。
 
 > **💡 用語集**: この実習で登場する[権威 DNS サーバー](glossary_ja.md#network)や[フォワーディング](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -30,6 +34,14 @@ sequenceDiagram
 1. **権威 DNS サーバー (Authoritative Server):** 特定のドメイン（ゾーン）の正解を知っているサーバーの構築。
 2. **フォワーディング (Forwarding):** 自分が管理していないドメインの問い合わせを他者へ転送する仕組み。
 3. **ゾーン階層の構築:** 親ドメインとサブドメインの連携。
+
+## 前提条件
+
+- [ ] Linux VM 2 台（Ubuntu 22.04/24.04 推奨）— VM1 が `192.168.100.10`、VM2 が `192.168.100.20`
+- [ ] `curl` と `tar`
+- [ ] `dig`（`sudo apt install -y dnsutils`）
+- [ ] 両 VM での sudo 権限（バイナリを `/usr/local/bin` に配置するため）
+- 推奨: DNS クエリがネットワーク上をどう流れるかは [TCP/IP プロトコルスタック実習](tcpip_stack_ja.md) を参照
 
 ---
 
@@ -94,6 +106,7 @@ sudo mv coredns /usr/local/bin/
 
 # 動作確認
 coredns -version
+# Expected output: CoreDNS-1.13.2 linux/amd64, go1.x.x, ...
 ```
 
 ### ✅ チェックポイント
@@ -215,9 +228,20 @@ coredns -conf Corefile
 
    ```bash
    dig @192.168.100.10 -p 10053 test.foo.sokoide.com
+   # Expected output: ;; ANSWER SECTION: test.foo.sokoide.com. 3600 IN A 2.2.2.2
+   #                  ;; SERVER: 192.168.100.10#10053(...)
    ```
 
    **結果の確認**: `ANSWER SECTION` に `2.2.2.2` が表示され、`SERVER` が `192.168.100.10` になっていれば、親が子から答えを「代行取得」したことがわかります。
+
+## 学んだこと
+
+- 権威 DNS サーバーがゾーンファイル（`file` プラグイン）からクエリに応答する仕組み
+- フォワーディング（`forward` プラグイン）により、管理外のサブドメインの問い合わせを別サーバーへ転送する仕組み
+- 名前解決における親ゾーンと子ゾーンの連携方法
+- `dig`（`ANSWER SECTION`、`SERVER`）で名前解決の結果を確認する方法
+
+**次のステップ**: 後述の「次のステップ」で委譲 (NS レコード) を試した後、Kubernetes クラスタ DNS としての CoreDNS の動きを [Kubernetes 実習](kubernetes_basics_ja.md) で確認しましょう。
 
 ---
 

@@ -1,6 +1,20 @@
 # OAuth2 実習: Microsoft Entra ID + Go で学ぶ認可フロー
 
+> **⏱️ 所要時間**: 約 120 分
+> **🎯 レベル**: 上級
+> **💻 環境**: Azure サブスクリプション（管理者同意が必要な場合あり）、`az` CLI、Go 1.22+、ブラウザ
+
 この実習では、**Microsoft Entra ID** を認可サーバー、**Go 製 REST API** をリソースサーバーとして使い、OAuth 2.0 / OpenID Connect の実運用パターンを確認します。
+
+## 前提条件
+
+- [ ] リソースを作成できる Azure サブスクリプション（無料試用版で可）
+- [ ] `az` CLI をインストールしてログイン済み（`az login`）
+- [ ] Go 1.22+ インストール済み（`go version`）
+- [ ] Entra ID でアプリ登録する権限（無い場合は管理者に依頼）
+- [ ] 推奨: 先に [`oauth2_ja.md`](oauth2_ja.md)（ローカル Keycloak で同じフローを学習）
+
+> **💰 費用の注意**: アプリ登録自体は無料です。ただし **M2M パターンでは Managed Identity を有効化した Azure リソース**（App Service / VM 等）が必要で、課金が発生する場合があります。実習用に作成したリソースは終了時に削除してください（片付けを参照）。
 
 対象は次の 2 パターンです。
 
@@ -748,6 +762,19 @@ Attempted credentials:
 - [ ] Client App に API Permission を追加
 - [ ] 管理者同意を実施（必要な場合）
 - [ ] API サーバーで `scp` を検証
+
+---
+
+## 片付け
+
+実習のために作成した Azure リソースは、終了後に残して課金を続けさせないためにも削除してください:
+
+1. **アプリ登録の削除**: Entra 管理センター → アプリ登録 → `workshop-api` と `workshop-client` → 削除（完全削除確認のチェックボックスにチェック）。
+2. **Managed Identity への App Role 割り当ての解除**（割り当てた場合）: アプリ登録の削除とともに割り当ても消えますが、リソースの **Identity** ブレードで確認してください。
+3. **Managed Identity を有効化した Azure リソースの削除**（実習用に作成した場合）: 例 `az group delete --name <resource-group>`。
+4. **ローカルの Go API サーバー**は `Ctrl+C` で停止。
+
+> **注意**: アプリ登録は無料ですが、App Service / VM インスタンスは無料ではありません — 実際の課金を止めるのは手順 3 です。
 
 ---
 

@@ -1,11 +1,24 @@
 # Clean Architecture Workshop (WS6): Integrating External Services
 
+> **⏱️ Estimated Time**: Approx. 45 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+; a Slack Incoming Webhook URL is optional (a NoOp gateway works without one)
+>
+> > **💡 Glossary**: For technical terms such as [Clean Architecture](../infra/glossary_en.md#architecture), [Interface](../infra/glossary_en.md#go), and [Context](../infra/glossary_en.md#go), please refer to the [Glossary](../infra/glossary_en.md).
+
 In this workshop, you will add "Slack notification on new posts" to the BBS (2channel-style bulletin board).
 You will experience the **new Port/Adapter pattern** — defining a new Port and adding an Infra Adapter — with minimal impact on existing code.
 
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
+
+Checklist before starting:
+
+- [ ] Completed [WS5](./clean_arch_ws5_en.md) — this workshop builds on the WS5 state of the BBS project
+- [ ] Go 1.22+ installed — verify with `go version`
+- [ ] The BBS project builds: `cd software/assets/bbs && go build ./...` exits with no output
+- [ ] (Optional) A Slack Incoming Webhook URL for the final verification — without one, use the NoOp gateway described below
 
 ## Workshop Scenario
 
@@ -46,6 +59,12 @@ type NotificationGateway interface {
 The new file sits directly under `internal/usecase/`, next to `repository.go` and `transaction.go`, following the same UseCase-owned port placement as the other ports.
 
 **Key observation**: The word "Slack" never appears in this interface. The UseCase decides "what to notify" and leaves "how to notify" to Infra.
+
+### ✅ Checkpoint
+
+- [ ] `internal/usecase/notification.go` is a **new file** — no existing file was modified (`git status` confirms)
+- [ ] The interface name and signature contain nothing Slack-specific (no URLs, no Slack types)
+- [ ] `go build ./...` passes
 
 ### Step 2: UseCase Layer — Invoke Notification
 
@@ -133,6 +152,13 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 
 **Key observation**: The notification is called **outside** the transaction. A Slack notification failure should not roll back the post — this is a deliberate design decision.
 
+### ✅ Checkpoint
+
+- [ ] `CreatePostUseCase` now holds a `notifier NotificationGateway` field injected via the constructor
+- [ ] `NotifyNewPost` is called **after** `RunInTransaction` returns `nil`, and its error is only logged (`slog.Warn`), never propagated
+- [ ] The WS4 `CanPost` check is still in place inside the transaction
+- [ ] `go build ./...` passes
+
 ### Step 3: Infra Layer — Slack Implementation
 
 Create a Slack gateway in a new directory.
@@ -188,6 +214,13 @@ func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 }
 ```
 
+### ✅ Checkpoint
+
+- [ ] `SlackGateway` is a **new file** under `internal/adapters/infra/notification/` — Domain, UseCase (other files), and Presentation are untouched
+- [ ] `SlackGateway` satisfies the `NotificationGateway` interface without importing anything from the `usecase` package
+- [ ] The HTTP request uses `http.NewRequestWithContext`, so cancellation propagates
+- [ ] `go build ./...` passes
+
 ### Step 4: Composition Root — Add to DI
 
 Create the Slack Gateway and inject it into the UseCase in `main.go`.
@@ -206,21 +239,38 @@ func main() {
 }
 ```
 
+### ✅ Checkpoint
+
+- [ ] Only `main.go` changed in this step — the notifier is created in exactly one place
+- [ ] `go build -o bbs ./cmd/bbs/` passes
+
 ### Step 5: Verify
 
 ```bash
 # Set Slack Webhook URL
+# (If you don't have one, wire NoOpGateway in main.go instead — see "Handling Non-Notification Scenarios")
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T.../B.../xxx"
 
 # Build and start
 go build -o bbs ./cmd/bbs/
+# Expected output: (none — the bbs binary appears in the working directory)
 ./bbs
+# Expected output: the server starts and listens on :8080
 
 # Post → Slack notification is sent
 curl -X POST http://localhost:8080/api/threads/1/posts \
   -H 'Content-Type: application/json' \
   -d '{"author":"gopher","body":"Slack notification test"}'
+# Expected output: HTTP 201 with the created post as JSON
+# (the same response as before this workshop — notification happens in the background)
 ```
+
+### ✅ Checkpoint
+
+- [ ] Posting via `curl` returns the same response as before the workshop
+- [ ] The Slack message arrives in the channel (or, with `NoOpGateway`, the post still succeeds with nothing sent)
+- [ ] Temporarily breaking the webhook URL (e.g., an invalid host) shows the warning log `notification failed` while the post still succeeds with HTTP 201
+- [ ] `go test ./...` passes in `software/assets/bbs`
 
 ---
 
@@ -339,3 +389,35 @@ In this case:
    - Infra implements "how to notify" (Slack Webhook / Email SMTP)
 3. **Testability**: Interfaces enable notification mocking, allowing tests independent of external services.
 4. **Notification Target Swap**: Changing Slack → Email → LINE requires only a one-line change in Composition Root.
+
+---
+
+## What you learned
+
+- Adding a new external integration means **defining a new Port in the UseCases layer and adding one Adapter** — Domain and Presentation are untouched.
+- The Port signature describes **what** the workflow needs (`NotifyNewPost`), never **how** it is delivered — the word "Slack" never crossed into the UseCase layer.
+- Side-effecting calls that must not undo the main operation run **outside the transaction**, and their failures degrade gracefully (log-only) instead of failing the request.
+- NoOp and mock implementations of the same Port make testing and CLI scenarios free of external dependencies.
+- Swapping notification targets (Slack → Email) is a one-line change in the Composition Root.
+
+**Next**: [WS7: Adding Authentication](./clean_arch_ws7_en.md) — the same "keep the core unaware" idea applied to the Presentation layer with middleware.
+
+---
+
+## Cleanup
+
+```bash
+# Stop the server first (Ctrl+C in the terminal running ./bbs), then:
+unset SLACK_WEBHOOK_URL
+# If you ran WS5's PostgreSQL container and no longer need it:
+podman stop bbs-postgres && podman rm bbs-postgres
+rm -f bbs
+```
+
+---
+
+## References
+
+- [Slack API: Incoming Webhooks](https://api.slack.com/messaging/webhooks)
+- [Go net/http documentation](https://pkg.go.dev/net/http)
+- [Go Log/slog (structured logging)](https://go.dev/blog/slog)

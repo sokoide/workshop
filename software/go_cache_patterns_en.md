@@ -1,5 +1,11 @@
 # Caching Patterns in Go
 
+> **⏱️ Estimated Time**: Approx. 60 minutes (all patterns; each pattern can also be read on its own)
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+, any OS
+>
+> **📖 Reference catalog**: Each pattern is self-contained — jump straight to the pattern you need; you do not have to read this document cover to cover.
+
 [English](go_cache_patterns_en.md) | [日本語](go_cache_patterns_ja.md)
 
 ## Table of Contents
@@ -487,3 +493,23 @@ flowchart TD
 `software/assets/go_cache_patterns/pattern5_write_through/main.go`
 
 The TTL and LRU caches copy byte slices on both insertion and retrieval. Expiry checks and deletion share one lock, so cleanup cannot delete a concurrent replacement. Singleflight waiters can cancel independently; the first caller still supplies the shared fetch context. The write-through example serializes reads and writes through one wrapper; direct writes to the backing store or another wrapper are outside this guarantee.
+
+---
+
+## What you learned
+
+- How to pick a cache strategy (TTL expiry, LRU eviction, cache-aside, write-through) that matches your workload's read/write balance and consistency requirements
+- How to keep a concurrent in-memory cache race-free while bounding its memory usage
+- How `singleflight` collapses duplicate cache-miss fetches into one backend call, preventing a cache stampede
+- How to integrate a distributed Redis cache into a Go service with go-redis
+
+**Next step**: run the hands-on version of the distributed pattern in [Redis Workshop: Real-time Game Leaderboard](../infra/cache_en.md).
+
+---
+
+## References
+
+- [sync package (Mutex, RWMutex)](https://pkg.go.dev/sync)
+- [singleflight: duplicate function call suppression](https://pkg.go.dev/golang.org/x/sync/singleflight)
+- [go-redis client](https://github.com/redis/go-redis)
+- [Redis documentation: data types](https://redis.io/docs/latest/develop/data-types/)

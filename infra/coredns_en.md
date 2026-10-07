@@ -1,5 +1,9 @@
 # CoreDNS Workshop: Understanding Name Resolution by Building Parent-Child DNS Servers
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux (two VMs; `dig` required)
+
 This workshop is for software engineers to learn the basic mechanisms of DNS (Authoritative Servers, Forwarding, Delegation) by actually building them using **CoreDNS**.
 
 > **💡 Glossary**: Please refer to [Authoritative DNS Server](glossary_en.md#network) or [Forwarding](glossary_en.md#network) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -30,6 +34,14 @@ sequenceDiagram
 1. **Authoritative DNS Server:** Building a server that knows the correct answer for a specific domain (zone).
 2. **Forwarding:** A mechanism to forward queries for domains you do not manage to another server.
 3. **Building Zone Hierarchy:** Coordination between parent and subdomains.
+
+## Prerequisites
+
+- [ ] Two Linux VMs (Ubuntu 22.04/24.04 recommended) — VM1 at `192.168.100.10`, VM2 at `192.168.100.20`
+- [ ] `curl` and `tar`
+- [ ] `dig` (`sudo apt install -y dnsutils`)
+- [ ] sudo privileges on both VMs (installing the binary to `/usr/local/bin`)
+- Recommended: [TCP/IP Protocol Stack Workshop](tcpip_stack_en.md) to see how DNS queries travel over the network
 
 ---
 
@@ -94,6 +106,7 @@ sudo mv coredns /usr/local/bin/
 
 # Verify operation
 coredns -version
+# Expected output: CoreDNS-1.13.2 linux/amd64, go1.x.x, ...
 ```
 
 ### ✅ Verification Checkpoints
@@ -215,9 +228,20 @@ Query from another terminal.
 
    ```bash
    dig @192.168.100.10 -p 10053 test.foo.sokoide.com
+   # Expected output: ;; ANSWER SECTION: test.foo.sokoide.com. 3600 IN A 2.2.2.2
+   #                  ;; SERVER: 192.168.100.10#10053(...)
    ```
 
    **Result Check**: If `2.2.2.2` appears in the `ANSWER SECTION` and the `SERVER` is `192.168.100.10`, it confirms the parent "proxy-fetched" the answer from the child.
+
+## What you learned
+
+- How an authoritative DNS server answers queries from its zone file (`file` plugin).
+- How forwarding sends queries for unmanaged subdomains to another server (`forward` plugin).
+- How parent and child zones cooperate during name resolution.
+- How to inspect resolution results with `dig` (`ANSWER SECTION`, `SERVER`).
+
+**Next step**: Try delegation (NS records) as described in the Next Steps below, then see CoreDNS in action as the Kubernetes cluster DNS in the [Kubernetes Basics Workshop](kubernetes_basics_en.md).
 
 ---
 

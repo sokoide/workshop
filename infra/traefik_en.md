@@ -1,5 +1,9 @@
 # Reverse Proxy Workshop: Understanding K8s Ingress through Traefik
 
+> **⏱️ Estimated Time**: Approx. 45 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux (Podman; Docker-compatible socket)
+
 In this workshop, you will learn the mechanics behind Kubernetes Ingress Controllers (L7 routing, load balancing, service discovery) using **Traefik**, a cloud-native edge router.
 
 > **💡 Glossary**: Please refer to [Reverse Proxy](glossary_en.md#network), [Ingress](glossary_en.md#architecture), or [Service Discovery](glossary_en.md#architecture) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -12,6 +16,14 @@ By completing this workshop, you will be able to:
 - Configure load balancing for multiple backend services
 - Process requests using middleware (Basic Auth, header modification)
 - Understand service discovery mechanisms that detect dynamic container changes
+
+## Prerequisites
+
+- [ ] Podman 5.x (`podman version`) with the Docker-compatible API socket at `/run/podman/podman.sock`
+- [ ] `podman compose` or `podman-compose`
+- [ ] `curl`
+- [ ] `htpasswd` (`sudo apt install -y apache2-utils`) — used in STEP 4
+- Recommended: [TLS/SSL Certificate Workshop](tls_en.md) if you plan to add HTTPS afterwards
 
 ---
 
@@ -164,6 +176,7 @@ Verify:
 
 ```bash
 curl http://localhost/nginx
+# Expected output: Nginx welcome page ("Welcome to nginx!")
 ```
 
 ### ✅ Verification Checkpoints
@@ -212,6 +225,24 @@ podman rm -f nginx-demo
 - **HTTPS**: Automatic certificate issuance with Let's Encrypt
 - **Deploy to Kubernetes**: Installing Traefik using Helm Charts
 - **Service Mesh**: Advanced traffic control using Envoy (Next Workshop)
+
+---
+
+## What you learned
+
+- How L7 reverse proxying works: host-based and path-based routing in front of backend containers.
+- How Traefik discovers containers automatically via the Podman socket and applies routing without restarts.
+- How load balancing distributes requests across containers that share the same routing rule.
+- How middleware (Basic Auth) adds cross-cutting behavior without touching application code.
+- How these routing rules map to Kubernetes Ingress resources, and where service meshes (Envoy) take over.
+
+---
+
+## References
+
+- [Traefik Documentation](https://doc.traefik.io/traefik/)
+- [Traefik & Docker Provider - Routing Configuration](https://doc.traefik.io/traefik/routing/providers/docker/)
+- [traefik/whoami](https://github.com/traefik/whoami)
 
 ---
 

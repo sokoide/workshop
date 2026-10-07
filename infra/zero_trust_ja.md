@@ -1,6 +1,16 @@
 # Zero Trust Architecture 実習：mTLS と Service Mesh による「常に検証」ディープダイブ
 
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: 上級
+> **💻 環境**: Linux / macOS（kind、kubectl、istioctl 1.20+。クラスタ用に ~4 GB RAM）
+
 このワークショップでは、**Istio Service Mesh** と **SPIRE/SPIFFE** を使用して、Zero Trust Architecture (ZTA) の核となる「信頼なし、常に検証」の原則を実際のシステムで実装します。
+
+## 前提条件
+
+- [ ] kind と kubectl がインストール済み（`kind version`、`kubectl version --client`）
+- [ ] `istioctl` 1.20+ をダウンロード済み（無い場合はセクション 4 で導入）
+- [ ] 推奨: 先に [`kubernetes_basics_ja.md`](kubernetes_basics_ja.md) と [`tls_ja.md`](tls_ja.md)（証明書/mTLS の基礎）
 
 > **💡 用語集**: [Zero Trust](glossary_ja.md#security)、[mTLS](glossary_ja.md#security)、[Service Mesh](glossary_ja.md#security)、[SPIRE](glossary_ja.md#security) などの用語は [用語集](glossary_ja.md) を参照してください。
 
@@ -285,6 +295,15 @@ kind delete cluster --name zero-trust-workshop
 ```
 
 ---
+
+## 🔧 トラブルシューティング
+
+| 症状                                                     | 原因                                                | 対処                                                                                                                |
+| -------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| injection 有効化後に Pod が `ContainerCreating` で止まる | Istio サイドカーイメージの取得中                    | `kubectl get pods -w` で待機。`istioctl proxy-status` も確認                                                        |
+| `istioctl: command not found`                            | istioctl が PATH にない                             | [Istio docs](https://istio.io/latest/docs/setup/getting-started/#download) に従ってダウンロードし、シェルを開き直す |
+| ワークロード間で `connection reset`                      | mTLS モード不整合（PERMISSIVE vs STRICT）           | `kubectl get peerauthentication -A` でメッシュポリシーを揃える                                                      |
+| ワークロードから `403 Forbidden`                         | AuthorizationPolicy が呼び出し元の SPIFFE ID を拒否 | `istioctl proxy-config authz <pod>` で有効なポリシーを確認                                                          |
 
 ## 参考文献
 

@@ -1,7 +1,13 @@
 # K8s Service (LoadBalancer) 実習：iptables で作る仮想ロードバランサ
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 上級
+> **💻 環境**: Linux（root/sudo、podman。rootful コンテナ内の iptables）
+
 この実習は、[vlan_ja.md](./vlan_ja.md) の環境を拡張して行います。
 Kubernetes の `Service (Type: LoadBalancer)` や `MetalLB` が、裏側でどのようにパケットを操作しているかを、Linux の基本機能だけで再現して学びます。
+
+**前提ワークショップ**: まず [`vlan_ja.md`](./vlan_ja.md) を完了させてください（podman ネットワーク、router コンテナ、VLAN 10/20 の構成を再利用します）。
 
 > **💡 用語集**: この実習で登場する[LoadBalancer](glossary_ja.md#network)や[iptables](glossary_ja.md#network)、[VIP](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
@@ -238,6 +244,15 @@ sudo podman exec a curl -s http://192.168.10.100
 低レベルなパケット操作（本実習）と、高レベルな API による操作の両方を理解することで、トラブルシューティング能力が向上します。
 
 ---
+
+## 学んだこと
+
+- LoadBalancer Service とは **VIP への DNAT** ＋ 転送ルールのこと。MetalLB は、router 上で手動設定した内容を自動化しているだけだと分かる。
+- `iptables -t nat -A PREROUTING` はルーティング前に宛先を書き換えるため、VIP 自身はインターフェースを必要としない。
+- `--ctstate DNAT` は「宛先が書き換えられた接続」にのみマッチするため、Pod IP への直接アクセスは `DROP` ルールでブロックされたまま — 「Pod IP ではなく Service IP を使う」原則のパケットレベル強制である。
+- `POSTROUTING` の MASQUERADE により、返信トラフィックは router 経由で戻り、プライベートな Pod IP がクライアントに漏れない。
+
+**次のステップ**: [`kubernetes_basics_ja.md`](kubernetes_basics_ja.md) で Kubernetes 側から Service を見る、または上の[クリーンアーキテクチャ・自動化の視点](#クリーンアーキテクチャ自動化の視点)を再読する。
 
 ## 片付け
 

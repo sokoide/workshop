@@ -1,11 +1,23 @@
 # クリーンアーキテクチャ実習 (WS1): 変更に強い設計を学ぶ
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: Beginner
+> **💻 環境**: Go 1.22+、OS 不問
+>
+> > **💡 用語集**: [クリーンアーキテクチャ](../infra/glossary_ja.md#architecture)や[インターフェース](../infra/glossary_ja.md#go)などの専門用語は [用語集](../infra/glossary_ja.md) を参照してください。
+
 この実習では、既存のサンプルを拡張しながら、ビジネスルールの追加とインフラの差し替えを行い、クリーンアーキテクチャの利点を体験します。
 
 ## 実習のシナリオ
 
 1. **ビジネスルールの追加**: 「勤続 5 年以上の社員をベテランと認定する」というルールを、Entity と Domain Service を使って実装します。
 2. **インフラの差し替え**: データの保存先を SQL データベースから Active Directory (LDAP) に変更します。この際、UseCase や Domain に一切手を加えないことを確認します。
+
+## 前提知識
+
+- [ ] Go 1.22 以上がインストール済み（`go version` で確認）
+- [ ] [クリーンアーキテクチャガイド](./clean_arch.md)（3 層バリアント: Adapters / UseCases / Domain）を読んでいる
+- [ ] `internal/domain`、`internal/usecase`、`internal/adapters/infra` パッケージを作成できる Go モジュールを用意済み
 
 ---
 
@@ -90,6 +102,12 @@ func (uc *CheckVeteranUseCase) Execute(ctx context.Context, id string) (bool, er
 
 > **インターフェース設計の補足:** UseCase は `VeteranChecker` インターフェースを介さず、`domain.VeteranService` という具象型に直接依存しています。これは **シンプルさと疎結合のトレードオフ** です。`VeteranService` は外部依存のない純粋な Domain Service であり、将来不当な副作用を獲得するリスクが低いため、余分なインターフェース層は実益のない儀式（ceremony）になります。デメリットは、`VeteranService` のメソッドシグネチャが変更された場合、UseCase も変更が必要になることです。後に外部依存を獲得する可能性のある Domain Service（例: API を呼び出す可能性があるルックアップサービス）では、最初からインターフェースを定義する方が安全な選択です。
 
+### ✅ チェックポイント
+
+- [ ] `internal/domain/user.go` と `internal/domain/veteran_service.go` がコンパイルできる — `go build ./...` が何も出力せずに終了する
+- [ ] `CheckVeteranUseCase` が `infra` パッケージを **一切 import せずに** コンパイルできる
+- [ ] DB や HTTP のセットアップなしに `VeteranService.IsVeteran` の単体テストを書ける
+
 ---
 
 ## 課題 2: インフラの差し替え (SQL → Active Directory)
@@ -152,6 +170,12 @@ func main() {
 }
 ```
 
+### ✅ チェックポイント
+
+- [ ] `ADUserRepository` が `domain.UserRepository` を満たしている — `var _ domain.UserRepository = (*infra.ADUserRepository)(nil)` がコンパイルできる
+- [ ] データ取得先の差し替えで変更したのは `main.go`（Composition Root）だけ
+- [ ] AD リポジトリを配線した状態でも `go build ./...` が通り、`internal/domain` / `internal/usecase` は無変更のままである（`git diff` で差分がないことを確認）
+
 ---
 
 ## この実習のポイント
@@ -184,3 +208,22 @@ func main() {
 ### 問 3: ベア構造体リテラルのリスク
 
 `ADUserRepository.FindByID` で `&domain.User{...}` のようにベア構造体リテラルを使っています。ドメインの不変条件（例：ID は空文字であってはならない）を守るため、どのような設計を追加できますか？
+
+---
+
+## 学んだこと
+
+- 「誰がベテランか」というビジネス知識は Domain 層に住む: 計算は **Entity** のメソッド、基準（5 年）は **Domain Service** として表現され、DB・HTTP・モックなしでテストできる。
+- UseCase は `domain.UserRepository` という **出力ポート** にのみ依存するため、SQL から Active Directory への差し替えは `main.go` だけで完結し、Domain と UseCase は **ゼロ行変更** だった。
+- Infra Adapters がベア構造体リテラルを使ってよいのは、永続化済みデータの **再構成** の場合のみ。新規生成は不変条件を守るためコンストラクタ経由にする。
+- インターフェースを定義すべきかどうかは、相手が外部依存を持つ（持ち得る）かどうかで判断する。純粋な Domain Service すべてに不要なインターフェースは作らない。
+
+**次**: [WS2: 拡張と最適化](./clean_arch_ws2_ja.md) — 通知の抽象化と Decorator パターンによる透過的キャッシュの導入を学びます。
+
+---
+
+## 参考文献
+
+- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [Effective Go: Interfaces](https://go.dev/doc/effective_go#interfaces_and_types)
+- [Go Documentation](https://go.dev/doc/)

@@ -1,5 +1,9 @@
 # Kerberos / SPNEGO Authentication Workshop: Single Sign-On with NGINX and Podman
 
+> **⏱️ Estimated Time**: Approx. 75 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: Linux (host `krb5-user` tools, Podman with `podman compose`, curl with SPNEGO/GSS-API support; WSL2 works)
+
 For software engineers, this workshop explains the mechanism of **Kerberos** and **SPNEGO** authentication, which are standard in enterprise environments, by building them using **NGINX** and **Podman**.
 
 > **💡 Glossary**: For technical terms such as [Kerberos](glossary_en.md#network) or [SPN](glossary_en.md#network) appearing in this workshop, please refer to the [Glossary](glossary_en.md).
@@ -386,6 +390,14 @@ curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
 If `200 OK` is returned but the second `WWW-Authenticate: Negotiate <token>` is missing, mutual-auth token return may not be happening (check module behavior/config).
 
 ---
+
+## What you learned
+
+- **KDC is the trust root**: one `kinit` against the KDC yields a TGT, and service tickets are derived from it — the password is typed exactly once per session.
+- **SPN ↔ keytab binding**: the service ticket is encrypted with the key of `HTTP/nginx.test.local@TEST.LOCAL`; only the server holding that keytab can decrypt it, which is the proof of identity.
+- **SPNEGO on HTTP is a 2-round exchange**: a `401` with `WWW-Authenticate: Negotiate` starts it, and the `Authorization: Negotiate <token>` header carries the Kerberos token — no password ever crosses the wire.
+- **Mutual authentication**: the server returns its own token in the response header so the client can verify it talked to the real service, not an impostor.
+- Kerberos is why enterprise SSO "just works" inside a domain — and why the same flow breaks the moment DNS/SPN/hosts mappings drift.
 
 ## Cleanup
 

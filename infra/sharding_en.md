@@ -1,5 +1,9 @@
 # Sharding Fundamentals: Sparse Table, Segment Tree, Elasticsearch, and Cortex
 
+> **⏱️ Estimated Time**: Approx. 45 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: any (reading only — no hands-on environment required)
+
 This guide explains practical sharding design for distributed systems and connects theory to production systems:
 
 > **💡 Glossary**: Please refer to [Sharding](glossary_en.md#architecture), [Consistent Hashing](glossary_en.md#architecture), or [Fan-out](glossary_en.md#network) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -17,6 +21,15 @@ By reading this guide, you should be able to:
 3. Understand where sparse tables and segment trees fit in sharded control planes.
 4. Map sharding concepts to Elasticsearch and Cortex.
 5. Understand the impact of Cortex PRs #7266 and #7270 on ring-control loops.
+
+## Prerequisites
+
+This is a conceptual guide — no tools, containers, or cloud accounts are required.
+
+- [ ] Basic understanding of distributed systems (replication, load balancing)
+- [ ] Familiarity with hashing concepts ([Consistent Hashing](glossary_en.md#architecture) in the [Glossary](glossary_en.md))
+- [ ] Recommended: [Caching Workshop](cache_en.md) (storage-layer scaling patterns)
+- [ ] For the Cortex PR notes: basic Go benchmarking (`B/op`, `allocs/op`) knowledge helps
 
 ---
 
@@ -304,6 +317,23 @@ Ring watch/backoff/lifecycler loops run continuously in control-plane paths. Red
 6. Use static vs dynamic metadata structures intentionally:
    - static-heavy: Sparse Table
    - update-heavy: Segment Tree
+
+---
+
+## What you learned
+
+- How to choose between hash, range, and tenant-aware sharding based on workload shape
+- How to select a shard key that minimizes skew and cross-shard fan-out
+- When to use a Sparse Table (static metadata) vs a Segment Tree (dynamic metadata) for routing decisions
+- How Elasticsearch primary shards and the Cortex hash ring map to sharding theory
+- Why control-plane loop efficiency (timer reuse) matters for ring convergence stability
+- How to plan re-sharding as a routine, monitored operation instead of an emergency
+
+---
+
+## Cleanup
+
+Not applicable — this guide creates no containers, volumes, or cloud resources. If you explored the linked systems, remove any environment you started outside this guide.
 
 ---
 

@@ -1,11 +1,24 @@
 # Clean Architecture Workshop (WS5): Swapping the Persistence Layer
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+, PostgreSQL 16 (podman or docker)
+>
+> > **💡 Glossary**: For technical terms such as [Clean Architecture](../infra/glossary_en.md#architecture), [Interface](../infra/glossary_en.md#go), and [Context](../infra/glossary_en.md#go), please refer to the [Glossary](../infra/glossary_en.md).
+
 In this workshop, you will migrate the BBS (2channel-style bulletin board) database from SQLite to PostgreSQL.
 You will modify **the Infra Adapter layer and Composition Root wiring**, confirming that Domain, UseCase, and Presentation remain completely untouched.
 
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
+
+Checklist before starting:
+
+- [ ] Completed [WS4](./clean_arch_ws4_en.md) — this workshop starts from the WS4 state of the BBS project
+- [ ] Go 1.22+ installed — verify with `go version`
+- [ ] The BBS project builds: `cd software/assets/bbs && go build ./...` exits with no output
+- [ ] `podman` (or `docker`) installed for the PostgreSQL container — verify with `podman --version`
 
 ## Workshop Scenario
 
@@ -63,6 +76,12 @@ func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.
 ```
 
 **Key observation**: UseCase depends on the `BoardRepository` **interface**, not the `sqlite.BoardRepository` concrete type.
+
+### ✅ Checkpoint
+
+- [ ] You confirmed `internal/usecase/repository.go` defines the interfaces and contains no SQLite-specific code
+- [ ] You located the SQLite `?` placeholder in the query and know it becomes `$1` in PostgreSQL
+- [ ] `go build ./...` passes in `software/assets/bbs` (nothing changed yet)
 
 ### Step 2: Create PostgreSQL Repositories
 
@@ -200,6 +219,13 @@ func (r *BoardRepository) FindByName(ctx context.Context, name string) (*entity.
 
 When `RunInTransaction` wraps `ctx` with `*sql.Tx`, all repository calls within `fn(txCtx)` automatically participate in the same transaction. No repository code changes are needed.
 
+### ✅ Checkpoint
+
+- [ ] Everything under `internal/adapters/infra/persistence/postgres/` is **new files** — the `sqlite/` directory is untouched (`git status` confirms)
+- [ ] All queries use `$1`-style placeholders, and generated IDs are fetched with `RETURNING`
+- [ ] Every query goes through `executor(ctx, r.db)`, not `r.db` directly
+- [ ] `go build ./...` passes
+
 ### Step 3: Swap in Composition Root
 
 **Only a few lines in `cmd/bbs/main.go` change**.
@@ -241,6 +267,11 @@ func main() {
 }
 ```
 
+### ✅ Checkpoint
+
+- [ ] In `cmd/bbs/main.go` only the repository construction lines changed — the UseCase and handler wiring below is untouched
+- [ ] `go build -o bbs ./cmd/bbs/` passes with the `postgres` package wired in
+
 ### Step 4: Verify
 
 ```bash
@@ -251,6 +282,7 @@ podman run -d --name bbs-postgres \
   -e POSTGRES_DB=bbs \
   -p 5432:5432 \
   postgres:16
+# Expected output: a 64-character container ID; `podman ps` shows bbs-postgres as Up
 
 # Run migration (DDL adjusted for PostgreSQL)
 # Use SERIAL, RETURNING, and other PostgreSQL-specific syntax
@@ -258,23 +290,42 @@ podman run -d --name bbs-postgres \
 # Build and start
 export DATABASE_URL="postgres://bbs:bbs@localhost:5432/bbs?sslmode=disable"
 go build -o bbs ./cmd/bbs/
+# Expected output: (none — the bbs binary appears in the working directory)
 ./bbs
+# Expected output: the server starts and listens on :8080
 
 # Verify (API is unchanged)
 curl http://localhost:8080/api/boards
+# Expected output: HTTP 200 with a JSON array of boards, e.g.
+# [{"id":1,"name":"program","description":"Programming General",...}]
 curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"PostgreSQL thread","author":"pg","body":"Migration successful!"}'
+# Expected output: the created thread as JSON (the same shape the SQLite version returned)
 ```
+
+### ✅ Checkpoint
+
+- [ ] `podman ps` shows `bbs-postgres` running and the migration DDL applied without errors
+- [ ] `curl http://localhost:8080/api/boards` returns HTTP 200 with the board list
+- [ ] Creating a thread via `curl` succeeds and the response matches what the SQLite version returned for the same request
+- [ ] `go test ./...` passes in `software/assets/bbs`
 
 ### Step 5: Confirm SQLite Version Still Works
 
 ```bash
 # SQLite version still runs (switch via environment variable)
+# Stop the PostgreSQL-backed instance first (Ctrl+C), or the two will fight over :8080
 BBS_DB=/tmp/bbs.db ./bbs
+# Expected output: the server starts and listens on :8080, now backed by SQLite
 ```
 
 SQLite code has **zero modifications**, so it works as-is.
+
+### ✅ Checkpoint
+
+- [ ] The SQLite-backed server starts with `BBS_DB=/tmp/bbs.db ./bbs` and the API works
+- [ ] `git diff` shows **no changes** under `internal/adapters/infra/persistence/sqlite/`
 
 ---
 
@@ -312,3 +363,34 @@ Without this conversion, UseCase depends on `database/sql`, making DB changes im
 2. **Role of Interfaces**: UseCase depends on Port Interfaces (abstractions), not concrete implementations (SQLite/PostgreSQL). This enables swapping.
 3. **Composition Root Is the Single Source of Truth**: Only `main.go` knows "which DB to use." Each layer is unaware of what it's using.
 4. **Coexistence**: SQLite and PostgreSQL versions can coexist, switchable via environment variables or build tags.
+
+---
+
+## What you learned
+
+- Swapping the persistence layer touches only the **Infra Adapter** and the **Composition Root** wiring — every difference between SQLite and PostgreSQL (`?` vs `$1` placeholders, `RETURNING` for generated IDs) is absorbed inside the new adapter.
+- The **error boundary** is what makes the swap safe: as long as `sql.ErrNoRows` is converted to `domain.ErrBoardNotFound` inside Infra, the UseCase never learns which database is running.
+- Transactions propagate through `context` (`context.WithValue` + the `executor` helper), so repositories join a transaction without any code change.
+- Coexistence of two implementations behind the same port makes rollback trivial: switching back is a one-line change in `main.go`.
+
+**Next**: [WS6: Integrating External Services](./clean_arch_ws6_en.md) — instead of swapping an existing adapter, you will define a brand-new Port and add an adapter for it.
+
+---
+
+## Cleanup
+
+```bash
+# Stop the server first (Ctrl+C in the terminal running ./bbs), then:
+podman stop bbs-postgres
+podman rm bbs-postgres
+rm -f bbs /tmp/bbs.db
+```
+
+---
+
+## References
+
+- [PostgreSQL 16 Documentation](https://www.postgresql.org/docs/16/)
+- [pgx — PostgreSQL Driver and Toolkit](https://github.com/jackc/pgx)
+- [Go Databases: Accessing relational databases](https://go.dev/doc/database/)
+- [Podman — Running containers](https://docs.podman.io/en/latest/Introduction.html)

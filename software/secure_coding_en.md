@@ -1,5 +1,9 @@
 # Secure Coding Best Practices (Go)
 
+> **⏱️ Estimated Time**: Approx. 60 minutes (all best practices; each BP can also be read on its own)
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+, any OS
+
 Learn about vulnerabilities commonly introduced during everyday coding and the habits to prevent them. Unlike HTTP-level attacks covered in `infra/web_security_en.md` (XSS, CSRF, etc.), this guide focuses on risks hidden inside **application implementation**.
 
 ---
@@ -747,6 +751,18 @@ func WithdrawDB(ctx context.Context, db *sql.DB, userID int, amount int) error {
 
 5. **What is a TOCTOU vulnerability, and how do you prevent it?**
    - <details><summary>Answer</summary>TOCTOU (Time-of-Check to Time-of-Use) occurs when state changes between a condition check and the actual operation, invalidating the check. Prevent it with mutual exclusion (Mutex) or database transactions with row-level locking (SELECT FOR UPDATE).</details>
+
+---
+
+## What you learned
+
+- Why user input must never reach a SQL parser, a filesystem path, or an output sink unescaped
+- How to hash passwords with adaptive, salted algorithms (bcrypt / argon2id) instead of fast hashes
+- How to pick `crypto/rand` over `math/rand` for any security-relevant value
+- How to fail and log without leaking internals, secrets, or user data
+- How to spot and prevent race conditions and TOCTOU bugs with mutexes and transactions
+
+**Next step**: see the HTTP-level counterpart of these risks (XSS, CSRF, session handling) in [Web Security](../infra/web_security_en.md).
 
 ---
 

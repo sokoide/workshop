@@ -1,6 +1,16 @@
 # クリーンアーキテクチャの極意: 最小構成で本質を理解する (WS8)
 
+> **⏱️ 所要時間**: 約 30 分
+> **🎯 レベル**: 初級
+> **💻 環境**: Go 1.22+、curl、OS 不問
+
 この実習では、わずか 100 行程度の「ユーザー挨拶アプリ」を通じて、クリーンアーキテクチャ（3 層バリアント: Adapters / UseCases / Domain）の設計思想と「変更への強さ」を体験します。
+
+## 前提条件
+
+- [ ] Go 1.22 以降（`go version`）
+- [ ] curl（`curl --version`）
+- [ ] クリーンアーキテクチャの事前知識は不要 — `clean_arch.md` と WS1 の前に読むべき推奨入口です
 
 ## 1. 概要
 
@@ -178,6 +188,12 @@ repo := infra.NewSliceUserRepo()
 
 - **ポイント**: この変更で触れたのは Infrastructure Adapter（`infra/`）と Composition Root（`main.go`）だけです。`domain/`、`usecase/`、`presentation/` は一切変更なしに動作します。これが「依存性の逆転」の実感です。
 
+### ✅ チェックポイント
+
+- [ ] `curl "http://localhost:8080?id=1"` が `Hello, Alice!` を返した
+- [ ] `go test ./usecase/...` がデータベースなしで通過した
+- [ ] `SliceUserRepo` へ差し替え後も動作は同一で、`git status` の変更が `infra/` と `main.go` のみであることを確認
+
 ---
 
 ## 5. 発展トピック: エラーとデータの境界
@@ -209,3 +225,31 @@ Presentation Adapters    → ドメインエラーを HTTP ステータスに変
 5. **依存性の注入 (DI)**: `main.go` で各パーツをカチッとはめ込むことで、全体が動くようになります。
 
 これが、メンテナンス性が高く、テストが容易で、変化に強い「クリーン」な設計の第一歩です。
+
+**次のステップ**: [`clean_arch.md`](./clean_arch_ja.md) でレイヤー定義の全文を読み、[WS1](./clean_arch_ws1_ja.md) で自分でレイヤーを構築します。
+
+---
+
+## 🔧 トラブルシューティング
+
+| 症状                           | 原因                                              | 対処                                                                   |
+| ------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------- |
+| `curl` で接続できない          | サーバー未起動、または :8080 を別プロセスが使用中 | `go run main.go` の出力を確認。ポートを空けるか `main.go` でポート変更 |
+| `go test ./usecase/...` が失敗 | モジュール未ビルド・誤ったディレクトリ            | `software/assets/greeting/` で `go mod tidy` 後に実行                  |
+| Step 4 後にコンパイルエラー    | `slice.go` のパッケージパスの誤り                 | パッケージは `infra`、import は `workshop/greeting/domain` にする      |
+
+---
+
+## 片付け
+
+```bash
+# サーバーを停止（go run main.go のターミナルで Ctrl+C）してから:
+cd software/assets/greeting && git checkout -- main.go && rm -f infra/slice.go
+```
+
+---
+
+## 参考文献
+
+- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [本リポジトリのクリーンアーキテクチャ解説](./clean_arch_ja.md)

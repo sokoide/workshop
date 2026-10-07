@@ -1,5 +1,9 @@
 # Kubernetes Workshop: From Basics to Practical Container Orchestration
 
+> **⏱️ Estimated Time**: Approx. 180 minutes (recommended: split into 2-3 sessions)
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux / macOS / WSL2 (kind cluster; sudo required in STEP 7)
+
 This workshop covers Kubernetes (K8s) from basic concepts to production-ready configurations through hands-on exercises. We aim to understand K8s not just as an infrastructure tool, but as a **"Platform for running distributed systems."**
 
 > **⚠️ Time Estimate**: This workshop is comprehensive and we recommend **splitting it into multiple sessions** (approximately 30-45 minutes per section).
@@ -136,13 +140,18 @@ graph TB
 
 ---
 
+## Prerequisites
+
+- [ ] **kubectl** v1.28+ — `kubectl version --client`
+- [ ] **kind** v0.22+ — `kind version`
+- [ ] **Helm** v3.14+ — `helm version`
+- [ ] **Go** 1.22+ — `go version` (required in STEP 10 only)
+- [ ] **Podman or Docker** — container runtime for the kind node image
+- [ ] 4 GB+ free memory and 20 GB+ free disk space for the local cluster
+
+---
+
 ## Preparation
-
-### ✅ Prerequisites
-
-- **kubectl**: CLI for cluster operations
-- **kind**: Local K8s environment (runs on Docker/Podman)
-- **Helm**: Package manager for K8s
 
 ### 1. Tool Installation
 
@@ -221,6 +230,9 @@ kubectl apply -f manifests/01-pod.yaml
 
 # Check status
 kubectl get pods
+# Expected output:
+# NAME        READY   STATUS    RESTARTS   AGE
+# nginx-pod   1/1     Running   0          10s
 kubectl describe pod nginx-pod
 
 # Check logs
@@ -293,6 +305,7 @@ kubectl get pods -l app=nginx
 
 # Scale out
 kubectl scale deployment nginx-deployment --replicas=5
+# Expected output: deployment.apps/nginx-deployment scaled
 
 # Rolling update
 kubectl set image deployment/nginx-deployment nginx=nginx:1.27.4-alpine
@@ -339,6 +352,9 @@ kubectl apply -f manifests/03-service.yaml
 
 # Check status
 kubectl get services
+# Expected output:
+# NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+# nginx-service   ClusterIP   10.96.xx.xx    <none>        80/TCP    10s
 kubectl describe service nginx-service
 
 # Verify ClusterIP
@@ -415,7 +431,16 @@ kubectl apply -f manifests/04-configmap.yaml
 
 # Verify
 kubectl logs config-demo
+# Expected output:
+# production
+# {
+#   "database": {
+#     "host": "postgres.default.svc.cluster.local",
+#     "port": 5432
+#   }
+# }
 kubectl exec -it config-demo -- env | grep APP
+# Expected output: APP_ENV=production
 
 # Update ConfigMap
 kubectl patch configmap app-config --type merge -p '{"data":{"APP_ENV":"staging"}}'
@@ -472,6 +497,7 @@ kubectl get secret app-secret -o jsonpath='{.metadata.ownerReferences}'
 
 # Decode and verify Secret value
 kubectl get secret app-secret -o jsonpath='{.data.DB_PASSWORD}' | base64 -d
+# Expected output: secret-password-123
 ```
 
 ### ✅ Checklist
@@ -536,6 +562,9 @@ kubectl apply -f manifests/06-pvc.yaml
 
 # Check status
 kubectl get pvc
+# Expected output:
+# NAME      STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+# data-pvc  Bound    pvc-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx   1Gi        RWO            standard       10s
 kubectl get pv
 
 # Verify data writing
@@ -592,6 +621,7 @@ echo "$NODE_IP nginx.local" | sudo tee -a /etc/hosts
 
 # Verify access
 curl http://nginx.local
+# Expected output: the NGINX welcome page HTML
 ```
 
 ### ✅ Checklist
@@ -841,6 +871,18 @@ curl http://localhost:8080
 
 ---
 
+## What you learned
+
+- How the Control Plane reconciles declared state (Pod, Deployment, Service) into running containers
+- How to scale, roll out, and roll back applications with zero downtime
+- How to externalize configuration and credentials with ConfigMap and Secret
+- How to persist data beyond Pod lifecycle with PersistentVolumeClaim
+- How to expose HTTP traffic with Service and Ingress, and package apps with Helm
+
+**Next step**: level up to production concerns in [Kubernetes Operations & Security Workshop](kubernetes_operations_en.md).
+
+---
+
 ## Synergy with Clean Architecture
 
 Kubernetes is highly compatible with Clean Architecture:
@@ -875,6 +917,27 @@ spec:
             # Resolve Infra Layer Service via DNS
             - name: REPO_ENDPOINT
               value: "infra-service.default.svc.cluster.local:8080"
+```
+
+---
+
+## Cleanup
+
+```bash
+# Remove the /etc/hosts entry added in STEP 7
+sudo sed -i '/nginx.local/d' /etc/hosts
+
+# Uninstall Helm releases installed in STEP 8/9
+helm uninstall myapp-release
+helm uninstall prometheus
+
+# Delete the kind cluster (removes all resources created above)
+kind delete cluster --name k8s-workshop
+# Expected output: Deleted clusters "k8s-workshop"
+
+# Verify
+kind get clusters
+# Expected output: (no output)
 ```
 
 ---

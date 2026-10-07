@@ -1,5 +1,9 @@
 # コンテナランタイム実習：namespaces と cgroups で理解するコンテナの正体
 
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: 上級
+> **💻 環境**: Linux のみ (root/sudo 必須)
+
 このワークショップでは、Linux の標準機能である **namespaces** と **cgroups** を手動で操作し、コンテナがどのように構築・制限されているかを学びます。最終的に、Go 言語を使用して独自のコンテナランタイムを作成します。
 
 > **💡 用語集**: この実習で登場する[namespaces](glossary_ja.md#container)や[cgroups](glossary_ja.md#container)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -29,6 +33,15 @@ graph TD
 2. **cgroups によるリソース制御**: CPU やメモリ使用量の制限。
 3. **veth によるネットワーク接続**: 隔離空間とホスト間の通信確立。
 4. **Go による実装**: システムコールを用いたコンテナ起動プロセスのコード化。
+
+## 前提条件
+
+- [ ] cgroups v2 が有効な **Linux** ホスト（カーネル 5.8 以上。`stat -fc %T /sys/fs/cgroup/` が `cgroup2fs` を返せば OK）
+- [ ] **`sudo` 権限** — 名前空間や cgroup の操作には root 権限が必要
+- [ ] **Podman** 4.x 以上（rootfs の抽出のみに使用）
+- [ ] **Go** 1.22 以上（`go version` で確認）
+- [ ] **iproute2**（veth のネットワーク構築で `ip` コマンドを使用）
+- [ ] macOS / Windows ではネイティブに実行不可 — WSL2、Lima/Colima、クラウド上の Ubuntu を使用
 
 ---
 
@@ -94,6 +107,8 @@ podman export tmp-alpine > rootfs.tar
 podman rm tmp-alpine
 mkdir -p rootfs && tar -xf rootfs.tar -C rootfs
 cp /etc/resolv.conf rootfs/etc/resolv.conf
+ls -F rootfs/bin/sh
+# Expected output: rootfs/bin/sh
 ```
 
 ### ✅ チェックポイント
@@ -116,6 +131,7 @@ cp /etc/resolv.conf rootfs/etc/resolv.conf
    chroot rootfs /bin/sh
    mount -t proc proc /proc
    ps # コンテナ内のプロセスだけが見える
+   # Expected output: シェル (PID 1) と ps 自身のみ — ホストのプロセスは見えない
    ```
 
 ### ✅ チェックポイント
@@ -135,6 +151,10 @@ echo 0 | sudo tee /sys/fs/cgroup/workshop/memory.swap.max
 
 # プロセスの登録 (別ターミナルで特定した PID を書き込む)
 echo $TARGET_PID | sudo tee /sys/fs/cgroup/workshop/cgroup.procs
+
+# 確認
+cat /sys/fs/cgroup/workshop/memory.max
+# Expected output: 52428800
 ```
 
 ### ✅ チェックポイント
@@ -158,6 +178,7 @@ sudo ip -n container1 link set lo up
 sudo ip -n container1 addr add 10.0.0.2/24 dev veth-child
 sudo ip -n container1 link set veth-child up
 sudo ip netns exec container1 ping -c 3 10.0.0.1
+# Expected output: 3 packets transmitted, 3 received, 0% packet loss
 ```
 
 ### ✅ チェックポイント
@@ -183,6 +204,32 @@ cmd.SysProcAttr = &syscall.SysProcAttr{
 1. コンテナは Linux カーネル機能の組み合わせでできた「制限されたプロセス」です。
 2. **Namespace** で「視界」を、**Cgroup** で「資源」を制御します。
 3. 低レイヤーの仕組みを知ることで、Podman や K8s の挙動を深く理解できます。
+
+次のステップ: [Kubernetes 入門](kubernetes_basics_ja.md) でこれらのプリミティブが大規模にオーケストレーションされる様子を、[Terraform 実習](terraform_ja.md) でコンテナ環境のコード化による構築を学びましょう。
+
+---
+
+## 片付け
+
+```bash
+# ネットワーク名前空間と veth ペアを削除 (veth-child は netns 削除と共に消える)
+sudo ip netns del container1
+# veth-host は netns 削除と一緒に消えている場合がある — "Cannot find device" エラーは無視
+sudo ip link del veth-host || true
+
+# 実習用 cgroup を削除 (プロセスが登録されていない場合のみ削除できる)
+sudo rmdir /sys/fs/cgroup/workshop
+
+# 作業ディレクトリを削除 (rootfs とビルド済みバイナリ)
+rm -rf ~/container-handson
+```
+
+確認:
+
+```bash
+ip netns list | grep container1   # Expected output: (何も表示されない)
+ls /sys/fs/cgroup/workshop        # Expected output: "No such file or directory"
+```
 
 ---
 

@@ -1,5 +1,9 @@
 # セキュアコーディング Best Practices (Go)
 
+> **⏱️ 所要時間**: 全 BP で約 60 分（各 BP は単独でも読めます）
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Go 1.22+、OS 不問
+
 日々のコーディングで作り込みやすい脆弱性と、それを防ぐための習慣を学びます。XSS や CSRF といった Web レベルの攻撃（`infra/web_security_ja.md` 参照）とは別に、**アプリケーション内部の実装** に潜むリスクを取り上げます。
 
 ---
@@ -748,6 +752,18 @@ func WithdrawDB(ctx context.Context, db *sql.DB, userID int, amount int) error {
 
 5. **TOCTOU 脆弱性とは何ですか？ どのように防ぎますか？**
    - <details><summary>解答</summary>Time-of-Check to Time-of-Use の略で、条件チェック（Check）と実際の操作（Use）の間に別の処理が割り込み、チェック時の条件が満たされなくなっている脆弱性です。Mutex による排他制御や、データベースのトランザクション + 行ロック (SELECT FOR UPDATE) で防ぎます。</details>
+
+---
+
+## 学んだこと
+
+- ユーザー入力をエスケープせずに SQL パーサー、ファイルシステムのパス、出力先へ渡してはいけない理由
+- 高速なハッシュではなく、適応的かつソルト付きのアルゴリズム（bcrypt / argon2id）でパスワードをハッシュ化する方法
+- セキュリティに関わる値には `math/rand` ではなく `crypto/rand` を使う判断基準
+- 内部情報・機密情報・ユーザーデータを漏らさずにエラー処理とロギングを行う方法
+- Mutex とトランザクションによって競合状態や TOCTOU バグを見つけて防ぐ方法
+
+**次のステップ**: これらのリスクの HTTP レベルの側面（XSS、CSRF、セッション管理）は [Web セキュリティ](../infra/web_security_ja.md) を参照してください。
 
 ---
 

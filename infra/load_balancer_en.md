@@ -1,9 +1,16 @@
 # Load Balancer Workshop: Building a Virtual LB with iptables
 
 > **⏱️ Estimated Time**: Approx. 45 minutes
-> **⚠️ Note**: This workshop is recommended for Linux environments (or WSL2). There are limitations when using Docker Desktop for macOS.
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux (root/sudo, ipvsadm, iptables; WSL2 works, Docker Desktop for macOS has limitations)
 
 In this workshop, you will learn how load balancers work behind systems like Kubernetes or HAProxy by using Linux `iptables` and `ipvs` (IP Virtual Server).
+
+## Prerequisites
+
+- [ ] Linux (or WSL2) with root/sudo access
+- [ ] `ipvsadm`, `iptables`, `curl` installed (installed in Setup if missing)
+- [ ] Recommended first: [`tcpip_stack_en.md`](tcpip_stack_en.md) (NAT/DNAT fundamentals)
 
 > **💡 Glossary**: For technical terms such as [Load Balancer](glossary_en.md#network), [DNAT](glossary_en.md#network), and [Round Robin](glossary_en.md#network), please refer to the [Glossary](glossary_en.md).
 
@@ -426,6 +433,15 @@ podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.12:80 -g -w 1  # 
 ```
 
 ---
+
+## What you learned
+
+- A virtual load balancer needs only three kernel features: a **VIP address**, **DNAT** to rewrite destinations, and a **scheduler** to pick a backend.
+- `ipvs` maintains connection state per service, so established sessions stick to one backend even under round-robin scheduling.
+- Scheduling choice (rr / lc / sh) is a trade-off between fairness, backend cost awareness, and session stickiness.
+- This is the same machinery Kubernetes kube-proxy can use — you have built its mental model by hand.
+
+**Next**: [`k8s_lb_en.md`](k8s_lb_en.md) for the same pattern in a podman/VLAN environment, or [`envoy_en.md`](envoy_en.md) for an application-level (L7) load balancer.
 
 ## Cleanup
 

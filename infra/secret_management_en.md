@@ -1,5 +1,9 @@
 # Secret Management Workshop: Secure API Key Management with HashiCorp Vault
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux | macOS (Podman)
+
 In this workshop, you will build a secure secret management system using **HashiCorp Vault** and **Go**, learning how to manage sensitive data without hardcoding it.
 
 > **💡 Glossary**: Please refer to [Secret Management](glossary_en.md#security), [Vault](glossary_en.md#security), or [KV Engine](glossary_en.md#security) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -13,6 +17,14 @@ Build and experience a secure secret management flow, acquiring the following sk
 - Master HashiCorp Vault fundamentals (KV v2, tokens).
 - Integrate Vault into applications using Clean Architecture.
 - Implement secret versioning and rotation.
+
+## Prerequisites
+
+- [ ] **Podman** 4.x or later (`podman --version`)
+- [ ] **Go** 1.25 or later (`go version`)
+- [ ] **make** (used by `make vault-up`, `make init`, `make vault-down`)
+- [ ] Ports `8200` free (Vault API/UI)
+- [ ] Recommended: [Secret Management](glossary_en.md#security) and [Vault](glossary_en.md#security) entries in the [Glossary](glossary_en.md)
 
 ---
 
@@ -127,8 +139,10 @@ Look for hardcoded passwords in other workshop assets. Realize how terrifying it
 ```bash
 # Store
 go run cmd/put-secret/main.go api/external-key "sk-live-abc123xyz789"
+# Expected output: "=== Secret Stored Successfully ===" with the stored Key and Value
 # Retrieve
 go run cmd/get-secret/main.go api/external-key
+# Expected output: "=== Secret Retrieved ===" showing Value: sk-live-abc123xyz789 (Version: 1)
 ```
 
 ### STEP 3: Practical Example - API Client
@@ -137,6 +151,7 @@ Verify the pattern of retrieving a key from Vault at startup and using it for a 
 
 ```bash
 go run cmd/api-client/main.go
+# Expected output: "[INFO] Demo completed successfully" after the retrieved key is used
 ```
 
 ### STEP 4: Versioning and Rotation
@@ -148,6 +163,7 @@ In Vault KV v2, writing a new value to the same key automatically increments the
 go run cmd/put-secret/main.go api/key "new-value"
 # Check history (using container command)
 podman exec workshop-vault vault kv metadata get secret/api/key
+# Expected output: metadata table where current_version has incremented (e.g. 2)
 ```
 
 Examine the `internal/usecase` layer code and confirm it has zero dependencies on Vault (it only depends on the interface defined in `internal/domain`).
@@ -166,6 +182,16 @@ The business logic doesn't care **"whether the secret is in Vault or AWS."** It 
 
 ---
 
+## What you learned
+
+- Why hardcoded credentials and committed `.env` files are dangerous anti-patterns
+- How to run a dev-mode Vault server and enable a KV v2 secrets engine
+- How to store, retrieve, and list secrets through a Clean Architecture adapter
+- How KV v2 keeps secret history so rotation and rollback are possible
+- How the usecase layer stays Vault-free by depending only on a domain interface
+
+Next step: see how secrets feed real applications in the [RabbitMQ Workshop](rabbitmq_en.md), or how the environment itself is provisioned in the [Terraform Workshop](terraform_en.md).
+
 ## Cleanup
 
 ```bash
@@ -178,6 +204,15 @@ make vault-down
 
 - **Dynamic Secrets**: Learn how to issue temporary database access on-demand.
 - **Transit Secrets Engine**: Learn how to encrypt data without storing the decryption key in the application.
+
+---
+
+## References
+
+- [HashiCorp Vault Documentation](https://developer.hashicorp.com/vault/docs)
+- [Vault KV v2 Secrets Engine](https://developer.hashicorp.com/vault/docs/secrets/kv/kv-v2)
+- [Vault API: KV v2 Read Secret Metadata](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
+- [Vault Go API Client](https://developer.hashicorp.com/vault/docs/api-docs/libraries)
 
 ---
 

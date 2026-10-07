@@ -1,5 +1,9 @@
 # OAuth2 Workshop: Learning the Authorization Flow with Keycloak, Go, and Podman
 
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux / macOS (podman with `podman compose`, Go 1.22+, a browser)
+
 In this workshop, you will walk through an end-to-end OAuth2 flow using **Keycloak (Authorization Server)** and a **Go client app / Go REST API (Resource Server)**. The Go client app will obtain an access token and use it to call the API.
 
 > **💡 Glossary**: For technical terms such as [OAuth2](glossary_en.md#oauth2), [Access Token](glossary_en.md#access-token), and [Resource Server](glossary_en.md#resource-server) that appear in this workshop, please refer to the [Glossary](glossary_en.md).
@@ -607,6 +611,14 @@ podman rm -f workshop-keycloak
 
 ---
 
+## What you learned
+
+- **Actors**: Authorization Server (Keycloak), Client, and Resource Server each have distinct responsibilities — mixing them is the root of most OAuth2 mistakes.
+- **Authorization Code + PKCE**: the browser-visible code is useless without the client secret / PKCE verifier, which is why the flow is safe on public clients.
+- **Token validation**: the Resource Server verifies the JWT signature against the JWKS endpoint — it never asks Keycloak to validate each request.
+- **Audience matters**: a correctly signed token issued for a _different_ API must still be rejected (`aud` claim check).
+- Local Keycloak in a container behaves exactly like a production IdP — the same checks apply to Auth0, Entra ID, or Okta.
+
 ## Next Steps
 
 - Session persistence without re-authentication using Refresh Tokens
@@ -658,3 +670,10 @@ podman rm -f workshop-keycloak
 ### Windows
 
 - In WSL2 + Podman configurations, ensure the browser's callback URL matches the URL in the execution environment (Windows side vs. WSL side).
+
+## References
+
+- [RFC 6749: The OAuth 2.0 Authorization Framework](https://datatracker.ietf.org/doc/html/rfc6749)
+- [RFC 7636: Proof Key for Code Exchange (PKCE)](https://datatracker.ietf.org/doc/html/rfc7636)
+- [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
+- [Keycloak Documentation](https://www.keycloak.org/documentation)

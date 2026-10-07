@@ -1,5 +1,9 @@
 # Podman 実習：macvlan と Linux ルーターで作る L3 分離ネットワーク
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux 専用（root/sudo、podman。macvlan には Linux カーネルが必要）
+
 ソフトウェアエンジニア向けに、コンテナ技術（Podman）と Linux のネットワーク機能（macvlan, VLAN, iptables）を使って、擬似的な物理ネットワーク環境を構築する実習です。
 
 > **💡 用語集**: この実習で登場する専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -313,3 +317,11 @@ Podman は動作しますが、Linux カーネル機能（VLAN、macvlan）は m
 
 1. **WSL2**: Windows Subsystem for Linux 2 + Ubuntu で実行
 2. **クラウド**: Azure/AWS の Ubuntu インスタンスで実行
+
+---
+
+## 参考文献
+
+- [macvlan — Linux ドキュメント](https://docs.kernel.org/networking/macvlan.html)
+- [VLAN — Linux ドキュメント](https://docs.kernel.org/networking/vlan.html)
+- [Podman ネットワークドキュメント](https://docs.podman.io/en/latest/markdown/podman-network.1.html)

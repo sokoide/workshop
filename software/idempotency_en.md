@@ -1,6 +1,8 @@
 # Idempotency Pattern Workshop: Designing for Safe Retries
 
 > **⏱️ Estimated Time**: Approx. 45 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux (Podman), Go 1.22+
 
 In this workshop, you will learn the "Idempotency" pattern to safely retry operations when network failures or timeouts occur in distributed systems.
 
@@ -299,6 +301,15 @@ log.Printf("Charge request received: %v", req)
 // Ensure only balance update is idempotent
 result, err := uc.chargeWithIdempotency(ctx, req)
 ```
+
+---
+
+## What you learned
+
+- Why retries without idempotency keys double-charge, double-create, or corrupt state
+- How to mint and store idempotency keys so the same request always resolves to the same result
+- How to balance trade-offs: which operations are naturally idempotent, which need explicit keys
+- How to run and clean up the Redis-backed sample CLI end to end
 
 ---
 

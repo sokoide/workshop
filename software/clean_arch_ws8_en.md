@@ -1,6 +1,16 @@
 # Clean Architecture Essentials: Understanding the Core with a Minimum Example (WS8)
 
+> **⏱️ Estimated Time**: Approx. 30 minutes
+> **🎯 Level**: Beginner
+> **💻 Environment**: Go 1.22+, curl, any OS
+
 In this workshop, you will experience the design philosophy of Clean Architecture (3-layer variant: Adapters / UseCases / Domain) and its "resilience to change" through a "User Greeting App" consisting of only about 100 lines of code.
+
+## Prerequisites
+
+- [ ] Go 1.22 or later (`go version`)
+- [ ] curl (`curl --version`)
+- [ ] No prior Clean Architecture knowledge required — this is the recommended entry point before `clean_arch.md` and WS1
 
 ## 1. Overview
 
@@ -178,6 +188,12 @@ repo := infra.NewSliceUserRepo()
 
 - **Key Point**: You only touched the Infrastructure Adapter (`infra/`) and the Composition Root (`main.go`). `domain/`, `usecase/`, and `presentation/` remain completely unchanged. This is the practical experience of "Dependency Inversion."
 
+### ✅ Checkpoint
+
+- [ ] `curl "http://localhost:8080?id=1"` returned `Hello, Alice!`
+- [ ] `go test ./usecase/...` passed without any database
+- [ ] After swapping to `SliceUserRepo`, behavior is identical and `git status` shows changes only in `infra/` and `main.go`
+
 ---
 
 ## 5. Advanced Topics: Error and Data Boundaries
@@ -209,3 +225,31 @@ In production, UseCase inputs and outputs are defined as explicit structs (DTOs:
 5. **Dependency Injection (DI)**: By snapping each part together in `main.go`, the entire system becomes operational.
 
 This is the first step toward a "Clean" design that is highly maintainable, easy to test, and resilient to change.
+
+**Next**: read [`clean_arch.md`](./clean_arch_en.md) for the full layer definitions, then proceed to [WS1](./clean_arch_ws1_en.md) to build layers yourself.
+
+---
+
+## Troubleshooting
+
+| Symptom                       | Cause                                            | Fix                                                                    |
+| ----------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `curl` cannot connect         | Server not running or another process uses :8080 | Check `go run main.go` output; free the port or change it in `main.go` |
+| `go test ./usecase/...` fails | Module not built / wrong directory               | Run from `software/assets/greeting/` after `go mod tidy`               |
+| Compile error after Step 4    | `slice.go` package path typo                     | Package must be `infra` and import `workshop/greeting/domain`          |
+
+---
+
+## Cleanup
+
+```bash
+# Stop the server (Ctrl+C in the terminal running go run main.go), then:
+cd software/assets/greeting && git checkout -- main.go && rm -f infra/slice.go
+```
+
+---
+
+## References
+
+- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [Go and Clean Architecture reference in this repo](./clean_arch_en.md)

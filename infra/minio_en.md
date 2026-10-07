@@ -1,5 +1,9 @@
 # Object Storage Workshop: Learning S3-Compatible API with MinIO
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: any (containers only)
+
 In this workshop, you will build an AWS S3-compatible object storage server using **MinIO** and learn how to implement file upload, download, and secure file sharing using Presigned URLs from a Go application.
 
 > **💡 Glossary**: Please refer to [Object Storage](glossary_en.md#storage), [Bucket](glossary_en.md#storage), or [Presigned URL](glossary_en.md#security) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -12,6 +16,14 @@ By completing this workshop, you will be able to:
 - Build an S3-compatible environment locally using MinIO
 - Manipulate files from an application using the Go SDK (`aws-sdk-go-v2`)
 - Master how to generate Presigned URLs to grant temporary access privileges
+
+## Prerequisites
+
+- [ ] **Podman** 4.x or later with `podman compose` available (`podman --version`)
+- [ ] **Go** 1.25 or later (`go version`)
+- [ ] **AWS CLI** (optional — used for the client verification in Preparation)
+- [ ] **MinIO Client (`mc`)** (optional — alternative to AWS CLI)
+- [ ] A web browser to access the MinIO Console at `http://localhost:9001`
 
 ---
 
@@ -96,6 +108,7 @@ Verify connection using MinIO Client (`mc`) or AWS CLI.
 ```bash
 # Using AWS CLI (configured to point to local MinIO)
 aws --endpoint-url http://localhost:9000 s3 mb s3://my-bucket
+# Expected output: make_bucket: my-bucket
 ```
 
 ---
@@ -125,6 +138,7 @@ Command:
 
 ```bash
 go run main.go upload sample.jpg
+# Expected output: Successfully uploaded sample.jpg to bucket workshop-images
 ```
 
 ### STEP 2: Generate Presigned URL
@@ -179,6 +193,14 @@ This allows switching between local disk in development, AWS S3 in production, a
 
 ---
 
+## What you learned
+
+- Why object storage (S3/MinIO) beats local disks and DB BLOBs for uploaded files
+- How to run an S3-compatible storage server locally with Podman
+- How to operate buckets and objects with the AWS SDK from Go while keeping the details in the infra layer
+- How Presigned URLs grant time-limited access to private objects without publishing the bucket
+- How signature-based URL validation makes tampering with path or expiration impossible
+
 ## Cleanup
 
 ```bash
@@ -193,6 +215,15 @@ If data persistence is not configured, data will be lost when containers are rem
 
 - **Event Notification**: Trigger Lambda (OpenFaaS) on file upload to perform image resizing
 - **Lifecycle Policy**: Configure automatic deletion/archiving of old files
+
+---
+
+## References
+
+- [MinIO Documentation](https://min.io/docs/minio/container/index.html)
+- [MinIO Client Complete Reference (`mc`)](https://min.io/docs/minio/linux/reference/minio-mc.html)
+- [Amazon S3 API Reference](https://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html)
+- [Amazon S3 User Guide: Sharing Objects with Presigned URLs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html)
 
 ---
 

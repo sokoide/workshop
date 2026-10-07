@@ -1,5 +1,9 @@
 # Terraform 実習：基礎から実践的な DNS サーバー構築まで
 
+> **⏱️ 所要時間**: 約 120 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux | macOS (Podman)
+
 このワークショップでは、Infrastructure as Code (IaC) ツールである **Terraform** の基礎を学び、最終的にコンテナ技術と組み合わせて実践的な DNS サーバー環境を自動構築します。
 
 > **💡 用語集**: この実習で登場する[IaC](glossary_ja.md#architecture)や[Terraform](glossary_ja.md#architecture)、[Provider](glossary_ja.md#architecture)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -35,6 +39,14 @@ graph LR
 1. **Terraform の基本**: リソースの定義、変数、出力。
 2. **プロバイダーの使用**: `local` プロバイダー（ファイル操作）と Podman 互換のコンテナプロバイダー。
 3. **IaC による環境構築**: ネットワーク、設定ファイル、コンテナの一括管理。
+
+## 前提条件
+
+- [ ] **Terraform** 1.5 以上（`terraform -version` で確認）
+- [ ] **Podman** 4.x 以上（`podman --version` で確認）— パート 2 では `kreuzwerker/docker` プロバイダーを Podman ソケット経由で使用
+- [ ] `terraform init` 用のネットワーク接続（プロキシ環境では `HTTP_PROXY` / `HTTPS_PROXY` を設定）
+- [ ] クラウドアカウントは不要 — すべてローカルコンテナで完結
+- [ ] 推奨: [用語集](glossary_ja.md#architecture) の IaC・プロバイダー関連用語を一読しておく
 
 ---
 
@@ -96,8 +108,10 @@ resource "local_file" "hello" {
 ```bash
 cd part1
 terraform init    # プロバイダーのダウンロード
+# Expected output: "Terraform has been successfully initialized!"
 terraform plan    # 変更内容の確認
 terraform apply   # 実行 (yes と入力)
+# Expected output: "Apply complete! Resources: 1 added, 0 changed, 0 destroyed."
 ```
 
 ### ✅ チェックポイント
@@ -186,6 +200,7 @@ Podman でイメージをビルドします。
 
 ```bash
 podman build -t coredns-handson .
+# Expected output: 最後に "COMMIT" が表示され、エラーなく完了する
 ```
 
 ### ✅ チェックポイント
@@ -312,6 +327,8 @@ resource "docker_container" "router" {
 cd ../part2
 terraform init
 terraform apply
+# Expected output: "Apply complete! Resources: 7 added, 0 changed, 0 destroyed."
+# (ネットワーク 2 + CoreDNS 設定ファイル 2 + コンテナ 3)
 ```
 
 構築後、`router` コンテナに入って `dig` コマンドで名前解決をテストします。
@@ -322,6 +339,7 @@ podman exec -it container-router sh
 apk add bind-tools
 # Aレコードの直接解決をテスト
 dig @192.168.10.10 server.foo.sokoide.com
+# Expected output: "status: NOERROR" かつ ANSWER セクションに "server.foo.sokoide.com. 60 IN A 2.2.2.2"
 ```
 
 ### ✅ チェックポイント
@@ -331,6 +349,16 @@ dig @192.168.10.10 server.foo.sokoide.com
 - [ ] `dig` コマンドの結果、期待通りの IP アドレス（1.1.1.1 や 2.2.2.2）が返ってくることを確認した
 
 ---
+
+## 学んだこと
+
+- Terraform の基本ワークフロー: `init` → `plan` → `apply` → `destroy`
+- 変数による構成のパラメータ化と output による結果の受け渡し
+- `for_each` によるコレクションからの複数リソース作成
+- Podman 互換プロバイダーでのネットワーク・設定ファイル・コンテナのコード化
+- Terraform の State が作成したリソースを追跡し、確実な削除を可能にする仕組み
+
+次のステップ: [Kubernetes 入門](kubernetes_basics_ja.md) でインフラ上のソフトウェア配置を自動化するか、[VLAN 実習](vlan_ja.md) でネットワーク設計を深めましょう。
 
 ## 片付け
 

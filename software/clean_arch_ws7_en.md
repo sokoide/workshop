@@ -1,9 +1,17 @@
 # Clean Architecture Workshop (WS7): Adding Authentication
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+, curl, any OS
+
 In this workshop, you will add JWT Bearer Token authentication to the BBS (2channel-style bulletin board).
 You will experience the **cross-cutting concern pattern** — adding authentication in the Presentation layer — without modifying any inner layers (Domain, UseCase, Infra).
 
 ## Prerequisites
+
+- [ ] WS1–WS4 completed, or you can build and test the [BBS project](./assets/bbs/) (`go build ./...` and `go test ./...` pass)
+- [ ] curl installed (`curl --version`)
+- [ ] Basic idea of what a JWT is (see [OAuth2](../infra/oauth2_en.md) for a full OAuth2/OIDC flow — this workshop uses a single shared-secret JWT)
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
 
@@ -242,7 +250,16 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"Auth test","author":"gopher","body":"hello with auth"}'
+# Expected output: 201 Created (thread JSON)
 ```
+
+### ✅ Checkpoint
+
+- [ ] GET endpoints still work without a token
+- [ ] POST without a token returns `401` with `{"error":"missing authorization header"}`
+- [ ] POST with an expired or wrongly signed token returns `401` `{"error":"invalid token"}`
+- [ ] POST with a valid token returns `201`
+- [ ] `git diff --stat` shows changes only in Presentation (`middleware/`, `router.go`) and `main.go`
 
 ---
 
@@ -368,3 +385,44 @@ In this case:
 3. **Auth Method Swap**: JWT → API Key → OAuth changes require only middleware replacement. UseCase is untouched.
 4. **Selective Application**: Granular control like "reads are unauthenticated, writes require auth" is handled entirely in the Router.
 5. **Testability**: UseCase tests don't need to mock authentication. Only Handler tests validate auth middleware.
+
+---
+
+## What you learned
+
+- Authentication is a **Presentation-layer cross-cutting concern** — middleware keeps it out of Domain, UseCase, and Infra entirely.
+- The authenticated user crosses the boundary as a plain **Input DTO field**; the UseCase never learns about HTTP headers or JWTs.
+- Swapping the auth method (JWT → API Key → OAuth) is a **one-line change in the Router**.
+- Selective application ("reads public, writes protected") is a routing decision, not a code-structure decision.
+
+**Next**: [WS8: Testing Strategy](./clean_arch_ws8_en.md) — how the boundaries you built here make every layer independently testable.
+
+---
+
+## Troubleshooting
+
+| Symptom                                              | Cause                                                                                                   | Fix                                                                                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `401 invalid token` with a freshly generated token   | `JWT_SECRET` used by the generator differs from the server's                                            | Re-generate with the same secret, or re-export `JWT_SECRET` before starting `./bbs` |
+| `401 invalid token: missing or non-string sub claim` | Token lacks `sub` or `role` string claims                                                               | The generator must set both `sub` and `role` (see Step 4)                           |
+| Always `401` even with valid token                   | Request sent to a GET-style route without the header, or `Authorization` header missing `Bearer` prefix | Use `-H "Authorization: Bearer $TOKEN"` exactly                                     |
+| Handler compiles but auth never triggers             | Route registered with `mux.HandleFunc` instead of wrapping with `auth(...)`                             | Use `mux.Handle(pattern, auth(http.HandlerFunc(...)))`                              |
+
+---
+
+## Cleanup
+
+```bash
+# Stop the server (Ctrl+C in the terminal running ./bbs), then:
+unset JWT_SECRET
+rm -f bbs
+rm -rf /tmp/jwtgen
+```
+
+---
+
+## References
+
+- [RFC 7519: JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
+- [golang-jwt/jwt](https://github.com/golang-jwt/jwt)
+- [Go net/http middleware patterns](https://pkg.go.dev/net/http)

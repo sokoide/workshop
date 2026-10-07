@@ -1,5 +1,9 @@
 # シークレット管理実習：HashiCorp Vault による安全な API キー管理
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux | macOS (Podman)
+
 この実習では、**HashiCorp Vault** と **Go** を使用して、API キー、データベース認証情報、その他のセンシティブデータをソースコードにハードコードすることなく安全に管理するシステムを構築します。
 
 > **💡 用語集**: この実習で登場する[Secret Management](glossary_ja.md#security)や[Vault](glossary_ja.md#security)、[KV Engine](glossary_ja.md#security)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -13,6 +17,14 @@
 - HashiCorp Vault の基本（KV v2、トークン）を習得。
 - Clean Architecture を使用して Vault をアプリケーションに統合する。
 - シークレットのバージョニングとローテーションを実装する。
+
+## 前提条件
+
+- [ ] **Podman** 4.x 以上（`podman --version` で確認）
+- [ ] **Go** 1.25 以上（`go version` で確認）
+- [ ] **make**（`make vault-up`、`make init`、`make vault-down` で使用）
+- [ ] ポート `8200` が空いていること（Vault API/UI）
+- [ ] 推奨: [用語集](glossary_ja.md#security) のシークレット管理関連用語を一読しておく
 
 ---
 
@@ -128,8 +140,10 @@ make init
 ```bash
 # 保存
 go run cmd/put-secret/main.go api/external-key "sk-live-abc123xyz789"
+# Expected output: "=== Secret Stored Successfully ===" と保存した Key / Value が表示される
 # 取得
 go run cmd/get-secret/main.go api/external-key
+# Expected output: "=== Secret Retrieved ===" に Value: sk-live-abc123xyz789 (Version: 1) が表示される
 ```
 
 ### STEP 3: 実践例 - API クライアント
@@ -138,6 +152,7 @@ go run cmd/get-secret/main.go api/external-key
 
 ```bash
 go run cmd/api-client/main.go
+# Expected output: 取得したキーを使った処理の後、"[INFO] Demo completed successfully" が表示される
 ```
 
 ### STEP 4: バージョニングとローテーション
@@ -149,6 +164,7 @@ Vault KV v2 では、同じキーに新しい値を書き込むと自動的に�
 go run cmd/put-secret/main.go api/key "new-value"
 # 履歴確認 (コンテナ内コマンド)
 podman exec workshop-vault vault kv metadata get secret/api/key
+# Expected output: current_version が増加したメタデータテーブルが表示される (例: 2)
 ```
 
 `internal/usecase` レイヤーのコードを見て、Vault への依存が一切ない（`internal/domain` のインターフェースにのみ依存している）ことを確認してください。
@@ -167,6 +183,16 @@ podman exec workshop-vault vault kv metadata get secret/api/key
 
 ---
 
+## 学んだこと
+
+- ハードコードされた認証情報やコミットされた `.env` ファイルが危険なアンチパターンである理由
+- 開発モードの Vault サーバーの起動と KV v2 シークレットエンジンの有効化方法
+- Clean Architecture のアダプター経由でのシークレット保存・取得・一覧取得
+- KV v2 がシークレットの履歴を保持し、ローテーションやロールバックを可能にする仕組み
+- ドメイン層のインターフェースのみに依存することで usecase 層から Vault への依存をなくす方法
+
+次のステップ: [RabbitMQ 実習](rabbitmq_ja.md) でシークレットを使うアプリケーション側を、[Terraform 実習](terraform_ja.md) で環境そのもののコード化を学びましょう。
+
 ## 片付け
 
 ```bash
@@ -179,6 +205,15 @@ make vault-down
 
 - **動的シークレット**: データベースへの一時的なアクセス権限をオンデマンドで発行する機能を学ぶ。
 - **Transit 認証**: アプリケーション側で復号鍵を持たずにデータを暗号化する仕組みを学ぶ。
+
+---
+
+## 参考文献
+
+- [HashiCorp Vault ドキュメント](https://developer.hashicorp.com/vault/docs)
+- [Vault KV v2 Secrets Engine](https://developer.hashicorp.com/vault/docs/secrets/kv/kv-v2)
+- [Vault API: KV v2 Read Secret Metadata](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
+- [Vault Go API Client](https://developer.hashicorp.com/vault/docs/api-docs/libraries)
 
 ---
 

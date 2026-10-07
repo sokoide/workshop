@@ -1,5 +1,9 @@
 # Introduction to Succinct Data Structures (Go Perspective)
 
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: Go 1.22+, any OS
+
 Succinct data structures are not just about data compression; they allow you to **search and operate on data directly in its compressed state (without deserialization)**. They represent data in a size close to its theoretical minimum (information-theoretic lower bound) while supporting operations like `rank/select/access` at high speed.
 
 In this guide, we will first look at a standard `Trie`, then follow the flow of "converting a tree into a bit string" using `LOUDS`. The essence of Succinct is **replacing a forest of pointers with contiguous arrays and bit strings**.
@@ -722,3 +726,21 @@ IMEs like Mozc choose different data structures based on the use case:
 - **Succinct (LOUDS)**: "Memory efficiency" by representing the tree as bits.
 - In Go, choose your weapon (Radix for routing, DAT for static dictionaries, LOUDS for billions of words) based on the specific constraints of your use case.
 - Don't implement everything at once; introduce phases in the order of `BitVector -> rank/select -> LOUDS`.
+
+---
+
+## What you learned
+
+- How succinct structures differ from compression: recoverable data operated on directly, at `n + o(n)` bits
+- Why replacing pointers with contiguous arrays (Double Array) or bit strings (LOUDS) improves both memory and CPU cache behavior
+- How `rank`/`select` over a bit vector reduce tree navigation to bit operations
+- The trade-off matrix: Radix Tree for routing, Double Array for static dictionaries, LOUDS for billions of entries
+- A phased adoption path: `BitVector -> rank/select -> LOUDS`, instead of implementing everything at once
+
+---
+
+## References
+
+- [Mozc: Google Japanese Input (real-world LOUDS usage)](https://github.com/google/mozc)
+- [Apache Lucene FST (finite-state transducer dictionary)](https://lucene.apache.org/core/9_12_0/core/org/apache/lucene/util/fst/package-summary.html)
+- [Go slices: usage and internals](https://go.dev/blog/slices-intro)

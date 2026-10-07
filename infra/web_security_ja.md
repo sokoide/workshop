@@ -1,6 +1,10 @@
 # Webセキュリティ実習：XSS, CSRF, クリックジャッキング、CORS を体験する
 
-> **⚠️ 本実習は 4 つの独立したセクション（XSS / CSRF / クリックジャッキング / CORS）から構成されています。時間に応じて分割して実施してください。**
+> **⏱️ 所要時間**: 約 120 分（4 つの独立セクション — 分割実施を推奨）
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux / macOS（Go 1.22+、ブラウザ。コンテナはローカルで動作）
+>
+> > **⚠️ 本実習は 4 つの独立したセクション（XSS / CSRF / クリックジャッキング / CORS）から構成されています。時間に応じて分割して実施してください。**
 
 ## 目的
 
@@ -1448,6 +1452,16 @@ document.getElementById("output").innerHTML = hash; // エスケープなしで�
    - <details><summary>解答</summary>Origin Reflection により、あらゆるオリジンからのリクエストが許可されてしまうためです。`Access-Control-Allow-Credentials: true` と組み合わさると、攻撃者サイトからCookie付きリクエストで機密データを窃取できます。</details>
 
 ---
+
+## 学んだこと
+
+- **XSS**: エスケープされていない出力は攻撃者の JavaScript を自オリジンで実行させてしまう。`html/template` の自動エスケープと CSP が防御の両輪。
+- **CSRF**: ブラウザは Cookie を自動で付ける — SameSite Cookie とワンタイムトークンで偽造リクエストを検出可能にする。
+- **クリックジャッキング**: 適切なヘッダー（`X-Frame-Options` / `frame-ancestors`）を送らない限り、自ページはフレームに埋め込まれてクリックを盗める。
+- **CORS**: 資格情報付きの `Access-Control-Allow-Origin: *` は保護を open door に変える。許可するのは特定オリジンの allow-list だけ。
+- ここでの攻撃はすべて意図的に脆弱なアプリで再現した — 適用した修正はそのまま本番コードに必要なもの。
+
+**次のステップ**: [`secure_coding_ja.md`](../software/secure_coding_ja.md) で実装レベルの落とし穴（SQL インジェクション、パストラバーサル、競合状態）、[`oauth2_ja.md`](oauth2_ja.md) でトークンベースの認可。
 
 ## 片付け
 

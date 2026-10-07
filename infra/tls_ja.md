@@ -1,5 +1,9 @@
 # TLS/SSL 証明書実習：自己署名 CA 構築と証明書チェーン
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux (/etc/hosts の編集に sudo)
+
 このワークショップでは、OpenSSL を使用して独自の認証局 (CA) を構築し、サーバー証明書を発行・検証するプロセスを通じて、TLS/SSL および証明書チェーンの仕組みを学びます。
 
 > **💡 用語集**: この実習で登場する専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -22,6 +26,13 @@ graph TD
 2. **証明書発行フロー**: 秘密鍵生成、CSR 作成、CA による署名の流れ。
 3. **モダンな名前検証**: Common Name (CN) から Subject Alternative Name (SAN) への移行。
 4. **証明書の検証**: `curl` や `openssl verify` を使った正当性の確認。
+
+## 前提条件
+
+- [ ] OpenSSL 1.1.1 以降 / 3.x 系（`openssl version`）
+- [ ] Podman（`podman version`）または Docker
+- [ ] `curl`
+- [ ] sudo 権限（`/etc/hosts` に `server.workshop.local` を追記するため）
 
 ---
 
@@ -168,9 +179,11 @@ podman run -d --name traefik --network tls-workshop -p 8443:443 \
 ```bash
 # CA 証明書を指定せずにアクセス (失敗するはず)
 curl https://server.workshop.local:8443
+# Expected output: curl: (60) SSL certificate problem: unable to get local issuer certificate
 
 # 自作のルート CA 証明書を指定してアクセス (成功するはず)
 curl --cacert rootCA.crt https://server.workshop.local:8443
+# Expected output: バックエンドの Python http.server が返すディレクトリ一覧 HTML（証明書エラーなし）
 ```
 
 両コンテナを `tls-workshop` に接続するため、Traefik はコンテナ名 `tls-backend` でバックエンドを名前解決できます。Linux ホストと macOS/Windows 上の Podman VM における host network の違いも避けられます。
@@ -185,6 +198,15 @@ curl --cacert rootCA.crt https://server.workshop.local:8443
 - **App (Business Logic Layer)**: 背後の Python アプリは SSL を意識せず、純粋な HTTP で動作します。
 
 これにより、アプリケーションコードを HTTPS 対応のために変更することなく、インフラ層の差し替えだけでセキュリティを担保できます。
+
+## 学んだこと
+
+- 信頼の起点（CA）が必要な理由と、ルート CA からサーバーまでの証明書チェーンによる信頼の構築方法
+- 秘密鍵 → CSR → CA 署名という証明書発行フローと、モダンな名前検証で CN から SAN へ移行した理由
+- `openssl verify`、`openssl x509 -text`、`curl --cacert` を使った証明書の検証方法
+- プロキシでの SSL 終端により、バックエンドアプリを純粋な HTTP のまま保てること
+
+**次のステップ**: [リバースプロキシ実習 (Traefik)](traefik_ja.md) で、証明書をリバースプロキシの背後に配置する構成を試しましょう。
 
 ---
 

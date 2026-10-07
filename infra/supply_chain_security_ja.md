@@ -1,5 +1,16 @@
 # サプライチェーンセキュリティ実習：依存ライブラリとコンテナイメージの脆弱性管理
 
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux / macOS（Go 1.22+、Docker または Podman。セキュリティツールはセットアップで導入）
+
+## 前提条件
+
+- [ ] Go 1.22+ インストール済み（`go version`）
+- [ ] Docker または Podman が動作すること（`docker version` / `podman version`）
+- [ ] Go モジュールの基本知識（`go mod tidy`）
+- [ ] 推奨: 先に [`web_security_ja.md`](web_security_ja.md) で攻撃者視点を学習
+
 ## 目的
 
 このワークショップでは、ソフトウェアサプライチェーンへの攻撃がどのように発生するかを体験し、依存ライブラリの脆弱性検出、コンテナイメージのスキャン、SBOM の生成、イメージ署名による信頼の検証という 4 つの防御レイヤーを実践的に学びます。
@@ -742,6 +753,14 @@ SLSA Levels:
 
 ---
 
+## 学んだこと
+
+- **依存ライブラリのリスク**: `govulncheck` はコールグラフ解析で「実際に到達可能な脆弱関数」を特定する — 未使用パスの CVE はノイズ、到達可能なものは火事。
+- **イメージのリスク**: ベースイメージの CVE は蓄積していく。`latest` を信頼せず、バージョンを固定して定期的にリビルドする。
+- **SBOM**: 名前を挙げられないものは修正できない — SBOM（`syft`）は他のすべての防御が依存するインベントリ。
+- **署名**: `cosign` の署名は「イメージが自分由来で改ざんされていない」ことの証明。検証はローカルだけでなくデプロイパイプラインに入れる。
+- この 4 レイヤー（依存スキャン → イメージスキャン → SBOM → 署名）は CI で全 PR に自動実行するのが最も低コスト。
+
 ## トラブルシューティング
 
 ### Q: govulncheck が何も検出しない
@@ -770,6 +789,22 @@ SLSA Levels:
 - `cosign generate-key-pair` で鍵ペアを生成済みか
 - レジストリへの push 権限があるか
 - ローカルイメージの場合は、レジストリに push してから署名する必要がある
+
+---
+
+## 片付け
+
+実習で生成した成果物を削除します（`infra/assets/supply_chain` のソース自体はリポジトリの一部なので残します）:
+
+```bash
+cd infra/assets/supply_chain
+rm -f sbom.spdx.json cosign.key cosign.pub
+
+# ローカルのデモイメージを削除
+docker rmi vulnerable-app:latest demo-app:v1 2>/dev/null || podman rmi vulnerable-app:latest demo-app:v1 2>/dev/null || true
+```
+
+> **注意**: `cosign.key` / `cosign.pub` は署名用に生成した鍵ペアです。この実習の後にこれらの署名を検証することはないため、削除して問題ありません。
 
 ---
 

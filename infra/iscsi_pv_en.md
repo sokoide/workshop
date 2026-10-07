@@ -1,6 +1,12 @@
 # iSCSI and Kubernetes PersistentVolume Workshop
 
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: Linux (root/sudo, 2 VMs or containers, Minikube, open-iscsi)
+
 In this workshop, you will learn how to build **iSCSI**, a traditional block storage protocol, and use it as a PersistentVolume in a Kubernetes cluster.
+
+**Prerequisite workshop**: [`kubernetes_basics_en.md`](kubernetes_basics_en.md) (PV/PVC concepts are used from STEP 6).
 
 > **💡 Glossary**: Please refer to [iSCSI](glossary_en.md#storage), [PersistentVolume](glossary_en.md#storage), or [LUN](glossary_en.md#storage) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
@@ -273,6 +279,15 @@ Kubernetes storage management is a truly Clean Architecture-style approach that 
 - **Pod**: Entity/Business Logic Layer (requires data; doesn't care if the backend is iSCSI or NFS).
 
 ---
+
+## What you learned
+
+- iSCSI turns a remote block device into a local disk: **target** exports an LUN, the **initiator** logs in and gets a `/dev/sdX` device.
+- An iSCSI-backed PersistentVolume connects that device into a Pod — the Pod sees an ordinary filesystem while the data lives on the target VM.
+- `iqn` names identify both ends of the session; access control at the target is per-initiator-IQN.
+- Data survives Pod deletion because the PV's lifecycle is independent of the Pod's — the essence of stateful workloads on Kubernetes.
+
+**Next**: [`kubernetes_operations_en.md`](kubernetes_operations_en.md) for production storage concerns (snapshots, backup), or [`minio_en.md`](minio_en.md) for object storage as an alternative to block volumes.
 
 ## Cleanup
 

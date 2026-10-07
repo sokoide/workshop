@@ -1,5 +1,9 @@
 # シャーディング基礎: Sparse Table, Segment Tree, Elasticsearch, Cortex
 
+> **⏱️ 所要時間**: 約 45 分
+> **🎯 レベル**: 上級
+> **💻 環境**: any（読み物のみ — ハンズオン環境は不要です）
+
 このガイドは、分散システムにおける実践的なシャーディング設計を、次の実システムと結びつけて整理します。
 
 > **💡 用語集**: この実習で登場する[Sharding](glossary_ja.md#architecture)や[Consistent Hashing](glossary_ja.md#architecture)、[Fan-out](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -17,6 +21,15 @@
 3. シャーディング制御面で Sparse Table / Segment Tree の使い分けができる。
 4. Elasticsearch と Cortex に概念を対応づけられる。
 5. Cortex PR #7266 / #7270 がリング制御ループへ与える影響を説明できる。
+
+## 前提条件
+
+本資料は概念解説のため、ツール・コンテナ・クラウドアカウントは不要です。
+
+- [ ] 分散システムの基礎（レプリケーション、ロードバランシング）の理解
+- [ ] ハッシュに関する基礎知識（[用語集](glossary_ja.md#architecture) の [Consistent Hashing](glossary_ja.md#architecture) など）
+- [ ] 推奨: [キャッシュ実習](cache_ja.md)（ストレージ層のスケーリングパターン）
+- [ ] Cortex PR ノートを読む場合は、Go のベンチマーク指標（`B/op`、`allocs/op`）の基礎知識があると理解しやすい
 
 ---
 
@@ -304,6 +317,23 @@ ring watch/backoff/lifecycler は制御プレーンの常時ループです。
 4. fan-out 指標に上限 SLO を設定して追跡する。
 5. 制御プレーン安定性とデータプレーン性能を分離して予算化する。
 6. メタデータ更新特性で Sparse Table / Segment Tree を使い分ける。
+
+---
+
+## 学んだこと
+
+- ワークロード形状に応じたハッシュ / レンジ / テナントベースのシャーディング戦略の選び方
+- スキューとクロスシャード fan-out を抑えるシャードキーの選定方法
+- ルーティング判断における Sparse Table（静的メタデータ）と Segment Tree（動的メタデータ）の使い分け
+- Elasticsearch の primary shard と Cortex のハッシュリングの、シャーディング理論への対応
+- 制御プレーンのループ効率（timer 再利用）がリング収束の安定性に重要である理由
+- 再シャーディングを緊急対応ではなく監視付きの通常運用として計画する方法
+
+---
+
+## 片付け
+
+該当なし — 本ガイドではコンテナ・ボリューム・クラウドリソースを作成しません。関連システムを自分の環境で試した場合は、その環境の削除手順に従ってください。
 
 ---
 

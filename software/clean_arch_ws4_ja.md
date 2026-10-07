@@ -1,11 +1,24 @@
 # クリーンアーキテクチャ実習 (WS4): ビジネスルールの追加
 
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Go 1.22+、OS 不問（動作確認に curl を使用）
+>
+> > **💡 用語集**: [クリーンアーキテクチャ](../infra/glossary_ja.md#architecture)や[インターフェース](../infra/glossary_ja.md#go)などの専門用語は [用語集](../infra/glossary_ja.md) を参照してください。
+
 この実習では、BBS（2 ちゃんねる風掲示板）に「スレ主しか書き込めない」というビジネスルールを追加します。
 **内側から外側へ変更が波及する様子**を体験し、各層の変更がその層の責務に直結する最小限のものであることを確認します。
 
 ## 前提知識
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
+
+開始前のチェックリスト:
+
+- [ ] [WS1](./clean_arch_ws1_ja.md)〜[WS3](./clean_arch_ws3_ja.md) を完了している（または Entity・Port・Composition Root の考え方に慣れている）
+- [ ] Go 1.22 以上がインストール済み（`go version` で確認）
+- [ ] BBS プロジェクトがビルドでき、テストも通る: `cd software/assets/bbs && go build ./... && go test ./...`
+- [ ] `curl` が使える（`curl --version` で確認）
 
 ## 実習のシナリオ
 
@@ -80,6 +93,12 @@ var (
     ErrNotThreadOwner = errors.New("only thread owner can post")
 )
 ```
+
+### ✅ チェックポイント
+
+- [ ] `CanPost` と `EnableOwnerOnlyMode` が **Domain 層にだけ** 存在する — `internal/domain/entity/thread.go` に HTTP・DB・gRPC への参照がない
+- [ ] 空の owner では限定モードにできない: `EnableOwnerOnlyMode("")` がエラーを返す（表駆動テストを追加して確認）
+- [ ] `software/assets/bbs` で `go build ./...` と `go test ./...` が通る
 
 ### Step 2: UseCase 層 — ルールの適用
 
@@ -178,6 +197,13 @@ if in.OwnerOnly {
 }
 ```
 
+### ✅ チェックポイント
+
+- [ ] 追加した行は **1 行だけ** — トランザクション内の投稿生成より前に `if !thread.CanPost(in.Author) { return domain.ErrNotThreadOwner }` が入っている
+- [ ] UseCase がドライバや HTTP のパッケージを import していない（`git grep -e "database/sql" -e "net/http" internal/usecase` で何も見つからない）
+- [ ] `CreateThreadInput` が `OwnerOnly` を運び、Owner は `EnableOwnerOnlyMode` 経由でのみ設定される（ベア代入しない）
+- [ ] 既存の UseCase テストも通る: `go test ./internal/usecase/...`
+
 ### Step 3: Infra 層 — 永続化の追従
 
 DB に新しい列を追加し、読み書きに対応します。**SQL とモデル変換だけの変更**です。
@@ -256,6 +282,13 @@ func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thre
 
 **確認ポイント**: `sql.ErrNoRows` という技術的なエラーが、UseCase 層へ渡る前に `domain.ErrThreadNotFound` というドメインの概念に変換されています。UseCase は「SQL の結果が空だった」ことを知る必要がありません。
 
+### ✅ チェックポイント
+
+- [ ] マイグレーションは新しい 2 列の追加のみで、既存行は `owner_only = FALSE, owner = ''` になる
+- [ ] `ThreadModel` と `toEntity` が `OwnerOnly` / `Owner` を双方向にマッピングしている
+- [ ] `sql.ErrNoRows` が Infra 層の外に出ていない: `git grep sql.ErrNoRows internal/adapters/infra` でそこにだけ見つかり、`domain.ErrThreadNotFound` に変換されている
+- [ ] `go build ./...` と `go test ./...` が通る
+
 ### Step 4: Presentation 層 — 表示の追従
 
 エラーハンドリングに 1 case を追加します。
@@ -294,24 +327,46 @@ type createThreadRequest struct {
 }
 ```
 
+### ✅ チェックポイント
+
+- [ ] `ErrNotThreadOwner` への対応は `PostHandler` に **追加した 1 case（403 Forbidden）だけ** — 他の Handler は変更していない
+- [ ] ドメインエラーでない未知のエラーは依然として詳細を隠した汎用の 500 を返す
+- [ ] `go build ./...` が通る
+
 ### Step 5: 動作確認
 
 ```bash
+# まだ起動していなければ、先にビルドして起動:
+go build -o bbs ./cmd/bbs/
+# Expected output: （なし — bbs バイナリが作業ディレクトリに作成される）
+./bbs
+# Expected output: サーバーが起動し、:8080 で待ち受ける
+
 # スレ主限定スレッドを作成
 curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"スレ主限定スレ","author":"gopher","body":"限定モードON","owner_only":true}'
+# Expected output: HTTP 201 — 作成されたスレッド（限定モード有効）と最初の投稿の JSON
 
 # スレ主以外が書き込もうとする → 403 Forbidden
 curl -X POST http://localhost:8080/api/threads/1/posts \
   -H 'Content-Type: application/json' \
   -d '{"author":"other","body":"書き込めるかな？"}'
+# Expected output: HTTP 403 — {"error":"only thread owner can post"}
 
 # スレ主が書き込む → 成功
 curl -X POST http://localhost:8080/api/threads/1/posts \
   -H 'Content-Type: application/json' \
   -d '{"author":"gopher","body":"自分のスレだしOK"}'
+# Expected output: HTTP 201 — 作成された投稿の JSON
 ```
+
+### ✅ チェックポイント
+
+- [ ] スレ主以外の投稿が `403` と `only thread owner can post` を返す
+- [ ] スレ主の投稿は成功する（`201`）
+- [ ] 通常の（限定モードでない）スレッドならどの著者でも投稿できる — ルールが限定スレッドの外に漏れていない
+- [ ] `software/assets/bbs` で `go test ./...` が通る
 
 ---
 
@@ -368,3 +423,40 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
    - Infra は「ルールに必要なデータをどう保存するか」を知っている（owner_only / owner 列）
 2. **内→外への波及**: ビジネスルールの変更は Domain から始まり、外側に波及するが、各層の変更は自身の責務に限定される。
 3. **変更の最小化**: 新しい要件「招待者も OK」が追加されても、招待ユーザーを Thread エンティティ内で管理すれば `CanPost()` の中身だけを変えれば済む。別データソースが必要な場合は Infra 層の変更も発生する。
+
+---
+
+## 学んだこと
+
+- ビジネスルールには **唯一の居場所** がある: Domain がルールを定義し（`CanPost`）、UseCase が適用し（呼び出しタイミング）、Infra がデータを永続化し（`owner_only` / `owner` 列）、Presentation が違反を表示する（`403 Forbidden`）。
+- ルールの変更は **内側から外側へ** 波及し、各層の差分は自身の責務に直結する最小限にとどまる。
+- トランザクション境界は UseCase が所有するアプリケーションポリシーであり、Infra は `BEGIN`/`COMMIT`/`ROLLBACK` の実装を提供するだけ。
+- ベア代入ではなくメソッド（`EnableOwnerOnlyMode`）で不変条件を守ると、不正な状態をそもそも表現できなくなる。
+- ドライバエラーは Infra の境界でドメインエラーに変換されるため、UseCase はドメインの概念だけで考えられる。
+
+**次**: [WS5: 永続化層の差し替え](./clean_arch_ws5_ja.md) — クリーンアーキテクチャ実習シリーズの次のステップです。
+
+---
+
+## 片付け
+
+```bash
+# BBS サーバーを停止して（ターミナルで Ctrl+C）、以下を実行:
+cd software/assets/bbs
+make clean   # bbs バイナリと bbs.db を削除
+```
+
+手動で行う場合:
+
+```bash
+rm -f software/assets/bbs/bbs software/assets/bbs/bbs.db
+```
+
+---
+
+## 参考文献
+
+- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [SQLite: ALTER TABLE](https://www.sqlite.org/lang_altertable.html)
+- [net/http package — Go Documentation](https://pkg.go.dev/net/http)
+- [errors package — Go Documentation](https://pkg.go.dev/errors)

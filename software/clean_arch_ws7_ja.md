@@ -1,9 +1,17 @@
 # クリーンアーキテクチャ実習 (WS7): 認証の追加
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Go 1.22+、curl、OS 不問
+
 この実習では、BBS（2 ちゃんねる風掲示板）に JWT Bearer Token 認証を追加します。
 **Presentation 層に横断的関心を追加するパターン**を体験し、内側の層（Domain・UseCase・Infra）を一切変更しないことを確認します。
 
 ## 前提知識
+
+- [ ] WS1〜WS4 完了、または [BBS プロジェクト](./assets/bbs/) をビルド・テストできる状態（`go build ./...` と `go test ./...` が通る）
+- [ ] curl がインストール済み（`curl --version`）
+- [ ] JWT が何かの基礎知識（完全な OAuth2/OIDC フローは [OAuth2 実習](../infra/oauth2_ja.md) を参照 — 本実習は共有シークレット方式の単純な JWT を使用）
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
 
@@ -242,7 +250,16 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"認証テスト","author":"gopher","body":"hello with auth"}'
+# Expected output: 201 Created（スレッドの JSON）
 ```
+
+### ✅ チェックポイント
+
+- [ ] GET エンドポイントはトークンなしで引き続き動作する
+- [ ] トークンなしの POST が `401` と `{"error":"missing authorization header"}` を返す
+- [ ] 期限切れ・署名不一致のトークンでの POST が `401` `{"error":"invalid token"}` を返す
+- [ ] 有効なトークンでの POST が `201` を返す
+- [ ] `git diff --stat` で変更が Presentation（`middleware/`・`router.go`）と `main.go` のみであることを確認
 
 ---
 
@@ -366,3 +383,44 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 3. **認証方式の差し替え**: JWT → API Key → OAuth への変更は、ミドルウェアの差し替えだけで完了。UseCase は変更不要。
 4. **選択的適用**: 読み取りは認証なし、書き込みは認証あり、という粒度の制御が Router で完結する。
 5. **テスト容易性**: UseCase のテストで認証をモックする必要がない。Handler のテストだけが認証ミドルウェアを検証する。
+
+---
+
+## 学んだこと
+
+- 認証は **Presentation 層の横断的関心事** — ミドルウェアに閉じ込めることで Domain・UseCase・Infra は完全に無関係のまま保てる。
+- 認証済みユーザーは境界をただの **Input DTO のフィールド** として越え、UseCase は HTTP ヘッダーや JWT の存在を知らない。
+- 認証方式の差し替え（JWT → API Key → OAuth）は **Router の 1 行変更** で完了する。
+- 「読み取りは公開・書き込みは保護」という選択的適用は、コード構造ではなくルーティングの決定事項である。
+
+**次のステップ**: [WS8: テスト戦略](./clean_arch_ws8_ja.md) — ここまでに築いた境界が、各レイヤーの独立したテスト容易性をどう支えるか。
+
+---
+
+## 🔧 トラブルシューティング
+
+| 症状                                                 | 原因                                                              | 対処                                                                   |
+| ---------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 発行直後のトークンで `401 invalid token`             | トークン生成に使ったシークレットがサーバーと異なる                | 同じシークレットで再生成するか、`./bbs` 起動前に `JWT_SECRET` を再設定 |
+| `401 invalid token: missing or non-string sub claim` | トークンに文字列の `sub` / `role` クレームがない                  | 生成プログラムで `sub` と `role` の両方を設定する（Step 4 参照）       |
+| 有効なトークンでも常に `401`                         | ヘッダーが欠けている、または `Bearer` プレフィックスがない        | `-H "Authorization: Bearer $TOKEN"` を正確に指定                       |
+| コンパイルは通るが認証が効かない                     | 対象ルートを `mux.HandleFunc` で登録し `auth(...)` で包んでいない | `mux.Handle(pattern, auth(http.HandlerFunc(...)))` を使う              |
+
+---
+
+## 片付け
+
+```bash
+# サーバーを停止（./bbs を実行中のターミナルで Ctrl+C）してから:
+unset JWT_SECRET
+rm -f bbs
+rm -rf /tmp/jwtgen
+```
+
+---
+
+## 参考文献
+
+- [RFC 7519: JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519)
+- [golang-jwt/jwt](https://github.com/golang-jwt/jwt)
+- [Go net/http ミドルウェアパターン](https://pkg.go.dev/net/http)

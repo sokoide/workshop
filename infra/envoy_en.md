@@ -1,5 +1,9 @@
 # Service Mesh Fundamentals: Understanding L7 Traffic Control with Envoy Sidecars
 
+> **⏱️ Estimated Time**: Approx. 45 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: any (containers only)
+
 In this workshop, you will learn how to implement advanced traffic control (retries, timeouts, circuit breaking) without changing application code, using **Envoy Proxy**, the de facto standard data plane for modern service meshes.
 
 > **💡 Glossary**: Please refer to [Sidecar pattern](glossary_en.md#architecture) or [L7 Traffic Control](glossary_en.md#network) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -12,6 +16,13 @@ By completing this workshop, you will be able to:
 - Understand the structure of Envoy configuration files (listeners, clusters, routes)
 - Simulate network failures and verify resilience via retries and timeouts
 - Use the Envoy Admin interface to check statistics
+
+## Prerequisites
+
+- [ ] Podman (`podman version`) or Docker, with `podman compose` / `docker compose`
+- [ ] `curl`
+- [ ] Basic knowledge of HTTP status codes (200 / 500 / 504)
+- Recommended: [Reverse Proxy Workshop (Traefik)](traefik_en.md) — edge routing before moving to sidecar-based internal traffic control
 
 ---
 
@@ -134,6 +145,7 @@ Verify that you can access the backend via Envoy (port 10000).
 
 ```bash
 curl -v http://localhost:10000/
+# Expected output: HTTP/1.1 200 OK with a `server: envoy` response header
 ```
 
 Check that `server: envoy` is included in the response header. This is proof that it went through Envoy.
@@ -149,6 +161,7 @@ Since `timeout: 2s` is set, request a **3-second sleep** from the backend (a fea
 
 ```bash
 curl -v http://localhost:10000/sleep/3
+# Expected output: HTTP/1.1 504 Gateway Timeout after approximately 2 seconds
 ```
 
 **Result**: Verify that Envoy cuts the connection after 2 seconds and returns `504 Gateway Timeout`. This prevents the client from waiting indefinitely due to backend issues.
@@ -164,6 +177,7 @@ The configuration sets `num_retries: 3`. Request the backend to return a `500` e
 
 ```bash
 curl -v http://localhost:10000/error/500
+# Expected output: HTTP/1.1 500 Internal Server Error (Envoy retries up to 3 times before returning)
 ```
 
 Checking Envoy logs or statistics (Admin IF) reveals that multiple requests were actually sent to the backend. If it were a temporary network error, it could succeed without showing an error to the user.
@@ -188,6 +202,15 @@ Verify that `retry` and `timeout` occurrence counts are recorded as metrics here
 Envoy can be viewed as the "Framework & Drivers" layer (details) in Clean Architecture.
 Business logic (Usecase/Domain) is protected from "infrastructure details" like network instability and retry control, allowing focus on pure logic. This is the ultimate form of delegating infrastructure responsibilities from code to a sidecar.
 
+## What you learned
+
+- How the sidecar pattern decouples traffic control (retries, timeouts) from application code.
+- The structure of Envoy configuration: listeners → routes → clusters.
+- How timeout and retry policies protect clients from slow or failing backends.
+- How to observe Envoy behavior through the Admin interface (`/stats`).
+
+**Next step**: See how these connections behave at the protocol level in the [HTTP Persistent Connection Workshop](http_persistent_en.md).
+
 ---
 
 ## Cleanup
@@ -202,6 +225,13 @@ podman compose down
 
 - **Circuit Breaking**: Cut-off functionality to protect the entire system during massive error occurrences
 - **Istio**: Step up to a service mesh product that centrally manages Envoys via a control plane
+
+---
+
+## References
+
+- [Envoy Documentation](https://www.envoyproxy.io/docs/envoy/latest/)
+- [Envoy Admin Interface](https://www.envoyproxy.io/docs/envoy/latest/operations/admin)
 
 ---
 

@@ -1,11 +1,23 @@
 # Clean Architecture Workshop (WS2): Extension and Optimization
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+, any OS (Redis needed only for Exercise 2)
+>
+> > **💡 Glossary**: For technical terms such as [Interface](../infra/glossary_en.md#go), [Write-Through / Cache-Aside](../infra/glossary_en.md#cache), and [Clean Architecture](../infra/glossary_en.md#architecture), please refer to the [Glossary](../infra/glossary_en.md).
+
 Following WS1, we will learn about the benefits of layer separation in side-effect control and performance optimization through further practical scenarios.
 
 ## Workshop Scenario
 
 1. **Notification Channel Diversification:** Change the notification method from Email to Slack without altering business logic.
 2. **Transparent Cache Implementation:** Introduce Redis caching just by swapping the infrastructure layer, without tainting the business logic at all.
+
+## Prerequisites
+
+- [ ] Completed [WS1](./clean_arch_ws1_en.md) (Entity / Domain Service / repository swap)
+- [ ] Go 1.22+ installed — verify with `go version`
+- [ ] For Exercise 2: a running Redis instance (see the [Redis workshop](../infra/cache_en.md) for setup) and `github.com/redis/go-redis/v9` added to `go.mod`
 
 ---
 
@@ -63,6 +75,13 @@ func (n *SlackNotifier) Send(ctx context.Context, msg string) error {
 	return nil
 }
 ```
+
+### ✅ Checkpoint
+
+- [ ] `NotificationGateway` is defined in the `usecase` (port) package — not in `domain` or `infra`
+- [ ] `ApproveUseCase` compiles with **zero imports from the `infra` package**
+- [ ] You can swap Email for Slack by changing **one line in `main.go`** and nothing else
+- [ ] You can write a test that asserts "Send was called" using a mock/fake `NotificationGateway`, without hitting Slack
 
 ---
 
@@ -153,6 +172,13 @@ func main() {
 }
 ```
 
+### ✅ Checkpoint
+
+- [ ] `CachedUserRepository` satisfies `domain.UserRepository` — this compiles: `var _ domain.UserRepository = (*infra.CachedUserRepository)(nil)`
+- [ ] Redis exists **only** inside `internal/adapters/infra/` — `git grep redis internal/domain internal/usecase` finds nothing
+- [ ] With Redis stopped, reads still succeed (the decorator falls back to the real DB); cache-save failures only produce a warning log
+- [ ] `go test ./...` passes with the decorator wired in
+
 ---
 
 ## Key Points of This Workshop
@@ -185,3 +211,23 @@ If `NotificationGateway.Send` returns an error, what should the UseCase do? Shou
 ### Question 3: Cache and Consistency
 
 When using `CachedUserRepository`, even if the DB data is updated, the cache may remain stale. To address this problem, which layer should implement the countermeasure according to Clean Architecture, and what kind of measures would be appropriate?
+
+---
+
+## What you learned
+
+- Application-required side effects (notifications) become **UseCase-owned output ports**; the means (Slack/Email) stay in the Infra Adapters layer, so implementations swap with a one-line change in `main.go`.
+- The Decorator pattern adds cross-cutting behavior (caching, logging, retries) **transparently** — as long as the interface is unchanged, Domain and UseCase never notice.
+- Cache failures are deliberately non-fatal: logging and falling back to the source of truth keeps the business logic healthy.
+- Ports belong to the layer that needs the capability: domain policies → Domain ports, application orchestration (notification, persistence) → UseCase ports.
+
+**Next**: [WS3: Swapping Communication Protocols](./clean_arch_ws3_en.md) — migrate the BBS REST API to gRPC without touching Domain, UseCase, or Infra.
+
+---
+
+## References
+
+- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [Redis Documentation](https://redis.io/docs/latest/)
+- [go-redis Documentation](https://redis.uptrace.dev/)
+- [log/slog package — Go Documentation](https://pkg.go.dev/log/slog)

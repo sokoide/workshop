@@ -1,5 +1,11 @@
 # クリーンアーキテクチャ実習 (WS3): 通信プロトコルの差し替え
 
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Go 1.22+、OS 不問（grpcurl 必須、Step 2 では protoc ツールチェーンを使用）
+>
+> > **💡 用語集**: [クリーンアーキテクチャ](../infra/glossary_ja.md#architecture)や[インターフェース](../infra/glossary_ja.md#go)などの専門用語は [用語集](../infra/glossary_ja.md) を参照してください。
+
 この実習では、BBS（2 ちゃんねる風掲示板）の REST API を gRPC に移行します。
 **Presentation Adapter** を差し替え、それを組み立てる **Composition Root** を更新します。Domain・UseCase・Infrastructure Adapters は変更しません。
 
@@ -223,6 +229,14 @@ Presentation Adapters ──→ UseCases ──→ Domain
         implements ports owned by UseCases or Domain
 ```
 
+開始前のチェックリスト:
+
+- [ ] [WS1](./clean_arch_ws1_ja.md) と [WS2](./clean_arch_ws2_ja.md) を完了している（または Port と Composition Root の考え方に慣れている）
+- [ ] Go 1.22 以上がインストール済み（`go version` で確認）
+- [ ] BBS プロジェクトがビルドできる: `cd software/assets/bbs && go build ./...` が何も出力せずに終了する
+- [ ] `grpcurl` をインストール済み（`grpcurl --version`）— [grpcurl releases](https://github.com/fullstorydev/grpcurl/releases) を参照
+- [ ] Step 2 のみ: `protoc`、`protoc-gen-go`、`protoc-gen-go-grpc` をインストール済み — [gRPC Go クイックスタート](https://grpc.io/docs/languages/go/quickstart/) を参照
+
 ## 実習のシナリオ
 
 「REST API を gRPC に移行したい」という要件に対応します。
@@ -277,6 +291,12 @@ func (h *ThreadHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
 
 **確認ポイント**: `Execute` の呼び出し部分は、HTTP にも gRPC にも依存していません。
 
+### ✅ チェックポイント
+
+- [ ] HTTP Handler 内の「入力変換 → UseCase 呼び出し → 出力変換」の構造を確認できた
+- [ ] `Execute` の呼び出し行に HTTP 固有の要素がない（`r.Context()` 以外）ことを確認した
+- [ ] `software/assets/bbs` で `go build ./...` が通る（まだ何も変更していない状態）
+
 ### Step 2: Protobuf 定義を作成する
 
 gRPC 用の型定義を作ります。これは新規ファイルであり、既存コードの変更ではありません。
@@ -327,6 +347,12 @@ message Post {
     google.protobuf.Timestamp created_at = 7;
 }
 ```
+
+### ✅ チェックポイント
+
+- [ ] `api/proto/bbs.proto` は **新規ファイル** である — 既存ファイルは変更していない（`git status` で新しい .proto だけが見える）
+- [ ] コード生成が成功する: `protoc --go_out=. --go-grpc_out=. api/proto/bbs.proto` が何も出力せずに終了する
+- [ ] 生成された `*.pb.go` が出力先ディレクトリに存在し、`go build ./...` が通る
 
 ### Step 3: gRPC Handler を実装する
 
@@ -403,6 +429,13 @@ out, err := s.createThread.Execute(ctx, usecase.CreateThreadInput{
 
 UseCase の呼び出しが完全に同一です。変わるのは変換先（JSON → protobuf）とエラー変換先（HTTP status → gRPC status）だけです。
 
+### ✅ チェックポイント
+
+- [ ] `bbs_server.go` は `internal/adapters/presentation/grpc/` 配下の **新規ファイル** である — Domain・UseCase・Infra は無変更（`git status` で確認）
+- [ ] `BBSServer` が具象 UseCase 構造体ではなく `usecase.ThreadCreator` / `usecase.ThreadLister` という **インターフェース** に依存している
+- [ ] エラー変換がここだけで完結している: `domain.ErrBoardNotFound → codes.NotFound`、未知のエラー → 汎用メッセージで `codes.Internal`
+- [ ] `go build ./...` が通る
+
 ### Step 4: エントリポイントを gRPC に切り替える
 
 Composition Root で、HTTP から gRPC へ起動方法を変えます。
@@ -442,22 +475,45 @@ func main() {
 }
 ```
 
+### ✅ チェックポイント
+
+- [ ] `main.go` で変更したのはサーバー起動ブロックだけ — DI の組み立て（リポジトリ・UseCase）は無変更
+- [ ] 切り替え後も `go build -o bbs ./cmd/bbs/` が通る
+
 ### Step 5: 動作確認
 
 ```bash
 # ビルド
 go build -o bbs ./cmd/bbs/
+# Expected output: （なし — bbs バイナリが作業ディレクトリに作成される）
 
-# 起動
+# 起動（別ターミナルで起動したままにする）
 ./bbs
+# Expected output: サーバーが起動し、:9090 で待ち受ける
 
 # gRPC クライアントで確認（grpcurl を使用）
 # reflection.Register を有効にしているため -plaintext だけでサービス一覧を表示可能
 grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
+# Expected output: 初期登録済みの板一覧が JSON で返る。例:
+# {
+#   "board": [
+#     { "id": "1", "name": "programming", "description": "Programming General" },
+#     ...
+#   ]
+# }
 
 grpcurl -plaintext -d '{"board_name":"program","title":"Go言語スレ","author":"gopher","body":"Go最高！"}' \
     localhost:9090 bbs.BBSService/CreateThread
+# Expected output: 作成された "thread"（postCount: "1"）と最初の "post"（number: "1"）
+# を含む JSON が返る
 ```
+
+### ✅ チェックポイント
+
+- [ ] `grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards` で板一覧が JSON で返る
+- [ ] gRPC 経由の `CreateThread` でスレッドが作成され、スレッドと最初の投稿の両方が返る
+- [ ] Presentation Adapter と `main.go` 以外のファイルが変わっていないことを確認した: `git diff --stat` に presentation/grpc 配下・生成 .pb.go・`cmd/bbs/main.go` しか表示されない
+- [ ] `software/assets/bbs` で `go test ./...` が通る
 
 ---
 
@@ -502,3 +558,39 @@ HTTP では `404 Not Found` を返すのが自然ですが、gRPC では `status
 ### 問 3: トランザクション境界
 
 `CreateThreadUseCase` は「スレッド作成」と「最初の投稿」を同じトランザクションで行います。このトランザクション制御はどの層に属するべきですか？もし Presentation 層（HTTP Handler）でトランザクションを開始・終了すると、クリーンアーキテクチャのどの原則に違反しますか？
+
+---
+
+## 学んだこと
+
+- 通信プロトコルの差し替えで触るのは **Presentation Adapter** と **Composition Root の配線** だけ。HTTP と gRPC のハンドラで `Execute(ctx, Input) (Output, error)` の呼び出し行は完全に同一だった。
+- プロトコルの違いは純粋な **変換** の違い: 入力は JSON か protobuf か、エラーは HTTP ステータスか gRPC ステータスコードか。
+- エラーは層の境界ごとに翻訳される: ドライバエラー → ドメインエラー（Infra）、ドメインエラー → トランスポートエラー（Presentation）。
+- protobuf 生成の構造体は Domain 層に入れない。Presentation アダプタが UseCase の DTO と相互変換する。
+
+**次**: [WS4: ビジネスルールの追加](./clean_arch_ws4_ja.md) — 「スレ主のみ書き込み可能」ルールを追加し、変更が Domain から外側へ波及する様子を体験します。
+
+---
+
+## 片付け
+
+```bash
+# gRPC サーバーを停止して（ターミナルで Ctrl+C）、以下を実行:
+cd software/assets/bbs
+make clean   # bbs バイナリと bbs.db を削除
+```
+
+手動で行う場合:
+
+```bash
+rm -f software/assets/bbs/bbs software/assets/bbs/bbs.db
+```
+
+---
+
+## 参考文献
+
+- [gRPC Documentation](https://grpc.io/docs/)
+- [Protocol Buffers Language Specification](https://protobuf.dev/programming-guides/proto3/)
+- [grpcurl — GitHub](https://github.com/fullstorydev/grpcurl)
+- [gRPC Go Quick Start](https://grpc.io/docs/languages/go/quickstart/)

@@ -1,5 +1,9 @@
 # Kerberos / SPNEGO 認証実習：NGINX と Podman でシングルサインオンを体験する
 
+> **⏱️ 所要時間**: 約 75 分
+> **🎯 レベル**: 上級
+> **💻 環境**: Linux 専用（ホストに `krb5-user` ツール、`podman compose` 利用可能な Podman、SPNEGO/GSS-API 対応 curl。WSL2 でも可）
+
 ソフトウェアエンジニア向けに、エンタープライズ環境で標準的に利用されている **Kerberos** および **SPNEGO** 認証の仕組みを、**NGINX** と **Podman** を使って実際に構築しながら学びます。
 
 > **💡 用語集**: この実習で登場する[Kerberos](glossary_ja.md#network)や[SPN](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -391,6 +395,14 @@ curl --negotiate -u : -v http://nginx.test.local:8080/ -o /dev/null
 `200 OK` なのに後者の `WWW-Authenticate: Negotiate <token>` が無い場合は、相互認証トークンが返っていない可能性があります（モジュール設定・実装差分を確認）。
 
 ---
+
+## 学んだこと
+
+- **KDC が信頼の起点**: KDC への 1 回の `kinit` で TGT を取得し、サービスチケットはそこから派生する — パスワードはセッションにつき 1 回だけ入力する。
+- **SPN と keytab の結びつき**: サービスチケットは `HTTP/nginx.test.local@TEST.LOCAL` の鍵で暗号化される。その keytab を持つサーバーだけが復号でき、これが身元の証明になる。
+- **HTTP 上の SPNEGO は 2 ラウンド交換**: `WWW-Authenticate: Negotiate` 付きの `401` で開始し、`Authorization: Negotiate <token>` ヘッダーで Kerberos トークンを運ぶ — パスワードは一切ネットワークを流れない。
+- **相互認証**: サーバーはレスポンスヘッダーで自身のトークンを返し、クライアントは本物のサービスと話したことを検証できる。
+- エンタープライズ SSO がドメイン内で「勝手に動く」のは Kerberos のおかげ — そして DNS・SPN・hosts の設定がずれた途端に同じフローが壊れる理由でもある。
 
 ## 片付け
 

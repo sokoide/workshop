@@ -1,8 +1,20 @@
 # TCP/IP Protocol Stack Workshop: Building the "Soul of Communication" from Scratch
 
+> **⏱️ Estimated Time**: Approx. 180 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: Linux (root/sudo)
+
 In this workshop, you will combine Go and C to **build a TCP/IP protocol stack from the ground up**. By implementing the "packet generation and decomposition" that OS kernels usually hide, you will understand network principles not as abstract concepts, but as concrete data structures.
 
 > **💡 Glossary**: Please refer to [Raw Socket](glossary_en.md#protocol) or [Encapsulation](glossary_en.md#protocol) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
+
+## Prerequisites
+
+- [ ] Linux (Ubuntu 22.04/24.04 recommended) — Raw Sockets (`AF_PACKET`) and network namespaces are required
+- [ ] Go 1.22 or later (`go version`)
+- [ ] GCC with CGO enabled (`gcc --version`, `go env CGO_ENABLED`)
+- [ ] `tcpdump` and `iproute2` (`ip`, `ip netns`) — `sudo apt install -y golang-go gcc tcpdump iproute2`
+- [ ] Root/sudo privileges (creating network namespaces and opening raw sockets requires `CAP_NET_RAW`)
 
 ---
 
@@ -121,6 +133,7 @@ Capture the same request on Linux loopback.
 sudo tcpdump -i lo -nn -vv 'tcp port 8000'
 # In the client terminal:
 curl -s http://localhost:8000/ > /dev/null
+# Expected output: TCP packets with flags [S], [S.] (handshake), then [P.] data segments and [F]/[R] teardown
 ```
 
 Look for `[S]`, `[S.]`, and `[.]`: SYN, SYN-ACK, and ACK establish the TCP connection. Data, acknowledgements, and connection teardown follow. The loopback capture shows IP/TCP traffic; Ethernet framing is examined later on the veth interfaces.
@@ -1498,12 +1511,14 @@ From another terminal:
 ```bash
 # Ping from within the namespace
 sudo ip netns exec workshop ping 192.168.100.1
+# Expected output: 64 bytes from 192.168.100.1: icmp_seq=1 ttl=64 (one line per reply)
 ```
 
 ### 4. Observe Packets
 
 ```bash
 sudo tcpdump -i veth-host -nn -vv icmp
+# Expected output: IP 192.168.100.2 > 192.168.100.1: ICMP echo request ... / IP 192.168.100.1 > 192.168.100.2: ICMP echo reply ...
 ```
 
 ### 5. UDP Echo Test
@@ -1517,6 +1532,7 @@ sock.sendto(b"hello udp", ("192.168.100.1", 7))
 data, peer = sock.recvfrom(1024)
 assert data == b"hello udp", (data, peer)
 print(f"reply={data!r} from {peer}")
+# Expected output: reply=b'hello udp' from ('192.168.100.1', 7)
 PY
 
 sudo tcpdump -i veth-host -nn -vv -XX 'udp port 7'
@@ -1527,6 +1543,18 @@ sudo tcpdump -i veth-host -nn -vv -XX 'udp port 7'
 ### 6. Observe and Corrupt UDP
 
 Use `tcpdump -XX` to map the eight-byte UDP header and payload to the captured bytes. Then run the `pkg/udp` tests: flipping a checksum bit must make `VerifyChecksum` reject the datagram. Verify both accepted and rejected messages.
+
+---
+
+## What you learned
+
+- How the kernel encapsulates application data into Ethernet (L2), IPv4 (L3), and ICMP/UDP (L4), and how to parse each header from raw bytes.
+- How to use Linux `AF_PACKET` raw sockets (via CGO) to observe and inject frames on a veth interface.
+- How network namespaces and veth pairs provide an isolated sandbox for low-level networking experiments.
+- How the RFC 1071 checksum (including the UDP pseudo-header) and network byte order (Big Endian) protect packet integrity.
+- Why a full TCP implementation (handshake, sequencing, retransmission, congestion control) is a project of its own — see Deep Dive Topics below.
+
+**Next step**: See how real applications reuse and upgrade these connections in the [HTTP Persistent Connection Workshop](http_persistent_en.md).
 
 ---
 

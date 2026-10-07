@@ -1,5 +1,9 @@
 # リバースプロキシ実習：Traefik で学ぶ K8s Ingress の裏側
 
+> **⏱️ 所要時間**: 約 45 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux (Podman。Docker 互換ソケットを使用)
+
 この実習では、クラウドネイティブなエッジルーターである **Traefik** を使用して、Kubernetes Ingress コントローラーの背後にある仕組み（L7 ルーティング、ロードバランシング、サービスディスカバリ）を学びます。
 
 > **💡 用語集**: この実習で登場する[Reverse Proxy](glossary_ja.md#network)や[Ingress](glossary_ja.md#architecture)、[Service Discovery](glossary_ja.md#architecture)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -12,6 +16,14 @@
 - 複数のバックエンドサービスに対するロードバランシングを設定する
 - ミドルウェアを使用したリクエストの加工（Basic 認証、ヘッダー追加）を行う
 - コンテナの動的な追加・削除を検知するサービスディスカバリの仕組みを理解する
+
+## 前提条件
+
+- [ ] Podman 5.x（`podman version`）。Docker 互換 API ソケットが `/run/podman/podman.sock` にあること
+- [ ] `podman compose` または `podman-compose`
+- [ ] `curl`
+- [ ] `htpasswd`（`sudo apt install -y apache2-utils`）— STEP 4 で使用
+- 推奨: 後から HTTPS 化に挑戦する場合は [TLS/SSL 証明書実習](tls_ja.md)
 
 ---
 
@@ -164,6 +176,7 @@ podman run -d --name nginx-demo \
 
 ```bash
 curl http://localhost/nginx
+# Expected output: nginx の Welcome ページ（"Welcome to nginx!"）
 ```
 
 ### ✅ チェックポイント
@@ -212,6 +225,24 @@ podman rm -f nginx-demo
 - **HTTPS 化**: Let's Encrypt と連携した自動証明書発行
 - **Kubernetes へのデプロイ**: Helm チャートを使用した Traefik の導入
 - **サービスメッシュ**: Envoy を使用したより高度なトラフィック制御（次の実習）
+
+---
+
+## 学んだこと
+
+- L7 リバースプロキシの基本動作：バックエンドコンテナの前でのホストベース・パスベースルーティング
+- Traefik が Podman ソケット経由でコンテナを自動検出し、再起動なしでルーティングに反映する仕組み
+- 同一ルールを持つ複数コンテナへのロードバランシングの動作
+- ミドルウェア（Basic 認証）による、アプリケーションコードを変更しない横断的機能の追加
+- これらのルーティングルールが Kubernetes Ingress リソースにどう対応するか、そしてサービスメッシュ（Envoy）の担当領域との境界
+
+---
+
+## 参考文献
+
+- [Traefik Documentation](https://doc.traefik.io/traefik/)
+- [Traefik & Docker Provider - Routing Configuration](https://doc.traefik.io/traefik/routing/providers/docker/)
+- [traefik/whoami](https://github.com/traefik/whoami)
 
 ---
 

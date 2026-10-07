@@ -1,11 +1,24 @@
 # クリーンアーキテクチャ実習 (WS6): 外部サービス統合
 
+> **⏱️ 所要時間**: 約 45 分
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Go 1.22+。Slack Incoming Webhook URL は任意（なければ NoOp Gateway で進められます）
+>
+> > **💡 用語集**: [クリーンアーキテクチャ](../infra/glossary_ja.md#architecture)や[インターフェース](../infra/glossary_ja.md#go)などの専門用語は [用語集](../infra/glossary_ja.md) を参照してください。
+
 この実習では、BBS（2 ちゃんねる風掲示板）に「新規投稿時に Slack 通知を送る」機能を追加します。
 **新しい Port を定義して Infra Adapter を増やすパターン**を体験し、既存コードへの影響が最小限であることを確認します。
 
 ## 前提知識
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
+
+開始前のチェックリスト:
+
+- [ ] [WS5](./clean_arch_ws5_ja.md) を完了している — 本実習は BBS プロジェクトの WS5 完了時点の状態から始めます
+- [ ] Go 1.22 以上がインストール済み（`go version` で確認）
+- [ ] BBS プロジェクトがビルドできる: `cd software/assets/bbs && go build ./...` が何も出力せずに終了する
+- [ ] （任意）最終確認用の Slack Incoming Webhook URL — なければ後述の NoOp Gateway を使用する
 
 ## 実習のシナリオ
 
@@ -46,6 +59,12 @@ type NotificationGateway interface {
 新規ファイルは `internal/usecase/` の直下、`repository.go` や `transaction.go` と同じ位置に置きます。他の Port と同様、UseCase 層が所有します。
 
 **確認ポイント**: この interface には Slack という言葉が一切出てきません。UseCase は「何を通知するか」を決め、「どう通知するか」は Infra に任せます。
+
+### ✅ チェックポイント
+
+- [ ] `internal/usecase/notification.go` は **新規ファイル** で、既存ファイルは変更していない（`git status` で確認）
+- [ ] interface 名とシグネチャに Slack 固有の要素がない（URL も Slack 型も出てこない）
+- [ ] `go build ./...` が通る
 
 ### Step 2: UseCase 層 — 通知の呼び出し
 
@@ -133,6 +152,13 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 
 **確認ポイント**: 通知はトランザクションの **外** で呼び出しています。Slack 通知の失敗で投稿が巻き戻るべきではないという設計判断です。エラーはログに記録しつつ、投稿処理自体は成功として扱います。
 
+### ✅ チェックポイント
+
+- [ ] `CreatePostUseCase` が `notifier NotificationGateway` フィールドを持ち、コンストラクタで注入されている
+- [ ] `NotifyNewPost` は `RunInTransaction` が `nil` を返した **後** に呼ばれ、そのエラーは伝播させずログ出力（`slog.Warn`）のみ
+- [ ] WS4 で追加した `CanPost` チェックがトランザクション内にそのまま残っている
+- [ ] `go build ./...` が通る
+
 ### Step 3: Infra 層 — Slack 実装
 
 新しいディレクトリに Slack 用の Gateway を作ります。
@@ -188,6 +214,13 @@ func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 }
 ```
 
+### ✅ チェックポイント
+
+- [ ] `SlackGateway` は `internal/adapters/infra/notification/` 配下の **新規ファイル** で、Domain・UseCase（他ファイル）・Presentation は無変更
+- [ ] `SlackGateway` が `usecase` パッケージを import せずに `NotificationGateway` interface を満たしている
+- [ ] HTTP リクエストが `http.NewRequestWithContext` を使い、キャンセルが伝播する
+- [ ] `go build ./...` が通る
+
 ### Step 4: Composition Root — DI に追加
 
 `main.go` で Slack Gateway を生成し、UseCase に注入します。
@@ -206,21 +239,38 @@ func main() {
 }
 ```
 
+### ✅ チェックポイント
+
+- [ ] このステップで変更したのは `main.go` だけで、notifier を生成している箇所が 1 か所のみ
+- [ ] `go build -o bbs ./cmd/bbs/` が通る
+
 ### Step 5: 動作確認
 
 ```bash
 # Slack Webhook URL を設定
+# （ない場合は main.go で NoOpGateway に配線する — 「通知が不要な場面での対応」を参照）
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T.../B.../xxx"
 
 # ビルド・起動
 go build -o bbs ./cmd/bbs/
+# Expected output: （なし — bbs バイナリが作業ディレクトリに作成される）
 ./bbs
+# Expected output: サーバーが起動し、:8080 で待ち受ける
 
 # 投稿 → Slack に通知が飛ぶ
 curl -X POST http://localhost:8080/api/threads/1/posts \
   -H 'Content-Type: application/json' \
   -d '{"author":"gopher","body":"Slack通知テスト"}'
+# Expected output: HTTP 201 で作成された投稿が JSON で返る
+# （本実習前に投稿したときと同じレスポンス — 通知はバックグラウンドで行われる）
 ```
+
+### ✅ チェックポイント
+
+- [ ] `curl` での投稿が、本実習前に投稿したときと同じレスポンスを返す
+- [ ] Slack チャンネルにメッセージが届く（`NoOpGateway` の場合は何も飛ばず投稿だけが成功する）
+- [ ] Webhook URL を一時的に壊す（存在しないホストにする等）と、警告ログ `notification failed` が出つつ投稿は HTTP 201 で成功する
+- [ ] `software/assets/bbs` で `go test ./...` が通る
 
 ---
 
@@ -339,3 +389,35 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
    - Infra は「どう通知するか」を実装（Slack Webhook / Email SMTP）
 3. **テスト容易性**: interface によって通知をモックでき、外部サービスに依存しないテストが書ける。
 4. **通知先の差し替え**: Slack → Email → LINE の変更は Composition Root の 1 行変更だけで完了。
+
+---
+
+## 学んだこと
+
+- 新しい外部サービス統合とは、**UseCases 層に新しい Port を定義して Adapter を 1 本追加すること** — Domain と Presentation は一切触らない。
+- Port のシグネチャはワークフローが必要とする「**何を**」（`NotifyNewPost`）だけを表し、「どう届けるか」は含まない — "Slack" という語は UseCase 層を超えなかった。
+- 本操作を巻き戻してはならない副作用呼び出しは**トランザクションの外**で実行し、失敗時はリクエストを失敗させずログ記録のみで優雅に劣化させる。
+- 同じ Port の NoOp 実装やモックにより、外部依存のないテストと CLI シナリオが書ける。
+- 通知先の差し替え（Slack → Email）は Composition Root の 1 行変更で完了する。
+
+**次のステップ**: [WS7: 認証の追加](./clean_arch_ws7_ja.md) — 「コアに知らせない」同じ考えを、Presentation 層のミドルウェアに適用します。
+
+---
+
+## 片付け
+
+```bash
+# まずサーバーを停止（./bbs を実行中のターミナルで Ctrl+C）してから:
+unset SLACK_WEBHOOK_URL
+# WS5 の PostgreSQL コンテナを起動したまま不要になった場合:
+podman stop bbs-postgres && podman rm bbs-postgres
+rm -f bbs
+```
+
+---
+
+## 参考文献
+
+- [Slack API: Incoming Webhooks](https://api.slack.com/messaging/webhooks)
+- [Go net/http ドキュメント](https://pkg.go.dev/net/http)
+- [Go Log/slog（構造化ログ）](https://go.dev/blog/slog)

@@ -1,5 +1,9 @@
 # Kubernetes 実習：コンテナオーケストレーションの基礎から実践まで
 
+> **⏱️ 所要時間**: 約 180 分（2〜3 セッションへの分割を推奨）
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Linux / macOS / WSL2（kind クラスタ、STEP 7 で sudo 必須）
+
 このワークショップでは、Kubernetes (K8s) の基礎概念から実際の運用まで、ハンズオン形式で学びます。単なるインフラ管理ツールとしてではなく、**「分散システムを動かすためのプラットフォーム」**としての K8s を理解することを目指します。
 
 > **⚠️ 所要時間の目安**: 本実習は内容が豊富なため、**複数セッションに分割して実施することを推奨**します（目安：各セクション 30〜45 分）。
@@ -155,18 +159,20 @@ graph TB
 
 ---
 
+## 前提条件
+
+- [ ] **kubectl** v1.28+ — `kubectl version --client`
+- [ ] **kind** v0.22+ — `kind version`
+- [ ] **Helm** v3.14+ — `helm version`
+- [ ] **Go** 1.22+ — `go version`（STEP 10 のみ使用）
+- [ ] **Podman または Docker** — kind ノードイメージの実行環境
+- [ ] ローカルクラスタ用に空きメモリ 4 GB 以上、空きディスク 20 GB 以上
+
+---
+
 ## 準備
 
-### 1. 前提条件
-
-- **OS**: Linux, macOS, Windows (WSL2)
-- **ツール**:
-  - kubectl (Kubernetes CLI)
-  - Kind (ローカル K8s クラスタ) または Minikube
-  - Helm (パッケージマネージャー)
-  - Go (サンプルアプリ作成用)
-
-### 2. ツールインストール
+### 1. ツールインストール
 
 ```bash
 # macOS (Homebrew)
@@ -184,7 +190,7 @@ go install sigs.k8s.io/kind@latest
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
 ```
 
-### 3. ローカルクラスタ作成
+### 2. ローカルクラスタ作成
 
 ```bash
 # Kind クラスタ作成
@@ -238,6 +244,9 @@ kubectl apply -f manifests/01-pod.yaml
 
 # 状態確認
 kubectl get pods
+# Expected output:
+# NAME        READY   STATUS    RESTARTS   AGE
+# nginx-pod   1/1     Running   0          10s
 kubectl describe pod nginx-pod
 
 # ログ確認
@@ -310,6 +319,7 @@ kubectl get pods -l app=nginx
 
 # スケールアウト
 kubectl scale deployment nginx-deployment --replicas=5
+# Expected output: deployment.apps/nginx-deployment scaled
 
 # ローリングアップデート
 kubectl set image deployment/nginx-deployment nginx=nginx:1.27.4-alpine
@@ -356,6 +366,9 @@ kubectl apply -f manifests/03-service.yaml
 
 # 状態確認
 kubectl get services
+# Expected output:
+# NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+# nginx-service   ClusterIP   10.96.xx.xx    <none>        80/TCP    10s
 kubectl describe service nginx-service
 
 # ClusterIP 確認
@@ -432,7 +445,16 @@ kubectl apply -f manifests/04-configmap.yaml
 
 # 確認
 kubectl logs config-demo
+# Expected output:
+# production
+# {
+#   "database": {
+#     "host": "postgres.default.svc.cluster.local",
+#     "port": 5432
+#   }
+# }
 kubectl exec -it config-demo -- env | grep APP
+# Expected output: APP_ENV=production
 
 # ConfigMap 更新
 kubectl patch configmap app-config --type merge -p '{"data":{"APP_ENV":"staging"}}'
@@ -489,6 +511,7 @@ kubectl get secret app-secret -o jsonpath='{.metadata.ownerReferences}'
 
 # Secret の値をデコードして確認
 kubectl get secret app-secret -o jsonpath='{.data.DB_PASSWORD}' | base64 -d
+# Expected output: secret-password-123
 ```
 
 ### ✅ チェックポイント
@@ -553,6 +576,9 @@ kubectl apply -f manifests/06-pvc.yaml
 
 # 状態確認
 kubectl get pvc
+# Expected output:
+# NAME      STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+# data-pvc  Bound    pvc-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx   1Gi        RWO            standard       10s
 kubectl get pv
 
 # データ書き込み確認
@@ -609,6 +635,7 @@ echo "$NODE_IP nginx.local" | sudo tee -a /etc/hosts
 
 # アクセス確認
 curl http://nginx.local
+# Expected output: nginx のウェルカムページ HTML
 ```
 
 ### ✅ チェックポイント
@@ -858,6 +885,18 @@ curl http://localhost:8080
 
 ---
 
+## 学んだこと
+
+- Control Plane が宣言された状態（Pod, Deployment, Service）を実際のコンテナへ収束させる仕組み
+- ゼロダウンタイムでのスケール、ローリングアップデート、ロールバックの方法
+- ConfigMap と Secret による設定とクレデンシャルの外部化
+- PersistentVolumeClaim による Pod ライフサイクルを超えたデータ永続化
+- Service と Ingress による HTTP トラフィックの公開、Helm によるアプリのパッケージ管理
+
+**次のステップ**: [Kubernetes 運用・セキュリティ実習](kubernetes_operations_ja.md) で本番運用の観点を学びましょう。
+
+---
+
 ## クリーンアーキテクチャとの親和性
 
 Kubernetes はクリーンアーキテクチャと非常に相性が良いです：
@@ -892,6 +931,27 @@ spec:
             # Infra Layer の Service を DNS で解決
             - name: REPO_ENDPOINT
               value: "infra-service.default.svc.cluster.local:8080"
+```
+
+---
+
+## 片付け
+
+```bash
+# STEP 7 で追加した /etc/hosts のエントリを削除
+sudo sed -i '/nginx.local/d' /etc/hosts
+
+# STEP 8/9 でインストールした Helm リリースをアンインストール
+helm uninstall myapp-release
+helm uninstall prometheus
+
+# kind クラスタを削除（上で作成したリソースはすべて消える）
+kind delete cluster --name k8s-workshop
+# Expected output: Deleted clusters "k8s-workshop"
+
+# 確認
+kind get clusters
+# Expected output: (no output)
 ```
 
 ---

@@ -1,6 +1,12 @@
 # iSCSI と Kubernetes PersistentVolume 実習
 
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: 上級
+> **💻 環境**: Linux（root/sudo、VM かコンテナ 2 台、Minikube、open-iscsi）
+
 このワークショップでは、伝統的なブロックストレージプロトコルである **iSCSI** を構築し、それを Kubernetes クラスタの永続ボリューム（PersistentVolume）として利用する一連の流れを学びます。
+
+**前提ワークショップ**: [`kubernetes_basics_ja.md`](kubernetes_basics_ja.md)（STEP 6 から PV/PVC の概念を使用します）。
 
 > **💡 用語集**: この実習で登場する[iSCSI](glossary_ja.md#storage)や[PersistentVolume](glossary_ja.md#storage)、[LUN](glossary_ja.md#storage)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
@@ -300,6 +306,15 @@ Kubernetes のストレージ管理は、**「インフラの詳細（IP, プロ
 - **Pod**: エンティティ/ビジネスロジック層（データがあれば、背後のストレージが iSCSI か NFS かは問わない）。
 
 ---
+
+## 学んだこと
+
+- iSCSI はリモートのブロックデバイスをローカルディスクに変えるプロトコル: **target** が LUN をエクスポートし、**initiator** がログインして `/dev/sdX` デバイスを得る。
+- iSCSI の PersistentVolume はそのデバイスを Pod に接続する — データは target 側 VM にあるのに、Pod からは普通のファイルシステムに見える。
+- `iqn` 名がセッションの両端を識別する。target 側のアクセス制御は initiator の IQN 単位。
+- Pod を削除してもデータは残る。PV のライフサイクルが Pod と独立しているからこそ、Kubernetes 上のステートフルワークロードが成り立つ。
+
+**次のステップ**: [`kubernetes_operations_ja.md`](kubernetes_operations_ja.md) で本番のストレージ運用（スナップショット、バックアップ）、または [`minio_ja.md`](minio_ja.md) でブロックボリュームの代替としてのオブジェクトストレージ。
 
 ## 片付け
 

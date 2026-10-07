@@ -1,5 +1,9 @@
 # TLS/SSL Certificate Workshop: Building Self-Signed CA and Understanding Certificate Chains
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux (sudo for /etc/hosts)
+
 In this workshop, you will learn how TLS/SSL and certificate chains work by building your own Certificate Authority (CA) and issuing/verifying server certificates using OpenSSL.
 
 > **💡 Glossary**: Please refer to [TLS/SSL](glossary_en.md#security) or [CA](glossary_en.md#security) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -22,6 +26,13 @@ graph TD
 2. **Certificate Issuance Flow**: Generating private keys, creating CSRs, and signing with a CA.
 3. **Modern Name Validation**: Transitioning from Common Name (CN) to Subject Alternative Name (SAN).
 4. **Certificate Verification**: Confirming validity using `curl` or `openssl verify`.
+
+## Prerequisites
+
+- [ ] OpenSSL 1.1.1 or later / 3.x (`openssl version`)
+- [ ] Podman (`podman version`) or Docker
+- [ ] `curl`
+- [ ] sudo privileges (to add `server.workshop.local` to `/etc/hosts`)
 
 ---
 
@@ -168,9 +179,11 @@ podman run -d --name traefik --network tls-workshop -p 8443:443 \
 ```bash
 # Access without CA certificate (expected to fail)
 curl https://server.workshop.local:8443
+# Expected output: curl: (60) SSL certificate problem: unable to get local issuer certificate
 
 # Access by specifying your custom Root CA certificate (expected to succeed)
 curl --cacert rootCA.crt https://server.workshop.local:8443
+# Expected output: HTML directory listing from the Python http.server backend (no certificate error)
 ```
 
 Both containers join `tls-workshop`, so Traefik resolves the backend by its container name, `tls-backend`. This also avoids host-network differences between native Linux and Podman's macOS/Windows VM.
@@ -185,6 +198,15 @@ In this workshop, we used a configuration called **SSL Termination**.
 - **App (Business Logic Layer)**: The backend Python app is unaware of SSL and operates on pure HTTP.
 
 This ensures security through infrastructure layer changes alone, without needing to modify application code for HTTPS support.
+
+## What you learned
+
+- Why a root of trust (CA) is required, and how certificate chains establish trust from Root CA to server.
+- The issuance flow: private key → CSR → CA signature, and why SAN replaced CN for modern name validation.
+- How to verify certificates with `openssl verify`, `openssl x509 -text`, and `curl --cacert`.
+- How SSL termination at the proxy keeps the backend application on pure HTTP.
+
+**Next step**: Put the certificate behind a reverse proxy in the [Traefik Workshop](traefik_en.md).
 
 ---
 

@@ -1,5 +1,9 @@
 # オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 中級
+> **💻 環境**: any (containers only)
+
 この実習では、AWS S3 互換のオブジェクトストレージサーバーである **MinIO** を構築し、Go アプリケーションからファイルのアップロード、ダウンロード、および署名付き URL（Presigned URL）を使用したセキュアなファイル共有の実装方法を学びます。
 
 > **💡 用語集**: この実習で登場する[Object Storage](glossary_ja.md#storage)や[Bucket](glossary_ja.md#storage)、[Presigned URL](glossary_ja.md#security)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -12,6 +16,14 @@
 - MinIO を使用してローカルに S3 互換環境を構築する
 - Go SDK (`aws-sdk-go-v2`) を使用してアプリケーションからファイルを操作する
 - 署名付き URL を生成し、一時的なアクセス権限を付与する方法を習得する
+
+## 前提条件
+
+- [ ] **Podman** 4.x 以上（`podman compose` が使えること、`podman --version` で確認）
+- [ ] **Go** 1.25 以上（`go version` で確認）
+- [ ] **AWS CLI**（任意 — 準備のクライアント確認で使用）
+- [ ] **MinIO Client (`mc`)**（任意 — AWS CLI の代替）
+- [ ] MinIO コンソール（`http://localhost:9001`）にアクセスできる Web ブラウザ
 
 ---
 
@@ -96,6 +108,7 @@ MinIO クライアント (`mc`) が利用可能な場合、または AWS CLI を
 ```bash
 # AWS CLI の場合 (ローカルのMinIOに向ける設定)
 aws --endpoint-url http://localhost:9000 s3 mb s3://my-bucket
+# Expected output: make_bucket: my-bucket
 ```
 
 ---
@@ -125,6 +138,7 @@ func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
 
 ```bash
 go run main.go upload sample.jpg
+# Expected output: Successfully uploaded sample.jpg to bucket workshop-images
 ```
 
 ### STEP 2: 署名付き URL (Presigned URL) の生成
@@ -179,6 +193,14 @@ go run main.go share sample.jpg
 
 ---
 
+## 学んだこと
+
+- アップロードファイルの保存先として、ローカルディスクや DB の BLOB よりオブジェクトストレージ (S3/MinIO) が適する理由
+- Podman を使ってローカルに S3 互換ストレージサーバーを構築する方法
+- Go から AWS SDK でバケット・オブジェクトを操作し、その詳細を infra 層に隠蔽する方法
+- Presigned URL でバケットを公開せずに、期限付きのアクセス権を付与する方法
+- 署名により、URL のパスや有効期限の改ざんが検知される仕組み
+
 ## 片付け
 
 ```bash
@@ -193,6 +215,15 @@ podman compose down
 
 - **イベント通知**: ファイルアップロードをトリガーに Lambda (OpenFaaS) を起動し、画像縮小処理を行う
 - **ライフサイクルポリシー**: 古いファイルを自動的に削除・アーカイブする設定
+
+---
+
+## 参考文献
+
+- [MinIO ドキュメント](https://min.io/docs/minio/container/index.html)
+- [MinIO Client (`mc`) リファレンス](https://min.io/docs/minio/linux/reference/minio-mc.html)
+- [Amazon S3 API リファレンス](https://docs.aws.amazon.com/AmazonS3/latest/API/Welcome.html)
+- [Amazon S3 ユーザーガイド: Presigned URL でのオブジェクト共有](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html)
 
 ---
 

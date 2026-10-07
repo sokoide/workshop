@@ -1,6 +1,10 @@
 # HTTP Persistent Connection Workshop: Keep-Alive, WebSocket, HTTP/2, gRPC, HTTP/3
 
-> **Note on Terminology**: The term "Persistent Connection" used in this workshop refers to the definition in HTTP specifications (such as RFC 7230). It differs from "Data Persistence" in databases; it refers to maintaining a single TCP connection or a logical connection provided by QUIC to reuse it for multiple requests.
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux (Ubuntu 24.04; apt + Homebrew/Linuxbrew)
+>
+> > **Note on Terminology**: The term "Persistent Connection" used in this workshop refers to the definition in HTTP specifications (such as RFC 7230). It differs from "Data Persistence" in databases; it refers to maintaining a single TCP connection or a logical connection provided by QUIC to reuse it for multiple requests.
 
 In this workshop, you will learn about **connection reuse and streaming**, which are the foundations of modern web applications. You will understand how connections are optimized from HTTP/1.1 to the latest HTTP/3 through hands-on exercises.
 
@@ -12,6 +16,14 @@ In this workshop, you will learn about **connection reuse and streaming**, which
 - Experience bi-directional, full-duplex communication with **WebSocket**.
 - Understand the efficiency of resource acquisition through **HTTP/2** multiplexing.
 - Understand the difference between Unary and Streaming in **gRPC** (based on HTTP/2).
+
+## Prerequisites
+
+- [ ] Linux (Ubuntu 24.04 recommended) with sudo (apt) and Homebrew (Linuxbrew)
+- [ ] Go 1.22+ (`go version`), `podman` + `podman-compose`, `openssl`, `curl`, `make`
+- [ ] `websocat`, `grpcurl`, `protoc` + `protoc-gen-go` — installed by the Preparation steps (`brew install websocat go protobuf grpcurl`, then `make setup`)
+- [ ] A `curl` build with HTTP/3 support for STEP 4 (`curl --version | grep HTTP3`)
+- Recommended: [TCP/IP Protocol Stack Workshop](tcpip_stack_en.md) — TCP handshakes and connection lifecycle basics
 
 ---
 
@@ -338,6 +350,7 @@ WebSocket starts with an **HTTP/1.1 `Upgrade` header**, but once established, it
     sleep 1
 done
 ) | websocat -v ws://localhost:8080/ws
+# Expected output: "HTTP/1.1 101 Switching Protocols" in the verbose log, then "message 1" ... "message 5" echoed back
 ```
 
 ### ✅ Verification Checkpoints
@@ -495,6 +508,7 @@ grpcurl -plaintext -d '{"name": "req2"}' localhost:50051 pb.Greeter/SayHello
 
 # 2. Server Streaming Test
 grpcurl -plaintext -d '{"name": "stream"}' localhost:50051 pb.Greeter/SayHelloStream
+# Expected output: five response messages arriving one after another on separate lines
 
 # 3. Bidirectional Streaming Test
 # (Press Ctrl+D to end input)
@@ -537,6 +551,7 @@ Observe SSE, the easiest way to implement "server-to-client notifications" for b
 ```bash
 # Request SSE from HTTP/1.1 port
 curl -v http://localhost:8080/sse
+# Expected output: Content-Type: text/event-stream followed by event data lines arriving sequentially
 ```
 
 **Observation Points**:
@@ -626,6 +641,16 @@ In modern system design, the following segregation is common:
 - **Server / Infrastructure**: Accounts for a very high percentage of traffic through major CDNs. Nginx and cloud load balancers have supported it as stable for years.
 - **Mobile**: QUIC's Connection ID-based continuity is reported to be highly effective in mobile networks (e.g., 5G) while moving.
 
+## What you learned
+
+- How Keep-Alive reuses a single TCP connection for multiple HTTP/1.1 requests, and what `Connection: close` changes.
+- How WebSocket upgrades an HTTP connection into full-duplex communication.
+- How HTTP/2 multiplexes streams over a single TCP connection, and why TCP-level HoL blocking remains.
+- How HTTP/3 over QUIC resolves HoL blocking with per-stream ordering, and what 0-RTT may (and may not) be used for.
+- How to choose between gRPC, WebSocket, and SSE for event delivery.
+
+**Next step**: Control these connections from the infrastructure side in the [Service Mesh Workshop (Envoy)](envoy_en.md).
+
 ---
 
 ## Cleanup
@@ -644,6 +669,15 @@ podman-compose down
 - **Challenge WebTransport**: Evaluate it as an alternative to WebSocket, comparing its multi-stream and low-latency (datagram) capabilities.
 - **Load Balancer Configuration**: Investigate how L4 LBs and L7 LBs handle persistent connections differently (e.g., connection imbalance issues).
 - Read [RFC 9000: QUIC](https://www.rfc-editor.org/rfc/rfc9000) and [RFC 8470: Using Early Data in HTTP](https://www.rfc-editor.org/rfc/rfc8470), then classify which operations may accept 0-RTT.
+
+---
+
+## References
+
+- [RFC 9112: HTTP/1.1](https://www.rfc-editor.org/rfc/rfc9112)
+- [RFC 9113: HTTP/2](https://www.rfc-editor.org/rfc/rfc9113)
+- [RFC 9114: HTTP/3](https://www.rfc-editor.org/rfc/rfc9114)
+- [RFC 6455: The WebSocket Protocol](https://www.rfc-editor.org/rfc/rfc6455)
 
 ---
 

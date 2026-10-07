@@ -1,11 +1,23 @@
 # Clean Architecture Workshop (WS1): Learning Resilient Design
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Beginner
+> **💻 Environment**: Go 1.22+, any OS
+>
+> > **💡 Glossary**: For technical terms such as [Clean Architecture](../infra/glossary_en.md#architecture), [Interface](../infra/glossary_en.md#go), and [Context](../infra/glossary_en.md#go), please refer to the [Glossary](../infra/glossary_en.md).
+
 In this workshop, we will extend the existing example by adding business rules and replacing the infrastructure, experiencing the benefits of Clean Architecture firsthand.
 
 ## Workshop Scenario
 
 1. **Add Business Rules:** Implement the rule "Employees with 5 or more years of service are recognized as veterans" using Entities and Domain Services.
 2. **Infrastructure Swap:** Change the data storage from a SQL database to Active Directory (LDAP). Confirm that no changes are required in the UseCase or Domain layers.
+
+## Prerequisites
+
+- [ ] Go 1.22+ installed — verify with `go version`
+- [ ] You have read the [Clean Architecture guide](./clean_arch.md) (3-layer variant: Adapters / UseCases / Domain)
+- [ ] A Go module ready where you can create `internal/domain`, `internal/usecase`, and `internal/adapters/infra` packages
 
 ---
 
@@ -90,6 +102,12 @@ func (uc *CheckVeteranUseCase) Execute(ctx context.Context, id string) (bool, er
 
 > **Note on interface design:** The UseCase depends on the concrete `domain.VeteranService` directly rather than defining a separate `VeteranChecker` interface. This is a **simplicity vs. decoupling trade-off**: since `VeteranService` is a pure Domain Service with no external dependencies, the risk of it gaining unwanted side effects is low, and an extra interface layer adds ceremony without practical benefit. The downside is that if `VeteranService`'s method signature changes, the UseCase must also change. For Domain Services that may later acquire external dependencies (e.g., a lookup service that might call an API), defining an interface upfront is the safer choice.
 
+### ✅ Checkpoint
+
+- [ ] `internal/domain/user.go` and `internal/domain/veteran_service.go` compile — `go build ./...` exits with no output
+- [ ] `CheckVeteranUseCase` compiles with **zero imports from the `infra` package**
+- [ ] You can write a unit test for `VeteranService.IsVeteran` without any DB or HTTP setup
+
 ---
 
 ## Exercise 2: Infrastructure Swap (SQL → Active Directory)
@@ -152,6 +170,12 @@ func main() {
 }
 ```
 
+### ✅ Checkpoint
+
+- [ ] `ADUserRepository` satisfies `domain.UserRepository` — this compiles: `var _ domain.UserRepository = (*infra.ADUserRepository)(nil)`
+- [ ] Only `main.go` (the Composition Root) was modified to swap the data source
+- [ ] `go build ./...` still passes with the AD repository wired in, and `internal/domain` / `internal/usecase` are untouched (`git diff` shows no changes there)
+
 ---
 
 ## Key Points of This Workshop
@@ -184,3 +208,22 @@ If "the definition of a veteran changed from 5 years to 3 years," which layer wo
 ### Question 3: Risks of Bare Struct Literals
 
 `ADUserRepository.FindByID` uses a bare struct literal like `&domain.User{...}`. To protect domain invariants (e.g., ID must not be empty), what kind of design could be added?
+
+---
+
+## What you learned
+
+- Business knowledge ("who is a veteran") lives in the Domain layer: the calculation as an **Entity** method, the threshold as a **Domain Service** — both testable with no DB, HTTP, or mocks.
+- The UseCase depends only on the `domain.UserRepository` **output port**; swapping SQL for Active Directory required **zero changes** to Domain and UseCase — only `main.go` changed.
+- Infra Adapters may use bare struct literals only for **reconstructing** persisted entities; new entities should go through constructors to protect invariants.
+- Define an interface when a collaborator has (or may gain) external dependencies — not for every pure domain service.
+
+**Next**: [WS2: Extension and Optimization](./clean_arch_ws2_en.md) — abstract side effects (notification) and add a transparent cache with the Decorator pattern.
+
+---
+
+## References
+
+- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [Effective Go: Interfaces](https://go.dev/doc/effective_go#interfaces_and_types)
+- [Go Documentation](https://go.dev/doc/)

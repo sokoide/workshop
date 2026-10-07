@@ -1,11 +1,24 @@
 # Clean Architecture Workshop (WS4): Adding Business Rules
 
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+, any OS (curl required for verification)
+>
+> > **💡 Glossary**: For technical terms such as [Clean Architecture](../infra/glossary_en.md#architecture), [Interface](../infra/glossary_en.md#go), and [Context](../infra/glossary_en.md#go), please refer to the [Glossary](../infra/glossary_en.md).
+
 In this workshop, you will add a "only the thread owner can post" business rule to the BBS (2channel-style bulletin board).
 You will observe how **changes propagate from inside to outside**, with each layer modifying only its own responsibility.
 
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
+
+Checklist before starting:
+
+- [ ] Completed [WS1](./clean_arch_ws1_en.md)–[WS3](./clean_arch_ws3_en.md) (or you are comfortable with entities, ports, and the Composition Root)
+- [ ] Go 1.22+ installed — verify with `go version`
+- [ ] The BBS project builds and tests pass: `cd software/assets/bbs && go build ./... && go test ./...`
+- [ ] `curl` available — verify with `curl --version`
 
 ## Workshop Scenario
 
@@ -80,6 +93,12 @@ var (
     ErrNotThreadOwner = errors.New("only thread owner can post")
 )
 ```
+
+### ✅ Checkpoint
+
+- [ ] `CanPost` and `EnableOwnerOnlyMode` live **only** in the Domain layer — no HTTP, DB, or gRPC references in `internal/domain/entity/thread.go`
+- [ ] An empty owner cannot enable owner-only mode: `EnableOwnerOnlyMode("")` returns an error (add a quick table-driven test)
+- [ ] `go build ./...` and `go test ./...` pass in `software/assets/bbs`
 
 ### Step 2: UseCase Layer — Apply the Rule
 
@@ -180,6 +199,13 @@ if in.OwnerOnly {
 }
 ```
 
+### ✅ Checkpoint
+
+- [ ] The rule check is the **one added line** — `if !thread.CanPost(in.Author) { return domain.ErrNotThreadOwner }` — inside the transaction, before any post is created
+- [ ] The UseCase still imports no driver or HTTP packages (`git grep -e "database/sql" -e "net/http" internal/usecase` finds nothing)
+- [ ] `CreateThreadInput` carries `OwnerOnly`, and the owner is set only via `EnableOwnerOnlyMode` (never by bare assignment)
+- [ ] Existing usecase tests still pass: `go test ./internal/usecase/...`
+
 ### Step 3: Infra Layer — Persist the Change
 
 Add a new column to the DB and update read/write operations. **Only SQL and model conversion changes**.
@@ -258,6 +284,13 @@ func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thre
 
 **Key observation**: The technical error `sql.ErrNoRows` is converted to the domain concept `domain.ErrThreadNotFound` before reaching the UseCase layer. The UseCase doesn't need to know "SQL returned no rows" — it only needs to know "thread not found."
 
+### ✅ Checkpoint
+
+- [ ] The migration adds only the two new columns; existing rows get `owner_only = FALSE, owner = ''`
+- [ ] `ThreadModel` and `toEntity` map `OwnerOnly` / `Owner` in both directions
+- [ ] `sql.ErrNoRows` never escapes the Infra layer: `git grep sql.ErrNoRows internal/adapters/infra` finds it only there, converted to `domain.ErrThreadNotFound`
+- [ ] `go build ./...` and `go test ./...` pass
+
 ### Step 4: Presentation Layer — Display the Change
 
 Add one case to the error handling in `PostHandler`, and add the `owner_only` field to the thread creation request DTO.
@@ -298,24 +331,46 @@ type createThreadRequest struct {
 }
 ```
 
+### ✅ Checkpoint
+
+- [ ] `ErrNotThreadOwner` maps to exactly **one added case** (`403 Forbidden`) in `PostHandler` — no other handler changed
+- [ ] Non-domain errors still return a generic 500 without leaking internals
+- [ ] `go build ./...` passes
+
 ### Step 5: Verify
 
 ```bash
+# Build and start first (if not already running):
+go build -o bbs ./cmd/bbs/
+# Expected output: (none — the bbs binary appears in the working directory)
+./bbs
+# Expected output: the server starts and listens on :8080
+
 # Create an owner-only thread
 curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"Owner-only thread","author":"gopher","body":"Restricted mode ON","owner_only":true}'
+# Expected output: HTTP 201 — JSON of the created thread (with owner-only enabled) and the first post
 
 # Non-owner tries to post → 403 Forbidden
 curl -X POST http://localhost:8080/api/threads/1/posts \
   -H 'Content-Type: application/json' \
   -d '{"author":"other","body":"Can I post?"}'
+# Expected output: HTTP 403 — {"error":"only thread owner can post"}
 
 # Owner posts → success
 curl -X POST http://localhost:8080/api/threads/1/posts \
   -H 'Content-Type: application/json' \
   -d '{"author":"gopher","body":"My own thread, so OK"}'
+# Expected output: HTTP 201 — JSON of the created post
 ```
+
+### ✅ Checkpoint
+
+- [ ] Non-owner post returns `403` with `only thread owner can post`
+- [ ] Owner post succeeds (`201`)
+- [ ] Posting to a normal (non owner-only) thread from any author still succeeds — the rule did not leak outside restricted threads
+- [ ] `go test ./...` passes in `software/assets/bbs`
 
 ---
 
@@ -372,3 +427,40 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
    - Infra knows "how to persist rule data" (owner_only + owner columns)
 2. **Inside→Outside Propagation**: Business rule changes start in Domain and propagate outward, but each layer's changes are limited to its own responsibility.
 3. **Minimal Changes**: Adding "invited users also OK" only requires changing `CanPost()` internals, provided invited users are managed within the Thread entity.
+
+---
+
+## What you learned
+
+- A business rule has a **single home**: Domain defines it (`CanPost`), UseCase applies it (call timing), Infra persists its data (`owner_only` / `owner` columns), Presentation displays violations (`403 Forbidden`).
+- Rule changes propagate **inside → outside**, and each layer's diff stays tied to its own responsibility — nothing else.
+- Transaction boundaries are application policy owned by the UseCase; Infra only supplies `BEGIN`/`COMMIT`/`ROLLBACK`.
+- Guarding invariants through methods (`EnableOwnerOnlyMode`) instead of bare field writes keeps invalid states unrepresentable.
+- Driver errors are converted to domain errors at the Infra boundary, so the UseCase reasons in domain concepts only.
+
+**Next**: [WS5: Swapping the Persistence Layer](./clean_arch_ws5_en.md) — the next step in the Clean Architecture workshop series.
+
+---
+
+## Cleanup
+
+```bash
+# Stop the BBS server (Ctrl+C in its terminal), then:
+cd software/assets/bbs
+make clean   # removes the bbs binary and bbs.db
+```
+
+Or manually:
+
+```bash
+rm -f software/assets/bbs/bbs software/assets/bbs/bbs.db
+```
+
+---
+
+## References
+
+- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [SQLite: ALTER TABLE](https://www.sqlite.org/lang_altertable.html)
+- [net/http package — Go Documentation](https://pkg.go.dev/net/http)
+- [errors package — Go Documentation](https://pkg.go.dev/errors)

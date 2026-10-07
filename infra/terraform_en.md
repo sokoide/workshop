@@ -1,5 +1,9 @@
 # Terraform Workshop: From Basics to Building a Practical DNS Server
 
+> **⏱️ Estimated Time**: Approx. 120 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux | macOS (Podman)
+
 In this workshop, you will learn the fundamentals of **Terraform**, an Infrastructure as Code (IaC) tool, and ultimately automate the deployment of a practical DNS server environment using container technology.
 
 > **💡 Glossary**: Please refer to [IaC](glossary_en.md#architecture), [Terraform](glossary_en.md#architecture), or [Provider](glossary_en.md#architecture) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -35,6 +39,14 @@ graph LR
 1. **Terraform Basics**: Defining resources, variables, and outputs.
 2. **Using Providers**: The `local` provider (file manipulation) and a Podman-compatible container provider.
 3. **Environment Building with IaC**: Managing networks, configuration files, and containers together.
+
+## Prerequisites
+
+- [ ] **Terraform** 1.5 or later (`terraform -version`)
+- [ ] **Podman** 4.x or later (`podman --version`) — Part 2 uses the `kreuzwerker/docker` provider against the Podman socket
+- [ ] A container registry connection for `terraform init` (set `HTTP_PROXY`/`HTTPS_PROXY` if behind a proxy)
+- [ ] No cloud account required — everything runs in local containers
+- [ ] Recommended: [IaC](glossary_en.md#architecture) and [Provider](glossary_en.md#architecture) entries in the [Glossary](glossary_en.md)
 
 ---
 
@@ -96,8 +108,10 @@ resource "local_file" "hello" {
 ```bash
 cd part1
 terraform init    # Download providers
+# Expected output: "Terraform has been successfully initialized!"
 terraform plan    # Review changes
 terraform apply   # Execute (type 'yes')
+# Expected output: "Apply complete! Resources: 1 added, 0 changed, 0 destroyed."
 ```
 
 ### ✅ Verification Checkpoints
@@ -186,6 +200,7 @@ Build the image with Podman:
 
 ```bash
 podman build -t coredns-handson .
+# Expected output: build steps finish with a "COMMIT" line and no errors
 ```
 
 ### ✅ Verification Checkpoints
@@ -312,6 +327,8 @@ resource "docker_container" "router" {
 cd ../part2
 terraform init
 terraform apply
+# Expected output: "Apply complete! Resources: 7 added, 0 changed, 0 destroyed."
+# (2 networks + 2 CoreDNS config files + 3 containers)
 ```
 
 After deployment, enter the `router` container and test name resolution with the `dig` command.
@@ -322,6 +339,7 @@ podman exec -it container-router sh
 apk add bind-tools
 # Test direct resolution of A record
 dig @192.168.10.10 server.foo.sokoide.com
+# Expected output: "status: NOERROR" and an ANSWER section with "server.foo.sokoide.com. 60 IN A 2.2.2.2"
 ```
 
 ### ✅ Verification Checkpoints
@@ -331,6 +349,16 @@ dig @192.168.10.10 server.foo.sokoide.com
 - [ ] Confirmed `dig` returns the expected IP addresses (1.1.1.1 or 2.2.2.2).
 
 ---
+
+## What you learned
+
+- The core Terraform workflow: `init` → `plan` → `apply` → `destroy`
+- How to parameterize configurations with variables and expose results with outputs
+- How to create multiple resources from a collection with `for_each`
+- How to define networks, config files, and containers as code with a Podman-compatible provider
+- How Terraform state tracks what was created, enabling deterministic teardown
+
+Next step: automate the software on top of the infrastructure with the [Kubernetes workshops](kubernetes_basics_en.md), or go deeper into network design with the [VLAN Workshop](vlan_en.md).
 
 ## Cleanup
 

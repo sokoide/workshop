@@ -1,10 +1,20 @@
 # Rate Limiting Workshop: Request Throttling with Redis
 
 > **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Beginner
+> **💻 Environment**: Linux / macOS (podman or docker, Go 1.22+)
 
 In this workshop, you will build a "Rate Limiting" system to prevent overload of APIs and Web services using Redis data structures.
 
-> **💡 Glossary**: For technical terms such as [Rate Limiting](glossary_en.md#network), [Token Bucket](glossary_en.md#network), and [Sliding Window](glossary_en.md#network), please refer to the [Glossary](glossary_en.md).
+> **💡 Glossary**: For technical terms such as [Rate Limiting](glossary_en.md#rate-limiting), [Token Bucket](glossary_en.md#rate-limiting), and [Sliding Window](glossary_en.md#rate-limiting), please refer to the [Glossary](glossary_en.md).
+
+## Prerequisites
+
+- [ ] Go 1.22 or later (`go version`)
+- [ ] Podman (`podman version`) or Docker
+- [ ] Basic Go syntax (functions, structs, interfaces) — see `../software/clean_arch_en.md` for the layering used in the asset
+
+Port 6379 must be free on localhost.
 
 ## Implementation Code
 
@@ -331,6 +341,18 @@ type RedisRepository struct {
     client *redis.Client
 }
 ```
+
+---
+
+## What you learned
+
+- How **Fixed Window** counting works and why it allows 2x traffic spikes at window boundaries
+- How **Sliding Window** smooths those spikes with a weighted counter (at higher memory/CPU cost)
+- How **Token Bucket** permits bursts while enforcing a steady-state rate
+- Why Lua scripts make each decision atomic on Redis, and when that assumption breaks (Redis Cluster)
+- How the limiter fits Clean Architecture: interface in Domain, algorithms in Usecase, Redis adapter in Infra
+
+Next steps: apply a limiter to an HTTP server (see `web_security_en.md` for protecting endpoints), and combine with caching (`cache_en.md`).
 
 ---
 

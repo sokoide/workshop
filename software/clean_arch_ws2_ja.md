@@ -1,11 +1,23 @@
 # クリーンアーキテクチャ実習 (WS2): 拡張と最適化
 
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Go 1.22+、OS 不問（課題 2 でのみ Redis を使用）
+>
+> > **💡 用語集**: [インターフェース](../infra/glossary_ja.md#go)や[キャッシュ](../infra/glossary_ja.md#cache)、[クリーンアーキテクチャ](../infra/glossary_ja.md#architecture)などの専門用語は [用語集](../infra/glossary_ja.md) を参照してください。
+
 WS1 に続き、さらに実践的なシナリオを通じて、副作用の制御とパフォーマンス最適化におけるレイヤー分離の恩恵を学びます。
 
 ## 実習のシナリオ
 
 1. **通知チャネルの多角化**: 通知手段を Email から Slack へ、ビジネスロジックを変えずに変更します。
 2. **透過的キャッシュの導入**: ビジネスロジックを一切汚さずに、インフラ層の差し替えだけで Redis キャッシュを導入します。
+
+## 前提知識
+
+- [ ] [WS1](./clean_arch_ws1_ja.md) を完了している（Entity / Domain Service / リポジトリの差し替え）
+- [ ] Go 1.22 以上がインストール済み（`go version` で確認）
+- [ ] 課題 2 のみ: 起動済みの Redis（セットアップは [Redis 実習](../infra/cache_ja.md) を参照）と `go.mod` への `github.com/redis/go-redis/v9` 追加
 
 ---
 
@@ -63,6 +75,13 @@ func (n *SlackNotifier) Send(ctx context.Context, msg string) error {
 	return nil
 }
 ```
+
+### ✅ チェックポイント
+
+- [ ] `NotificationGateway` が `usecase`（port）パッケージに定義されている — `domain` や `infra` ではない
+- [ ] `ApproveUseCase` が `infra` パッケージを **一切 import せずに** コンパイルできる
+- [ ] Email から Slack への差し替えが `main.go` の **1 行変更だけ** で完了する
+- [ ] モック/フェイクの `NotificationGateway` を使い、Slack に一切接続せずに「Send が呼ばれたこと」だけを検証するテストを書ける
 
 ---
 
@@ -153,6 +172,13 @@ func main() {
 }
 ```
 
+### ✅ チェックポイント
+
+- [ ] `CachedUserRepository` が `domain.UserRepository` を満たしている — `var _ domain.UserRepository = (*infra.CachedUserRepository)(nil)` がコンパイルできる
+- [ ] Redis が `internal/adapters/infra/` にのみ存在する — `git grep redis internal/domain internal/usecase` で何も見つからない
+- [ ] Redis を止めても読み取りは成功する（Decorator が本物の DB にフォールバックする）。キャッシュ保存の失敗は警告ログのみで処理が続行する
+- [ ] Decorator を配線した状態で `go test ./...` が通る
+
 ---
 
 ## この実習のポイント
@@ -185,3 +211,23 @@ func main() {
 ### 問 3: キャッシュと整合性
 
 `CachedUserRepository` を使うと、DB のデータが更新されてもキャッシュは古い（stale）ままになる可能性があります。この問題に対して、クリーンアーキテクチャ的にはどの層でどのような対策を取るのが適切ですか？
+
+---
+
+## 学んだこと
+
+- アプリケーション要件である副作用（通知）は **UseCase 所有の出力ポート** にし、手段（Slack/Email）は Infra Adapters 層に置くことで、`main.go` の 1 行変更で差し替えられる。
+- Decorator パターンを使うと、キャッシュ・ロギング・リトライといった横断的な振る舞いを **透過的に** 追加できる。インターフェースが変わらない限り、Domain と UseCase は一切気づかない。
+- キャッシュの失敗はあえて致命的にしない: ログ出力と本来のデータ源へのフォールバックにより、ビジネスロジックの健全性を保つ。
+- ポートの所属は「能力を必要とする層」で決める: ドメインポリシーは Domain Port、アプリケーションのオーケストレーション（通知・永続化）は UseCase Port。
+
+**次**: [WS3: 通信プロトコルの差し替え](./clean_arch_ws3_ja.md) — BBS の REST API を Domain・UseCase・Infra に触れずに gRPC へ移行します。
+
+---
+
+## 参考文献
+
+- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [Redis Documentation](https://redis.io/docs/latest/)
+- [go-redis Documentation](https://redis.uptrace.dev/)
+- [log/slog package — Go Documentation](https://pkg.go.dev/log/slog)

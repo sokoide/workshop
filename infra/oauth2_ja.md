@@ -1,5 +1,9 @@
 # OAuth2 実習：Keycloak + Go + Podman で学ぶ認可フロー
 
+> **⏱️ 所要時間**: 約 90 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Linux / macOS（podman（`podman compose` 利用可）、Go 1.22+、ブラウザ）
+
 この実習では、**Keycloak（Authorization Server）** と **Go 製 Client アプリ / REST API（Resource Server）** を使い、SWE が OAuth2 の実運用フローを手を動かして学びます。Go Client アプリでアクセストークン取得から API 呼び出しまでを一通り検証します。
 
 > **💡 用語集**: この実習で登場する[OAuth2](glossary_ja.md#oauth2)や[Access Token](glossary_ja.md#access-token)、[Resource Server](glossary_ja.md#resource-server)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -607,6 +611,14 @@ podman rm -f workshop-keycloak
 
 ---
 
+## 学んだこと
+
+- **登場人物**: Authorization Server（Keycloak）・Client・Resource Server はそれぞれ責務が独立 — これを混ぜることが OAuth2 の失敗の大半の原因。
+- **Authorization Code + PKCE**: ブラウザ経由で渡るコードだけでは不十分で、Client Secret / PKCE Verifier が無いと使えない。だから public client でも安全なフローになる。
+- **トークン検証**: Resource Server は JWKS エンドポイント取得の鍵で JWT 署名を自分で検証する — リクエストごとに Keycloak へ問い合わせはしない。
+- **Audience の重要性**: 正しく署名されたトークンでも、別 API 宛て（`aud` claim 不一致）のものは拒否しなければならない。
+- コンテナで動かしたローカル Keycloak は本番 IdP と同じ挙動 — Auth0・Entra ID・Okta でも同じ検証がそのまま適用される。
+
 ## 次のステップ
 
 - Refresh Token を使った再認証なしセッション継続
@@ -658,3 +670,10 @@ podman rm -f workshop-keycloak
 ### Windows の場合
 
 - WSL2 + Podman 構成では、ブラウザのコールバック URL と実行環境の URL（Windows 側 / WSL 側）を揃えてください。
+
+## 参考文献
+
+- [RFC 6749: The OAuth 2.0 Authorization Framework](https://datatracker.ietf.org/doc/html/rfc6749)
+- [RFC 7636: Proof Key for Code Exchange (PKCE)](https://datatracker.ietf.org/doc/html/rfc7636)
+- [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
+- [Keycloak Documentation](https://www.keycloak.org/documentation)

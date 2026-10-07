@@ -1,5 +1,9 @@
 # RabbitMQ Workshop: Real-time Crypto Monitoring System with Topic Exchange
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux | macOS (Podman or Docker)
+
 In this workshop, you will build a system that flexibly filters and processes real-time trade data using the powerful **Topic Exchange** feature of **RabbitMQ**.
 
 > **💡 Glossary**: Please refer to the [Pub/Sub Pattern](glossary_en.md#mq) or [Wildcard Matching](glossary_en.md#mq) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -32,6 +36,14 @@ sequenceDiagram
 1. **Pub/Sub Pattern**: Complete decoupling of senders and receivers.
 2. **Topic Exchange**: Advanced routing using dot-separated keys.
 3. **Wildcard Matching**: Using `*` (one word) and `#` (zero or more words).
+
+## Prerequisites
+
+- [ ] **Podman** 4.x or later (Docker also works — replace `podman` with `docker`)
+- [ ] **Go** 1.25 or later (`go version`)
+- [ ] **make** (used by `make mq-up` / `make mq-down`)
+- [ ] At least 4 terminal windows (ticker + 3 consumers)
+- [ ] Recommended: [RabbitMQ](glossary_en.md#mq) basics from the [Glossary](glossary_en.md)
 
 ---
 
@@ -81,6 +93,7 @@ infra/assets/rabbitmq_crypto/
 ```bash
 cd infra/assets/rabbitmq_crypto
 make mq-up
+# Expected output: long container ID printed by `podman run -d`
 ```
 
 _Note: Access the management UI at [http://localhost:15672](http://localhost:15672) (guest/guest)._
@@ -106,6 +119,7 @@ Start the `ticker` that continuously generates trade data.
 
 ```bash
 go run cmd/ticker/main.go
+# Expected output: "Ticker starting... (Ctrl+C to stop)" and publishing every 0.5s
 ```
 
 _Note: It will keep publishing messages with keys like `market.btc.usd`._
@@ -121,6 +135,8 @@ Use the `#` wildcard to subscribe to all currency pairs.
 
 ```bash
 go run cmd/logger/main.go
+# Expected output: "Logger starting (market.#)..." followed by a JSON trade
+# message every 0.5s (e.g. {"id":"...","symbol":"btc","target_currency":"usd",...})
 ```
 
 ### STEP 3: Conditional Filtering
@@ -153,6 +169,16 @@ type TradePublisher interface {
 This design allows you to swap the broker for Kafka or NATS in the future by simply replacing the infrastructure implementation without touching the business logic (UseCase).
 
 ---
+
+## What you learned
+
+- How a message queue decouples senders from receivers (async communication and buffering)
+- How a Topic Exchange routes messages with dot-separated routing keys
+- How the `*` (one word) and `#` (zero or more words) wildcards differ in bindings
+- How Clean Architecture hides the broker behind a domain-defined publisher interface
+- How to verify routing behavior from the RabbitMQ management UI
+
+Next step: learn how to make consumers retry-safe with the [Idempotency Pattern Workshop](../software/idempotency_en.md), or how brokers scale out in the [Sharding guide](sharding_en.md).
 
 ## Cleanup
 

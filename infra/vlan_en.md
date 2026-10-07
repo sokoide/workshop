@@ -1,5 +1,9 @@
 # Podman Workshop: Building L3 Isolated Networks with macvlan and Linux Router
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux only (root/sudo, podman; macvlan requires a Linux kernel)
+
 This is a hands-on workshop for software engineers to build a simulated physical network environment using container technology (Podman) and Linux network features (macvlan, VLAN, iptables).
 
 > **💡 Glossary**: Please refer to the [Glossary](glossary_en.md) for technical terms used in this workshop.
@@ -254,3 +258,11 @@ VLAN and macvlan require a Linux kernel. Run the exercise in a Linux VM or a clo
 ### For Windows Users
 
 Use Ubuntu on WSL2 if its networking supports the required interfaces, or use a cloud Ubuntu instance.
+
+---
+
+## References
+
+- [macvlan — Linux documentation](https://docs.kernel.org/networking/macvlan.html)
+- [VLAN — Linux documentation](https://docs.kernel.org/networking/vlan.html)
+- [Podman network documentation](https://docs.podman.io/en/latest/markdown/podman-network.1.html)

@@ -1,5 +1,11 @@
 # Go言語におけるキャッシュパターン
 
+> **⏱️ 所要時間**: 全パターンで約 60 分（各パターンは単独でも読めます）
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Go 1.22+、OS 不問
+>
+> **📖 参照カタログ**: 各パターンは独立した内容です。必要なパターンだけをピックアップして読んでください。通し読みは不要です。
+
 [English](go_cache_patterns_en.md) | [日本語](go_cache_patterns_ja.md)
 
 ## 目次
@@ -487,3 +493,23 @@ flowchart TD
 `software/assets/go_cache_patterns/pattern5_write_through/main.go`
 
 TTL と LRU キャッシュは保存時・取得時にバイト列をコピーします。期限判定と削除を同じロック内で行い、並行更新された値を削除しないようにします。Singleflight の待機は呼び出しごとにキャンセルできますが、共有取得のコンテキストは最初の呼び出しのものです。Write-through の読み書きは同じラッパーで直列化します。ストアへの直接書き込みや別ラッパー経由の更新は保証の対象外です。
+
+---
+
+## 学んだこと
+
+- 読み書きの比率と整合性要件に応じて、キャッシュ戦略（TTL 期限切れ、LRU 退避、キャッシュアサイド、ライトスルー）を選ぶ判断基準
+- 並行アクセスされるインメモリキャッシュを、メモリ使用量を制限しながらレースコンディションなしで動かす方法
+- `singleflight` によってキャッシュミス時の重複フェッチを 1 回のバックエンド呼び出しに集約し、キャッシュスタンピードを防ぐ方法
+- go-redis を使って Go サービスに分散 Redis キャッシュを組み込む方法
+
+**次のステップ**: 分散パターンの実習版を [Redis 実習：Sorted Sets で作るリアルタイム・ゲームランキング](../infra/cache_ja.md) で試してみましょう。
+
+---
+
+## 参考文献
+
+- [sync パッケージ (Mutex, RWMutex)](https://pkg.go.dev/sync)
+- [singleflight: 重複する関数呼び出しの抑制](https://pkg.go.dev/golang.org/x/sync/singleflight)
+- [go-redis クライアント](https://github.com/redis/go-redis)
+- [Redis ドキュメント: データタイプ](https://redis.io/docs/latest/develop/data-types/)

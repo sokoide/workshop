@@ -1,5 +1,11 @@
 # Message Queue Patterns in Go
 
+> **⏱️ Estimated Time**: Approx. 45 minutes (all patterns; each pattern can also be read on its own)
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Go 1.22+, any OS
+>
+> **📖 Reference catalog**: Each pattern is self-contained — jump straight to the pattern you need; you do not have to read this document cover to cover.
+
 [English](go_mq_patterns_en.md) | [日本語](go_mq_patterns_ja.md)
 
 ## Table of Contents
@@ -475,3 +481,23 @@ flowchart TD
 ### DLQ Reference Implementation
 
 `software/assets/go_mq_patterns/pattern5_retry_dlq/main.go`
+
+---
+
+## What you learned
+
+- When a channel-based in-process queue is enough, and when you need a real message broker
+- How to scale message consumption horizontally with fan-out and worker pools
+- How to move from in-process queues to a distributed Kafka queue without changing the producer/consumer contract
+- How to handle permanent failures safely with retries, backoff, and a dead letter queue
+
+**Next step**: build a containerized broker end to end in [RabbitMQ Workshop](../infra/rabbitmq_en.md).
+
+---
+
+## References
+
+- [Go Concurrency patterns (channel basics)](https://go.dev/tour/concurrency)
+- [Apache Kafka documentation](https://kafka.apache.org/documentation/)
+- [segmentio/kafka-go client](https://github.com/segmentio/kafka-go)
+- [RabbitMQ tutorials](https://www.rabbitmq.com/tutorials)

@@ -1,5 +1,9 @@
 # SOLID Principles (Learning Design Principles with Go)
 
+> **⏱️ Estimated Time**: Approx. 30 minutes
+> **🎯 Level**: Beginner
+> **💻 Environment**: Go 1.22+, any OS
+
 SOLID is a set of five design principles for building code that is easier to change and test. In Go, SOLID is usually achieved through **small interfaces** and **clear responsibility boundaries**, rather than class inheritance.
 
 ---
@@ -334,3 +338,22 @@ SOLID is not just about writing "clean-looking" code. It is a practical set of r
 - Pass `context.Context` as the first parameter for I/O-bound functions.
 - Keep error contracts consistent across implementations (e.g., `ErrNotFound`).
 - Start simple, then introduce abstraction when duplication or change pressure appears.
+
+---
+
+## What you learned
+
+- The five SOLID principles and what "reason to change" means for each
+- Why Go achieves SOLID through small, consumer-side interfaces instead of inheritance hierarchies
+- How to recognize violations: functions doing too much, interfaces forcing unused methods, dependencies on concrete types
+- When _not_ to abstract: introduce interfaces only when duplication or change pressure appears
+
+**Next step**: apply these boundaries to a full application structure in [Clean Architecture](clean_arch_en.md).
+
+---
+
+## References
+
+- [Effective Go](https://go.dev/doc/effective_go)
+- [Go interfaces (Tour of Go)](https://go.dev/tour/methods/9)
+- [Go Code Review Comments (interface design)](https://go.dev/wiki/CodeReviewComments)

@@ -1,5 +1,16 @@
 # Supply Chain Security Workshop: Dependency and Container Image Vulnerability Management
 
+> **⏱️ Estimated Time**: Approx. 90 minutes
+> **🎯 Level**: Intermediate
+> **💻 Environment**: Linux / macOS (Go 1.22+, Docker or Podman; security tools are installed in Setup)
+
+## Prerequisites
+
+- [ ] Go 1.22+ installed (`go version`)
+- [ ] Docker or Podman working (`docker version` / `podman version`)
+- [ ] Basic Go module knowledge (`go mod tidy`)
+- [ ] Recommended first: [`web_security_en.md`](web_security_en.md) for the attacker's perspective
+
 ## Purpose
 
 This workshop walks you through software supply chain attacks and teaches you to implement four layers of defense: dependency vulnerability detection, container image scanning, SBOM generation, and image signing/verification.
@@ -739,6 +750,14 @@ Source code → Build → Test → Package → Deploy
 
 ---
 
+## What you learned
+
+- **Dependency risk**: `govulncheck` reaches the vulnerable function through call-graph analysis — a CVE in an unused code path is noise, a reachable one is fire.
+- **Image risk**: base images accumulate CVEs; pin exact versions and rebuild regularly instead of trusting `latest`.
+- **SBOM**: you cannot patch what you cannot name — an SBOM (`syft`) is the inventory every other control depends on.
+- **Signing**: `cosign` signatures prove an image came from you and was not tampered with; verification belongs in the deploy pipeline, not just locally.
+- These four layers (scan deps → scan images → SBOM → sign) are cheapest to run in CI, where every PR is checked automatically.
+
 ## Troubleshooting
 
 ### Q: govulncheck detects nothing
@@ -767,6 +786,22 @@ Source code → Build → Test → Package → Deploy
 - Run `cosign generate-key-pair` first to create a key pair
 - Ensure you have push access to the registry
 - For local images, push to a registry before signing
+
+---
+
+## Cleanup
+
+Remove the artifacts generated during the workshop (the `infra/assets/supply_chain` sources themselves are part of the repo — keep them):
+
+```bash
+cd infra/assets/supply_chain
+rm -f sbom.spdx.json cosign.key cosign.pub
+
+# Remove the local demo images
+docker rmi vulnerable-app:latest demo-app:v1 2>/dev/null || podman rmi vulnerable-app:latest demo-app:v1 2>/dev/null || true
+```
+
+> **Note**: `cosign.key` / `cosign.pub` are the key pair you generated for signing. Deleting them is fine here — nothing in this workshop verifies those signatures afterwards.
 
 ---
 

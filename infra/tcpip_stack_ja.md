@@ -1,8 +1,20 @@
 # TCP/IP プロトコルスタック実習：スクラッチから構築する「通信の正体」
 
+> **⏱️ 所要時間**: 約 180 分
+> **🎯 レベル**: 上級
+> **💻 環境**: Linux (root/sudo 必須)
+
 この実習では、Go と C を組み合わせて **TCP/IP プロトコルスタックをゼロから構築** します。OS カーネルが隠蔽している「パケットの生成・分解」を自らの手で実装することで、ネットワークの動作原理を抽象概念ではなく、具体的なデータ構造として理解することを目標とします。
 
 > **💡 用語集**: この実習で登場する専門用語は [用語集](glossary_ja.md) を参照してください。
+
+## 前提条件
+
+- [ ] Linux (Ubuntu 22.04/24.04 推奨) — Raw Socket (`AF_PACKET`) とネットワーク名前空間が必須
+- [ ] Go 1.22 以降（`go version`）
+- [ ] CGO が有効な GCC（`gcc --version`、`go env CGO_ENABLED`）
+- [ ] `tcpdump` と `iproute2`（`ip`、`ip netns`）— `sudo apt install -y golang-go gcc tcpdump iproute2` で導入
+- [ ] root/sudo 権限（ネットワーク名前空間の作成と Raw Socket のオープンには `CAP_NET_RAW` が必要）
 
 ---
 
@@ -141,6 +153,7 @@ sudo tcpdump -i lo -nn -vv 'tcp port 8000'
 
 # もう一度リクエスト
 curl -s http://localhost:8000/ > /dev/null
+# Expected output: Flags [S], [S.]（3ウェイハンドシェイク）→ [P.]（HTTP データ）→ [F]/[R]（切断）の順にパケットが表示される
 ```
 
 ```text
@@ -1566,12 +1579,14 @@ sudo ./tcpip_stack -iface veth-host -ip 192.168.100.1
 ```bash
 # Namespace 内から Ping
 sudo ip netns exec workshop ping 192.168.100.1
+# Expected output: 64 bytes from 192.168.100.1: icmp_seq=1 ttl=64（応答 1 件につき 1 行）
 ```
 
 ### 4. パケット観察
 
 ```bash
 sudo tcpdump -i veth-host -nn -vv icmp
+# Expected output: IP 192.168.100.2 > 192.168.100.1: ICMP echo request ... / IP 192.168.100.1 > 192.168.100.2: ICMP echo reply ...
 ```
 
 ### 5. UDP Echo テスト（返信本文まで検証）
@@ -1589,6 +1604,7 @@ sock.sendto(b"hello udp", ("192.168.100.1", 7))
 data, peer = sock.recvfrom(1024)
 assert data == b"hello udp", (data, peer)
 print(f"reply={data!r} from {peer}")
+# Expected output: reply=b'hello udp' from ('192.168.100.1', 7)
 PY
 ```
 
@@ -1607,6 +1623,18 @@ sudo tcpdump -i veth-host -nn -vv 'udp port 7'
 ### 6. UDP を観察して壊す
 
 まず `tcpdump -XX` で 8 バイトの UDP ヘッダと payload を 16 進数で対応付けます。次に `pkg/udp` の単体テストで、チェックサムを 1 bit だけ反転したデータグラムが `VerifyChecksum` に拒否されることを確認します。正常系だけでなく「なぜ破棄されるか」を観察して初めて、疑似ヘッダの役割が具体化します。
+
+---
+
+## 学んだこと
+
+- アプリケーションデータが Ethernet (L2)、IPv4 (L3)、ICMP/UDP (L4) とカプセル化される仕組みと、各ヘッダーを生バイト列から解析する方法
+- Linux の `AF_PACKET` Raw Socket（CGO 経由）を使って、veth インターフェース上のフレームを観察・送信する方法
+- ネットワーク名前空間と veth ペアにより、低レベルネットワーク実験用の隔離環境（砂場）を作る方法
+- RFC 1071 のチェックサム（UDP 疑似ヘッダー込み）とネットワークバイトオーダ (Big Endian) がパケットの完全性をどう守るか
+- TCP の完全実装（ハンドシェイク、シーケンス番号、再送制御、輻輳制御）が単独のプロジェクトになる規模であること（後述の「深掘りポイント」参照）
+
+**次のステップ**: 実際のアプリケーションがこれらの接続をどう再利用・アップグレードするかは、[HTTP 永続接続実習](http_persistent_ja.md) を参照してください。
 
 ---
 

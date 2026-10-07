@@ -1,7 +1,13 @@
 # K8s Service (LoadBalancer) Workshop: Building a Virtual LB with iptables
 
+> **⏱️ Estimated Time**: Approx. 60 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: Linux (root/sudo, podman; iptables in a rootful container)
+
 This workshop extends the environment from [vlan_en.md](./vlan_en.md).
 We will learn how Kubernetes `Service (Type: LoadBalancer)` and `MetalLB` manipulate packets behind the scenes by reproducing the behavior using standard Linux features.
+
+**Prerequisite workshop**: complete [`vlan_en.md`](./vlan_en.md) first (podman networks, the router container, and VLAN 10/20 setup are reused here).
 
 > **💡 Glossary**: Please refer to [LoadBalancer](glossary_en.md#network), [iptables](glossary_en.md#network), or [VIP](glossary_en.md#network) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
@@ -238,6 +244,15 @@ In real Kubernetes, you never perform these `iptables` operations manually.
 Understanding both low-level packet manipulation (this workshop) and high-level API-driven operations improves your troubleshooting skills.
 
 ---
+
+## What you learned
+
+- A LoadBalancer Service = **DNAT to a VIP** + forwarding rules; MetalLB automates exactly what you configured by hand on the router.
+- `iptables -t nat -A PREROUTING` rewrites the destination before routing, which is why the VIP needs no interface of its own.
+- `--ctstate DNAT` matches only connections whose destination was rewritten, so direct Pod IP access stays blocked by the `DROP` rule — that is the "use Service IP, not Pod IP" principle enforced at the packet level.
+- MASQUERADE in `POSTROUTING` makes reply traffic return through the router instead of leaking the private Pod IP to the client.
+
+**Next**: [`kubernetes_basics_en.md`](kubernetes_basics_en.md) to see Services from the Kubernetes side, or [`k8s_lb`'s automation perspective](#clean-architecture-and-automation-perspective) above.
 
 ## Cleanup
 

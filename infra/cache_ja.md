@@ -1,5 +1,9 @@
 # Redis 実習：Sorted Sets で作るリアルタイム・ゲームランキング
 
+> **⏱️ 所要時間**: 約 45 分
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Linux（Podman）、Go 1.22+
+
 この実習では、Redis の強力なデータ構造である **Sorted Sets (ZSET)** を使用して、数百万人のユーザーにも対応可能な「リアルタイム・ゲームランキングシステム」を構築します。
 
 > **💡 用語集**: この実習で登場する[Sorted Set (ZSET)](glossary_ja.md#cache)や[Sets](glossary_ja.md#cache)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -147,6 +151,17 @@ go run main.go -action top -n 3
 - **Infra**: `go-redis` を使ってインターフェースを実装。
 
 この構成により、将来的にランキングの保存先を Redis から別の高速な DB に変更しても、ビジネスロジック（Usecase）を一切修正せずに済みます。
+
+---
+
+## 学んだこと
+
+- Sorted Sets (ZSET) が O(log N) のランキング挿入と範囲クエリを実現する仕組み
+- ビジネスルール（Ban ユーザーの除外）を Usecase 層に、キャッシュから独立した形でモデル化する方法
+- Domain 層で定義した `LeaderboardRepository` インターフェースにより、Redis を交換可能に保つ方法
+- Podman で Redis コンテナを起動・片付けし、接続を検証する方法
+
+**次のステップ**: この実習の背後にあるキャッシュの理論は [Go言語におけるキャッシュパターン](../software/go_cache_patterns_ja.md) で深掘りできます。
 
 ---
 

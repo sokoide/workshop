@@ -1,6 +1,12 @@
 # Kubernetes Operations & Security Workshop: Advanced Features for Production
 
+> **⏱️ Estimated Time**: Approx. 120 minutes
+> **🎯 Level**: Advanced
+> **💻 Environment**: Linux / macOS (kind, kubectl; Helm and ArgoCD installed during the workshop)
+
 In this workshop, you will learn the advanced features of Kubernetes required for production operations, including security, scaling, and monitoring.
+
+**Prerequisite workshop**: complete [`kubernetes_basics_en.md`](kubernetes_basics_en.md) first (cluster creation, Deployments, Services, Helm).
 
 > **💡 Glossary**: For technical terms like [RBAC](glossary_en.md#security), [NetworkPolicy](glossary_en.md#security), and [HPA](glossary_en.md#kubernetes) used in this workshop, refer to the [Glossary](glossary_en.md).
 
@@ -591,6 +597,21 @@ kubectl get all -n development
 - [ ] Loki/Elasticsearch for log aggregation
 - [ ] Tempo/Jaeger for distributed tracing
 - [ ] Alertmanager for alerts
+
+---
+
+## Cleanup
+
+```bash
+# Delete the kind cluster created in Prerequisites (removes RBAC, NetworkPolicy,
+# HPA, monitoring, ArgoCD, and everything else created in this workshop)
+kind delete cluster --name ops-workshop
+# Expected output: Deleted nodes: ["ops-workshop-control-plane"] (message varies by kind version)
+
+# Verify
+kind get clusters
+# Expected output: (no output, or only your other clusters)
+```
 
 ---
 

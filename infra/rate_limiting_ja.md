@@ -1,10 +1,20 @@
 # Rate Limiting 実習：Redis で作るリクエスト制限
 
 > **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 初級
+> **💻 環境**: Linux / macOS（podman または docker、Go 1.22+）
 
 この実習では、Redis のデータ構造を活用して、API や Web サービスの過負荷を防ぐ「レート制限（Rate Limiting）」システムを構築します。
 
-> **💡 用語集**: この実習で登場する[Rate Limiting](glossary_ja.md#network)や[Token Bucket](glossary_ja.md#network)、[Sliding Window](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
+> **💡 用語集**: この実習で登場する[Rate Limiting](glossary_ja.md#rate-limiting)や[Token Bucket](glossary_ja.md#rate-limiting)、[Sliding Window](glossary_ja.md#rate-limiting)などの専門用語は [用語集](glossary_ja.md) を参照してください。
+
+## 前提条件
+
+- [ ] Go 1.22 以降（`go version`）
+- [ ] Podman（`podman version`）または Docker
+- [ ] Go の基本文法（関数・構造体・インターフェース）— asset で使われているレイヤー構成は `../software/clean_arch_ja.md` を参照
+
+localhost の 6379 ポートが空いている必要があります。
 
 ## 実装コード
 
@@ -331,6 +341,18 @@ type RedisRepository struct {
     client *redis.Client
 }
 ```
+
+---
+
+## 学んだこと
+
+- **Fixed Window（固定窓）** のカウント方式と、窓境界で設定の最大 2 倍のトラフィックが流れうる理由
+- **Sliding Window（スライディング窓）** が加重カウンタでスパイクを滑らかにする仕組み（メモリ/CPU コストは増）
+- **Token Bucket（トークンバケット）** がバーストを許容しつつ定常レートを強制する仕組み
+- Lua スクリプトが Redis 上の各判断をアトミックにする理由と、その前提が崩れるケース（Redis Cluster）
+- Clean Architecture におけるレートリミッタの配置: インターフェースは Domain、アルゴリズムは Usecase、Redis アダプターは Infra
+
+次のステップ: HTTP サーバーにレートリミッターを適用する（`web_security_ja.md`）、キャッシュとの組み合わせ（`cache_ja.md`）。
 
 ---
 

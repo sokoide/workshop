@@ -1,5 +1,11 @@
 # Go言語におけるメッセージキューパターン
 
+> **⏱️ 所要時間**: 全パターンで約 45 分（各パターンは単独でも読めます）
+> **🎯 レベル**: Intermediate
+> **💻 環境**: Go 1.22+、OS 不問
+>
+> **📖 参照カタログ**: 各パターンは独立した内容です。必要なパターンだけをピックアップして読んでください。通し読みは不要です。
+
 [English](go_mq_patterns_en.md) | [日本語](go_mq_patterns_ja.md)
 
 ## 目次
@@ -476,3 +482,23 @@ flowchart TD
 ### DLQリファレンス実装
 
 `software/assets/go_mq_patterns/pattern5_retry_dlq/main.go`
+
+---
+
+## 学んだこと
+
+- チャネルベースのプロセス内キューで十分なケースと、本物のメッセージブローカーが必要なケースの見分け方
+- ファンアウトとワーカープールによるメッセージ消費の水平スケールの方法
+- プロセス内キューから分散 Kafka キューへ、プロデューサー/コンシューマーの契約を変えずに移行する方法
+- リトライ・バックオフ・デッドレターキューを使って恒久的な障害を安全に処理する方法
+
+**次のステップ**: コンテナ化されたブローカーをエンドツーエンドで構築してみましょう。[RabbitMQ 実習](../infra/rabbitmq_ja.md) を参照してください。
+
+---
+
+## 参考文献
+
+- [Go の並行処理（チャネルの基礎）](https://go.dev/tour/concurrency)
+- [Apache Kafka ドキュメント](https://kafka.apache.org/documentation/)
+- [segmentio/kafka-go クライアント](https://github.com/segmentio/kafka-go)
+- [RabbitMQ チュートリアル](https://www.rabbitmq.com/tutorials)
