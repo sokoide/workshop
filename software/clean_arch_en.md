@@ -87,7 +87,7 @@ The heart of the application, representing the business rules themselves.
 - **Entity / Aggregate / Value Object:** Business "objects" or "concepts."
 - **Domain Service:** Knowledge or logic that spans multiple entities.
 - **Domain Error:** Errors defined in domain vocabulary.
-- **Domain Port (Interface):** Only when the abstraction is part of the domain language. Persistence repositories and external-tool ports belong to UseCases.
+- **Domain Port (Interface):** Only when the abstraction is part of the domain language. External-tool ports belong to UseCases. (Persistence repository ports may live in either layer — see [Port Ownership Guidance](#port-ownership-guidance) below.)
 - **No external dependencies:** No DB, HTTP, ORM, SDK, web framework, or generated transport types.
 - **Note on `context.Context`:** Domain interfaces in Go commonly accept `context.Context` as the first parameter for cancellation and deadline propagation. This is a **pragmatic exception** to the "no external dependencies" rule, justified specifically because `context.Context` carries cancellation and deadline signals — a Go runtime concern, not a business dependency. The exception does not extend to other standard library packages (e.g., `net/http`, `database/sql`). Domain MUST NOT read custom values from context — that responsibility belongs to Infrastructure Adapters.
 
@@ -332,7 +332,7 @@ func LongRunningProcess(ctx context.Context) error {
 - **UseCase Port:** When the abstraction is a "Tool" required to complete an application-specific procedure.
   - _Examples:_ `NotificationGateway.SendWelcomeEmail` (a side-effect of a workflow), `IdentityGateway.IsMember` (authorization check against external provider), `TransactionManager.RunInTransaction` (application-level transaction boundary).
   - _Heuristic:_ "Is this a requirement of the application workflow rather than the core business logic itself?"
-- **Repository Ports:** Persistence is a capability needed to complete an application workflow, so interfaces such as `BoardRepository` and `ThreadRepository` live in the UseCase layer. `TransactionManager` likewise controls an application transaction boundary and is a UseCase Port.
+- **Repository Ports:** Persistence repository ports may live in **either** inner layer — the criterion is whether the repository contract is domain language or application orchestration. In this repository's BBS asset, `BoardRepository` and `ThreadRepository` live in the UseCase layer because persistence there is treated as a workflow capability; in the WS1/WS2 assets (`advent-of-calm-2025`, `greeting` likewise), `UserRepository` lives in the Domain layer because the contract is part of that domain's vocabulary. Pick one convention per project and stay consistent. `TransactionManager` always controls an application transaction boundary and is a UseCase Port.
 - Concrete implementations live in **Infrastructure Adapters** regardless of which inner layer owns the interface.
 
 ### Input Port Interface Policy

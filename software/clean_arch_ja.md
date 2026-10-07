@@ -87,7 +87,7 @@ graph TD
 - **Entity / Aggregate / Value Object:** ビジネス上の「物」や「概念」。
 - **Domain Service:** 複数のエンティティに跨る知識やロジック。
 - **Domain Error:** ドメイン語彙で定義されたエラー。
-- **Domain Port（Interface）:** 抽象がドメイン言語の一部である場合にのみ定義。永続化 Repository や外部ツールの port は UseCases が所有する。
+- **Domain Port（Interface）:** 抽象がドメイン言語の一部である場合にのみ定義。外部ツールの port は UseCases が所有します（永続化リポジトリの port はどちらの層にも置けます — 下記 [Port 所有権のガイダンス](#port-所有権のガイダンス) を参照）。
 - **外部依存なし:** DB、HTTP、ORM、SDK、Web フレームワーク、生成されたトランスポート型への依存なし。
 - **`context.Context` に関する注記:** Go の Domain インターフェースでは、キャンセルやデッドライン伝搬のために `context.Context` を第一引数に取ることが一般的です。これは「外部依存なし」ルールに対する **プラグマティックな例外** ですが、その正当化根拠は `context.Context` がキャンセル・デッドラインシグナルという Go ランタイムの関心事を運ぶことに限定されます。この例外は他の標準ライブラリパッケージ（例: `net/http`, `database/sql`）には及びません。Domain は context からカスタム値を読み取ってはなりません — その責務は Infrastructure Adapters にあります。
 
@@ -329,7 +329,7 @@ func LongRunningProcess(ctx context.Context) error {
 - **UseCase Port:** 抽象がアプリケーション固有の手順を完了するための「道具」である場合。
   - _例:_ `NotificationGateway.SendWelcomeEmail`（ワークフローの副作用）、`IdentityGateway.IsMember`（外部プロバイダに対する認可チェック）、`TransactionManager.RunInTransaction`（アプリケーションレベルのトランザクション境界）。
   - _判断基準:_ 「これはコアビジネスロジックではなく、アプリケーションワークフロー要件か？」
-- **Repository Port:** 永続化はアプリケーションワークフローを完了するための能力なので、`BoardRepository` や `ThreadRepository` は UseCase 層に置きます。`TransactionManager` も同様に、アプリケーションのトランザクション境界を制御する UseCase Port です。
+- **Repository Port:** 永続化リポジトリの port は**どちらの内側レイヤーにも**置けます — 基準は「リポジトリ契約がドメイン言語か、アプリケーションオーケストレーションか」です。本リポジトリの BBS asset では永続化をワークフロー能力と捉え、`BoardRepository` や `ThreadRepository` は UseCase 層に置いています。WS1/WS2 asset（`advent-of-calm-2025`・`greeting` も同様）では契約がドメイン語彙の一部として `UserRepository` を Domain 層に置いています。プロジェクトごとに一方の流儀を選び、一貫させてください。`TransactionManager` は常にアプリケーションのトランザクション境界を制御する UseCase Port です。
 - 具象実装は、どの内側レイヤーがインターフェースを所有していても **Infrastructure Adapters** に置きます。
 
 ### Input Port インターフェースの方針
