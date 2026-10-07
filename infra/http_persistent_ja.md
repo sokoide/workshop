@@ -19,7 +19,7 @@ HTTP/1.1 から最新の HTTP/3 まで、どのように接続を効率化して
 ## 前提条件
 
 - [ ] Linux (Ubuntu 24.04 推奨)。sudo (apt) と Homebrew (Linuxbrew) が使えること
-- [ ] Go 1.22 以降（`go version`）、`podman` + `podman-compose`、`openssl`、`curl`、`make`
+- [ ] Go 1.22 以降（`go version`）、`podman` + `podman compose`、`openssl`、`curl`、`make`
 - [ ] `websocat`、`grpcurl`、`protoc` + `protoc-gen-go` — 「準備」のステップで導入します（`brew install websocat go protobuf grpcurl`、その後 `make setup`）
 - [ ] STEP 4 のために HTTP/3 対応ビルドの `curl`（`curl --version | grep HTTP3`）
 - 推奨: TCP ハンドシェイクと接続のライフサイクルの基礎は [TCP/IP プロトコルスタック実習](tcpip_stack_ja.md) を参照
@@ -215,6 +215,8 @@ sequenceDiagram
 
    ```bash
    # 1. システム基盤ツールのインストール (apt)
+   # （podman-compose は Debian のパッケージ名。本実習で使う `podman compose`
+   #   コマンドはこのパッケージに委譲されます）
    sudo apt update
    sudo apt install -y podman podman-compose git make openssl curl
 
@@ -295,7 +297,7 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 
 - **Keep-Alive あり（デフォルト）の場合**:
   1. **curl のログ**: 2 回目のリクエストのログに接続再利用の表示があることを確認してください。古い curl では `Re-using existing connection! (#0) with host localhost`、curl 8.10 以降では `Reusing existing http: connection with host localhost` と表示されます。TCP の接続が 1 回で済んでいることがわかります。
-  2. **Socket の状態**: Linux なら `ss` で、macOS なら `lsof` で定期的に確認します。
+  2. **Socket の状態**: Linux なら `ss` で、macOS なら `netstat` / `lsof` で定期的に確認します。以下が本教材のソケット監視の基本レシピです。以降の STEP では、ポート番号のフィルタだけ差し替えてこのレシピを再利用します。
 
      ```bash
      # Linux (Ubuntu 24.04): -a で TIME-WAIT 等も拾える
@@ -314,15 +316,14 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
      macOS では `netstat` に `ESTABLISHED`/`TIME_WAIT`/`CLOSE_WAIT` が一度に出るので、Keep-Alive の接続が見えるようになるはずです。`curl` で `http://localhost:8080/` を投げて `Connection refused` にならなければ、`netstat` の出力に `*:8080` や `127.0.0.1.8080` が常に滞留するようになります。
 
      > **TIME_WAIT を除外したいとき**は `grep -v TIME_WAIT` を挟むと、ESTABLISHED や CLOSE_WAIT だけを確認できます。
-     > **Linux で ESTABLISHED (と少しの CLOSE_WAIT) を見たいなら**、下の `watch` コマンドで `ss -ntp` を使っています。`TIME_WAIT` も確認したいときは `ss -ntap` あるいは `ss -na | grep :8080` のように `-a` を追加してください（遅延応答 1 秒で ESTABLISHED の行も追いやすくなっています）。
+     > **Linux で ESTABLISHED (と少しの CLOSE_WAIT) を見たいなら**、上の `watch` コマンドで `ss -ntp` を使っています。`TIME_WAIT` も確認したいときは `ss -ntap` あるいは `ss -na | grep :8080` のように `-a` を追加してください（遅延応答 1 秒で ESTABLISHED の行も追いやすくなっています）。
+     > macOS では `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` も使えます。
 
   3. **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
 
 - **Keep-Alive なし（Connection: close）の場合**:
   1. **curl のログ**: 1 回目のレスポンス後に接続が切断され（古い curl では `Closing connection 0`、curl 8.10 以降では `shutting down connection #0`）、2 回目のリクエストで接続再利用のメッセージが **表示されない** ことを確認してください。
   2. **Socket の状態**: `ss` で監視していると、**2 つの異なる接続**（クライアント側のポート番号が異なるもの）が作成され、それぞれが終了（TIME-WAIT 等）していく様子が見えます。
-
-  ※ macOS の場合は `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` 等を利用してください。
 
 > **タイムアウトについての補足**:
 > サーバー側には通常 **Keep-Alive Timeout** が設定されており、一定時間リクエストがないとサーバー側から TCP 切断（FIN）を送ります。実習中、放置して接続が消えても、次のリクエストで再度ハンドシェイクが行われるだけなので問題ありません。
@@ -376,7 +377,7 @@ done
 
 ```bash
 # サーバーと Traefik (file provider 構成) を起動
-podman-compose up --build -d
+podman compose up --build -d
 
 # Traefik (ホスト 18080) 経由で WebSocket 接続（STEP 2 と同じ 5 件ループ）
 (
@@ -391,27 +392,10 @@ podman-compose up --build -d
 
 1. **設定ファイルで明示的にルーティング**: `infra/assets/http_persistent_conn/traefik.yml` と `traefik-dynamic.yml` により、Traefik は `Host(\`localhost\`)`を聞いて`<http://app:8080`> へ転送します。`/run/podman/podman.sock` の共有は不要です。
 2. **ホスト 18080 へのアクセス**: Compose は `18080:80` をバインドしているので、`websocat -v ws://localhost:18080/ws` や `curl http://localhost:18080/` を使って、Traefik → app:8080 への通信が通ることを確認できます。
-3. **Socket 監視（プラットフォーム別）**:
-   - **Linux**:
-
-     ```bash
-     watch -n 0.1 "ss -ntp | grep :18080"
-     ```
-
-   - **macOS**:
-
-     ```bash
-     while true; do
-         clear
-         lsof -nP -iTCP:18080 | grep 18080
-         sleep 0.1
-     done
-     ```
-
-     > Linux では `ss -ntp` を使って ESTABLISHED を拾っています。`TIME_WAIT` も確認したいときは `ss -ntap` を再実行してください。
+3. **Socket 監視**: STEP 1 の監視レシピのポートフィルタを `:18080` に差し替えて使います（Linux: `ss -ntp`、macOS: `netstat` / `lsof` のループ）。
 
 4. **透過性**: クライアント（websocat）から見れば、直接接続したときとほぼ同じ挙動になります。プロキシがプロトコルの中身を邪魔せず、ストリームを中継していることがわかります。
-5. **注意**: `podman-compose down` で後片付けを忘れないようにしてください。
+5. **注意**: `podman compose down` で後片付けを忘れないようにしてください。
 
 ### STEP 3: HTTP/2 のマルチプレキシング（多重化）
 
@@ -430,25 +414,7 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 **観察ポイント**:
 
 1. **マルチプレキシング**: `curl` のログで `[HTTP/2] [1] GET /a`, `[HTTP/2] [3] GET /b` のように、異なる奇数のストリーム ID が同時に動いていることを確認。
-2. **Socket 監視**: 複数のリクエストを投げている間も、OS レベルで見える TCP ソケットは **常に 1 つだけ** であることを確認します。
-3. **Socket Monitoring (platform specific)**:
-   - **Linux**:
-
-     ```bash
-     watch -n 0.1 "ss -ntp | grep :8443"
-     ```
-
-   - **macOS**:
-
-     ```bash
-     while true; do
-         clear
-         lsof -nP -iTCP:8443 | grep 8443
-         sleep 0.1
-     done
-     ```
-
-     > Linux では `ss -ntp` を使っており、`TIME_WAIT` は表示されません。`TIME_WAIT` も確認したい場合は `ss -ntap` を再実行してください。
+2. **Socket 監視**: 複数のリクエストを投げている間も、OS レベルで見える TCP ソケットは **常に 1 つだけ** であることを確認します。STEP 1 の監視レシピのポートフィルタを `:8443` に差し替えて使ってください。
 
 ### STEP 4: HTTP/3 (QUIC) の 0-RTT と UDP への移行
 
@@ -526,26 +492,7 @@ printf '{"name": "Alice"}\n{"name": "Bob"}\n' | grpcurl -plaintext -d @ localhos
 
 - `grpcurl` はコマンドごとに新しいプロセスが起動するため、通常は呼び出しごとに新しい接続になります。
 - gRPC の真価（1 接続多重化）は、アプリケーション内で `ClientConn` を長寿命で再利用したときに最大化されます。
-- **Socket 監視**:
-  1. **Linux**:
-
-     ```bash
-     watch -n 0.1 "ss -ntp | grep :50051"
-     ```
-
-     > Linux では `ss -ntp` を使って TIME_WAIT を除外しています。`TIME_WAIT` も確認したいなら `ss -ntap` を再実行してください。
-
-  2. **macOS**: `watch`/`ss` が無いので代わりに:
-
-     ```bash
-     while true; do
-         clear
-         netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
-         sleep 0.1
-     done
-     ```
-
-     > **TIME_WAIT を含めたい場合**は `grep -v TIME_WAIT` を省略すると、TIME_WAIT も含めた出力が流れます。
+- **Socket 監視**: STEP 1 の監視レシピのポートフィルタを `:50051` に差し替えて使います（macOS: `netstat` のループ）。
 
 ### ✅ チェックポイント
 
@@ -565,24 +512,7 @@ curl -v http://localhost:8080/sse
 1. **Content-Type**: `text/event-stream` が返り、データが逐次届くことを確認。
 2. **この実装の挙動**: サンプルコードでは 2 秒おきに 5 件送信した後に接続を閉じます（無限配信ではありません）。
 3. **軽量性**: WebSocket のような複雑なフレーム制御ではなく、「長めの HTTP レスポンス」として実装できる点を確認します。
-4. **Socket Monitoring (platform specific)**:
-   - **Linux**:
-
-     ```bash
-     watch -n 0.1 "ss -ntp | grep :8080"
-     ```
-
-     > Linux では `ss -ntp` を使って TIME_WAIT を隠しています。`TIME_WAIT` も確認したい場合は `ss -ntap` を再実行してください。
-
-   - **macOS**:
-
-     ```bash
-     while true; do
-         clear
-         lsof -nP -iTCP:8080 | grep 8080
-         sleep 0.1
-     done
-     ```
+4. **Socket 監視**: STEP 1 の監視レシピをポートフィルタ `:8080` のまま使います。
 
 ---
 
@@ -666,7 +596,7 @@ graph LR
 # プロセスを終了
 kill $(jobs -p)
 # コンテナを停止
-podman-compose down
+podman compose down
 ```
 
 ---

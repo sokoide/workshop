@@ -20,7 +20,7 @@ In this workshop, you will learn about **connection reuse and streaming**, which
 ## Prerequisites
 
 - [ ] Linux (Ubuntu 24.04 recommended) with sudo (apt) and Homebrew (Linuxbrew)
-- [ ] Go 1.22+ (`go version`), `podman` + `podman-compose`, `openssl`, `curl`, `make`
+- [ ] Go 1.22+ (`go version`), `podman` + `podman compose`, `openssl`, `curl`, `make`
 - [ ] `websocat`, `grpcurl`, `protoc` + `protoc-gen-go` — installed by the Preparation steps (`brew install websocat go protobuf grpcurl`, then `make setup`)
 - [ ] A `curl` build with HTTP/3 support for STEP 4 (`curl --version | grep HTTP3`)
 - Recommended: [TCP/IP Protocol Stack Workshop](tcpip_stack_en.md) — TCP handshakes and connection lifecycle basics
@@ -214,6 +214,8 @@ sequenceDiagram
 
    ```bash
    # 1. Install system essentials via apt
+   # (podman-compose is the Debian package name; the `podman compose` command
+   #  used in this workshop delegates to it)
    sudo apt update
    sudo apt install -y podman podman-compose git make openssl curl
 
@@ -297,32 +299,34 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 
 - **With Keep-Alive (Default)**:
   1. **curl Logs**: Check the second request's log for the connection-reuse message: `Re-using existing connection! (#0) with host localhost` on older curl, or `Reusing existing http: connection with host localhost` on curl 8.10+. This confirms the TCP connection is reused.
-  2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** connection to `:8080`.
+  2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** connection to `:8080`. The commands below are the canonical socket-monitoring recipe for this workshop — later steps reference them with a different port.
 
-     ```bash
-     # Ubuntu 24.04: -a allows you to see connection remnants like TIME-WAIT
-     watch -n 0.1 "ss -ntp | grep :8080"
-     ```
+     - **Linux**:
+
+       ```bash
+       # Ubuntu 24.04: -a allows you to see connection remnants like TIME-WAIT
+       watch -n 0.1 "ss -ntp | grep :8080"
+       ```
+
+       > `ss -ntp` suppresses TIME_WAIT entries by default. Run it again with `ss -ntap` (or add `-a`) if you want to observe TIME_WAIT.
+
+     - **macOS**:
+
+       ```bash
+       while true; do
+           clear
+           netstat -anp tcp | grep 8080 | grep -v TIME_WAIT
+           sleep 0.1
+       done
+       ```
+
+       > Removing `| grep -v TIME_WAIT` shows everything, including TIME_WAIT lines. `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` also works.
 
   3. **Criteria**: If only **one line** (e.g., TIME-WAIT) remains after both requests finish, it proves a single connection was reused.
-
-     > The Linux watcher above uses `ss -ntp`, so it suppresses TIME_WAIT entries by default. Run it again with `ss -ntap` or add `-a` if you want to observe TIME_WAIT. On macOS, you can also iterate:
-     >
-     > ```bash
-     > while true; do
-     >     clear
-     >     netstat -anp tcp | grep 8080 | grep -v TIME_WAIT
-     >     sleep 0.1
-     > done
-     > ```
-     >
-     > Removing `| grep -v TIME_WAIT` shows everything, including TIME_WAIT lines.
 
 - **Without Keep-Alive (Connection: close)**:
   1. **curl Logs**: Note that the connection is torn down after the first response (`Closing connection 0` on older curl, `shutting down connection #0` on curl 8.10+), and the connection-reuse message **does not appear** for the second request.
   2. **Socket Status**: While monitoring with `ss`, you will see **two distinct connections** (with different client-side port numbers) being created and moving to completion (e.g., TIME-WAIT).
-
-  _Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` or similar._
 
 > **Note on Timeout**:
 > Servers typically have a **Keep-Alive Timeout**. If no request arrives within a certain period, the server sends a TCP disconnect (FIN). If the connection disappears during the exercise, simply send another request to perform a new handshake.
@@ -378,7 +382,7 @@ Experience how modern reverse proxies handle WebSockets as "tunnels" in a contai
 
 ```bash
 # Start server and Traefik (file-provider configuration)
-podman-compose up --build -d
+podman compose up --build -d
 
 # Connect via Traefik (Host 18080) using the same 5-message loop from STEP 2
 (
@@ -393,27 +397,10 @@ podman-compose up --build -d
 
 1. **Explicit Routing by Files**: The static `traefik.yml` + `traefik-dynamic.yml` pair ensures Traefik listens for `Host(`localhost`)` and forwards to `http://app:8080` without sharing `/run/podman/podman.sock`.
 2. **Host Port 18080 Access**: Compose binds host `18080:80`, so confirm Traefik → app communication using `websocat -v ws://localhost:18080/ws` or `curl http://localhost:18080/`.
-3. **Socket Monitoring (Platform Specific)**:
-   - **Linux**:
-
-     ```bash
-     watch -n 0.1 "ss -ntp | grep :18080"
-     ```
-
-   - **macOS**:
-
-     ```bash
-     while true; do
-         clear
-         lsof -nP -iTCP:18080 | grep 18080
-         sleep 0.1
-     done
-     ```
-
-     > The Linux watcher above uses `ss -ntp` to keep TIME_WAIT hidden. Re-run it with `ss -ntap` when you want to see TIME_WAIT entries.
+3. **Socket Monitoring**: Use the STEP 1 monitoring recipe with the port filter replaced with `:18080` (Linux: `ss -ntp`; macOS: the `netstat`/`lsof` loop).
 
 4. **Transparency**: From the client's perspective, it behaves exactly like a direct connection.
-5. **Note**: Don't forget to cleanup with `podman-compose down`.
+5. **Note**: Don't forget to cleanup with `podman compose down`.
 
 ### STEP 3: HTTP/2 Multiplexing
 
@@ -432,25 +419,7 @@ curl --http2 -k -v https://localhost:8443/a https://localhost:8443/b
 **Observation Points**:
 
 1. **Multiplexing**: In the `curl` log, check for different odd stream IDs (e.g., `[HTTP/2] [1] GET /a`, `[HTTP/2] [3] GET /b`) running simultaneously.
-2. **Socket Monitoring**: Verify that the OS-level TCP socket remains **always single** even when multiple requests are flying.
-3. **Socket Monitoring (Platform Specific)**:
-   - **Linux**:
-
-     ```bash
-     watch -n 0.1 "ss -ntp | grep :8443"
-     ```
-
-   - **macOS**:
-
-     ```bash
-     while true; do
-         clear
-         lsof -nP -iTCP:8443 | grep 8443
-         sleep 0.1
-     done
-     ```
-
-     > The Linux watcher uses `ss -ntp`, which hides TIME_WAIT entries. Re-run it with `ss -ntap` if you need to observe queued sockets.
+2. **Socket Monitoring**: Verify that the OS-level TCP socket remains **always single** even when multiple requests are flying — use the STEP 1 monitoring recipe with the port filter replaced with `:8443`.
 
 ### STEP 4: HTTP/3 (QUIC) 0-RTT and Transition to UDP
 
@@ -527,26 +496,7 @@ printf '{"name": "Alice"}\n{"name": "Bob"}\n' | grpcurl -plaintext -d @ localhos
 **Observation Points**:
 
 - Note that `grpcurl` starts a new process for each command, usually resulting in a new connection per call. The true power of gRPC (1-connection multiplexing) is maximized when reusing a long-lived `ClientConn` within an application.
-- **Socket Monitoring**:
-  1. **Linux**:
-
-     ```bash
-     watch -n 0.1 "ss -ntp | grep :50051"
-     ```
-
-     > The Linux watcher hides TIME_WAIT entries by using `ss -ntp`. Run it again with `ss -ntap` if you want to examine them.
-
-  2. **macOS**:
-
-     ```bash
-     while true; do
-         clear
-         netstat -anp tcp | grep 50051 | grep -v TIME_WAIT
-         sleep 0.1
-     done
-     ```
-
-     > Remove `| grep -v TIME_WAIT` if you want to include TIME_WAIT entries in the output.
+- **Socket Monitoring**: Use the STEP 1 monitoring recipe with the port filter replaced with `:50051` (macOS: the `netstat` loop).
 
 ### ✅ Verification Checkpoints
 
@@ -568,24 +518,7 @@ curl -v http://localhost:8080/sse
 1. **Content-Type**: Check for `text/event-stream`. Data arrives sequentially without closing the connection.
 2. **This implementation's behavior**: The sample server sends 5 events at 2-second intervals and then closes the connection (it does not stream forever).
 3. **Lightweight**: Observe how it's implemented as a "long HTTP response" rather than complex framing like WebSocket.
-4. **Socket Monitoring (Platform Specific)**:
-   - **Linux**:
-
-     ```bash
-     watch -n 0.1 "ss -ntp | grep :8080"
-     ```
-
-     > The Linux watcher keeps TIME_WAIT hidden via `ss -ntp`. Re-run with `ss -ntap` if you want to include those entries.
-
-   - **macOS**:
-
-     ```bash
-     while true; do
-         clear
-         lsof -nP -iTCP:8080 | grep 8080
-         sleep 0.1
-     done
-     ```
+4. **Socket Monitoring**: Use the STEP 1 monitoring recipe with the port filter `:8080`.
 
 ---
 
@@ -669,7 +602,7 @@ In modern system design, the following segregation is common:
 # Terminate processes
 kill $(jobs -p)
 # Stop containers
-podman-compose down
+podman compose down
 ```
 
 ---

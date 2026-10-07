@@ -70,16 +70,16 @@ Run `make check-go` to build, vet, and race-test all Go modules. Logs and skippe
   - Comparison of connection reuse and 0-RTT mechanisms from HTTP/1.1 to the latest HTTP/3 (QUIC).
 - [Sharding Fundamentals: Sparse Table, Segment Tree, Elasticsearch, and Cortex](./infra/sharding_en.md)
   - Practical sharding design with Elasticsearch and Cortex examples, including a summary of Cortex PRs #7266 and #7270.
-- [TCP/IP Protocol Stack Workshop: Building a Network Stack from Scratch](./infra/tcpip_stack_en.md)
-  - Implement Ethernet/IP/ICMP/UDP with Go and C (CGO), understanding packets from raw socket.
+- [TCP/IP Protocol Stack Workshop (2 parts): Building a Network Stack from Scratch](./infra/tcpip_stack_en.md)
+  - Implement Ethernet/IP/ICMP with Go and C (CGO), understanding packets from raw socket. Part 2 ([UDP & Stack Integration](./infra/tcpip_stack_udp_en.md)) adds UDP and the integrated stack.
 - [Kubernetes Workshop: From Basics to Practical Container Orchestration](./infra/kubernetes_basics_en.md)
   - Comprehensive guide covering Pod, Deployment, Service, ConfigMap, Helm, and more.
 - [Kubernetes Operations & Security Workshop: Advanced Features for Production](./infra/kubernetes_operations_en.md)
   - Hands-on with RBAC, NetworkPolicy, HPA, GitOps (ArgoCD), Backup (Velero), and more.
 - [Zero Trust Architecture Workshop: Implementing "Always Verify" with mTLS and Service Mesh](./infra/zero_trust_en.md)
   - Implement identity-based security (mTLS/AuthZ) using Istio and SPIRE, moving beyond network perimeters.
-- [Web Security Workshop: XSS, CSRF, and Clickjacking](./infra/web_security_en.md)
-  - Experience common web attacks and learn defense mechanisms (escaping, tokens, etc.) using an intentionally vulnerable application.
+- [Web Security Workshop (2 parts): XSS, CSRF, and Clickjacking](./infra/web_security_en.md)
+  - Experience common web attacks using an intentionally vulnerable application. Part 2 ([Defense](./infra/web_security_defense_en.md)) applies each countermeasure to a copy of the victim app and re-runs the attacks to verify they are blocked.
 - [Supply Chain Security Workshop: Dependency and Container Image Vulnerability Management](./infra/supply_chain_security_en.md)
   - Detect vulnerabilities with govulncheck/Trivy, generate SBOMs with syft/grype, and sign images with cosign.
 - [Infrastructure Workshop Glossary](./infra/glossary_en.md)

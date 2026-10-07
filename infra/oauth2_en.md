@@ -141,9 +141,7 @@ Notes:
 - In this workshop, the Go API validates the `access token`, so `Add to access token` must be `On`
 - `Add to ID token = Off` avoids forcing this audience into the login-focused ID token
 - `Add to lightweight access token = Off` keeps this out of lightweight tokens; this workshop uses a regular access token
-- `Add to token introspection = On` makes the audience visible if you use token introspection
-- However, `Add to token introspection = On` does not mean this workshop is using introspection
-- The Go API in this workshop does not call the introspection endpoint; it validates JWTs directly using JWKS
+- `Add to token introspection = On` makes the audience visible to introspection responses, but this workshop does **not** use introspection — the Go API validates JWTs directly using JWKS (details in [Token Types and Introspection](#token-types-and-introspection))
 
 ## Token Types and Introspection
 
@@ -239,9 +237,7 @@ Characteristics of introspection:
 
 What `Add to token introspection = On` means:
 
-- It makes audience information available in the introspection response
-- The Go API in this workshop does not use introspection, but this setting keeps the data available if you switch to that model later
-- In other words, this only enables data for introspection responses; it does not mean Keycloak is being queried on every request
+- It makes audience information available in the introspection response. As noted during mapper setup, this workshop never calls the introspection endpoint — the setting only keeps that data available if you switch to that model later
 
 ### What this workshop uses
 
@@ -339,11 +335,7 @@ That is why [api/main.go](assets/oauth2/api/main.go) can run with just `go run`.
 
 Yes. For example, if the resource server does not validate JWTs locally and instead uses `token introspection` for each request, then Keycloak may require client authentication for that introspection call.
 
-Additional note:
-
-- This workshop sets `Add to token introspection = On`, but it does not actually call the introspection endpoint
-- It uses direct JWT validation through JWKS
-- That is why the API can start without client credentials for Keycloak
+Additional note: this workshop sets `Add to token introspection = On` but never calls the endpoint (see [Token Types and Introspection](#token-types-and-introspection)) — direct JWT validation through JWKS is why the API can start without client credentials for Keycloak.
 
 In short:
 

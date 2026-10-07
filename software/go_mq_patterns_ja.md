@@ -4,18 +4,37 @@
 > **🎯 レベル**: Intermediate
 > **💻 環境**: Go 1.22+、OS 不問
 >
-> **📖 参照カタログ**: 各パターンは独立した内容です。必要なパターンだけをピックアップして読んでください。通し読みは不要です。
+> **📖 参照カタログ**: 本書はステップバイステップのハンズオンではなく、リファレンス型（カタログ）です。各パターンは独立した内容なので、必要なパターンだけをピックアップして読んでください。各パターンのセクションでは、対応アセットからそのまま抜粋した核心コードと、実行可能なリファレンス実装のパスを併記します。
 
 [English](go_mq_patterns_en.md) | [日本語](go_mq_patterns_ja.md)
 
 ## 目次
 
+- [このカタログの使い方](#このカタログの使い方)
 - [メッセージキューシステムとツールの理解](#メッセージキューシステムとツールの理解)
 - [パターン1: シンプルなチャネルベースキュー](#パターン1-シンプルなチャネルベースキュー)
 - [パターン2: ファンアウトメッセージキュー](#パターン2-ファンアウトメッセージキュー)
 - [パターン3: ワーカープールパターン](#パターン3-ワーカープールパターン)
 - [パターン4: 分散Kafkaキュー](#パターン4-分散kafkaキュー)
 - [パターン5: リトライとデッドレターキュー](#パターン5-リトライとデッドレターキュー)
+
+---
+
+## このカタログの使い方
+
+本書は**リファレンス型（カタログ）**であり、ハンズオン形式ではありません。セットアップすべき環境もビルドするものもありません。各パターンのセクションでは概念を解説した後、対応アセットからそのまま抜粋した核心コードと、完全な実装のパスを示します。
+
+実際のブローカーを使ったハンズオンは [RabbitMQ 実習](../infra/rabbitmq_ja.md) を参照してください。キャッシュ側のカタログは [Go言語におけるキャッシュパターン](go_cache_patterns_ja.md) です。
+
+### 対応アセット
+
+| パターン                          | リファレンス実装                                                                         |
+| :-------------------------------- | :--------------------------------------------------------------------------------------- |
+| 1. シンプルなチャネルベースキュー | [pattern1_simple_channel/main.go](assets/go_mq_patterns/pattern1_simple_channel/main.go) |
+| 2. ファンアウトメッセージキュー   | [pattern2_fanout/main.go](assets/go_mq_patterns/pattern2_fanout/main.go)                 |
+| 3. ワーカープールパターン         | [pattern3_worker_pool/main.go](assets/go_mq_patterns/pattern3_worker_pool/main.go)       |
+| 4. 分散Kafkaキュー                | [pattern4_kafka/main.go](assets/go_mq_patterns/pattern4_kafka/main.go)                   |
+| 5. リトライとデッドレターキュー   | [pattern5_retry_dlq/main.go](assets/go_mq_patterns/pattern5_retry_dlq/main.go)           |
 
 ---
 
@@ -244,6 +263,28 @@ flowchart TD
 - シングルプロセスに限定
 - バッファサイズの調整が必要
 
+### 核心コード（抜粋）
+
+[pattern1_simple_channel/main.go](assets/go_mq_patterns/pattern1_simple_channel/main.go) より抜粋 —— ブロックせず、バッファ満杯をエラーとして報告するノンブロッキング publish：
+
+```go
+func (q *ChannelQueue) Publish(msg Message) error {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	if q.closed {
+		return fmt.Errorf("queue is closed")
+	}
+
+	select {
+	case q.ch <- msg:
+		return nil
+	default:
+		return fmt.Errorf("queue is full")
+	}
+}
+```
+
 ### リファレンス実装
 
 `software/assets/go_mq_patterns/pattern1_simple_channel/main.go`
@@ -295,6 +336,25 @@ flowchart TD
 - 複数のコンシューマーが同じイベントを処理
 - リアルタイム通知
 - キャッシュ無効化のブロードキャスト
+
+### 核心コード（抜粋）
+
+[pattern2_fanout/main.go](assets/go_mq_patterns/pattern2_fanout/main.go) より抜粋 —— 遅いサブライバーのメッセージをドロップするノンブロッキング送信によるブロードキャスト：
+
+```go
+func (q *FanoutQueue) Publish(msg Message) {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	for _, sub := range q.subscribers {
+		select {
+		case sub.ch <- msg:
+		default:
+			fmt.Printf("Subscriber %s buffer full, dropping message\n", sub.id)
+		}
+	}
+}
+```
 
 ### ファンアウトリファレンス実装
 
@@ -354,6 +414,40 @@ flowchart TD
 - 制御された並行性
 - 予測可能なリソース使用
 - チャネルブロッキングによる組み込みバックプレッシャー
+
+### 核心コード（抜粋）
+
+[pattern3_worker_pool/main.go](assets/go_mq_patterns/pattern3_worker_pool/main.go) より抜粋 —— 固定数のワーカーがジョブチャネルから取り出し、`Close` でグレースフルにドレイン：
+
+```go
+func (p *WorkerPool) Start(processor func(Job) Result) {
+	for i := 0; i < p.numWorkers; i++ {
+		p.wg.Add(1)
+		go func(workerID int) {
+			defer p.wg.Done()
+			for job := range p.jobs {
+				fmt.Printf("Worker %d processing job %s\n", workerID, job.ID)
+				result := processor(job)
+				p.results <- result
+			}
+		}(i)
+	}
+}
+
+func (p *WorkerPool) Submit(job Job) {
+	p.jobs <- job
+}
+
+func (p *WorkerPool) Results() <-chan Result {
+	return p.results
+}
+
+func (p *WorkerPool) Close() {
+	close(p.jobs)
+	p.wg.Wait()
+	close(p.results)
+}
+```
 
 ### ワーカープールリファレンス実装
 
@@ -418,6 +512,32 @@ flowchart TD
 - コンシューマーグループ管理
 - バッチ操作
 
+### 核心コード（抜粋）
+
+[pattern4_kafka/main.go](assets/go_mq_patterns/pattern4_kafka/main.go) より抜粋 —— プロデューサー設定（バランサー、acks）と 1 回の `WriteMessages` 呼び出し：
+
+```go
+func NewKafkaProducer(brokers []string, topic string) *KafkaProducer {
+	return &KafkaProducer{
+		writer: &kafka.Writer{
+			Addr:         kafka.TCP(brokers...),
+			Topic:        topic,
+			Balancer:     &kafka.LeastBytes{},
+			BatchTimeout: 10 * time.Millisecond,
+			RequiredAcks: kafka.RequireAll,
+		},
+	}
+}
+
+func (p *KafkaProducer) Publish(ctx context.Context, key, value string) error {
+	return p.writer.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(key),
+		Value: []byte(value),
+		Time:  time.Now(),
+	})
+}
+```
+
 ### Kafkaリファレンス実装
 
 `software/assets/go_mq_patterns/pattern4_kafka/main.go`
@@ -478,6 +598,34 @@ flowchart TD
 - 全体的な処理が遅くなる
 - DLQ のモニタリングが必要
 - 手動介入が必要な場合がある
+
+### 核心コード（抜粋）
+
+[pattern5_retry_dlq/main.go](assets/go_mq_patterns/pattern5_retry_dlq/main.go) より抜粋 —— リトライか DLQ かの判定部。再キューはノンブロッキングにして `Stop()` 中でもデッドロックしないようにしています：
+
+```go
+func (q *RetryableQueue) handleMessage(workerID int, msg Message) {
+	msg.Attempts++
+
+	if err := q.handler(msg); err != nil {
+		if msg.Attempts >= q.config.MaxRetries {
+			fmt.Printf("Message %s exceeded max retries, moving to DLQ\n", msg.ID)
+			q.dlq.Add(msg)
+		} else {
+			fmt.Printf("Message %s failed (attempt %d/%d), scheduling retry\n",
+				msg.ID, msg.Attempts, q.config.MaxRetries)
+			// Never block forever here: if Stop() is running, drop the retry
+			// instead of waiting on a queue nobody will drain anymore.
+			select {
+			case q.retryQueue <- msg:
+			case <-q.stopCh:
+			}
+		}
+	} else {
+		fmt.Printf("Message %s processed successfully\n", msg.ID)
+	}
+}
+```
 
 ### DLQリファレンス実装
 

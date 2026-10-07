@@ -63,16 +63,16 @@
   - HTTP/1.1 から最新の HTTP/3 (QUIC) まで、接続再利用と 0-RTT の仕組みを比較
 - [シャーディング基礎: Sparse Table, Segment Tree, Elasticsearch, Cortex](./infra/sharding_ja.md)
   - Elasticsearch/Cortex を題材にしたシャーディング設計の実践ガイド（Cortex PR #7266 / #7270 の要点を含む、日本語）。
-- [TCP/IP プロトコルスタック実習：スクラッチからネットワークスタックを構築する](./infra/tcpip_stack_ja.md)
-  - Go と C (CGO) で Ethernet/IP/ICMP/UDP を実装し、raw socket からパケットを理解
+- [TCP/IP プロトコルスタック実習（全 2 パート）：スクラッチからネットワークスタックを構築する](./infra/tcpip_stack_ja.md)
+  - Go と C (CGO) で Ethernet/IP/ICMP を実装し、raw socket からパケットを理解。パート 2（[UDP・スタック統合](./infra/tcpip_stack_udp_ja.md)）で UDP と統合スタックを扱う
 - [Kubernetes 実習：コンテナオーケストレーションの基礎から実践まで](./infra/kubernetes_basics_ja.md)
   - Pod, Deployment, Service, ConfigMap, Helm 等、K8s の基本リソースとエコシステムを網羅的に学習
 - [Kubernetes 運用・セキュリティ実習：本番運用のための高度な機能](./infra/kubernetes_operations_ja.md)
   - RBAC, NetworkPolicy, HPA, GitOps (ArgoCD), Backup (Velero) 等、プロダクション運用に必要な技術を体験
 - [Zero Trust Architecture 実習：mTLS と Service Mesh による「常に検証」の実現](./infra/zero_trust_ja.md)
   - Istio と SPIRE を活用し、ネットワーク境界に頼らない身元ベースのセキュリティ（mTLS/認可）を実装
-- [Webセキュリティ実習：XSS, CSRF, クリックジャッキングを体験する](./infra/web_security_ja.md)
-  - 意図的に脆弱なアプリを用い、代表的な Web 攻撃の仕組みと対策（エスケープ、トークン等）を学習
+- [Webセキュリティ実習（全 2 パート）：XSS, CSRF, クリックジャッキングを体験する](./infra/web_security_ja.md)
+  - 意図的に脆弱なアプリで代表的な Web 攻撃を体験。パート 2（[防御実践編](./infra/web_security_defense_ja.md)）では victim アプリのコピーに各対策を適用し、攻撃が阻止されることを再検証します
 - [サプライチェーンセキュリティ実習：依存ライブラリとコンテナイメージの脆弱性管理](./infra/supply_chain_security_ja.md)
   - govulncheck/Trivy で脆弱性検出、syft/grype で SBOM 生成、cosign でイメージ署名・検証を体験
 - [インフラ勉強会用語集](./infra/glossary_ja.md)

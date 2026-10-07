@@ -4,18 +4,37 @@
 > **🎯 Level**: Intermediate
 > **💻 Environment**: Go 1.22+, any OS
 >
-> **📖 Reference catalog**: Each pattern is self-contained — jump straight to the pattern you need; you do not have to read this document cover to cover.
+> **📖 Reference catalog**: This document is a reference catalog, not a step-by-step hands-on guide. Each pattern is self-contained — jump straight to the pattern you need. Every pattern section pairs a core-code excerpt (quoted verbatim from the companion asset) with the path of its runnable reference implementation.
 
 [English](go_mq_patterns_en.md) | [日本語](go_mq_patterns_ja.md)
 
 ## Table of Contents
 
+- [How to Use This Catalog](#how-to-use-this-catalog)
 - [Understanding Message Queues](#understanding-message-queues)
 - [Pattern 1: Simple Channel-Based Queue](#pattern-1-simple-channel-based-queue)
 - [Pattern 2: Fan-out Message Queue](#pattern-2-fan-out-message-queue)
 - [Pattern 3: Worker Pool Pattern](#pattern-3-worker-pool-pattern)
 - [Pattern 4: Distributed Kafka Queue](#pattern-4-distributed-kafka-queue)
 - [Pattern 5: Retry with Dead Letter Queue](#pattern-5-retry-with-dead-letter-queue)
+
+---
+
+## How to Use This Catalog
+
+This document is a **reference catalog**, not a hands-on tutorial: there is no environment to set up and nothing to build here. Each pattern section explains the concept, then shows the core code excerpted verbatim from the companion asset, followed by the full implementation path.
+
+For a hands-on exercise with a real broker, see [RabbitMQ Workshop](../infra/rabbitmq_en.md). The sibling catalog [Caching Patterns in Go](go_cache_patterns_en.md) covers the caching side.
+
+### Companion Assets
+
+| Pattern                         | Reference implementation                                                                 |
+| :------------------------------ | :--------------------------------------------------------------------------------------- |
+| 1. Simple Channel-Based Queue   | [pattern1_simple_channel/main.go](assets/go_mq_patterns/pattern1_simple_channel/main.go) |
+| 2. Fan-out Message Queue        | [pattern2_fanout/main.go](assets/go_mq_patterns/pattern2_fanout/main.go)                 |
+| 3. Worker Pool Pattern          | [pattern3_worker_pool/main.go](assets/go_mq_patterns/pattern3_worker_pool/main.go)       |
+| 4. Distributed Kafka Queue      | [pattern4_kafka/main.go](assets/go_mq_patterns/pattern4_kafka/main.go)                   |
+| 5. Retry with Dead Letter Queue | [pattern5_retry_dlq/main.go](assets/go_mq_patterns/pattern5_retry_dlq/main.go)           |
 
 ---
 
@@ -244,6 +263,28 @@ Typical use cases:
 - Limited to single process
 - Buffer size requires tuning
 
+### Core Code (Excerpt)
+
+Excerpt from [pattern1_simple_channel/main.go](assets/go_mq_patterns/pattern1_simple_channel/main.go) — non-blocking publish that reports a full buffer instead of blocking:
+
+```go
+func (q *ChannelQueue) Publish(msg Message) error {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	if q.closed {
+		return fmt.Errorf("queue is closed")
+	}
+
+	select {
+	case q.ch <- msg:
+		return nil
+	default:
+		return fmt.Errorf("queue is full")
+	}
+}
+```
+
 ### Reference Implementation
 
 `software/assets/go_mq_patterns/pattern1_simple_channel/main.go`
@@ -295,6 +336,25 @@ Fan-out enables:
 - Multiple consumers processing same events
 - Real-time notifications
 - Cache invalidation broadcasts
+
+### Core Code (Excerpt)
+
+Excerpt from [pattern2_fanout/main.go](assets/go_mq_patterns/pattern2_fanout/main.go) — broadcast with a non-blocking send that drops messages for slow subscribers:
+
+```go
+func (q *FanoutQueue) Publish(msg Message) {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	for _, sub := range q.subscribers {
+		select {
+		case sub.ch <- msg:
+		default:
+			fmt.Printf("Subscriber %s buffer full, dropping message\n", sub.id)
+		}
+	}
+}
+```
 
 ### Fan-out Reference Implementation
 
@@ -354,6 +414,40 @@ flowchart TD
 - Controlled concurrency
 - Predictable resource usage
 - Built-in backpressure via channel blocking
+
+### Core Code (Excerpt)
+
+Excerpt from [pattern3_worker_pool/main.go](assets/go_mq_patterns/pattern3_worker_pool/main.go) — a fixed set of workers pulls from the job channel, and `Close` drains them gracefully:
+
+```go
+func (p *WorkerPool) Start(processor func(Job) Result) {
+	for i := 0; i < p.numWorkers; i++ {
+		p.wg.Add(1)
+		go func(workerID int) {
+			defer p.wg.Done()
+			for job := range p.jobs {
+				fmt.Printf("Worker %d processing job %s\n", workerID, job.ID)
+				result := processor(job)
+				p.results <- result
+			}
+		}(i)
+	}
+}
+
+func (p *WorkerPool) Submit(job Job) {
+	p.jobs <- job
+}
+
+func (p *WorkerPool) Results() <-chan Result {
+	return p.results
+}
+
+func (p *WorkerPool) Close() {
+	close(p.jobs)
+	p.wg.Wait()
+	close(p.results)
+}
+```
 
 ### Worker Pool Reference Implementation
 
@@ -418,6 +512,32 @@ flowchart TD
 - Consumer group management
 - Batch operations
 
+### Core Code (Excerpt)
+
+Excerpt from [pattern4_kafka/main.go](assets/go_mq_patterns/pattern4_kafka/main.go) — producer configuration (balancer, acks) and a single `WriteMessages` call:
+
+```go
+func NewKafkaProducer(brokers []string, topic string) *KafkaProducer {
+	return &KafkaProducer{
+		writer: &kafka.Writer{
+			Addr:         kafka.TCP(brokers...),
+			Topic:        topic,
+			Balancer:     &kafka.LeastBytes{},
+			BatchTimeout: 10 * time.Millisecond,
+			RequiredAcks: kafka.RequireAll,
+		},
+	}
+}
+
+func (p *KafkaProducer) Publish(ctx context.Context, key, value string) error {
+	return p.writer.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(key),
+		Value: []byte(value),
+		Time:  time.Now(),
+	})
+}
+```
+
 ### Kafka Reference Implementation
 
 `software/assets/go_mq_patterns/pattern4_kafka/main.go`
@@ -477,6 +597,34 @@ flowchart TD
 - Slower overall processing
 - Requires DLQ monitoring
 - May need manual intervention
+
+### Core Code (Excerpt)
+
+Excerpt from [pattern5_retry_dlq/main.go](assets/go_mq_patterns/pattern5_retry_dlq/main.go) — the retry-or-DLQ decision, with a non-blocking requeue so `Stop()` cannot deadlock:
+
+```go
+func (q *RetryableQueue) handleMessage(workerID int, msg Message) {
+	msg.Attempts++
+
+	if err := q.handler(msg); err != nil {
+		if msg.Attempts >= q.config.MaxRetries {
+			fmt.Printf("Message %s exceeded max retries, moving to DLQ\n", msg.ID)
+			q.dlq.Add(msg)
+		} else {
+			fmt.Printf("Message %s failed (attempt %d/%d), scheduling retry\n",
+				msg.ID, msg.Attempts, q.config.MaxRetries)
+			// Never block forever here: if Stop() is running, drop the retry
+			// instead of waiting on a queue nobody will drain anymore.
+			select {
+			case q.retryQueue <- msg:
+			case <-q.stopCh:
+			}
+		}
+	} else {
+		fmt.Printf("Message %s processed successfully\n", msg.ID)
+	}
+}
+```
 
 ### DLQ Reference Implementation
 

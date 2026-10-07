@@ -4,18 +4,37 @@
 > **🎯 Level**: Intermediate
 > **💻 Environment**: Go 1.22+, any OS
 >
-> **📖 Reference catalog**: Each pattern is self-contained — jump straight to the pattern you need; you do not have to read this document cover to cover.
+> **📖 Reference catalog**: This document is a reference catalog, not a step-by-step hands-on guide. Each pattern is self-contained — jump straight to the pattern you need. Every pattern section pairs a core-code excerpt (quoted verbatim from the companion asset) with the path of its runnable reference implementation.
 
 [English](go_cache_patterns_en.md) | [日本語](go_cache_patterns_ja.md)
 
 ## Table of Contents
 
+- [How to Use This Catalog](#how-to-use-this-catalog)
 - [Understanding Cache Systems and Cache Tools](#understanding-cache-systems-and-cache-tools)
 - [Pattern 1: Thread-Safe In-Memory TTL Cache](#pattern-1-thread-safe-in-memory-ttl-cache)
 - [Pattern 2: LRU Cache with Bounded Memory](#pattern-2-lru-cache-with-bounded-memory)
 - [Pattern 3: Cache-Aside with Singleflight Protection](#pattern-3-cache-aside-with-singleflight-protection)
 - [Pattern 4: Distributed Redis Cache with Go-Redis](#pattern-4-distributed-redis-cache-with-go-redis)
 - [Pattern 5: Write-Through Cache Pattern](#pattern-5-write-through-cache-pattern)
+
+---
+
+## How to Use This Catalog
+
+This document is a **reference catalog**, not a hands-on tutorial: there is no environment to set up and nothing to build here. Each pattern section explains the concept, then shows the core code excerpted verbatim from the companion asset, followed by the full implementation path.
+
+For a hands-on exercise with a real distributed cache, see [Redis Workshop: Real-time Game Leaderboard](../infra/cache_en.md). The sibling catalog [Message Queue Patterns in Go](go_mq_patterns_en.md) covers the messaging side.
+
+### Companion Assets
+
+| Pattern                                     | Reference implementation                                                                                        |
+| :------------------------------------------ | :-------------------------------------------------------------------------------------------------------------- |
+| 1. Thread-Safe In-Memory TTL Cache          | [pattern1_ttl_cache/main.go](assets/go_cache_patterns/pattern1_ttl_cache/main.go)                               |
+| 2. LRU Cache with Bounded Memory            | [pattern2_lru_cache/main.go](assets/go_cache_patterns/pattern2_lru_cache/main.go)                               |
+| 3. Cache-Aside with Singleflight Protection | [pattern3_cache_aside_singleflight/main.go](assets/go_cache_patterns/pattern3_cache_aside_singleflight/main.go) |
+| 4. Distributed Redis Cache with Go-Redis    | [pattern4_redis_cache/main.go](assets/go_cache_patterns/pattern4_redis_cache/main.go)                           |
+| 5. Write-Through Cache Pattern              | [pattern5_write_through/main.go](assets/go_cache_patterns/pattern5_write_through/main.go)                       |
 
 ---
 
@@ -257,6 +276,38 @@ Typical use cases:
 - No LRU eviction
 - Expiration control relies entirely on TTL values
 
+### Core Code (Excerpt)
+
+Excerpt from [pattern1_ttl_cache/main.go](assets/go_cache_patterns/pattern1_ttl_cache/main.go) — lazy expiration check on `Get`:
+
+```go
+type cacheEntry struct {
+	value     []byte
+	expiresAt time.Time
+}
+
+type TTLCache struct {
+	mu    sync.Mutex
+	items map[string]cacheEntry
+}
+
+// ... (NewTTLCache and Set omitted — see the full file) ...
+
+func (c *TTLCache) Get(key string) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.items[key]
+	if !ok {
+		return nil, false
+	}
+	if !time.Now().Before(entry.expiresAt) {
+		delete(c.items, key)
+		return nil, false
+	}
+	return bytes.Clone(entry.value), true
+}
+```
+
 ### Reference Implementation
 
 `software/assets/go_cache_patterns/pattern1_ttl_cache/main.go`
@@ -308,6 +359,40 @@ The `container/list` package provides O(1) operations for:
 - Eviction
 
 This makes the pattern production-ready for **memory-constrained environments**.
+
+### Core Code (Excerpt)
+
+Excerpt from [pattern2_lru_cache/main.go](assets/go_cache_patterns/pattern2_lru_cache/main.go) — capacity check and eviction on `Put`:
+
+```go
+func (c *LRUCache) Put(key string, value []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if element, ok := c.items[key]; ok {
+		element.Value = lruEntry{key: key, value: bytes.Clone(value)}
+		c.order.MoveToFront(element)
+		return
+	}
+
+	element := c.order.PushFront(lruEntry{key: key, value: bytes.Clone(value)})
+	c.items[key] = element
+
+	if c.order.Len() > c.capacity {
+		c.removeOldest()
+	}
+}
+
+func (c *LRUCache) removeOldest() {
+	tail := c.order.Back()
+	if tail == nil {
+		return
+	}
+	entry := tail.Value.(lruEntry)
+	delete(c.items, entry.key)
+	c.order.Remove(tail)
+}
+```
 
 ### LRU Reference Implementation
 
@@ -373,6 +458,43 @@ If 200 goroutines request the same uncached key simultaneously:
 - Stable response times
 - Graceful traffic spike handling
 
+### Core Code (Excerpt)
+
+Excerpt from [pattern3_cache_aside_singleflight/main.go](assets/go_cache_patterns/pattern3_cache_aside_singleflight/main.go) — `DoChan` collapses concurrent cache misses into one store fetch:
+
+```go
+func (c *CacheAside) Get(ctx context.Context, key string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if value, ok := c.cache.Get(key); ok {
+		return value, nil
+	}
+
+	// singleflight collapses concurrent cache misses into one store fetch.
+	result := c.group.DoChan(key, func() (interface{}, error) {
+		if value, ok := c.cache.Get(key); ok {
+			return value, nil
+		}
+		fresh, err := c.store.Fetch(ctx, key)
+		if err != nil {
+			return "", err
+		}
+		c.cache.Set(key, fresh, c.cacheT)
+		return fresh, nil
+	})
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case r := <-result:
+		if r.Err != nil {
+			return "", r.Err
+		}
+		return r.Val.(string), nil
+	}
+}
+```
+
 ### Cache-Aside Reference Implementation
 
 `software/assets/go_cache_patterns/pattern3_cache_aside_singleflight/main.go`
@@ -434,6 +556,36 @@ flowchart TD
 
 Minimal wrapper code required for production use.
 
+### Core Code (Excerpt)
+
+Excerpt from [pattern4_redis_cache/main.go](assets/go_cache_patterns/pattern4_redis_cache/main.go) — JSON serialization plus native TTL on write, `redis.Nil` treated as a cache miss on read:
+
+```go
+func SetUser(ctx context.Context, client *redis.Client, user User, ttl time.Duration) error {
+	payload, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+	return client.Set(ctx, cacheKey(user.ID), payload, ttl).Err()
+}
+
+func GetUser(ctx context.Context, client *redis.Client, id string) (User, bool, error) {
+	value, err := client.Get(ctx, cacheKey(id)).Result()
+	if err == redis.Nil {
+		return User{}, false, nil
+	}
+	if err != nil {
+		return User{}, false, err
+	}
+
+	var user User
+	if err := json.Unmarshal([]byte(value), &user); err != nil {
+		return User{}, false, err
+	}
+	return user, true, nil
+}
+```
+
 ### Redis Reference Implementation
 
 `software/assets/go_cache_patterns/pattern4_redis_cache/main.go`
@@ -487,6 +639,31 @@ flowchart TD
 - Slower write operations
 - Cache must be available
 - Increased write latency
+
+### Core Code (Excerpt)
+
+Excerpt from [pattern5_write_through/main.go](assets/go_cache_patterns/pattern5_write_through/main.go) — one mutex serializes the complete store/cache operation; the database is updated before the cache on every write:
+
+```go
+type writeThroughCache struct {
+	// Serialize the complete store/cache operation, including read-through fills.
+	mu    sync.Mutex
+	store *memoryStore
+	cache *memoryCache
+}
+
+// ... (newWriteThroughCache omitted — see the full file) ...
+
+func (w *writeThroughCache) Put(key string, value record) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.store.Put(key, value); err != nil {
+		return err
+	}
+	w.cache.Set(key, value)
+	return nil
+}
+```
 
 ### Write-Through Reference Implementation
 

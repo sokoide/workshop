@@ -18,77 +18,19 @@ The BBS in this workshop is a simple 3-tier bulletin board: Boards → Threads �
 ### About "sage" and Thread Bumping
 
 This BBS implements a 2channel-style "thread bumping" mechanism.
+For the API specification and the `sage` request parameter, refer to the [BBS README (Japanese)](assets/bbs/README_ja.md#レスの投稿).
 
-| Term     | Meaning | Behavior                                     |
-| :------- | :------ | :------------------------------------------- |
-| **age**  | "raise" | Updates `LastPostedAt`, moving thread to top |
-| **sage** | "lower" | Does NOT update `LastPostedAt`               |
-
-**Default behavior:**
-
-- `sage: false` or omitted → **bump** (thread floats to top)
-- `sage: true` → **no bump** (thread stays in place)
-
-**Thread list ordering:**
-
-```sql
-ORDER BY last_posted_at DESC  -- Most recently active threads appear first
-```
-
-**Concrete example:**
-
-```bash
-# 1. Three threads created: Ruby, Python, Go
-#    List: Ruby(10:00) → Python(10:05) → Go(10:10)
-
-# 2. Post a bump reply to Ruby thread (sage: false)
-curl -X POST localhost:8080/api/threads/3/posts -d '{"author":"A","body":"hello"}'
-#    Ruby's LastPostedAt updates to now → floats to top
-#    List: Ruby(10:15) ← bumped! → Go(10:10) → Python(10:05)
-
-# 3. Post a no-bump reply to Python thread (sage: true)
-curl -X POST localhost:8080/api/threads/2/posts -d '{"author":"B","body":"sage","sage":true}'
-#    Python's LastPostedAt remains old → position unchanged
-#    List: Ruby(10:15) → Go(10:10) → Python(10:05) ← stays put
-```
-
-**When to use:**
-
-- **bump (default)**: When you want to indicate "this conversation is active"
-- **no bump (sage)**: For minor updates, corrections, or when you don't want to disturb older threads
-
-**Implementation logic:**
-
-```go
-// Thread.Bump() - Updates the thread's last post timestamp
-func (t *Thread) Bump(postedAt time.Time, sage bool) {
-    t.PostCount++
-    if !sage {  // Only update if NOT sage
-        t.LastPostedAt = postedAt
-    }
-}
-```
-
-Note: The first post in a new thread is always a bump, so new threads appear at the top of the list.
+> **Summary**: `age` ("raise") bumps the thread to the top of the list by updating `LastPostedAt`; `sage` ("lower") does not update it, so the thread stays in place. The default (`sage: false` or omitted) is a bump.
 
 ---
 
 ## BBS Project Structure and Dependencies
 
-### Interface (Port) List and Placement Criteria
+The BBS follows the 3-layer variant (Adapters / UseCases / Domain) described in [clean_arch.md](./clean_arch_en.md): dependencies point inward — Presentation Adapters call UseCases, and Infrastructure Adapters implement ports owned by UseCases or Domain. Presentation and Infra Adapters never depend on each other directly; only the Composition Root (`cmd/bbs/main.go`) knows the whole picture and decides which Infra implementation and which Presentation to wire together. For the layer diagram, dependency matrix, and layer definitions, see [Layer Structure and Dependencies](./clean_arch_en.md#layer-structure-and-dependencies); for the BBS-specific composition diagram, see the [BBS README](assets/bbs/README_ja.md#アーキテクチャ構成図).
 
-The "abstractions" (Ports) at the core of Clean Architecture are categorized based on their dependency on domain invariants:
+### Ports in the BBS Project
 
-- **Domain Ports**: Placed in the Domain layer if removing the interface would break the domain model's ability to enforce invariants (e.g., a domain policy port such as `PricingPolicy`).
-- **UseCase Ports**: Placed in the UseCase layer if the concern is application orchestration (e.g., persistence or transaction boundary control) rather than core domain rules.
-
-#### Domain Ports (Domain Layer)
-
-None exist in the BBS project. Its Domain layer (entities and domain errors) enforces business invariants on its own, so it defines no port abstractions. In other projects, ports that express domain policies (e.g., `PricingPolicy`) would be placed here.
-
-#### UseCase Ports (UseCase Layer)
-
-The BBS defines all of its ports in the UseCase layer. Persistence and transaction boundaries are capabilities needed to complete an application workflow — not part of the core domain language — so the interfaces are owned by the UseCase layer.
+The Domain layer defines no ports — its entities and domain errors enforce business invariants on their own. All ports are owned by the UseCase layer because persistence and transaction boundaries are capabilities needed to complete an application workflow, not part of the core domain language. For the placement criteria, see [Port Ownership Guidance](./clean_arch_en.md#port-ownership-guidance).
 
 | File                              | Interface            | Purpose                                            |
 | :-------------------------------- | :------------------- | :------------------------------------------------- |
@@ -97,188 +39,16 @@ The BBS defines all of its ports in the UseCase layer. Persistence and transacti
 |                                   | `PostRepository`     | Post persistence (reconstitutes Domain entities)   |
 | `internal/usecase/transaction.go` | `TransactionManager` | Transaction boundary control                       |
 
-```go
-// internal/usecase/repository.go
-// Repository ports are owned by the application workflows that need them.
-type BoardRepository interface {
-    FindAll(ctx context.Context) ([]*entity.Board, error)
-    FindByName(ctx context.Context, name string) (*entity.Board, error)
-    Save(ctx context.Context, board *entity.Board) error
-}
-```
+### Error Boundaries
 
-### Complete Dependency Diagram
-
-```text
-                   ┌───────────────────────────────────────────┐
-                   │  cmd/bbs/main.go (Composition Root)       │
-                   │  ───────────────────────────────────────  │
-                   │  func main() {                            │
-                   │      // 1. Build Infra                    │
-                   │      boardRepo := sqlite.NewBoardRepo()   │
-                   │      // 2. Build UseCase                  │
-                   │      listThreads := usecase.New(...)      │
-                   │         └── inject boardRepo              │
-                   │      // 3. Build Presentation             │
-                   │      handler := NewHandler(listThreads)   │
-                   │         └── inject listThreads            │
-                   │      // 4. Start server                   │
-                   │      http.Serve(router)                   │
-                   │  }                                        │
-                   └───────────────────────────────────────────┘
-                              │
-                 ┌────────────┼────────────┐
-                 │            │            │
-                 ↓            ↓            ↓
-        ┌────────────┐  ┌────────────┐  ┌─────────────┐
-        │   Infra    │  │  UseCase   │  │ Presentation│
-        │  Adapter   │  │   Layer    │  │    Layer    │
-        └──────┬─────┘  └──────┬─────┘  └──────┬──────┘
-               │               │               │
-               │               │               │
-┌──────────────┴───────────────┴───────────────┴─────────────────────┐
-│                   INTERNAL/DOMAIN + USECASE                        │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/domain/entity/board.go, thread.go, post.go         │  │
-│  │  ─────────────────────────────────────────────────────────   │  │
-│  │  type Board struct { ID, Name, Description, CreatedAt }      │  │
-│  │  type Thread struct { ... }                                  │  │
-│  │  type Post struct { ... }                                    │  │
-│  │                                                              │  │
-│  │  // Domain Logic example                                     │  │
-│  │  func (t *Thread) Bump(postedAt time.Time, sage bool) {      │  │
-│  │      t.PostCount++                                           │  │
-│  │      if !sage { t.LastPostedAt = postedAt }                  │  │
-│  │  }                                                           │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                                                                    │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/usecase/repository.go     ← UseCase Port           │  │
-│  │  type BoardRepository interface { ... }                      │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────┘
-               ↑ implements
-┌──────────────┴───────────────┐
-│  internal/adapters/infra/persistence/ │
-│  sqlite/board_repo.go        │  ← Infra Adapter (concrete impl)
-│  func (r *BoardRepository)   │     (implements UseCase Port)
-│  FindByName(...) {           │
-│     SELECT ... WHERE name = ?│
-│  }                           │
-└──────────────────────────────┘
-```
-
-### Dependency Direction by Layer
-
-```text
-           ┌─────────────────────────────────────┐
-           │         Adapters Layer              │
-           │  ┌────────────┐ ┌────────────────┐  │
-           │  │Presentation│ │ Infrastructure │  │
-           │  │ (Inbound)  │ │  (Outbound)    │  │
-           │  │HTTP/gRPC/  │ │  DB/External   │  │
-           │  │  CLI       │ │    APIs        │  │
-           │  └──────┬─────┘ └────────────────┘  │
-           └─────────┼───────────────────────────┘
-                     │ depends on
-                     ↓
-           ┌─────────────┐
-           │   UseCase   │  ← Application logic
-           └──────┬──────┘
-                  │ depends on
-                  ↓
-           ┌────────────────────────────────────┐
-           │         Domain Layer               │
-           │  Entity + Domain Logic             │  ← Innermost
-           └────────────────────────────────────┘
-                  ↑ implements
-           Infrastructure Adapters (implement Domain/UseCase Ports)
-```
-
-### Error Boundary Flow
-
-In Clean Architecture, errors are also transformed as they cross layer boundaries.
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│ Infra Adapter Layer                                                │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ func (r *ThreadRepo) FindByID(...) {                         │  │
-│  │     err := db.QueryRow(...)                                  │  │
-│  │     if errors.Is(err, sql.ErrNoRows) {                       │  │
-│  │         return nil, domain.ErrThreadNotFound  // ← Convert  │  │
-│  │     }                                                        │  │
-│  │ }                                                            │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │ returns domain error
-                                ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│ UseCase Layer                                                      │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ func (u *CreatePostUseCase) Execute(...) {                  │  │
-│  │     thread, err := u.threadRepo.FindByID(...)               │  │
-│  │     // err is domain.ErrThreadNotFound or other domain errs  │  │
-│  │     return nil, err  // ← Propagate as-is                   │  │
-│  │ }                                                            │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │ returns domain error
-                                ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│ Presentation Layer (HTTP)                                              │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ if errors.Is(err, domain.ErrThreadNotFound) {                │  │
-│  │     writeError(w, http.StatusNotFound, err.Error())  // ← Convert │  │
-│  │ }                                                            │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-**Key points**:
-
-- **Infra Adapter**: Converts driver errors (e.g., `sql.ErrNoRows`) to domain errors (e.g., `domain.ErrThreadNotFound`)
-- **UseCase**: Propagates domain errors as-is (unaware of technical details)
-- **Presentation**: Converts domain errors to transport errors (HTTP 404, gRPC NotFound)
-
-With each layer handling error conversion, upper layers don't need to know about lower-level technical details.
-
-### Key Points
-
-1. **UseCase doesn't know concrete implementations**: Depends on the `BoardRepository` interface (owned by the UseCase layer), not `sqlite.BoardRepository` (concrete type)
-2. **Infra implements UseCase Ports**: `internal/adapters/infra/persistence/sqlite/` implements the port interfaces from `internal/usecase/`
-3. **Presentation and Infra Adapters are not directly related**: Both are part of the Adapters layer but split by direction, connected indirectly through UseCase
-4. **Only Composition Root (main.go) knows the whole picture**: Decides which Infra implementation and which Presentation to use
-
-```go
-// UseCase depends on Interface (not concrete)
-type ListThreadsUseCase struct {
-    boardRepo BoardRepository  // ← interface owned by UseCase, not sqlite.*
-}
-
-// Infra implements Interface
-type BoardRepository struct {
-    db *sql.DB
-}
-
-func (r *BoardRepository) FindByName(...) {  // ← implements Interface
-    // SQLite-specific SQL
-}
-```
+Errors are transformed as they cross layer boundaries: the Infra Adapter converts driver errors (`sql.ErrNoRows`) to domain errors (`domain.ErrThreadNotFound`), the UseCase propagates domain errors as-is, and the Presentation Adapter converts them to transport errors (HTTP 404 / gRPC `NotFound`). For the full rules, see [Error Boundary Rules](./clean_arch_en.md#error-boundary-rules).
 
 ---
 
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
-You should understand the 3-layer variant (Adapters / UseCases / Domain):
-
-```text
-Presentation Adapters ──→ UseCases ──→ Domain
-                            ↑              ↑
-                        Infrastructure Adapters
-        implements ports owned by UseCases or Domain
-```
+You should understand the 3-layer variant (Adapters / UseCases / Domain) — see [Layer Structure and Dependencies](./clean_arch_en.md#layer-structure-and-dependencies).
 
 Checklist before starting:
 

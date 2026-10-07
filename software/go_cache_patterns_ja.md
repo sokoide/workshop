@@ -4,18 +4,37 @@
 > **🎯 レベル**: Intermediate
 > **💻 環境**: Go 1.22+、OS 不問
 >
-> **📖 参照カタログ**: 各パターンは独立した内容です。必要なパターンだけをピックアップして読んでください。通し読みは不要です。
+> **📖 参照カタログ**: 本書はステップバイステップのハンズオンではなく、リファレンス型（カタログ）です。各パターンは独立した内容なので、必要なパターンだけをピックアップして読んでください。各パターンのセクションでは、対応アセットからそのまま抜粋した核心コードと、実行可能なリファレンス実装のパスを併記します。
 
 [English](go_cache_patterns_en.md) | [日本語](go_cache_patterns_ja.md)
 
 ## 目次
 
+- [このカタログの使い方](#このカタログの使い方)
 - [キャッシュシステムとツールの理解](#キャッシュシステムとツールの理解)
 - [パターン1: スレッドセーフなインメモリTTLキャッシュ](#パターン1-スレッドセーフなインメモリttlキャッシュ)
 - [パターン2: メモリ制限付きLRUキャッシュ](#パターン2-メモリ制限付きlruキャッシュ)
 - [パターン3: Singleflight保護付きキャッシュアサイド](#パターン3-singleflight保護付きキャッシュアサイド)
 - [パターン4: Go-Redisによる分散Redisキャッシュ](#パターン4-go-redisによる分散redisキャッシュ)
 - [パターン5: ライトスルーキャッシュパターン](#パターン5-ライトスルーキャッシュパターン)
+
+---
+
+## このカタログの使い方
+
+本書は**リファレンス型（カタログ）**であり、ハンズオン形式ではありません。セットアップすべき環境もビルドするものもありません。各パターンのセクションでは概念を解説した後、対応アセットからそのまま抜粋した核心コードと、完全な実装のパスを示します。
+
+実際の分散キャッシュを使ったハンズオンは [Redis 実習：Sorted Sets で作るリアルタイム・ゲームランキング](../infra/cache_ja.md) を参照してください。メッセージング側のカタログは [Go言語におけるメッセージキューパターン](go_mq_patterns_ja.md) です。
+
+### 対応アセット
+
+| パターン                                   | リファレンス実装                                                                                                |
+| :----------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
+| 1. スレッドセーフなインメモリTTLキャッシュ | [pattern1_ttl_cache/main.go](assets/go_cache_patterns/pattern1_ttl_cache/main.go)                               |
+| 2. メモリ制限付きLRUキャッシュ             | [pattern2_lru_cache/main.go](assets/go_cache_patterns/pattern2_lru_cache/main.go)                               |
+| 3. Singleflight保護付きキャッシュアサイド  | [pattern3_cache_aside_singleflight/main.go](assets/go_cache_patterns/pattern3_cache_aside_singleflight/main.go) |
+| 4. Go-Redisによる分散Redisキャッシュ       | [pattern4_redis_cache/main.go](assets/go_cache_patterns/pattern4_redis_cache/main.go)                           |
+| 5. ライトスルーキャッシュパターン          | [pattern5_write_through/main.go](assets/go_cache_patterns/pattern5_write_through/main.go)                       |
 
 ---
 
@@ -257,6 +276,38 @@ flowchart TD
 - LRU（Least Recently Used）エビクション（追い出し）がない
 - 有効期限管理は完全に TTL 値に依存する
 
+### 核心コード（抜粋）
+
+[pattern1_ttl_cache/main.go](assets/go_cache_patterns/pattern1_ttl_cache/main.go) より抜粋 —— `Get` 時の遅延有効期限チェック：
+
+```go
+type cacheEntry struct {
+	value     []byte
+	expiresAt time.Time
+}
+
+type TTLCache struct {
+	mu    sync.Mutex
+	items map[string]cacheEntry
+}
+
+// ... (NewTTLCache と Set は省略 — 全文は asset を参照) ...
+
+func (c *TTLCache) Get(key string) ([]byte, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.items[key]
+	if !ok {
+		return nil, false
+	}
+	if !time.Now().Before(entry.expiresAt) {
+		delete(c.items, key)
+		return nil, false
+	}
+	return bytes.Clone(entry.value), true
+}
+```
+
 ### リファレンス実装
 
 `software/assets/go_cache_patterns/pattern1_ttl_cache/main.go`
@@ -308,6 +359,40 @@ flowchart TD
 - 追い出し (Eviction)
 
 これにより、**メモリ制約のある環境**でもプロダクション利用に耐えうるパターンとなります。
+
+### 核心コード（抜粋）
+
+[pattern2_lru_cache/main.go](assets/go_cache_patterns/pattern2_lru_cache/main.go) より抜粋 —— `Put` 時の容量チェックとエビクション：
+
+```go
+func (c *LRUCache) Put(key string, value []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if element, ok := c.items[key]; ok {
+		element.Value = lruEntry{key: key, value: bytes.Clone(value)}
+		c.order.MoveToFront(element)
+		return
+	}
+
+	element := c.order.PushFront(lruEntry{key: key, value: bytes.Clone(value)})
+	c.items[key] = element
+
+	if c.order.Len() > c.capacity {
+		c.removeOldest()
+	}
+}
+
+func (c *LRUCache) removeOldest() {
+	tail := c.order.Back()
+	if tail == nil {
+		return
+	}
+	entry := tail.Value.(lruEntry)
+	delete(c.items, entry.key)
+	c.order.Remove(tail)
+}
+```
 
 ### LRUリファレンス実装
 
@@ -373,6 +458,43 @@ flowchart TD
 - 安定したレスポンスタイム
 - トラフィックスパイクの優雅な処理
 
+### 核心コード（抜粋）
+
+[pattern3_cache_aside_singleflight/main.go](assets/go_cache_patterns/pattern3_cache_aside_singleflight/main.go) より抜粋 —— `DoChan` が並行するキャッシュミスを 1 回のストアフェッチに集約：
+
+```go
+func (c *CacheAside) Get(ctx context.Context, key string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if value, ok := c.cache.Get(key); ok {
+		return value, nil
+	}
+
+	// singleflight collapses concurrent cache misses into one store fetch.
+	result := c.group.DoChan(key, func() (interface{}, error) {
+		if value, ok := c.cache.Get(key); ok {
+			return value, nil
+		}
+		fresh, err := c.store.Fetch(ctx, key)
+		if err != nil {
+			return "", err
+		}
+		c.cache.Set(key, fresh, c.cacheT)
+		return fresh, nil
+	})
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case r := <-result:
+		if r.Err != nil {
+			return "", r.Err
+		}
+		return r.Val.(string), nil
+	}
+}
+```
+
 ### キャッシュアサイドのリファレンス実装
 
 `software/assets/go_cache_patterns/pattern3_cache_aside_singleflight/main.go`
@@ -434,6 +556,36 @@ flowchart TD
 
 本番利用に必要なラッパーコードは最小限で済みます。
 
+### 核心コード（抜粋）
+
+[pattern4_redis_cache/main.go](assets/go_cache_patterns/pattern4_redis_cache/main.go) より抜粋 —— 書き込み時の JSON シリアライズとネイティブ TTL、読み取り時の `redis.Nil` をキャッシュミスとして扱う処理：
+
+```go
+func SetUser(ctx context.Context, client *redis.Client, user User, ttl time.Duration) error {
+	payload, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+	return client.Set(ctx, cacheKey(user.ID), payload, ttl).Err()
+}
+
+func GetUser(ctx context.Context, client *redis.Client, id string) (User, bool, error) {
+	value, err := client.Get(ctx, cacheKey(id)).Result()
+	if err == redis.Nil {
+		return User{}, false, nil
+	}
+	if err != nil {
+		return User{}, false, err
+	}
+
+	var user User
+	if err := json.Unmarshal([]byte(value), &user); err != nil {
+		return User{}, false, err
+	}
+	return user, true, nil
+}
+```
+
 ### Redisリファレンス実装
 
 `software/assets/go_cache_patterns/pattern4_redis_cache/main.go`
@@ -487,6 +639,31 @@ flowchart TD
 - 書き込み操作が遅くなる
 - キャッシュが利用可能である必要がある
 - 書き込みレイテンシの増加
+
+### 核心コード（抜粋）
+
+[pattern5_write_through/main.go](assets/go_cache_patterns/pattern5_write_through/main.go) より抜粋 —— 1 つの Mutex でストアとキャッシュの操作全体を直列化し、書き込みごとにデータベースを先に更新：
+
+```go
+type writeThroughCache struct {
+	// Serialize the complete store/cache operation, including read-through fills.
+	mu    sync.Mutex
+	store *memoryStore
+	cache *memoryCache
+}
+
+// ... (newWriteThroughCache は省略 — 全文は asset を参照) ...
+
+func (w *writeThroughCache) Put(key string, value record) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.store.Put(key, value); err != nil {
+		return err
+	}
+	w.cache.Set(key, value)
+	return nil
+}
+```
 
 ### ライトスルーのリファレンス実装
 

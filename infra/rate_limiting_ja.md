@@ -347,7 +347,7 @@ func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, er
 - Lua スクリプトが Redis 上の各判断をアトミックにする理由と、その前提が崩れるケース（Redis Cluster）
 - Clean Architecture におけるレートリミッタの配置: インターフェースは Domain、アルゴリズムは Usecase（Redis は Usecase から直接アクセス）
 
-次のステップ: HTTP サーバーにレートリミッターを適用する（`web_security_ja.md`）、キャッシュとの組み合わせ（`cache_ja.md`）。
+次のステップ: HTTP サーバーにレートリミッターを適用する（`web_security_defense_ja.md`）、キャッシュとの組み合わせ（`cache_ja.md`）。
 
 ---
 

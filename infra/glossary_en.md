@@ -436,6 +436,15 @@ A stall that occurs when data queued earlier blocks data queued later on the sam
 
 ## <a name="architecture"></a>Architecture & IaC Terms
 
+### Clean Architecture
+
+A software design pattern that separates concerns into concentric layers (Domain, UseCase, Infra, Framework) with dependencies pointing inwards.
+
+```text
+Framework → UseCase → Domain ← Infra
+            (depends on)
+```
+
 ### IaC (Infrastructure as Code)
 
 The practice of managing infrastructure (servers, networks, cloud resources) through declarative code files instead of manual operations, enabling review, versioning, and reproducibility.
@@ -463,15 +472,6 @@ A key-distribution technique in which adding or removing a node remaps only a sm
 ---
 
 ## <a name="go"></a>Go Language Terms
-
-### Clean Architecture
-
-A software design pattern that separates concerns into concentric layers (Domain, UseCase, Infra, Framework) with dependencies pointing inwards.
-
-```text
-Framework → UseCase → Domain ← Infra
-            (depends on)
-```
 
 ### Context (context.Context)
 

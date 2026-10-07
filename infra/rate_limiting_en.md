@@ -347,7 +347,7 @@ In this asset, the Usecase limiters access Redis directly via `go-redis` — the
 - Why Lua scripts make each decision atomic on Redis, and when that assumption breaks (Redis Cluster)
 - How the limiter fits Clean Architecture: interface in Domain, algorithms in Usecase (Redis accessed directly from Usecase)
 
-Next steps: apply a limiter to an HTTP server (see `web_security_en.md` for protecting endpoints), and combine with caching (`cache_en.md`).
+Next steps: apply a limiter to an HTTP server (see `web_security_defense_en.md` for protecting endpoints), and combine with caching (`cache_en.md`).
 
 ---
 

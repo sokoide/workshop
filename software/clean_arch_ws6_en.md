@@ -12,6 +12,7 @@ You will experience the **new Port/Adapter pattern** — defining a new Port and
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
+The shared architecture foundations (3-layer variant, dependency rule, error boundaries) are described once in [clean_arch.md](./clean_arch_en.md#layer-structure-and-dependencies).
 
 Checklist before starting:
 

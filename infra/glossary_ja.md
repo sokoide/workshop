@@ -436,6 +436,15 @@ OS のネットワークスタックをバイパスして、生のパケット�
 
 ## <a name="architecture"></a>アーキテクチャ・IaC 用語
 
+### Clean Architecture
+
+関心を同心円状のレイヤー（Domain, UseCase, Infra, Framework）に分離し、依存関係を内側に向けるソフトウェア設計パターン。
+
+```text
+Framework → UseCase → Domain ← Infra
+            (depends on)
+```
+
 ### IaC (Infrastructure as Code)
 
 サーバー・ネットワーク・クラウドリソースなどのインフラを、手動操作ではなく宣言的なコードファイルで管理する手法。レビュー・バージョン管理・再現性が可能になる。
@@ -463,15 +472,6 @@ HashiCorp のオープンソース IaC ツール。設定ファイルから目�
 ---
 
 ## <a name="go"></a>Go 言語用語
-
-### Clean Architecture
-
-関心を同心円状のレイヤー（Domain, UseCase, Infra, Framework）に分離し、依存関係を内側に向けるソフトウェア設計パターン。
-
-```text
-Framework → UseCase → Domain ← Infra
-            (depends on)
-```
 
 ### Context (context.Context)
 

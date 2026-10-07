@@ -18,7 +18,7 @@
 ### sage と age について
 
 BBS 特有の「スレッドの浮上」仕様です。
-詳細な仕様、具体例、実装ロジックは [BBS README](assets/bbs/README_ja.md#sage-と-age-について) を参照してください。
+API 仕様と `sage` パラメータの詳細は [BBS README](assets/bbs/README_ja.md#レスの投稿) を参照してください。
 
 > **概要**: `age`（上げる）はスレッドを一覧の最上部に浮上させ、`sage`（下げる）は浮上させない仕様です。
 
@@ -26,18 +26,11 @@ BBS 特有の「スレッドの浮上」仕様です。
 
 ## BBS プロジェクトの構造と依存関係
 
-### Interface（Port）の一覧と配置基準
+BBS は [clean_arch.md](./clean_arch_ja.md) で説明する 3 層バリアント（Adapters / UseCases / Domain）に従います。依存関係は常に内側向きで、Presentation Adapters が UseCases を呼び、Infrastructure Adapters が UseCases / Domain 所有の Port を実装します。Presentation と Infra Adapters が直接依存し合うことはなく、全体像を知って具象実装を組み立てるのは Composition Root（`cmd/bbs/main.go`）だけです。レイヤー図・依存マトリクス・各レイヤーの定義は [レイヤー構造と依存関係](./clean_arch_ja.md#レイヤー構造と依存関係) を、BBS 固有の全体構成図は [BBS README](assets/bbs/README_ja.md#アーキテクチャ構成図) をそれぞれ参照してください。
 
-クリーンアーキテクチャの中核となる「抽象」（Port）の一覧です。
-インターフェースを除去したとき、ドメインモデルが不変条件（ビジネスルール）を強制できなくなるものは **Domain Port**（Domain 層帰属）とし、そうでないものは **UseCase Port**（UseCase 層帰属）とします（P1 配置基準）。
+### BBS プロジェクトの Port 構成
 
-#### Domain Port（Domain 層帰属）
-
-本プロジェクト（BBS）には該当する Port はありません。Domain 層（Entity と Domain Error）だけで不変条件を強制できるため、抽象は持たない設計です。ドメインポリシーを表す Port（例: `PricingPolicy`）が必要なプロジェクトでは、ここ（Domain 層）に配置します。
-
-#### UseCase Port（UseCase 層帰属）
-
-BBS の Port はすべて UseCase 層に定義されています。永続化もトランザクション境界も、コアドメイン言語の一部ではなくアプリケーションワークフローを完遂するために必要な機能であるため、Interface の所有者は UseCase 層です。
+Domain 層には Port がありません。Entity と Domain Error のみで不変条件を強制できるためです。BBS の Port はすべて UseCase 層が所有します。永続化もトランザクション境界も、コアドメイン言語の一部ではなくアプリケーションワークフローを完遂するために必要な機能だからです。配置基準の詳細は [Port 所有権のガイダンス](./clean_arch_ja.md#port-所有権のガイダンス) を参照してください。
 
 | ファイル                          | Interface            | 役割                                             |
 | :-------------------------------- | :------------------- | :----------------------------------------------- |
@@ -46,188 +39,16 @@ BBS の Port はすべて UseCase 層に定義されています。永続化も�
 |                                   | `PostRepository`     | 投稿の永続化（ドメインエンティティの再構成）     |
 | `internal/usecase/transaction.go` | `TransactionManager` | トランザクション境界の制御                       |
 
-```go
-// internal/usecase/repository.go
-// Repository ports are owned by the application workflows that need them.
-type BoardRepository interface {
-    FindAll(ctx context.Context) ([]*entity.Board, error)
-    FindByName(ctx context.Context, name string) (*entity.Board, error)
-    Save(ctx context.Context, board *entity.Board) error
-}
-```
+### エラー境界
 
-### 完全な依存関係図
-
-```text
-                   ┌───────────────────────────────────────────┐
-                   │  cmd/bbs/main.go (Composition Root)       │
-                   │  ───────────────────────────────────────  │
-                   │  func main() {                            │
-                   │      // 1. Infra を構築                   │
-                   │      boardRepo := sqlite.NewBoardRepo()   │
-                   │      // 2. UseCase を構築                 │
-                   │      listThreads := usecase.New(...)      │
-                   │         └── boardRepo を注入              │
-                   │      // 3. Presentation を構築            │
-                   │      handler := NewHandler(listThreads)   │
-                   │         └── listThreads を注入            │
-                   │      // 4. サーバー起動                   │
-                   │      http.Serve(router)                   │
-                   │  }                                        │
-                   └───────────────────────────────────────────┘
-                              │
-                 ┌────────────┼────────────┐
-                 │            │            │
-                 ↓            ↓            ↓
-        ┌────────────┐  ┌────────────┐  ┌─────────────┐
-        │   Infra    │  │  UseCase   │  │ Presentation│
-        │  Adapter   │  │   Layer    │  │    Layer    │
-        └──────┬─────┘  └──────┬─────┘  └──────┬──────┘
-               │               │               │
-               │               │               │
-┌──────────────┴───────────────┴───────────────┴─────────────────────┐
-│                   INTERNAL/DOMAIN + USECASE                        │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/domain/entity/board.go, thread.go, post.go         │  │
-│  │  ─────────────────────────────────────────────────────────   │  │
-│  │  type Board struct { ID, Name, Description, CreatedAt }      │  │
-│  │  type Thread struct { ... }                                  │  │
-│  │  type Post struct { ... }                                    │  │
-│  │                                                              │  │
-│  │  // Domain Logic の例                                        │  │
-│  │  func (t *Thread) Bump(postedAt time.Time, sage bool) {      │  │
-│  │      t.PostCount++                                           │  │
-│  │      if !sage { t.LastPostedAt = postedAt }                  │  │
-│  │  }                                                           │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                                                                    │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/usecase/repository.go     ← UseCase Port           │  │
-│  │  type BoardRepository interface { ... }                      │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────┘
-               ↑ implements
-┌──────────────┴───────────────┐
-│  internal/adapters/infra/persistence/ │
-│  sqlite/board_repo.go        │  ← Infra Adapter（具象実装）
-│  func (r *BoardRepository)   │     (UseCase Port を実装)
-│  FindByName(...) {           │
-│     SELECT ... WHERE name = ?│
-│  }                           │
-└──────────────────────────────┘
-```
-
-### 各レイヤーの依存方向
-
-```text
-           ┌─────────────────────────────────────┐
-           │         Adapters 層                 │
-           │  ┌────────────┐ ┌────────────────┐  │
-           │  │Presentation│ │ Infrastructure │  │
-           │  │ (入力側)   │ │  (出力側)      │  │
-           │  │HTTP/gRPC/  │ │  DB/外部API    │  │
-           │  │  CLI       │ │                │  │
-           │  └──────┬─────┘ └────────────────┘  │
-           └─────────┼───────────────────────────┘
-                     │ depends on
-                     ↓
-           ┌─────────────┐
-           │   UseCase   │  ← アプリケーションロジック
-           └──────┬──────┘
-                  │ depends on
-                  ↓
-           ┌────────────────────────────────────┐
-           │         Domain Layer               │
-           │  Entity + Domain Logic             │  ← 最内側
-           └────────────────────────────────────┘
-                  ↑ implements
-           Infrastructure Adapters（Domain/UseCase Port を実装）
-```
-
-### エラー境界の流れ
-
-Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換されます。
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│ Infra Adapter Layer                                                │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ func (r *ThreadRepo) FindByID(...) {                         │  │
-│  │     err := db.QueryRow(...)                                  │  │
-│  │     if errors.Is(err, sql.ErrNoRows) {                       │  │
-│  │         return nil, domain.ErrThreadNotFound  // ← 変換     │  │
-│  │     }                                                        │  │
-│  │ }                                                            │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │ returns domain error
-                                ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│ UseCase Layer                                                      │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ func (u *CreatePostUseCase) Execute(...) {                  │  │
-│  │     thread, err := u.threadRepo.FindByID(...)               │  │
-│  │     // err は domain.ErrThreadNotFound などのドメインエラー  │  │
-│  │     return nil, err  // ← そのまま上位へ                    │  │
-│  │ }                                                            │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │ returns domain error
-                                ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│ Presentation Layer (HTTP)                                              │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ if errors.Is(err, domain.ErrThreadNotFound) {                │  │
-│  │     writeError(w, http.StatusNotFound, err.Error())  // ← 変換│  │
-│  │ }                                                            │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-**重要なポイント**:
-
-- **Infra Adapter**: ドライバエラー（`sql.ErrNoRows`）をドメインエラー（`domain.ErrThreadNotFound`）に変換
-- **UseCase**: ドメインエラーをそのまま上位へ（技術詳細を知らない）
-- **Presentation**: ドメインエラーをトランスポートエラー（HTTP 404, gRPC NotFound）に変換
-
-このように各レイヤーがエラー変換の責務を持つことで、上位のレイヤーは下位の技術詳細を知る必要がなくなります。
-
-### キーポイント
-
-1. **UseCase は具象実装を知らない**: `sqlite.BoardRepository` ではなく、UseCase 層が所有する `BoardRepository`（Interface）に依存
-2. **Infra は UseCase Port を実装する**: `internal/adapters/infra/persistence/sqlite/` が `internal/usecase/` の Port（Interface）を実装
-3. **Presentation と Infra Adapters は直接関係しない**: どちらも Adapters 層の一部だが方向が異なり、UseCase を介して間接的に繋がる
-4. **Composition Root（main.go）だけが全体を知っている**: どの Infra 実装を使うか、どの Presentation を使うかをここで決定
-
-```go
-// UseCase は Interface に依存（具象を知らない）
-type ListThreadsUseCase struct {
-    boardRepo BoardRepository  // ← sqlite.* ではなく UseCase 層所有の Interface
-}
-
-// Infra は Interface を実装
-type BoardRepository struct {
-    db *sql.DB
-}
-
-func (r *BoardRepository) FindByName(...) {  // ← Interface を実装
-    // SQLite 固有の SQL
-}
-```
+エラーもレイヤー境界を跨ぐ際に変換されます。Infra Adapter はドライバエラー（`sql.ErrNoRows`）をドメインエラー（`domain.ErrThreadNotFound`）に変換し、UseCase はドメインエラーをそのまま上位へ伝播し、Presentation Adapter はトランスポートエラー（HTTP 404 / gRPC `NotFound`）に変換します。ルールの詳細は [エラー境界ルール](./clean_arch_ja.md#エラー境界ルール) を参照してください。
 
 ---
 
 ## 前提知識
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
-以下の 3 層バリアント（Adapters / UseCases / Domain）を理解していることが前提です。
-
-```text
-Presentation Adapters ──→ UseCases ──→ Domain
-                            ↑              ↑
-                        Infrastructure Adapters
-        implements ports owned by UseCases or Domain
-```
+3 層バリアント（Adapters / UseCases / Domain）を理解していることが前提です — [レイヤー構造と依存関係](./clean_arch_ja.md#レイヤー構造と依存関係) を参照してください。
 
 開始前のチェックリスト:
 

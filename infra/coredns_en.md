@@ -41,7 +41,7 @@ sequenceDiagram
 - [ ] `curl` and `tar`
 - [ ] `dig` (`sudo apt install -y dnsutils`)
 - [ ] sudo privileges on both VMs (installing the binary to `/usr/local/bin`)
-- Recommended: [TCP/IP Protocol Stack Workshop](tcpip_stack_en.md) to see how DNS queries travel over the network
+- Recommended: [TCP/IP Protocol Stack Workshop Part 2](tcpip_stack_udp_en.md) to see how DNS queries travel over the network as UDP datagrams
 
 ---
 

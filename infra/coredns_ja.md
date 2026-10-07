@@ -41,7 +41,7 @@ sequenceDiagram
 - [ ] `curl` と `tar`
 - [ ] `dig`（`sudo apt install -y dnsutils`）
 - [ ] 両 VM での sudo 権限（バイナリを `/usr/local/bin` に配置するため）
-- 推奨: DNS クエリがネットワーク上をどう流れるかは [TCP/IP プロトコルスタック実習](tcpip_stack_ja.md) を参照
+- 推奨: DNS クエリが UDP データグラムとしてネットワーク上をどう流れるかは [TCP/IP プロトコルスタック実習 パート 2](tcpip_stack_udp_ja.md) を参照
 
 ---
 

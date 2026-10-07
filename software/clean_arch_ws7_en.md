@@ -14,6 +14,7 @@ You will experience the **cross-cutting concern pattern** — adding authenticat
 - [ ] Basic idea of what a JWT is (see [OAuth2](../infra/oauth2_en.md) for a full OAuth2/OIDC flow — this workshop uses a single shared-secret JWT)
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
+The shared architecture foundations (3-layer variant, dependency rule, error boundaries) are described once in [clean_arch.md](./clean_arch_en.md#layer-structure-and-dependencies).
 
 ## Workshop Scenario
 

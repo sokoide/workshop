@@ -141,9 +141,7 @@ Keycloak 管理画面: `http://localhost:8080`
 - この実習では Go API が `access token` を検証するため、`Add to access token` を `On` にします
 - `Add to ID token = Off` は、ログイン確認用の ID token に audience を無理に入れないためです
 - `Add to lightweight access token = Off` は、軽量トークンにこの情報を載せない設定です。この実習では通常の access token を使うため `Off` のままで問題ありません
-- `Add to token introspection = On` は、トークン introspection を使う場合にも audience 情報を見えるようにする設定です
-- ただし、`Add to token introspection = On` は「この教材が introspection を使っている」という意味ではありません
-- この教材の Go API は introspection endpoint を呼ばず、JWKS を使って JWT を直接検証しています
+- `Add to token introspection = On` は、トークン introspection を使う場合にも audience 情報を見えるようにする設定です。ただし、この教材の Go API は introspection endpoint を呼ばず、JWKS を使って JWT を直接検証しています（詳細は [トークンの種類と Introspection](#トークンの種類と-introspection)）
 
 ## トークンの種類と Introspection
 
@@ -239,9 +237,7 @@ Introspection の特徴:
 
 `Add to token introspection = On` の意味:
 
-- introspection レスポンスにも audience 情報を載せる設定です
-- この実習の Go API は introspection を使っていませんが、将来 introspection 方式に切り替えても情報が揃いやすくなります
-- つまり「introspection 用の情報を載せる設定」を `On` にしているだけで、「毎回 Keycloak に問い合わせている」わけではありません
+- introspection レスポンスにも audience 情報を載せる設定です。Mapper 設定時の補足のとおりこの教材の Go API は introspection を使っておらず、この設定は将来 introspection 方式に切り替えた場合に備えて情報を揃えておくためのものです
 
 ### この実習では何を使っているか
 
@@ -339,11 +335,7 @@ JWT の header にある `kid` は **Key ID** のことです。どの鍵で署�
 
 あります。たとえば Resource Server が JWT を自前検証せず、`token introspection` で Keycloak に毎回問い合わせる方式では、Keycloak 側に対して client 認証が必要になることがあります。
 
-補足:
-
-- この教材では `Add to token introspection = On` にしていますが、実際に introspection endpoint は使っていません
-- 使っているのは JWKS による JWT 直接検証です
-- そのため、Keycloak への client 認証情報なしで API を起動できます
+補足: この教材では `Add to token introspection = On` にしていますが、実際に introspection endpoint は使っていません（[トークンの種類と Introspection](#トークンの種類と-introspection) 参照）。使っているのは JWKS による JWT 直接検証で、そのため Keycloak への client 認証情報なしで API を起動できます。
 
 整理すると:
 
