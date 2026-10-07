@@ -3,6 +3,7 @@ package vault
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -56,20 +57,21 @@ func NewClient(cfg *Config) (*vaultapi.Client, error) {
 }
 
 // WaitForVault waits for Vault to be ready with a timeout.
+//
+// A Vault is considered ready when /v1/sys/health returns
+// 200 (initialized, unsealed, active) or 429 (unsealed standby).
+// 501/503 (uninitialized/sealed) are not ready and are retried.
 func WaitForVault(addr string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	client := &vaultapi.Client{}
 
 	for time.Now().Before(deadline) {
 		config := vaultapi.DefaultConfig()
 		config.Address = addr
 
-		var err error
-		client, err = vaultapi.NewClient(config)
+		client, err := vaultapi.NewClient(config)
 		if err == nil {
-			// Try to ping Vault
-			_, err = client.RawRequest(client.NewRequest("GET", "/v1/sys/health"))
-			if err == nil {
+			ready, err := vaultHealthy(client)
+			if err == nil && ready {
 				return nil
 			}
 		}
@@ -78,4 +80,26 @@ func WaitForVault(addr string, timeout time.Duration) error {
 	}
 
 	return fmt.Errorf("vault did not become ready within %v", timeout)
+}
+
+// vaultHealthy reports whether Vault can serve requests, based on
+// the /v1/sys/health status code.
+func vaultHealthy(client *vaultapi.Client) (bool, error) {
+	resp, err := client.RawRequest(client.NewRequest("GET", "/v1/sys/health"))
+	if resp != nil {
+		defer resp.Body.Close() // RawRequest returns the response even on error
+	}
+	if err != nil {
+		// RawRequest reports 501 (uninitialized) and 503 (sealed) as errors;
+		// retry until ready. A 429 reply on /v1/sys/health (unsealed standby)
+		// is NOT an error in the vault API library.
+		return false, err
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusTooManyRequests: // 200: active, 429: unsealed standby
+		return true, nil
+	default:
+		return false, nil
+	}
 }

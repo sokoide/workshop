@@ -27,24 +27,22 @@ BBS 特有の「スレッドの浮上」仕様です。
 
 #### Domain Port（Domain 層帰属）
 
-これらはドメインモデルの不変条件の強制や、エンティティ・集約の再構成に不可欠なため、Domain 層に定義します。
-
-| ファイル                             | Interface          | 役割                                             |
-| :----------------------------------- | :----------------- | :----------------------------------------------- |
-| `internal/domain/port/repository.go` | `BoardRepository`  | 掲示板の永続化（ドメインエンティティの再構成）   |
-|                                      | `ThreadRepository` | スレッドの永続化（ドメインエンティティの再構成） |
-|                                      | `PostRepository`   | 投稿の永続化（ドメインエンティティの再構成）     |
+本プロジェクト（BBS）には該当する Port はありません。Domain 層（Entity と Domain Error）だけで不変条件を強制できるため、抽象は持たない設計です。ドメインポリシーを表す Port（例: `PricingPolicy`）が必要なプロジェクトでは、ここ（Domain 層）に配置します。
 
 #### UseCase Port（UseCase 層帰属）
 
-トランザクション境界の制御は、ビジネスルールそのものではなく、ユースケースのオーケストレーション（アプリケーション制御）の関心事であるため、UseCase 層に定義します。
+BBS の Port はすべて UseCase 層に定義されています。永続化もトランザクション境界も、コアドメイン言語の一部ではなくアプリケーションワークフローを完遂するために必要な機能であるため、Interface の所有者は UseCase 層です。
 
-| ファイル                          | Interface            | 役割                       |
-| :-------------------------------- | :------------------- | :------------------------- |
-| `internal/usecase/transaction.go` | `TransactionManager` | トランザクション境界の制御 |
+| ファイル                          | Interface            | 役割                                             |
+| :-------------------------------- | :------------------- | :----------------------------------------------- |
+| `internal/usecase/repository.go`  | `BoardRepository`    | 掲示板の永続化（ドメインエンティティの再構成）   |
+|                                   | `ThreadRepository`   | スレッドの永続化（ドメインエンティティの再構成） |
+|                                   | `PostRepository`     | 投稿の永続化（ドメインエンティティの再構成）     |
+| `internal/usecase/transaction.go` | `TransactionManager` | トランザクション境界の制御                       |
 
 ```go
-// internal/domain/port/repository.go
+// internal/usecase/repository.go
+// Repository ports are owned by the application workflows that need them.
 type BoardRepository interface {
     FindAll(ctx context.Context) ([]*entity.Board, error)
     FindByName(ctx context.Context, name string) (*entity.Board, error)
@@ -82,7 +80,7 @@ type BoardRepository interface {
                │               │               │
                │               │               │
 ┌──────────────┴───────────────┴───────────────┴─────────────────────┐
-│                         INTERNAL/DOMAIN                            │
+│                   INTERNAL/DOMAIN + USECASE                        │
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │  internal/domain/entity/board.go, thread.go, post.go         │  │
 │  │  ─────────────────────────────────────────────────────────   │  │
@@ -98,7 +96,7 @@ type BoardRepository interface {
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/domain/port/repository.go  ← Domain Interface      │  │
+│  │  internal/usecase/repository.go     ← UseCase Port           │  │
 │  │  type BoardRepository interface { ... }                      │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────────┘
@@ -106,7 +104,7 @@ type BoardRepository interface {
 ┌──────────────┴───────────────┐
 │  internal/adapters/infra/persistence/ │
 │  sqlite/board_repo.go        │  ← Infra Adapter（具象実装）
-│  func (r *BoardRepository)   │     (Domain Interface を実装)
+│  func (r *BoardRepository)   │     (UseCase Port を実装)
 │  FindByName(...) {           │
 │     SELECT ... WHERE name = ?│
 │  }                           │
@@ -134,7 +132,7 @@ type BoardRepository interface {
                   ↓
            ┌────────────────────────────────────┐
            │         Domain Layer               │
-           │  Entity + Port Interface (抽象)    │  ← 最内側
+           │  Entity + Domain Logic             │  ← 最内側
            └────────────────────────────────────┘
                   ↑ implements
            Infrastructure Adapters（Domain/UseCase Port を実装）
@@ -190,15 +188,15 @@ Clean Architecture では、エラーもレイヤー境界を跨ぐ際に変換�
 
 ### キーポイント
 
-1. **UseCase は具象実装を知らない**: `sqlite.BoardRepository` ではなく `port.BoardRepository`（Interface）に依存
-2. **Infra は Domain Interface を実装する**: `internal/adapters/infra/persistence/sqlite/` が `internal/domain/port/` の Interface を実装
+1. **UseCase は具象実装を知らない**: `sqlite.BoardRepository` ではなく、UseCase 層が所有する `BoardRepository`（Interface）に依存
+2. **Infra は UseCase Port を実装する**: `internal/adapters/infra/persistence/sqlite/` が `internal/usecase/` の Port（Interface）を実装
 3. **Presentation と Infra Adapters は直接関係しない**: どちらも Adapters 層の一部だが方向が異なり、UseCase を介して間接的に繋がる
 4. **Composition Root（main.go）だけが全体を知っている**: どの Infra 実装を使うか、どの Presentation を使うかをここで決定
 
 ```go
 // UseCase は Interface に依存（具象を知らない）
 type ListThreadsUseCase struct {
-    boardRepo port.BoardRepository  // ← sqlite.* ではなく port.*
+    boardRepo BoardRepository  // ← sqlite.* ではなく UseCase 層所有の Interface
 }
 
 // Infra は Interface を実装

@@ -19,18 +19,18 @@ Due to increased traffic, migrate the database from SQLite to PostgreSQL.
 
 The following layers require **zero modifications**:
 
-| Layer            | Reason                                                                                                                                   |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**       | Port Interfaces (`BoardRepository`, `ThreadRepository`, etc.) are abstract, so calls work identically regardless of SQLite or PostgreSQL |
-| **UseCase**      | Depends on Repository **Interfaces**, so swapping concrete implementations has no impact                                                 |
-| **Presentation** | Handlers call UseCases and know nothing about the DB type                                                                                |
+| Layer            | Reason                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Domain**       | Entities and domain errors contain no persistence details; nothing here knows about the DB type                                                         |
+| **UseCase**      | Owns the Repository **Port Interfaces** (`internal/usecase/repository.go`) and depends only on them, so swapping concrete implementations has no impact |
+| **Presentation** | Handlers call UseCases and know nothing about the DB type                                                                                               |
 
 ### Step 1: Review the Current SQLite Implementation
 
-Verify that the current Infra implementation satisfies the Domain's Port Interface.
+Verify that the current Infra implementation satisfies the UseCase's Port Interface.
 
 ```go
-// internal/domain/port/repository.go (no changes — read only)
+// internal/usecase/repository.go (no changes — read only)
 type BoardRepository interface {
     FindAll(ctx context.Context) ([]*entity.Board, error)
     FindByName(ctx context.Context, name string) (*entity.Board, error)

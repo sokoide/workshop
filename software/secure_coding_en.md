@@ -385,10 +385,12 @@ func GenerateToken() string {
     return hex.EncodeToString(b)
 }
 
-func GenerateSessionID() string {
+func GenerateSessionID() (string, error) {
     b := make([]byte, 32)
-    _, _ = rand.Read(b)
-    return base64.URLEncoding.EncodeToString(b)
+    if _, err := rand.Read(b); err != nil {
+        return "", fmt.Errorf("reading random bytes: %w", err)
+    }
+    return base64.URLEncoding.EncodeToString(b), nil
 }
 ```
 
@@ -669,7 +671,7 @@ mu.Unlock()
 
 ```go
 // ✅ Use database transactions and row-level locking
-func WithdrawDB(db *sql.DB, userID int, amount int) error {
+func WithdrawDB(ctx context.Context, db *sql.DB, userID int, amount int) error {
     tx, err := db.BeginTx(ctx, nil)
     if err != nil {
         return err

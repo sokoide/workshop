@@ -13,7 +13,7 @@ The complete implementation for this workshop can be found in [`infra/assets/rat
 ```bash
 cd infra/assets/rate_limiting
 ls -la
-# domain/  usecase/  infra/  main.go
+# domain/  usecase/  main.go  go.mod  go.sum
 ```
 
 ## Goal
@@ -171,11 +171,9 @@ graph LR
 
 ```text
 infra/assets/rate_limiting/
-├── domain/         # Definition of limiting rules
-├── usecase/        # Implementation of each algorithm
-├── infra/          # Redis adapter
-├── cmd/            # Test CLI
-└── main.go         # Entry point
+├── domain/         # Definition of limiting rules (RateLimiter interface)
+├── usecase/        # Implementation of each algorithm (Lua scripts)
+└── main.go         # Entry point (test CLI)
 ```
 
 ---
@@ -265,12 +263,30 @@ Read the corresponding algorithm in [limiters.go](assets/rate_limiting/usecase/l
 
 Compare the characteristics of each algorithm.
 
+This workshop's implementation is a CLI that performs one decision per invocation (no HTTP server is started). Run the same command repeatedly to observe each algorithm's behavior.
+
 ```bash
-# Spike test at boundaries
+# Spike test at boundaries: 20 requests in quick succession against Fixed Window
 for i in {1..20}; do
-  curl -s http://localhost:8080/api?user=test
+  go run main.go -algorithm fixed-window -user cmp1 -limit 5 -window 10s
+done
+# Expected output (first 5 lines):
+# [fixed-window] Allowed: User cmp1
+# ...
+# Expected output (6th and later lines):
+# [fixed-window] Denied: User cmp1 (Rate limit exceeded)
+```
+
+```bash
+# Compare with Token Bucket (capacity 5, refill 1/sec) under the same load
+for i in {1..20}; do
+  go run main.go -algorithm token-bucket -user cmp2 -capacity 5 -rate 1
   sleep 0.5
 done
+# Expected output (initial burst is allowed, then denials while the bucket refills):
+# [token-bucket] Allowed: User cmp2
+# ...
+# [token-bucket] Denied: User cmp2 (Rate limit exceeded)
 ```
 
 | Algorithm      | Boundary Behavior | Memory Usage | CPU Usage | Burst Tolerance |

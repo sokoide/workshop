@@ -108,9 +108,9 @@ go mod tidy
 
 ## 実習ステップ
 
-### STEP 1: スコアの登録 (ZADD)
+### STEP 1: スコアの加算 (ZINCRBY)
 
-ユーザーのスコアを登録・更新します。Redis 内部で自動的に順序が入れ替わります。
+ユーザーのスコアに点数を加算します(同じユーザーはポイントが蓄積されます)。Redis 内部で自動的に順序が入れ替わります。
 
 ```bash
 go run main.go -action add -user user1 -score 100

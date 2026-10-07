@@ -326,7 +326,7 @@ JWT の header にある `kid` は **Key ID** のことです。どの鍵で署�
 
 つまり `kid` は、**どの公開鍵で署名検証すべきかを選ぶための目印**です
 
-そのため、[api/main.go](/Users/scott/repo/sokoide/workshop/infra/assets/oauth2/api/main.go) は `go run` だけで動きます。必要なのは:
+そのため、[api/main.go](assets/oauth2/api/main.go) は `go run` だけで動きます。必要なのは:
 
 - `jwksURL` にアクセスできること
 - 受け取った token の `iss` `aud` `exp` が正しいこと

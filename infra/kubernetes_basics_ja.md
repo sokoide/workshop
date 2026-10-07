@@ -188,7 +188,7 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
 
 ```bash
 # Kind クラスタ作成
-kind create cluster --name workshop
+kind create cluster --name k8s-workshop
 
 # コンテキスト確認
 kubectl config current-context
@@ -198,7 +198,7 @@ kubectl cluster-info
 ### ✅ チェックポイント
 
 - [ ] `kubectl version --client` で kubectl バージョンが表示される
-- [ ] `kind get clusters` で `workshop` クラスタが存在する
+- [ ] `kind get clusters` で `k8s-workshop` クラスタが存在する
 - [ ] `kubectl get nodes` でノードが Ready 状態
 
 ---
@@ -409,7 +409,7 @@ spec:
         [
           "sh",
           "-c",
-          "echo $APP_ENV && cat /etc/config/config.json && sleep 3600"
+          "echo $APP_ENV && cat /etc/config/config.json && sleep 3600",
         ]
       env:
         - name: APP_ENV
@@ -540,7 +540,7 @@ spec:
             [
               "sh",
               "-c",
-              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600"
+              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600",
             ]
           volumeMounts:
             - name: data-volume
@@ -604,7 +604,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main
 kubectl apply -f manifests/07-ingress.yaml
 
 # /etc/hosts に追加 (ノード IP を確認)
-NODE_IP=$(kubectl get node workshop-control-plane -o jsonpath='{.status.addresses[0].address}')
+NODE_IP=$(kubectl get node k8s-workshop-control-plane -o jsonpath='{.status.addresses[0].address}')
 echo "$NODE_IP nginx.local" | sudo tee -a /etc/hosts
 
 # アクセス確認
@@ -692,7 +692,7 @@ kubectl logs -l app=nginx --tail=100
 kubectl logs -f deployment/nginx-deployment
 
 # 複数コンテナ Pod のログ
-kubectl logs nginx-pod -c nginx-container
+kubectl logs nginx-pod -c nginx
 
 # 過去のログ (再起動後も)
 kubectl logs nginx-pod --previous
@@ -749,9 +749,11 @@ EOF
 
 # Dockerfile 作成
 cat > Dockerfile << 'EOF'
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 WORKDIR /app
-COPY go.mod go.sum ./
+# このプロジェクトにはまだ外部依存がないため go.sum は存在しません。
+# 依存を追加して go.sum が生成されたら COPY go.mod go.sum ./ に変更してください。
+COPY go.mod ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o server
@@ -765,10 +767,13 @@ EOF
 
 # イメージビルド (Kind 用にロード)
 docker build -t k8s-app:latest .
-kind load docker-image k8s-app:latest --name workshop
+# Expected output: （ビルドが完了し "naming to ... k8s-app:latest" と表示される）
+kind load docker-image k8s-app:latest --name k8s-workshop
+# Expected output: Image: "k8s-app:latest" with ID "sha256:..." found to be already present
 
-# マニフェスト作成
-cat > manifests/k8s-app-deployment.yaml << 'EOF'
+# マニフェスト作成（manifests/ は app/ と同じ ~/k8s-workshop 直下）
+mkdir -p ~/k8s-workshop/manifests
+cat > ~/k8s-workshop/manifests/k8s-app-deployment.yaml << 'EOF'
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -804,14 +809,34 @@ spec:
             cpu: "200m"
 EOF
 
+cat > ~/k8s-workshop/manifests/k8s-app-service.yaml << 'EOF'
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-app-service
+spec:
+  selector:
+    app: k8s-app
+  ports:
+    - port: 80
+      targetPort: 8080
+EOF
+
 # デプロイ
-kubectl apply -f manifests/k8s-app-deployment.yaml
-kubectl apply -f manifests/k8s-app-service.yaml
+kubectl apply -f ~/k8s-workshop/manifests/k8s-app-deployment.yaml
+# Expected output: deployment.apps/k8s-app created
+kubectl apply -f ~/k8s-workshop/manifests/k8s-app-service.yaml
+# Expected output: service/k8s-app-service created
 
 # 確認
 kubectl get pods -l app=k8s-app
+# Expected output:
+# NAME                      READY   STATUS    RESTARTS   AGE
+# k8s-app-<suffix>          1/1     Running   0          10s
 kubectl port-forward svc/k8s-app-service 8080:80
+# 別ターミナルで:
 curl http://localhost:8080
+# Expected output: Hello from Kubernetes! Pod: k8s-app-<suffix>
 ```
 
 ### ✅ チェックポイント

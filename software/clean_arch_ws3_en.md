@@ -73,29 +73,27 @@ Note: The first post in a new thread is always a bump, so new threads appear at 
 
 The "abstractions" (Ports) at the core of Clean Architecture are categorized based on their dependency on domain invariants:
 
-- **Domain Ports**: Placed in the Domain layer if removing the interface would break the domain model's ability to enforce invariants (e.g., aggregate reconstitution).
-- **UseCase Ports**: Placed in the UseCase layer if the concern is application orchestration (e.g., transaction boundary control) rather than core domain rules.
+- **Domain Ports**: Placed in the Domain layer if removing the interface would break the domain model's ability to enforce invariants (e.g., a domain policy port such as `PricingPolicy`).
+- **UseCase Ports**: Placed in the UseCase layer if the concern is application orchestration (e.g., persistence or transaction boundary control) rather than core domain rules.
 
 #### Domain Ports (Domain Layer)
 
-Essential for aggregate reconstitution and business invariant enforcement.
-
-| File                                 | Interface          | Purpose                                            |
-| :----------------------------------- | :----------------- | :------------------------------------------------- |
-| `internal/domain/port/repository.go` | `BoardRepository`  | Board persistence (reconstitutes Domain entities)  |
-|                                      | `ThreadRepository` | Thread persistence (reconstitutes Domain entities) |
-|                                      | `PostRepository`   | Post persistence (reconstitutes Domain entities)   |
+None exist in the BBS project. Its Domain layer (entities and domain errors) enforces business invariants on its own, so it defines no port abstractions. In other projects, ports that express domain policies (e.g., `PricingPolicy`) would be placed here.
 
 #### UseCase Ports (UseCase Layer)
 
-Handles application-level orchestration that is independent of core business logic rules.
+The BBS defines all of its ports in the UseCase layer. Persistence and transaction boundaries are capabilities needed to complete an application workflow — not part of the core domain language — so the interfaces are owned by the UseCase layer.
 
-| File                              | Interface            | Purpose                      |
-| :-------------------------------- | :------------------- | :--------------------------- |
-| `internal/usecase/transaction.go` | `TransactionManager` | Transaction boundary control |
+| File                              | Interface            | Purpose                                            |
+| :-------------------------------- | :------------------- | :------------------------------------------------- |
+| `internal/usecase/repository.go`  | `BoardRepository`    | Board persistence (reconstitutes Domain entities)  |
+|                                   | `ThreadRepository`   | Thread persistence (reconstitutes Domain entities) |
+|                                   | `PostRepository`     | Post persistence (reconstitutes Domain entities)   |
+| `internal/usecase/transaction.go` | `TransactionManager` | Transaction boundary control                       |
 
 ```go
-// internal/domain/port/repository.go
+// internal/usecase/repository.go
+// Repository ports are owned by the application workflows that need them.
 type BoardRepository interface {
     FindAll(ctx context.Context) ([]*entity.Board, error)
     FindByName(ctx context.Context, name string) (*entity.Board, error)
@@ -133,7 +131,7 @@ type BoardRepository interface {
                │               │               │
                │               │               │
 ┌──────────────┴───────────────┴───────────────┴─────────────────────┐
-│                         INTERNAL/DOMAIN                            │
+│                   INTERNAL/DOMAIN + USECASE                        │
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │  internal/domain/entity/board.go, thread.go, post.go         │  │
 │  │  ─────────────────────────────────────────────────────────   │  │
@@ -149,7 +147,7 @@ type BoardRepository interface {
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  internal/domain/port/repository.go  ← Domain Interface      │  │
+│  │  internal/usecase/repository.go     ← UseCase Port           │  │
 │  │  type BoardRepository interface { ... }                      │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────────┘
@@ -157,7 +155,7 @@ type BoardRepository interface {
 ┌──────────────┴───────────────┐
 │  internal/adapters/infra/persistence/ │
 │  sqlite/board_repo.go        │  ← Infra Adapter (concrete impl)
-│  func (r *BoardRepository)   │     (implements Domain Interface)
+│  func (r *BoardRepository)   │     (implements UseCase Port)
 │  FindByName(...) {           │
 │     SELECT ... WHERE name = ?│
 │  }                           │
@@ -185,7 +183,7 @@ type BoardRepository interface {
                   ↓
            ┌────────────────────────────────────┐
            │         Domain Layer               │
-           │  Entity + Port Interface (抽象)    │  ← Innermost
+           │  Entity + Domain Logic             │  ← Innermost
            └────────────────────────────────────┘
                   ↑ implements
            Infrastructure Adapters (implement Domain/UseCase Ports)
@@ -241,15 +239,15 @@ With each layer handling error conversion, upper layers don't need to know about
 
 ### Key Points
 
-1. **UseCase doesn't know concrete implementations**: Depends on `port.BoardRepository` (Interface), not `sqlite.BoardRepository` (concrete type)
-2. **Infra implements Domain Interface**: `internal/adapters/infra/persistence/sqlite/` implements interfaces from `internal/domain/port/`
+1. **UseCase doesn't know concrete implementations**: Depends on the `BoardRepository` interface (owned by the UseCase layer), not `sqlite.BoardRepository` (concrete type)
+2. **Infra implements UseCase Ports**: `internal/adapters/infra/persistence/sqlite/` implements the port interfaces from `internal/usecase/`
 3. **Presentation and Infra Adapters are not directly related**: Both are part of the Adapters layer but split by direction, connected indirectly through UseCase
 4. **Only Composition Root (main.go) knows the whole picture**: Decides which Infra implementation and which Presentation to use
 
 ```go
 // UseCase depends on Interface (not concrete)
 type ListThreadsUseCase struct {
-    boardRepo port.BoardRepository  // ← port.*, not sqlite.*
+    boardRepo BoardRepository  // ← interface owned by UseCase, not sqlite.*
 }
 
 // Infra implements Interface

@@ -171,7 +171,7 @@ func main() {
     // Get JWT secret from environment variable
     secret := os.Getenv("JWT_SECRET")
     if secret == "" {
-        secret = "dev-secret-key" // Development fallback
+        secret = "dev-secret-key" // Development fallback — never use in production
     }
 
     // Pass secret to Router
@@ -201,12 +201,41 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"test","author":"gopher","body":"hello"}'
 
-# Generate a JWT (HMAC-SHA256 signed)
-# Install jwt-cli: go install github.com/matyer/jwt-cli@latest
-TOKEN=$(jwt encode --secret "my-secret-key" --sub "user123" --role "member")
-# Or use Go one-liner:
-# TOKEN=$(go run github.com/golang-jwt/jwt/v5/cmd/jwt@latest \
-#   --secret "my-secret-key" --claim sub:user123 --claim role:member)
+# Generate a JWT (HMAC-SHA256 signed) with a throwaway Go program
+# (no external CLI needed — create it in any temp directory and run)
+mkdir -p /tmp/jwtgen && cd /tmp/jwtgen
+go mod init jwtgen
+cat > main.go <<'EOF'
+package main
+
+import (
+    "fmt"
+    "os"
+    "time"
+
+    "github.com/golang-jwt/jwt/v5"
+)
+
+func main() {
+    // Same claims the Auth middleware validates: sub + role (HS256)
+    claims := jwt.MapClaims{
+        "sub":  "user123",
+        "role": "member",
+        "exp":  time.Now().Add(time.Hour).Unix(),
+    }
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+    signed, err := token.SignedString([]byte(os.Args[1]))
+    if err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+    fmt.Println(signed)
+}
+EOF
+go mod tidy
+# Expected output (of `go run . "my-secret-key"`) — a 3-part dot-separated token:
+# eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3...
+TOKEN=$(go run . "my-secret-key")
 
 # POST with auth → success
 curl -X POST http://localhost:8080/api/boards/program/threads \

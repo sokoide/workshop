@@ -119,6 +119,14 @@ graph TD
 
 - VM1, VM2 ともに Ubuntu 24.04 (RAM 4GB 以上推奨)。
 - ファイアウォールが適切に設定（または無効化）されていること。
+- VM1 に `kubectl` がインストールされていること（STEP 4 以降で使用）:
+
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install kubectl /usr/local/bin/
+kubectl version --client
+# Expected output: Client Version: v1.xx.x
+```
 
 ---
 
@@ -236,9 +244,31 @@ kubectl get pvc # Status が Bound になれば成功
 
 ### STEP 5: Pod からの利用と永続性確認
 
+**test-pod.yaml** を作成します（「想定ディレクトリ構造」の通り `~/` に配置します）:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+spec:
+  containers:
+    - name: main
+      image: busybox:1.36
+      command: ["sleep", "infinity"]
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: iscsi-pvc
+```
+
 ```bash
 # Pod の起動
 kubectl apply -f test-pod.yaml
+# Expected output: pod/test-pod created
 
 # 書き込み
 kubectl exec test-pod -- sh -c "echo 'Hello persistent' > /data/hello.txt"
@@ -249,6 +279,8 @@ kubectl apply -f test-pod.yaml
 
 # 読み取り確認
 kubectl exec test-pod -- cat /data/hello.txt
+# Expected output:
+# Hello persistent
 # -> "Hello persistent" と出れば永続化成功！
 ```
 

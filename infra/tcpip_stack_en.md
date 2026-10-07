@@ -323,7 +323,6 @@ int rawsock_set_promisc(int fd, const char *iface, int enable) {
 package rawsock
 
 /*
-#cgo LDFLAGS: -lpcap
 #include "rawsock.h"
 */
 import "C"
@@ -473,7 +472,6 @@ CGO is used to call C system calls directly from Go:
 
 ```go
 /*
-#cgo LDFLAGS: -lpcap
 #include "rawsock.h"
 */
 import "C"
@@ -1136,11 +1134,77 @@ func (m *Message) ValidateChecksum() bool {
 
 ---
 
-### STEP 5: Stack Integration (`main.go`) - Connecting Everything
+### STEP 5: UDP Message (L4) — Connectionless Communication
 
 #### Goal
 
-Integrate all components to build a server that responds to Ping requests.
+Implement UDP to carry application data without connection setup. Contrast it with the TCP handshake observed in STEP 0 and the diagnostic role of ICMP Echo.
+
+#### How UDP Differs from TCP and ICMP
+
+| Property                         | ICMP                | UDP                               | TCP                              |
+| :------------------------------- | :------------------ | :-------------------------------- | :------------------------------- |
+| Connection setup                 | None                | None                              | Handshake                        |
+| Ports                            | None                | 16-bit ports                      | 16-bit ports                     |
+| Delivery and ordering guarantees | None                | None                              | Retransmission and ordering      |
+| Checksum coverage                | Entire ICMP message | Pseudo-header and entire datagram | Pseudo-header and entire segment |
+| Examples                         | Ping                | DNS, DHCP, metrics                | HTTP/1.1, SSH                    |
+
+The pseudo-header helps detect accidental misdelivery. It does not authenticate a sender who can recompute the checksum.
+
+#### UDP Datagram Structure
+
+```text
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|         Source Port           |      Destination Port         |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|            Length             |          Checksum             |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                             Data                              |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+The header is eight bytes. Length includes both header and data.
+
+#### Implementation: UDP Message (`pkg/udp/message.go`)
+
+Read the [executable UDP implementation](assets/tcpip_stack/pkg/udp/message.go) and its [tests](assets/tcpip_stack/pkg/udp/message_test.go). `Parse`, `VerifyChecksum`, and `Marshal` separate length validation, checksum verification, and reply construction. Use this source directly to avoid maintaining a second copy of the implementation in the tutorial.
+
+#### Key Learning Points
+
+##### The Pseudo-Header's Role
+
+Checksum input includes source and destination IPv4 addresses, a zero byte, protocol number 17, and UDP length, followed by the datagram. A computed checksum of zero is transmitted as `0xffff`; a transmitted zero means the IPv4 sender omitted the checksum.
+
+##### What Connectionless Means
+
+UDP sends with `sendto()` without a transport handshake. The receiver obtains the reply address from the packet's source IP and UDP source port.
+
+##### Why Use UDP?
+
+DNS can avoid transport connection setup for a small query. DHCP needs to communicate before normal address configuration. Metrics and real-time media may prefer timely delivery over retransmission. Applications must implement any reliability they require.
+
+##### Contrast with TCP
+
+TCP additionally requires connection state, sequence numbers, acknowledgements, retransmission, flow control, and congestion control. UDP leaves these policies to the application or a higher-level protocol.
+
+#### ✅ Verification Checkpoints
+
+- [ ] `HeaderSize` is 8.
+- [ ] `Marshal` uses the source and destination IPs in its checksum.
+- [ ] A computed zero checksum is encoded as `0xffff`.
+- [ ] Invalid lengths and corrupted checksums are rejected before replying.
+- [ ] The stack dispatches ICMP and UDP separately.
+
+---
+
+### STEP 6: Stack Integration (`main.go`) - Connecting Everything
+
+#### Goal
+
+Integrate all components — including the UDP datagrams from the previous step — to build a server that responds to Ping and UDP Echo requests.
 
 #### Implementation: Main Program (`main.go`)
 
@@ -1408,72 +1472,6 @@ func main() {
 	log.Println("TCP/IP stack shut down gracefully")
 }
 ```
-
----
-
-### STEP 6: UDP Message (L4) — Connectionless Communication
-
-#### Goal
-
-Implement UDP to carry application data without connection setup. Contrast it with the TCP handshake observed in STEP 0 and the diagnostic role of ICMP Echo.
-
-#### How UDP Differs from TCP and ICMP
-
-| Property                         | ICMP                | UDP                               | TCP                              |
-| :------------------------------- | :------------------ | :-------------------------------- | :------------------------------- |
-| Connection setup                 | None                | None                              | Handshake                        |
-| Ports                            | None                | 16-bit ports                      | 16-bit ports                     |
-| Delivery and ordering guarantees | None                | None                              | Retransmission and ordering      |
-| Checksum coverage                | Entire ICMP message | Pseudo-header and entire datagram | Pseudo-header and entire segment |
-| Examples                         | Ping                | DNS, DHCP, metrics                | HTTP/1.1, SSH                    |
-
-The pseudo-header helps detect accidental misdelivery. It does not authenticate a sender who can recompute the checksum.
-
-#### UDP Datagram Structure
-
-```text
- 0                   1                   2                   3
- 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|         Source Port           |      Destination Port         |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|            Length             |          Checksum             |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                             Data                              |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
-
-The header is eight bytes. Length includes both header and data.
-
-#### Implementation: UDP Message (`pkg/udp/message.go`)
-
-Read the [executable UDP implementation](assets/tcpip_stack/pkg/udp/message.go) and its [tests](assets/tcpip_stack/pkg/udp/message_test.go). `Parse`, `VerifyChecksum`, and `Marshal` separate length validation, checksum verification, and reply construction. Use this source directly to avoid maintaining a second copy of the implementation in the tutorial.
-
-#### Key Learning Points
-
-##### The Pseudo-Header's Role
-
-Checksum input includes source and destination IPv4 addresses, a zero byte, protocol number 17, and UDP length, followed by the datagram. A computed checksum of zero is transmitted as `0xffff`; a transmitted zero means the IPv4 sender omitted the checksum.
-
-##### What Connectionless Means
-
-UDP sends with `sendto()` without a transport handshake. The receiver obtains the reply address from the packet's source IP and UDP source port.
-
-##### Why Use UDP?
-
-DNS can avoid transport connection setup for a small query. DHCP needs to communicate before normal address configuration. Metrics and real-time media may prefer timely delivery over retransmission. Applications must implement any reliability they require.
-
-##### Contrast with TCP
-
-TCP additionally requires connection state, sequence numbers, acknowledgements, retransmission, flow control, and congestion control. UDP leaves these policies to the application or a higher-level protocol.
-
-#### ✅ Verification Checkpoints
-
-- [ ] `HeaderSize` is 8.
-- [ ] `Marshal` uses the source and destination IPs in its checksum.
-- [ ] A computed zero checksum is encoded as `0xffff`.
-- [ ] Invalid lengths and corrupted checksums are rejected before replying.
-- [ ] The stack dispatches ICMP and UDP separately.
 
 ---
 

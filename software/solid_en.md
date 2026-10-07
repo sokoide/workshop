@@ -71,12 +71,12 @@ type OrderPricer interface {
 	Price(o Order) PriceResult
 }
 
-// domain/order_repository.go
+// usecase/order_repository.go (Repository Port owned by UseCase)
 type OrderRepository interface {
 	Save(ctx context.Context, o Order) error
 }
 
-// domain/notifier.go (Output Port)
+// usecase/notification.go (Output Port owned by UseCase)
 type Notifier interface {
 	SendOrderCreated(ctx context.Context, to, body string) error
 }
@@ -108,7 +108,7 @@ func (uc *OrderUseCase) Execute(ctx context.Context, o Order) error {
 	}
 	// Same notification format as the bad example.
 	body := fmt.Sprintf("Order total: %d (%s)", price.Total, price.TaxLabel)
-	return uc.notifier.SendOrderCreated(ctx, o.Email, body) // via Domain Port
+	return uc.notifier.SendOrderCreated(ctx, o.Email, body) // via UseCase Port
 }
 
 // infra/notifier/mail_notifier.go

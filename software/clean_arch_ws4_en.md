@@ -169,7 +169,7 @@ type CreateThreadInput struct {
 
 ```go
 // internal/usecase/thread_usecase.go (inside CreateThreadUseCase.Execute)
-thread, err := entity.NewThread(board.ID, in.Title)
+thread, err := entity.NewThread(board.ID, in.Title, in.Author)
 if err != nil {
     return nil, err
 }
@@ -265,14 +265,24 @@ Add one case to the error handling in `PostHandler`, and add the `owner_only` fi
 **4-1. Error handling for PostHandler**
 
 ```go
-// internal/adapters/presentation/handler/post_handler.go — error handling in CreatePost
+// internal/adapters/presentation/http/handler/post_handler.go — error handling in CreatePost
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     out, err := h.createPost.Execute(r.Context(), input)
-    // ...existing error handling
-    // ↓ Add one case
-    case errors.Is(err, domain.ErrNotThreadOwner):
-        writeError(w, http.StatusForbidden, err.Error())
+    if err != nil {
+        switch {
+        case errors.Is(err, domain.ErrThreadNotFound):
+            writeError(w, http.StatusNotFound, err.Error())
+        // ↓ Add one case
+        case errors.Is(err, domain.ErrNotThreadOwner):
+            writeError(w, http.StatusForbidden, err.Error())
+        case errors.Is(err, domain.ErrEmptyBody):
+            writeError(w, http.StatusBadRequest, err.Error())
+        default:
+            writeError(w, http.StatusInternalServerError, "internal server error")
+        }
+        return
     }
+    // ...
 }
 ```
 

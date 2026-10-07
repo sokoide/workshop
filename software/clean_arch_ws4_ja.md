@@ -167,7 +167,7 @@ type CreateThreadInput struct {
 
 ```go
 // internal/usecase/thread_usecase.go（CreateThreadUseCase.Execute 内）
-thread, err := entity.NewThread(board.ID, in.Title)
+thread, err := entity.NewThread(board.ID, in.Title, in.Author)
 if err != nil {
     return nil, err
 }
@@ -264,11 +264,21 @@ func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thre
 // internal/adapters/presentation/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
     out, err := h.createPost.Execute(r.Context(), input)
-    // ...既存のエラーハンドリング
-    // ↓ 1 case 追加
-    case errors.Is(err, domain.ErrNotThreadOwner):
-        writeError(w, http.StatusForbidden, err.Error())
+    if err != nil {
+        switch {
+        case errors.Is(err, domain.ErrThreadNotFound):
+            writeError(w, http.StatusNotFound, err.Error())
+        // ↓ 1 case 追加
+        case errors.Is(err, domain.ErrNotThreadOwner):
+            writeError(w, http.StatusForbidden, err.Error())
+        case errors.Is(err, domain.ErrEmptyBody):
+            writeError(w, http.StatusBadRequest, err.Error())
+        default:
+            writeError(w, http.StatusInternalServerError, "internal server error")
+        }
+        return
     }
+    // ...
 }
 ```
 

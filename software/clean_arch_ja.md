@@ -277,8 +277,10 @@ func HandleCheckMembership(w http.ResponseWriter, r *http.Request, useCase useca
 		return
 	}
 
-	// 結果をレスポンスとして返す
-	json.NewEncoder(w).Encode(map[string]bool{"is_member": isMember})
+	// 結果をレスポンスとして返す（エラーは必ずチェックする）
+	if err := json.NewEncoder(w).Encode(map[string]bool{"is_member": isMember}); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+	}
 }
 ```
 

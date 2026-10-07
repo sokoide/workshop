@@ -78,6 +78,12 @@ A Linux kernel feature that isolates the network stack (interfaces, routing tabl
 
 A pair of virtual Ethernet cables used to connect different Network Namespaces.
 
+```text
+┌─────────────┐     veth      ┌─────────────┐
+│ Namespace A │<------------->│ Namespace B │
+└─────────────┘   (peer)      └─────────────┘
+```
+
 ---
 
 ## <a name="kubernetes"></a>Kubernetes Terms
@@ -108,13 +114,7 @@ The package manager for Kubernetes. It uses "Charts" to define, install, and upg
 
 ### Ingress
 
-An API object that manages external access to services in a cluster, typically providing HTTP/HTTPS routing
-
-```text
-┌─────────────┐     veth      ┌─────────────┐
-│ Namespace A │<------------->│ Namespace B │
-└─────────────┘   (peer)      └─────────────┘
-```
+An API object that manages external access to services in a cluster, typically providing HTTP/HTTPS routing.
 
 ---
 
@@ -145,6 +145,38 @@ A method of regulating access to computer or network resources based on the role
 
 A K8s resource that controls the flow of traffic between Pods at the network level (L3/L4).
 
+### TLS / SSL (Transport Layer Security / Secure Sockets Layer)
+
+A protocol that encrypts communication between two endpoints and verifies the server's identity with a certificate. SSL is the deprecated predecessor; TLS is its modern successor.
+
+```text
+https:// → HTTP over TLS (default port 443)
+```
+
+### CA (Certificate Authority)
+
+A trusted entity that issues digital certificates binding public keys to identities such as domains or organizations.
+
+```text
+Chain of trust: Root CA → Intermediate CA → Server certificate
+```
+
+### Secret Management
+
+The practice of storing and distributing credentials (API keys, passwords, certificates) centrally instead of embedding them in source code or container images.
+
+### Vault
+
+HashiCorp's open-source tool for secret management. It stores secrets in encrypted form and can issue short-lived, dynamically generated credentials.
+
+### KV Engine (KV Secrets Engine)
+
+A Vault engine that stores secrets as simple key-value pairs. Version 2 (KV v2) adds versioning and soft delete.
+
+### Presigned URL
+
+A time-limited URL with embedded credentials that grants temporary download or upload access to a specific object (e.g., in S3 or MinIO).
+
 ---
 
 ## <a name="mesh"></a>Service Mesh Terms
@@ -168,15 +200,19 @@ An open-source service mesh that provides a uniform way to secure, connect, and 
 
 ---
 
-## OAuth2 & Identity Terms
+## <a name="oauth2"></a>OAuth2 & Identity Terms
 
 ### OAuth2
 
 A standard protocol for authorization. It allows third-party applications to grant access to resources without knowing the user's password.
 
-### Access Token (JWT)
+### <a name="access-token"></a>Access Token (JWT)
 
 A token used to prove the right to access specific resources. JSON Web Token (JWT) is a common format.
+
+### <a name="resource-server"></a>Resource Server
+
+The server that hosts protected resources and accepts requests authenticated with an access token issued by the authorization server (e.g., a REST API returning user data).
 
 ### Entra ID (Azure AD)
 
@@ -184,7 +220,7 @@ Microsoft's cloud-based identity and access management service.
 
 ---
 
-## Message Queue Terms
+## <a name="mq"></a>Message Queue Terms
 
 ### Pub/Sub (Publish/Subscribe)
 
@@ -192,9 +228,7 @@ An asynchronous communication pattern where a sender (Publisher) sends messages 
 
 ### Exchange (RabbitMQ)
 
-A component that routes messages to queues based on rules (Direct, Fanout, Topic, Headers)
-
-A component that handles message routing. RabbitMQ has several types.
+A component that routes messages to queues based on rules (Direct, Fanout, Topic, Headers).
 
 | Type    | Description                         |
 | :------ | :---------------------------------- |
@@ -222,22 +256,22 @@ Pattern matching characters used in Topic Exchanges.
 
 ---
 
-## Caching Terms
+## <a name="cache"></a>Caching Terms
 
 ### Sorted Set (ZSET)
 
 A Redis data structure. A set of members sorted by score, ideal for leaderboards.
-
-### Write-Through / Cache-Aside
-
-- **Write-Through**: Data is written to the cache and the backend database simultaneously.
-- **Cache-Aside**: The application first checks the cache. If data is missing (cache miss), it reads from the database and updates the cache.
 
 ```text
 ZADD game_leaderboard 100 player1
 ZADD game_leaderboard 250 player2
 ZREVRANGE game_leaderboard 0 9  # Retrieve top 10 players
 ```
+
+### Write-Through / Cache-Aside
+
+- **Write-Through**: Data is written to the cache and the backend database simultaneously.
+- **Cache-Aside**: The application first checks the cache. If data is missing (cache miss), it reads from the database and updates the cache.
 
 ### Sets
 
@@ -250,7 +284,27 @@ SISMEMBER banned_users player2  # 1 (true)
 
 ---
 
-## Load Balancer Terms
+## <a name="storage"></a>Storage Terms
+
+### iSCSI (Internet Small Computer Systems Interface)
+
+A protocol that carries SCSI block-storage commands over IP networks, letting a host use remote storage as if it were a local disk.
+
+### LUN (Logical Unit Number)
+
+An identifier for a logical unit of storage exported by a storage system. An initiator (client) accesses a LUN as a block device.
+
+### Object Storage
+
+A storage model that manages data as objects (data + metadata + unique ID) instead of files or blocks, suited to unstructured data. Examples: Amazon S3, MinIO.
+
+### Bucket
+
+A container for objects in object storage. Each object is addressed by its bucket name and key (e.g., `my-bucket/photos/1.png`).
+
+---
+
+## <a name="load-balancer"></a>Load Balancer Terms
 
 ### Load Balancer
 
@@ -290,7 +344,7 @@ Backends send replies directly to clients. The load balancer forwards requests b
 
 ---
 
-## Rate Limiting Terms
+## <a name="rate-limiting"></a>Rate Limiting Terms
 
 ### Rate Limiting
 
@@ -319,7 +373,7 @@ Limits the frequency or rate of operations, such as bandwidth usage or API calls
 
 ---
 
-## Idempotency Terms
+## <a name="software"></a><a name="idempotency"></a>Idempotency Terms
 
 ### Idempotency
 
@@ -348,7 +402,7 @@ Stores messages that could not be processed for later inspection or controlled r
 
 ---
 
-## Protocol Terms
+## <a name="protocol"></a>Protocol Terms
 
 ### TCP/IP Stack
 
@@ -366,15 +420,53 @@ The process of wrapping data from a higher layer as the payload of a lower layer
 
 A socket that bypasses the OS network stack to send and receive raw packets.
 
+### Keep-Alive
+
+An HTTP mechanism that reuses a single TCP connection for multiple requests instead of opening a new connection for each one.
+
+### Multiplexing
+
+Carrying multiple independent request streams over a single connection at the same time, as HTTP/2 does within one TCP connection.
+
+### HoL (Head-of-Line) Blocking
+
+A stall that occurs when data queued earlier blocks data queued later on the same connection. With HTTP/2 over TCP, a single lost packet delays all multiplexed streams.
+
 ---
 
-## Go Language Terms
+## <a name="architecture"></a>Architecture & IaC Terms
+
+### IaC (Infrastructure as Code)
+
+The practice of managing infrastructure (servers, networks, cloud resources) through declarative code files instead of manual operations, enabling review, versioning, and reproducibility.
+
+### Terraform
+
+HashiCorp's open-source IaC tool. It reads configuration files, computes a plan to reach the desired state, and applies it to real infrastructure.
+
+### Provider (Terraform)
+
+A Terraform plugin that manages the resources of a specific platform (e.g., AWS, Google Cloud, Kubernetes) via its API.
+
+### Service Discovery
+
+The mechanism by which services locate each other's addresses at runtime, typically via DNS (e.g., Kubernetes Services) or a registry (e.g., Consul).
+
+### Sharding
+
+Splitting a large dataset across multiple independent databases (shards) based on a key, to scale writes and storage horizontally.
+
+### Consistent Hashing
+
+A key-distribution technique in which adding or removing a node remaps only a small fraction of keys, minimizing data movement during resharding.
+
+---
+
+## <a name="go"></a>Go Language Terms
 
 ### Clean Architecture
 
-A software design pattern that separates concerns into concentric layers (Domain, UseCase, Infra, Framework)
-
-A design pattern where dependencies point inwards.
+A software design pattern that separates concerns into concentric layers (Domain, UseCase, Infra, Framework) with dependencies pointing inwards.
 
 ```text
 Framework → UseCase → Domain ← Infra

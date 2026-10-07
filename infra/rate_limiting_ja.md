@@ -13,7 +13,7 @@
 ```bash
 cd infra/assets/rate_limiting
 ls -la
-# domain/  usecase/  infra/  main.go
+# domain/  usecase/  main.go  go.mod  go.sum
 ```
 
 ## ゴール
@@ -171,11 +171,9 @@ graph LR
 
 ```text
 infra/assets/rate_limiting/
-├── domain/         # 制限ルールの定義
-├── usecase/        # 各アルゴリズムの実装
-├── infra/          # Redis アダプター
-├── cmd/            # テスト用 CLI
-└── main.go         # エントリーポイント
+├── domain/         # 制限ルールの定義（RateLimiter インターフェース）
+├── usecase/        # 各アルゴリズムの実装（Lua スクリプト）
+└── main.go         # エントリーポイント（テスト用 CLI）
 ```
 
 ---
@@ -265,12 +263,30 @@ go run main.go -algorithm token-bucket -user user3 -capacity 10 -rate 1
 
 各アルゴリズムの特性を比較テストします。
 
+この実習の実装は 1 回の実行で 1 回の判定を行う CLI です（HTTP サーバーは起動しません）。同じコマンドを繰り返し実行して、各アルゴリズムの挙動を観察します。
+
 ```bash
-# 境界でのスパイクテスト
+# 境界でのスパイクテスト: 固定窓に対して 20 リクエストを連続実行
 for i in {1..20}; do
-  curl -s http://localhost:8080/api?user=test
+  go run main.go -algorithm fixed-window -user cmp1 -limit 5 -window 10s
+done
+# Expected output（最初の 5 行）:
+# [fixed-window] Allowed: User cmp1
+# ...
+# Expected output（6 回目以降）:
+# [fixed-window] Denied: User cmp1 (Rate limit exceeded)
+```
+
+```bash
+# 同じ負荷をトークンバケット（容量 5、補充 1/秒）でも比較
+for i in {1..20}; do
+  go run main.go -algorithm token-bucket -user cmp2 -capacity 5 -rate 1
   sleep 0.5
 done
+# Expected output（初期的なバーストは許可され、その後はバケットの補充中に拒否される）:
+# [token-bucket] Allowed: User cmp2
+# ...
+# [token-bucket] Denied: User cmp2 (Rate limit exceeded)
 ```
 
 | アルゴリズム     | 境界での挙動 | メモリ使用 | CPU 使用 | バースト許容 |

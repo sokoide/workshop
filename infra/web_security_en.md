@@ -1041,13 +1041,13 @@ Preflight only happens for **"complex requests"**:
 // ✅ Preflight occurs
 fetch(url, {
   method: "PUT", // PUT/DELETE/PATCH
-  headers: { "X-Custom": "value" } // Custom headers
+  headers: { "X-Custom": "value" }, // Custom headers
 });
 
 // ❌ No preflight (simple request)
 fetch(url, {
   method: "POST",
-  headers: { "Content-Type": "application/x-www-form-urlencoded" }
+  headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
 ```
 

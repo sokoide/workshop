@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -130,7 +131,12 @@ func (q *RetryableQueue) handleMessage(workerID int, msg Message) {
 		} else {
 			fmt.Printf("Message %s failed (attempt %d/%d), scheduling retry\n",
 				msg.ID, msg.Attempts, q.config.MaxRetries)
-			q.retryQueue <- msg
+			// Never block forever here: if Stop() is running, drop the retry
+			// instead of waiting on a queue nobody will drain anymore.
+			select {
+			case q.retryQueue <- msg:
+			case <-q.stopCh:
+			}
 		}
 	} else {
 		fmt.Printf("Message %s processed successfully\n", msg.ID)
@@ -146,19 +152,23 @@ func (q *RetryableQueue) GetDLQ() *DeadLetterQueue {
 }
 
 func (q *RetryableQueue) Stop() {
+	// Signal all workers to exit first, then wait for them to finish.
+	// Channels are closed only after every goroutine has stopped, so no
+	// worker can send on an already-closed channel (which would panic).
 	close(q.stopCh)
+	q.wg.Wait()
 	close(q.mainQueue)
 	close(q.retryQueue)
-	q.wg.Wait()
 }
 
 func main() {
-	// Simulate a handler that fails for certain messages
-	failCount := 0
+	// Simulate a handler that fails for certain messages.
+	// Workers run concurrently, so the counter must be atomic: a plain int
+	// incremented from two goroutines is a data race.
+	var failCount atomic.Int32
 	handler := func(msg Message) error {
 		if msg.ID == "msg-2" {
-			failCount++
-			if failCount <= 4 { // Fail 4 times, exceed max retries
+			if failCount.Add(1) <= 4 { // Fail 4 times, exceed max retries
 				return fmt.Errorf("simulated failure")
 			}
 		}

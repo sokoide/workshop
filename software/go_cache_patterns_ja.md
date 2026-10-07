@@ -419,7 +419,7 @@ flowchart TD
 
 ### クライアントライブラリ
 
-`go-redis/redis/v8` は以下を提供します：
+`redis/go-redis/v9` は以下を提供します：
 
 - Go らしい（Idiomatic な）API
 - コネクションプーリング

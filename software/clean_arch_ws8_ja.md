@@ -22,11 +22,12 @@
 
 ```text
 software/assets/greeting/
-├── internal/domain/       (Layer 1: 最内) ビジネスルール、Entity、Port(Interface)、Domain Error
-├── internal/usecase/      (Layer 2) ユースケース（シナリオ）— オーケストレーションのみ、アプリケーション DTO、UseCase Port
-├── internal/adapters/infra/        (Layer 3: Adapters — Infrastructure) インフラ詳細の実装
-├── internal/adapters/presentation/ (Layer 3: Adapters — Presentation) HTTP Handler、外部ライブラリ
-└── main.go       (Composition Root) 全レイヤーの組み立て（依存注入）
+├── domain/         (Layer 1: 最内) ビジネスルール、Entity、Port(Interface)、Domain Error
+├── usecase/        (Layer 2) ユースケース（シナリオ）— オーケストレーションのみ、アプリケーション DTO、UseCase Port
+├── infra/          (Layer 3: Adapters — Infrastructure) インフラ詳細の実装
+├── presentation/   (Layer 3: Adapters — Presentation) HTTP Handler、外部ライブラリ
+├── go.mod
+└── main.go         (Composition Root) 全レイヤーの組み立て（依存注入）
 ```
 
 > **補足:** `infra/` と `presentation/` はどちらも Adapters 層の一部であり、方向（出力側 vs 入力側）で分割されています。規模が大きくなるプロジェクトでは `internal/adapters/infra/` と `internal/adapters/presentation/` に配置するのが一般的です。
@@ -112,7 +113,7 @@ curl "http://localhost:8080?id=999"
 Clean Architecture の利点は、外部環境（DB など）をモックに差し替えて、ビジネスロジックだけを高速にテストできることです。
 
 ```bash
-go test ./internal/usecase/... -v
+go test ./usecase/... -v
 ```
 
 `usecase/greeting_test.go` を読み、以下の点を確認してください。

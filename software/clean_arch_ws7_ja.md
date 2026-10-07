@@ -171,7 +171,7 @@ func main() {
     // JWT シークレットを環境変数から取得
     secret := os.Getenv("JWT_SECRET")
     if secret == "" {
-        secret = "dev-secret-key" // 開発用フォールバック
+        secret = "dev-secret-key" // 開発用フォールバック（本番環境では必ず環境変数を設定）
     }
 
     // Router に secret を渡す
@@ -201,12 +201,41 @@ curl -X POST http://localhost:8080/api/boards/program/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"テスト","author":"gopher","body":"hello"}'
 
-# JWT を生成（HMAC-SHA256 署名付き）
-# jwt-cli をインストール: go install github.com/matyer/jwt-cli@latest
-TOKEN=$(jwt encode --secret "my-secret-key" --sub "user123" --role "member")
-# または Go のワンライナーで生成:
-# TOKEN=$(go run github.com/golang-jwt/jwt/v5/cmd/jwt@latest \
-#   --secret "my-secret-key" --claim sub:user123 --claim role:member)
+# JWT を生成（HMAC-SHA256 署名付き）— 外部 CLI 不要の使い捨て Go プログラム
+# （任意の一時ディレクトリで作成して実行します）
+mkdir -p /tmp/jwtgen && cd /tmp/jwtgen
+go mod init jwtgen
+cat > main.go <<'EOF'
+package main
+
+import (
+    "fmt"
+    "os"
+    "time"
+
+    "github.com/golang-jwt/jwt/v5"
+)
+
+func main() {
+    // Auth ミドルウェアが検証するのと同じ claims 構成: sub + role（HS256）
+    claims := jwt.MapClaims{
+        "sub":  "user123",
+        "role": "member",
+        "exp":  time.Now().Add(time.Hour).Unix(),
+    }
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+    signed, err := token.SignedString([]byte(os.Args[1]))
+    if err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+    fmt.Println(signed)
+}
+EOF
+go mod tidy
+# Expected output（`go run . "my-secret-key"` の出力）— ドット区切りの 3 部構成トークン:
+# eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3...
+TOKEN=$(go run . "my-secret-key")
 
 # 認証ありで POST → 成功
 curl -X POST http://localhost:8080/api/boards/program/threads \

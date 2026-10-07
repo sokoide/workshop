@@ -72,12 +72,12 @@ type OrderPricer interface {
 	Price(o Order) PriceResult
 }
 
-// domain/order_repository.go
+// usecase/order_repository.go（UseCase が所有する Repository Port）
 type OrderRepository interface {
 	Save(ctx context.Context, o Order) error
 }
 
-// domain/notifier.go (Output Port)
+// usecase/notification.go（UseCase が所有する Output Port）
 type Notifier interface {
 	SendOrderCreated(ctx context.Context, to, body string) error
 }
@@ -109,7 +109,7 @@ func (uc *OrderUseCase) Execute(ctx context.Context, o Order) error {
 	}
 	// 悪い例と同じ通知仕様: 「注文合計: <total> (<taxLabel>)」
 	body := fmt.Sprintf("注文合計: %d (%s)", price.Total, price.TaxLabel)
-	return uc.notifier.SendOrderCreated(ctx, o.Email, body) // Domain Port 経由
+	return uc.notifier.SendOrderCreated(ctx, o.Email, body) // UseCase Port 経由
 }
 
 // infra/notifier/mail_notifier.go

@@ -78,6 +78,12 @@ Linux カーネルの機能で、ネットワークスタック（インター�
 
 仮想のイーサネットケーブルペア。Network Namespace 間の接続に使用。
 
+```text
+┌─────────────┐     veth      ┌─────────────┐
+│ Namespace A │<------------->│ Namespace B │
+└─────────────┘   (peer)      └─────────────┘
+```
+
 ---
 
 ## <a name="kubernetes"></a>Kubernetes 用語
@@ -108,13 +114,7 @@ Kubernetes 用のパッケージマネージャー。複雑なアプリケーシ
 
 ### Ingress
 
-クラスタ内のサービスへの外部アクセス（主に HTTP/HTTPS）を管理する API オブジェクト
-
-```text
-┌─────────────┐     veth      ┌─────────────┐
-│ Namespace A │<------------->│ Namespace B │
-└─────────────┘   (peer)      └─────────────┘
-```
+クラスタ内のサービスへの外部アクセス（主に HTTP/HTTPS）を管理する API オブジェクト。
 
 ---
 
@@ -145,6 +145,38 @@ Kubernetes 用のパッケージマネージャー。複雑なアプリケーシ
 
 Pod 間の通信をネットワークレベル（L3/L4）で制御するための Kubernetes リソース。
 
+### TLS / SSL (Transport Layer Security / Secure Sockets Layer)
+
+2 点間の通信を暗号化し、証明書でサーバーの身元を検証するプロトコル。SSL は非推奨の旧世代、TLS はその後継。
+
+```text
+https:// → TLS 上の HTTP（デフォルトポート 443）
+```
+
+### CA (Certificate Authority)
+
+公開鍵とドメイン・組織などの身元を結びつけるデジタル証明書を発行する、信頼された第三者機関。
+
+```text
+信頼連鎖: ルート CA → 中間 CA → サーバー証明書
+```
+
+### Secret Management (シークレット管理)
+
+API キー・パスワード・証明書などの機密情報を、ソースコードやコンテナイメージに埋め込まず、中央集約して保管・配布する運用。
+
+### Vault
+
+HashiCorp のオープンソースのシークレット管理ツール。シークレットを暗号化して保管し、短命な動的クレデンシャルを発行できる。
+
+### KV Engine (KV Secrets Engine)
+
+Vault でシークレットを単純なキー・バリュー形式で保管するエンジン。バージョン 2（KV v2）ではバージョニングとソフトデリートが利用可能。
+
+### Presigned URL (プリサイン URL)
+
+特定のオブジェクト（S3 や MinIO など）へのダウンロード・アップロード権限を、期限付きで付与する URL。
+
 ---
 
 ## <a name="mesh"></a>サービスメッシュ用語
@@ -168,15 +200,19 @@ Pod 間の通信をネットワークレベル（L3/L4）で制御するため�
 
 ---
 
-## OAuth2・アイデンティティ用語
+## <a name="oauth2"></a>OAuth2・アイデンティティ用語
 
 ### OAuth2
 
 認可のための標準プロトコル。ユーザーのパスワードを教えることなく、サードパーティアプリケーションにリソースへのアクセスを許可する。
 
-### Access Token (JWT)
+### <a name="access-token"></a>Access Token (JWT)
 
 特定のリソースへのアクセス権を証明するためのトークン。JSON Web Token (JWT) 形式が一般的。
+
+### <a name="resource-server"></a>Resource Server (リソースサーバー)
+
+保護されたリソースをホストし、認可サーバーが発行したアクセストークンで認証されたリクエストを受け付けるサーバー（例: ユーザーデータを返す REST API）。
 
 ### Entra ID (Azure AD)
 
@@ -184,7 +220,7 @@ Microsoft が提供するクラウドベースのアイデンティティおよ�
 
 ---
 
-## メッセージキュー用語
+## <a name="mq"></a>メッセージキュー用語
 
 ### Pub/Sub (Publish/Subscribe)
 
@@ -192,9 +228,7 @@ Microsoft が提供するクラウドベースのアイデンティティおよ�
 
 ### Exchange (RabbitMQ)
 
-メッセージをルール（Direct, Fanout, Topic, Headers）に基づいてキューにルーティングするコンポーネント
-
-メッセージのルーティングを行うコンポーネント。RabbitMQ では複数のタイプが存在。
+メッセージをルール（Direct, Fanout, Topic, Headers）に基づいてキューにルーティングするコンポーネント。
 
 | タイプ  | 説明                         |
 | :------ | :--------------------------- |
@@ -222,22 +256,22 @@ Topic Exchange で使用するパターンマッチ文字。
 
 ---
 
-## キャッシュ用語
+## <a name="cache"></a>キャッシュ用語
 
 ### Sorted Set (ZSET)
 
 Redis のデータ構造。スコアによってソートされたメンバーの集合。ランキングの実装などに適している。
-
-### Write-Through / Cache-Aside
-
-- **Write-Through**: キャッシュとバックエンドデータベースの両方に同時にデータを書き込む方式。
-- **Cache-Aside**: まずキャッシュを確認し、データがなければ（キャッシュミス）データベースから読み取ってキャッシュを更新する方式。
 
 ```text
 ZADD game_leaderboard 100 player1
 ZADD game_leaderboard 250 player2
 ZREVRANGE game_leaderboard 0 9  # 上位 10 名を取得
 ```
+
+### Write-Through / Cache-Aside
+
+- **Write-Through**: キャッシュとバックエンドデータベースの両方に同時にデータを書き込む方式。
+- **Cache-Aside**: まずキャッシュを確認し、データがなければ（キャッシュミス）データベースから読み取ってキャッシュを更新する方式。
 
 ### Sets
 
@@ -250,7 +284,27 @@ SISMEMBER banned_users player2  # 1 (true)
 
 ---
 
-## ロードバランサ用語
+## <a name="storage"></a>ストレージ用語
+
+### iSCSI (Internet Small Computer Systems Interface)
+
+SCSI のブロックストレージコマンドを IP ネットワーク上で運ぶプロトコル。リモートストレージをローカルディスクであるかのように利用できる。
+
+### LUN (Logical Unit Number)
+
+ストレージシステムがイニシエータ（クライアント）に提供する論理ユニットを識別する番号。イニシエータは LUN をブロックデバイスとして扱う。
+
+### Object Storage (オブジェクトストレージ)
+
+データをファイルやブロックではなく、オブジェクト（データ + メタデータ + 一意 ID）として管理するストレージモデル。非構造化データに適する。例: Amazon S3、MinIO。
+
+### Bucket (バケット)
+
+オブジェクトストレージでオブジェクトを格納する容器。オブジェクトはバケット名とキーでアドレス指定される（例: `my-bucket/photos/1.png`）。
+
+---
+
+## <a name="load-balancer"></a>ロードバランサ用語
 
 ### Load Balancer (ロードバランサ)
 
@@ -290,7 +344,7 @@ Linux カーネルレベルのロードバランシング機能。
 
 ---
 
-## レート制限用語
+## <a name="rate-limiting"></a>レート制限用語
 
 ### Rate Limiting (レート制限)
 
@@ -319,7 +373,7 @@ Linux カーネルレベルのロードバランシング機能。
 
 ---
 
-## 冪等性用語
+## <a name="software"></a><a name="idempotency"></a>冪等性用語
 
 ### Idempotency (冪等性)
 
@@ -348,13 +402,11 @@ Header: Idempotency-Key: uuid-v4
 
 ---
 
-## プロトコル用語
+## <a name="protocol"></a>プロトコル用語
 
 ### TCP/IP Stack
 
-TCP と IP を中心とした、インターネット通信プロトコルの階層的な実装
-
-TCP と IP を中心とするインターネット通信プロトコルの階層実装。
+TCP と IP を中心とするインターネット通信プロトコルの階層的な実装。
 
 ### カプセル化
 
@@ -368,15 +420,53 @@ TCP と IP を中心とするインターネット通信プロトコルの階層
 
 OS のネットワークスタックをバイパスして、生のパケットを送受信するためのソケット。
 
+### Keep-Alive (キープアライブ)
+
+1 つの TCP コネクションを複数の HTTP リクエストで再利用し、リクエストごとに新しい接続を確立しない仕組み。
+
+### Multiplexing (多重化)
+
+複数の独立したリクエストストリームを 1 つのコネクション上で同時に運ぶこと。HTTP/2 では単一 TCP コネクション上で実現される。
+
+### HoL Blocking (ヘッドオブラインブロッキング)
+
+同じコネクション上で、先に並んだデータが後続のデータの送信を妨げることで発生する遅延。HTTP/2 over TCP では、パケットロス 1 件で全ストリームが遅延する。
+
 ---
 
-## Go 言語用語
+## <a name="architecture"></a>アーキテクチャ・IaC 用語
+
+### IaC (Infrastructure as Code)
+
+サーバー・ネットワーク・クラウドリソースなどのインフラを、手動操作ではなく宣言的なコードファイルで管理する手法。レビュー・バージョン管理・再現性が可能になる。
+
+### Terraform
+
+HashiCorp のオープンソース IaC ツール。設定ファイルから目的の状態との差分をプランとして算出し、実環境に適用する。
+
+### Provider (Terraform)
+
+特定のプラットフォーム（AWS、Google Cloud、Kubernetes など）のリソースを API 経由で管理する Terraform プラグイン。
+
+### Service Discovery (サービスディスカバリ)
+
+実行時にサービスが互いのアドレスを発見する仕組み。DNS（Kubernetes Service など）やレジストリ（Consul など）で実現される。
+
+### Sharding (シャーディング)
+
+キーに基づいて大規模なデータセットを複数の独立したデータベース（シャード）に分割し、書き込みとストレージを水平スケールさせる手法。
+
+### Consistent Hashing (コンシステントハッシュ)
+
+ノードの追加・削除時に再マッピングされるキーの割合を最小限に抑えるキー分散手法。リシャーディング時のデータ移動量を削減できる。
+
+---
+
+## <a name="go"></a>Go 言語用語
 
 ### Clean Architecture
 
-関心を同心円状のレイヤー（Domain, UseCase, Infra, Framework）に分離するソフトウェア設計パターン
-
-依存関係を内側に向ける設計パターン。
+関心を同心円状のレイヤー（Domain, UseCase, Infra, Framework）に分離し、依存関係を内側に向けるソフトウェア設計パターン。
 
 ```text
 Framework → UseCase → Domain ← Infra

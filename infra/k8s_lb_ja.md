@@ -126,7 +126,17 @@ sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello fr
 ### ✅ チェックポイント
 
 - [ ] `podman exec b ps aux | grep nc` で Web サーバー（nc）が起動していることを確認した
-- [ ] 同一ネットワーク内の `router` から `curl http://192.168.20.20` でレスポンスが返ることを確認した
+- [ ] 同一ネットワーク内の `router` からレスポンスが返ることを確認した:
+
+```bash
+# curl が入っていない場合は追加（router と a は素の Alpine イメージ）
+sudo podman exec router apk add --no-cache curl
+sudo podman exec a apk add --no-cache curl
+
+sudo podman exec router curl -s http://192.168.20.20
+# Expected output:
+# Hello from Pod B
+```
 
 ### STEP 2: ネットワークの分断 (Firewall)
 
@@ -135,6 +145,7 @@ sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello fr
 ```bash
 # Router で転送をブロック (VLAN 10 -> VLAN 20)
 sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
+# Expected output: （出力なし。`sudo podman exec router iptables -L FORWARD -v` で確認）
 ```
 
 ### ✅ チェックポイント
@@ -164,15 +175,26 @@ sudo podman exec router ip addr add 192.168.10.100/32 dev eth1
 VIP へのアクセスを Pod B へ転送するルール（kube-proxy の役割）を書きます。
 
 ```bash
-# 宛先が 10.100:80 なら 20.20:80 に書き換え
+# 宛先が VIP:80 なら 20.20:80 に書き換え
 sudo podman exec router iptables -t nat -A PREROUTING \
   -d 192.168.10.100 -p tcp --dport 80 \
   -j DNAT --to-destination 192.168.20.20:80
+# Expected output: （出力なし）
+
+# DNAT された接続だけを FORWARD チェーンで許可する。
+# STEP 2 の DROP ルールより「前」に挿入する必要がある。
+# これがないと転送パケットが DROP され、STEP 6 がタイムアウトする。
+sudo podman exec router iptables -I FORWARD 1 \
+  -m conntrack --ctstate DNAT -j ACCEPT
+# Expected output: （出力なし）
 ```
+
+※ `--ctstate DNAT` は DNAT ルールによって宛先が書き換えられた接続のみにマッチします。そのため、Pod IP への直接アクセスは STEP 2 の `DROP` ルールでブロックされたままです。
 
 ### ✅ チェックポイント
 
 - [ ] `sudo podman exec router iptables -t nat -L PREROUTING` で DNAT ルールが登録されていることを確認した
+- [ ] `sudo podman exec router iptables -L FORWARD -v --line-numbers` で `ACCEPT` ルールが `FORWARD` チェーンの先頭にあることを確認した
 
 ### STEP 5: 戻りパケットの処理 (SNAT)
 
@@ -180,15 +202,23 @@ sudo podman exec router iptables -t nat -A PREROUTING \
 
 ```bash
 sudo podman exec router iptables -t nat -A POSTROUTING \
-  -d 192.168.20.20 -p tcp --dport 80 \
+  -o eth2 -d 192.168.20.20 -p tcp --dport 80 \
   -j MASQUERADE
+# Expected output: （出力なし）
 ```
+
+### ✅ チェックポイント
+
+- [ ] `sudo podman exec router iptables -t nat -L POSTROUTING -v` で MASQUERADE ルールが登録されていることを確認した
 
 ### STEP 6: 動作確認
 
+Container A から VIP にアクセスします:
+
 ```bash
-# VIP にアクセス
-# -> "Hello from Pod B" と出れば成功！
+sudo podman exec a curl -s http://192.168.10.100
+# Expected output:
+# Hello from Pod B
 ```
 
 ### ✅ チェックポイント
@@ -215,6 +245,7 @@ sudo podman exec router iptables -t nat -A POSTROUTING \
 # VIP の削除
 sudo podman exec router ip addr del 192.168.10.100/32 dev eth1
 # 遮断ルールの削除
+sudo podman exec router iptables -D FORWARD -m conntrack --ctstate DNAT -j ACCEPT
 sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 ```
 
@@ -236,7 +267,7 @@ sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 **原因と対処**:
 
 - **iptables の設定順序**: `PREROUTING` チェーンにルールが正しく追加されているか確認してください。
-- **FORWARD チェーンの競合**: STEP 2 で設定した `DROP` ルールが、DNAT 後のパケットまでブロックしていないか確認してください（通常 DNAT 後のパケットは FORWARD を通りますが、ポリシーにより挙動が変わります）。
+- **FORWARD チェーンの競合**: STEP 4 で追加した DNAT 接続向けの `ACCEPT` ルールが、STEP 2 の `DROP` ルールより**前**に配置されているか確認してください（`iptables -L FORWARD -v --line-numbers`）。DNAT 後のパケットも `FORWARD` チェーンを通るため、このルールがないと DROP されます。
 
 ### 戻りパケットが届かない
 

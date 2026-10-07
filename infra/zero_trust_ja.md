@@ -134,6 +134,36 @@ istioctl install --set profile=demo -y
 kubectl label namespace default istio-injection=enabled
 ```
 
+### ✅ 検証用ワークロードのデプロイ
+
+以降の検証ステップでは `client` Pod と `server` Pod を観察します。ポリシーを適用する前に、まず両者をデプロイしておいてください。
+
+```bash
+# 4. ワークロードの ID となる ServiceAccount を作成
+kubectl create serviceaccount client-sa
+kubectl create serviceaccount server-sa
+
+# 5. 検証用のサーバー（httpbin）とクライアントをデプロイ
+kubectl run server \
+  --image=ghcr.io/postmanlabs/httpbin:latest \
+  --labels="app=server" \
+  --serviceaccount=server-sa
+
+kubectl run client \
+  --image=curlimages/curl:latest \
+  --labels="app=client" \
+  --serviceaccount=client-sa \
+  --command -- sleep infinity
+
+# 両 Pod が Ready になるまで待機
+kubectl wait --for=condition=ready pod/server pod/client --timeout=180s
+# Expected output:
+# pod/server condition met
+# pod/client condition met
+```
+
+サイドカー注入が有効（手順 3）なので、両 Pod には Envoy サイドカーが入ります。`kubectl get pods` で各 Pod が `2/2` コンテナになっていることを確認してください。
+
 ---
 
 ## 5. 実習ステップ：詳細プロセス
@@ -172,8 +202,8 @@ ZTA における Identity は、静的な API キーではありません。**SP
 
 ```bash
 # Envoy が持っている身分証 (SVID) の SPIFFE ID を確認
-istioctl proxy-config secret <pod-name> | grep spiffe
-# 出力例: spiffe://cluster.local/ns/default/sa/client-sa
+istioctl proxy-config secret client | grep spiffe
+# Expected output: chain/spiffe://cluster.local/ns/default/sa/client-sa （などのエントリ）
 ```
 
 ### STEP 3: L7 認可（AuthorizationPolicy）
@@ -201,6 +231,19 @@ spec:
 
 **💡 SWE へのヒント**:
 この設定により、`client` が `DELETE /api/v1/data` を実行しようとしても、アプリに届く前に Envoy が `403 Forbidden` を返します。
+
+**検証コマンド**:
+
+```bash
+# 許可されるケース: GET /api/v1/data はポリシーに一致
+# （httpbin は未知のパスに 404 を返しますが、403 以外の応答はリクエストが AuthZ を通過した証拠です）
+kubectl exec client -c client -- curl -s -o /dev/null -w "%{http_code}\n" http://server/api/v1/data
+# Expected output: 404
+
+# 拒否されるケース: DELETE はポリシーで許可されていない
+kubectl exec client -c client -- curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://server/api/v1/data
+# Expected output: 403 (RBAC: access denied)
+```
 
 ---
 

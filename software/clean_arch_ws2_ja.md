@@ -80,7 +80,9 @@ package infra
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"time"
 
 	"your-project/internal/domain"
 	"github.com/redis/go-redis/v9"
@@ -93,18 +95,43 @@ type CachedUserRepository struct {
 
 func (r *CachedUserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	// 1. キャッシュにあればそれを返す
-	if user, err := r.getFromCache(id); err == nil {
+	if user, err := r.getFromCache(ctx, id); err == nil {
 		return user, nil
 	}
 
 	// 2. なければ本物のDBに聞きに行く
 	user, err := r.origin.FindByID(ctx, id)
 	if err == nil {
-		if cacheErr := r.saveToCache(user); cacheErr != nil {
+		if cacheErr := r.saveToCache(ctx, user); cacheErr != nil {
 			slog.Warn("failed to save user to cache", "error", cacheErr) // キャッシュ保存の失敗はログ出力に留め、メイン処理は続行
 		}
 	}
 	return user, err
+}
+
+// キャッシュ用ヘルパー — この Decorator の実装詳細。
+// UserRepository interface の一部ではないため、UseCase 層も
+// ラップされる側のリポジトリも Redis の存在を知らない。
+
+func (r *CachedUserRepository) getFromCache(ctx context.Context, id string) (*domain.User, error) {
+	data, err := r.cache.Get(ctx, "user:"+id).Bytes()
+	if err != nil {
+		return nil, err // redis.Nil（キャッシュミス）やキャッシュ障害 → 本物のDBへフォールバック
+	}
+	var user domain.User
+	if err := json.Unmarshal(data, &user); err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *CachedUserRepository) saveToCache(ctx context.Context, user *domain.User) error {
+	data, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+	// TTL を設定し、古いキャッシュエントリが自動的に失効するようにする
+	return r.cache.Set(ctx, "user:"+user.ID, data, 10*time.Minute).Err()
 }
 ```
 

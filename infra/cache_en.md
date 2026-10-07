@@ -108,9 +108,9 @@ go mod tidy
 
 ## Workshop Steps
 
-### STEP 1: Register Scores (ZADD)
+### STEP 1: Add Scores (ZINCRBY)
 
-Register or update user scores. Redis automatically re-orders them internally.
+Add points to each user's score (a user's points accumulate; Redis re-orders the set automatically).
 
 ```bash
 go run main.go -action add -user user1 -score 100

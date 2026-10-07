@@ -126,7 +126,17 @@ sudo podman exec -d b sh -c "while true; do echo -e 'HTTP/1.1 200 OK\n\nHello fr
 ### ✅ Verification Checkpoints
 
 - [ ] Confirmed the web server (nc) is running via `podman exec b ps aux | grep nc`.
-- [ ] Confirmed response from `router` via `curl http://192.168.20.20`.
+- [ ] Confirmed the response from `router`:
+
+```bash
+# Install curl if missing (router and a are plain Alpine images)
+sudo podman exec router apk add --no-cache curl
+sudo podman exec a apk add --no-cache curl
+
+sudo podman exec router curl -s http://192.168.20.20
+# Expected output:
+# Hello from Pod B
+```
 
 ### STEP 2: Network Isolation (Firewall)
 
@@ -135,6 +145,7 @@ To enforce the principle of "use Service IP instead of accessing Pod IP directly
 ```bash
 # Block forwarding at the Router (VLAN 10 -> VLAN 20)
 sudo podman exec router iptables -I FORWARD -i eth1 -o eth2 -j DROP
+# Expected output: (no output; verify with `sudo podman exec router iptables -L FORWARD -v`)
 ```
 
 ### ✅ Verification Checkpoints
@@ -164,15 +175,26 @@ _Note: This causes the router to respond to ARP requests for the VIP (simulating
 Write a rule to forward access to the VIP to Pod B (the role of kube-proxy).
 
 ```bash
-# Rewrite destination 10.100:80 to 20.20:80
+# Rewrite destination VIP:80 to 20.20:80
 sudo podman exec router iptables -t nat -A PREROUTING \
   -d 192.168.10.100 -p tcp --dport 80 \
   -j DNAT --to-destination 192.168.20.20:80
+# Expected output: (no output)
+
+# Allow only DNAT'ed connections through the FORWARD chain.
+# This must be inserted BEFORE the DROP rule from STEP 2, otherwise
+# the forwarded packets are dropped and STEP 6 will time out.
+sudo podman exec router iptables -I FORWARD 1 \
+  -m conntrack --ctstate DNAT -j ACCEPT
+# Expected output: (no output)
 ```
+
+_Note: `--ctstate DNAT` matches only connections whose destination was rewritten by the DNAT rule, so direct access to the Pod IP stays blocked by the STEP 2 `DROP` rule._
 
 ### ✅ Verification Checkpoints
 
 - [ ] Confirmed the DNAT rule is registered via `sudo podman exec router iptables -t nat -L PREROUTING`.
+- [ ] Confirmed the `ACCEPT` rule is the first entry of the `FORWARD` chain via `sudo podman exec router iptables -L FORWARD -v --line-numbers`.
 
 ### STEP 5: Handle Return Traffic (SNAT)
 
@@ -180,15 +202,23 @@ Rewrite the source IP to the router's IP to ensure responses correctly return vi
 
 ```bash
 sudo podman exec router iptables -t nat -A POSTROUTING \
-  -d 192.168.20.20 -p tcp --dport 80 \
+  -o eth2 -d 192.168.20.20 -p tcp --dport 80 \
   -j MASQUERADE
+# Expected output: (no output)
 ```
+
+### ✅ Verification Checkpoints
+
+- [ ] Confirmed the MASQUERADE rule is registered via `sudo podman exec router iptables -t nat -L POSTROUTING -v`.
 
 ### STEP 6: Verify Operation
 
+Access the VIP from Container A:
+
 ```bash
-# Access VIP
-# -> Should output "Hello from Pod B"!
+sudo podman exec a curl -s http://192.168.10.100
+# Expected output:
+# Hello from Pod B
 ```
 
 ### ✅ Verification Checkpoints
@@ -214,7 +244,8 @@ Understanding both low-level packet manipulation (this workshop) and high-level 
 ```bash
 # Delete VIP
 sudo podman exec router ip addr del 192.168.10.100/32 dev eth1
-# Delete firewall rule
+# Delete firewall rules
+sudo podman exec router iptables -D FORWARD -m conntrack --ctstate DNAT -j ACCEPT
 sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 ```
 
@@ -236,7 +267,7 @@ sudo podman exec router iptables -D FORWARD -i eth1 -o eth2 -j DROP
 **Causes and Solutions**:
 
 - **iptables Order**: Re-check that the rule is correctly placed in the `PREROUTING` chain.
-- **FORWARD Chain Conflict**: Ensure the `DROP` rule does not block the post-DNAT packets (which typically traversal the FORWARD chain).
+- **FORWARD Chain Conflict**: Ensure the `ACCEPT` rule for DNAT'ed connections (STEP 4) is placed **before** the STEP 2 `DROP` rule in the `FORWARD` chain (`iptables -L FORWARD -v --line-numbers`). Post-DNAT packets also traverse the `FORWARD` chain, so without this rule they are dropped.
 
 ### Return Packets Lost
 

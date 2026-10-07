@@ -419,7 +419,7 @@ flowchart TD
 
 ### Client Library
 
-`go-redis/redis/v8` provides:
+`redis/go-redis/v9` provides:
 
 - Idiomatic Go APIs
 - Connection pooling

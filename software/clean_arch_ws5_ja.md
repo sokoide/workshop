@@ -19,18 +19,18 @@
 
 以下の層は **1行も変更しません**。
 
-| 層               | 理由                                                                                                                             |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**       | Port Interface（`BoardRepository`, `ThreadRepository` 等）が抽象的なため、実装が SQLite でも PostgreSQL でも同じように呼び出せる |
-| **UseCase**      | Repository の **Interface** に依存しているため、具象実装が何に置き換わっても影響なし                                             |
-| **Presentation** | Handler は UseCase を呼ぶだけで、DB の種類を知らない                                                                             |
+| 層               | 理由                                                                                                                                           |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Domain**       | エンティティやドメインエラーに永続化の詳細はなく、DB の種類を一切知らない                                                                      |
+| **UseCase**      | Repository の **Port Interface**（`internal/usecase/repository.go`）を所有し、それにのみ依存しているため、具象実装が何に置き換わっても影響なし |
+| **Presentation** | Handler は UseCase を呼ぶだけで、DB の種類を知らない                                                                                           |
 
 ### Step 1: 現在の SQLite 実装を確認する
 
-現在の Infra 実装が Domain の Port Interface を満たしていることを確認します。
+現在の Infra 実装が UseCase の Port Interface を満たしていることを確認します。
 
 ```go
-// internal/domain/port/repository.go（変更不要 — 見るだけ）
+// internal/usecase/repository.go（変更不要 — 見るだけ）
 type BoardRepository interface {
     FindAll(ctx context.Context) ([]*entity.Board, error)
     FindByName(ctx context.Context, name string) (*entity.Board, error)

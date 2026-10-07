@@ -41,10 +41,9 @@ func TestAddScore(t *testing.T) {
 			repo := NewRedisLeaderboardRepository(db, "leaderboard", "banned")
 
 			ctx := context.Background()
-			mock.ExpectZAdd("leaderboard", redis.Z{
-				Score:  tt.score,
-				Member: tt.userID,
-			}).SetVal(1)
+			// ZIncrBy returns the member's score AFTER the increment.
+			// Each case adds once (previous score is 0), so the new score equals tt.score.
+			mock.ExpectZIncrBy("leaderboard", tt.score, tt.userID).SetVal(tt.score)
 
 			err := repo.AddScore(ctx, tt.userID, tt.score)
 			if (err != nil) != tt.wantErr {

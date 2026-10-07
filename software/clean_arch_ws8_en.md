@@ -22,11 +22,12 @@ Dependencies always point **from the outside in**.
 
 ```text
 software/assets/greeting/
-├── internal/domain/       (Layer 1: Innermost) Business rules, Entities, Ports (Interfaces), Domain Errors
-├── internal/usecase/      (Layer 2) Use cases — orchestration only, application DTOs, UseCase Ports
-├── internal/adapters/infra/        (Layer 3: Adapters — Infrastructure) Infrastructure implementation details
-├── internal/adapters/presentation/ (Layer 3: Adapters — Presentation) HTTP Handlers, external libraries
-└── main.go       (Composition Root) Assembling all layers (Dependency Injection)
+├── domain/         (Layer 1: Innermost) Business rules, Entities, Ports (Interfaces), Domain Errors
+├── usecase/        (Layer 2) Use cases — orchestration only, application DTOs, UseCase Ports
+├── infra/          (Layer 3: Adapters — Infrastructure) Infrastructure implementation details
+├── presentation/   (Layer 3: Adapters — Presentation) HTTP Handlers, external libraries
+├── go.mod
+└── main.go         (Composition Root) Assembling all layers (Dependency Injection)
 ```
 
 > **Note:** `infra/` and `presentation/` are both part of the Adapters layer, split by direction (outbound vs inbound). In larger projects, they would typically live under `internal/adapters/infra/` and `internal/adapters/presentation/`.
@@ -112,7 +113,7 @@ curl "http://localhost:8080?id=999"
 A benefit of Clean Architecture is the ability to swap external environments (like DBs) with Mocks and test business logic at high speed.
 
 ```bash
-go test ./internal/usecase/... -v
+go test ./usecase/... -v
 ```
 
 Read `usecase/greeting_test.go` and check the following:

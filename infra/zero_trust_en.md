@@ -134,6 +134,36 @@ istioctl install --set profile=demo -y
 kubectl label namespace default istio-injection=enabled
 ```
 
+### ✅ Deploy Sample Workloads
+
+The verification steps below observe a `client` Pod and a `server` Pod. Deploy them now, before applying any policy.
+
+```bash
+# 4. Create ServiceAccounts (the source of workload identities)
+kubectl create serviceaccount client-sa
+kubectl create serviceaccount server-sa
+
+# 5. Deploy a test server (httpbin) and a test client
+kubectl run server \
+  --image=ghcr.io/postmanlabs/httpbin:latest \
+  --labels="app=server" \
+  --serviceaccount=server-sa
+
+kubectl run client \
+  --image=curlimages/curl:latest \
+  --labels="app=client" \
+  --serviceaccount=client-sa \
+  --command -- sleep infinity
+
+# Wait for both Pods to become Ready
+kubectl wait --for=condition=ready pod/server pod/client --timeout=180s
+# Expected output:
+# pod/server condition met
+# pod/client condition met
+```
+
+Because sidecar injection is enabled (step 3), both Pods run with an Envoy sidecar — verify with `kubectl get pods` (each Pod shows `2/2` containers).
+
 ---
 
 ## 5. Workshop Steps: Detailed Process
@@ -172,8 +202,8 @@ Identity in ZTA is not a static API key. **SPIRE** issues "Digital IDs (SVIDs)" 
 
 ```bash
 # Verify the SPIFFE ID in the SVID held by Envoy
-istioctl proxy-config secret <pod-name> | grep spiffe
-# Example output: spiffe://cluster.local/ns/default/sa/client-sa
+istioctl proxy-config secret client | grep spiffe
+# Expected output: chain/spiffe://cluster.local/ns/default/sa/client-sa (and similar entries)
 ```
 
 ### STEP 3: L7 Authorization (AuthorizationPolicy)
@@ -201,6 +231,19 @@ spec:
 
 **💡 SWE Tip**:
 With this configuration, if `client` tries to execute `DELETE /api/v1/data`, Envoy will return a `403 Forbidden` before it ever reaches your application.
+
+**Verification Command**:
+
+```bash
+# Allowed: GET /api/v1/data matches the policy
+# (httpbin answers 404 for unknown paths, but any response other than 403 proves the request passed AuthZ)
+kubectl exec client -c client -- curl -s -o /dev/null -w "%{http_code}\n" http://server/api/v1/data
+# Expected output: 404
+
+# Denied: DELETE is not permitted by the policy
+kubectl exec client -c client -- curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://server/api/v1/data
+# Expected output: 403 (RBAC: access denied)
+```
 
 ---
 

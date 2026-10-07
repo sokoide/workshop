@@ -7,8 +7,8 @@
 ehthumbs.db
 Thumbs.db
 
-# Protobuf
-pb/
+# Protobuf (commit generated code under infra/assets; see http_persistent_conn/pb)
+/pb/
 
 # IDE settings
 .vscode/

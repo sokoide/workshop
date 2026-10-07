@@ -92,6 +92,14 @@ graph LR
 
 - Both VMs: Ubuntu 24.04 (4GB RAM minimum recommended).
 - Firewall properly configured or disabled.
+- `kubectl` installed on VM1 (needed from STEP 4 onward):
+
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install kubectl /usr/local/bin/
+kubectl version --client
+# Expected output: Client Version: v1.xx.x
+```
 
 ---
 
@@ -209,9 +217,31 @@ kubectl get pvc # Success if Status becomes Bound
 
 ### STEP 5: Verification via Pod
 
+Create **test-pod.yaml** (in `~/`, as shown in the Directory Structure):
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+spec:
+  containers:
+    - name: main
+      image: busybox:1.36
+      command: ["sleep", "infinity"]
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: iscsi-pvc
+```
+
 ```bash
 # Start Pod
 kubectl apply -f test-pod.yaml
+# Expected output: pod/test-pod created
 
 # Write data
 kubectl exec test-pod -- sh -c "echo 'Hello persistent' > /data/hello.txt"
@@ -222,6 +252,8 @@ kubectl apply -f test-pod.yaml
 
 # Verify reading
 kubectl exec test-pod -- cat /data/hello.txt
+# Expected output:
+# Hello persistent
 # -> Persistence successful if "Hello persistent" is shown!
 ```
 

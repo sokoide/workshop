@@ -18,21 +18,21 @@ This is a classic example of the new Port/Adapter pattern.
 
 ### Change Overview
 
-| Layer            | Change                                                                                                              | Role                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **Domain**       | **No changes**                                                                                                      | —                                                                             |
-| **UseCase**      | Define `port.NotificationGateway` interface (new file), inject into `CreatePostUseCase`, call after successful post | Abstract definition of "notification is needed" + control notification timing |
-| **Infra**        | Create `infra/notification/slack_gateway.go` (new file)                                                             | Concrete Slack API implementation                                             |
-| **Presentation** | **No changes**                                                                                                      | —                                                                             |
-| **Entity**       | **No changes**                                                                                                      | —                                                                             |
+| Layer            | Change                                                                                                                                               | Role                                                                          |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Domain**       | **No changes**                                                                                                                                       | —                                                                             |
+| **UseCase**      | Define `NotificationGateway` interface in `internal/usecase/notification.go` (new file), inject into `CreatePostUseCase`, call after successful post | Abstract definition of "notification is needed" + control notification timing |
+| **Infra**        | Create `infra/notification/slack_gateway.go` (new file)                                                                                              | Concrete Slack API implementation                                             |
+| **Presentation** | **No changes**                                                                                                                                       | —                                                                             |
+| **Entity**       | **No changes**                                                                                                                                       | —                                                                             |
 
 ### Step 1: UseCases Layer — Define a New Port
 
 Define the "notification functionality" as an abstraction, not "how to notify." Notification is a tool needed by the application workflow, so the port belongs to the UseCases layer.
 
 ```go
-// internal/usecase/port/notification.go (new file)
-package port
+// internal/usecase/notification.go (new file)
+package usecase
 
 import "context"
 
@@ -42,6 +42,8 @@ type NotificationGateway interface {
     NotifyNewPost(ctx context.Context, threadTitle string, postAuthor string, postBody string) error
 }
 ```
+
+The new file sits directly under `internal/usecase/`, next to `repository.go` and `transaction.go`, following the same UseCase-owned port placement as the other ports.
 
 **Key observation**: The word "Slack" never appears in this interface. The UseCase decides "what to notify" and leaves "how to notify" to Infra.
 
@@ -53,18 +55,18 @@ Inject the notification gateway into `CreatePostUseCase` and call it after succe
 // internal/usecase/post_usecase.go (modify existing file)
 // NOTE: Add `"log/slog"` to the import list
 type CreatePostUseCase struct {
-    threadRepo port.ThreadRepository
-    postRepo   port.PostRepository
-    tm         port.TransactionManager
-    notifier   port.NotificationGateway  // ← Added: notification gateway
+    threadRepo ThreadRepository
+    postRepo   PostRepository
+    tm         TransactionManager
+    notifier   NotificationGateway  // ← Added: notification gateway
 }
 
 // Add notifier to constructor
 func NewCreatePostUseCase(
-    threadRepo port.ThreadRepository,
-    postRepo port.PostRepository,
-    tm port.TransactionManager,
-    notifier port.NotificationGateway,  // ← Added
+    threadRepo ThreadRepository,
+    postRepo PostRepository,
+    tm TransactionManager,
+    notifier NotificationGateway,  // ← Added
 ) *CreatePostUseCase {
     return &CreatePostUseCase{
         threadRepo: threadRepo,
@@ -91,6 +93,10 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
         }
         if thread == nil {
             return domain.ErrThreadNotFound
+        }
+        // The business rule added in WS4 remains in place (not silently dropped)
+        if !thread.CanPost(in.Author) {
+            return domain.ErrNotThreadOwner
         }
         count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)
         if err != nil {

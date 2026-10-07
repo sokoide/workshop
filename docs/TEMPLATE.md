@@ -1,0 +1,35 @@
+# Workshop Document Template
+
+All workshop documents (`infra/*.md`, `software/*.md`) follow this skeleton.
+Gold-standard references: [`infra/cache_en.md`](../infra/cache_en.md) (compact hands-on)
+and [`software/idempotency_en.md`](../software/idempotency_en.md) (full skeleton).
+
+Every workshop document starts with the following block, immediately after the H1 title:
+
+```markdown
+> **⏱️ Estimated Time**: Approx. XX minutes
+> **🎯 Level**: Beginner | Intermediate | Advanced
+> **💻 Environment**: Linux (root/sudo) | Linux | macOS | any (containers only)
+
+> **💡 Glossary**: For technical terms, see
+> [Term 1](../infra/glossary_en.md#anchor), [Term 2](../infra/glossary_en.md#anchor)
+```
+
+Required sections, in this order:
+
+| #   | Section               | Requirements                                                                                                                                                                         |
+| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `## Goal`             | What the learner can do afterwards. One diagram (mermaid) when the flow matters.                                                                                                     |
+| 2   | `## Prerequisites`    | Checklist of tools **with versions**, OS requirements, cloud costs (if any), and prerequisite workshops (if any).                                                                    |
+| 3   | `## Steps`            | `### STEP N: <imperative title>`. Each STEP: commands that are copy-pasteable, an `# Expected output:` line for every verification command, and a `### ✅ Checkpoint` checkbox list. |
+| 4   | `## What you learned` | 3-6 bullet recap; links to related workshops as next steps.                                                                                                                          |
+| 5   | `## Troubleshooting`  | Symptom → cause → fix, as a table or list.                                                                                                                                           |
+| 6   | `## Cleanup`          | Commands to remove every container/VM/cloud resource created above.                                                                                                                  |
+| 7   | `## References`       | Official docs only; 2-5 links.                                                                                                                                                       |
+
+Rules:
+
+- Bilingual pairs (`*_en.md` / `*_ja.md`) must keep identical heading structure (`make check-headings`).
+- Every command block a junior cannot self-verify gets an expected-output comment.
+- Go snippets follow repo conventions: `context.Context` first parameter, explicit error checks, MixedCaps.
+- Keep single-session length under ~600 lines; split into parts beyond that and say so in the header block.

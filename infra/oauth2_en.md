@@ -326,7 +326,7 @@ Flow:
 
 So `kid` is the marker that tells the resource server which public key to use for signature verification.
 
-That is why [api/main.go](/Users/scott/repo/sokoide/workshop/infra/assets/oauth2/api/main.go) can run with just `go run`. It only needs:
+That is why [api/main.go](assets/oauth2/api/main.go) can run with just `go run`. It only needs:
 
 - Access to `jwksURL`
 - Tokens whose `iss`, `aud`, and `exp` are valid

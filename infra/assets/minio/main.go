@@ -39,19 +39,16 @@ func main() {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
-		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{
-					URL:               endpointURL,
-					HostnameImmutable: true,
-				}, nil
-			})),
+		config.WithBaseEndpoint(endpointURL),
 	)
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
 
-	client := s3.NewFromConfig(cfg)
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		// MinIO has no virtual-host style DNS: keep the bucket name in the path.
+		o.UsePathStyle = true
+	})
 
 	// Ensure bucket exists
 	_, err = client.CreateBucket(ctx, &s3.CreateBucketInput{

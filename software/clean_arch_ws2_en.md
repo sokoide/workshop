@@ -80,7 +80,9 @@ package infra
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"time"
 
 	"your-project/internal/domain"
 	"github.com/redis/go-redis/v9"
@@ -93,18 +95,43 @@ type CachedUserRepository struct {
 
 func (r *CachedUserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	// 1. Return if in cache
-	if user, err := r.getFromCache(id); err == nil {
+	if user, err := r.getFromCache(ctx, id); err == nil {
 		return user, nil
 	}
 
 	// 2. Otherwise, ask the real DB
 	user, err := r.origin.FindByID(ctx, id)
 	if err == nil {
-		if cacheErr := r.saveToCache(user); cacheErr != nil {
+		if cacheErr := r.saveToCache(ctx, user); cacheErr != nil {
 			slog.Warn("failed to save user to cache", "error", cacheErr) // Log cache failures and proceed
 		}
 	}
 	return user, err
+}
+
+// Cache helpers — implementation details of this Decorator.
+// They are NOT part of the UserRepository interface, so neither the
+// UseCase layer nor the wrapped repository knows about Redis.
+
+func (r *CachedUserRepository) getFromCache(ctx context.Context, id string) (*domain.User, error) {
+	data, err := r.cache.Get(ctx, "user:"+id).Bytes()
+	if err != nil {
+		return nil, err // redis.Nil (cache miss) or cache failure → fall back to the real DB
+	}
+	var user domain.User
+	if err := json.Unmarshal(data, &user); err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *CachedUserRepository) saveToCache(ctx context.Context, user *domain.User) error {
+	data, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+	// Set a TTL so stale cache entries expire automatically
+	return r.cache.Set(ctx, "user:"+user.ID, data, 10*time.Minute).Err()
 }
 ```
 

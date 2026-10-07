@@ -24,10 +24,9 @@ func NewRedisLeaderboardRepository(client *redis.Client, key, banKey string) *Re
 }
 
 func (r *RedisLeaderboardRepository) AddScore(ctx context.Context, userID string, score float64) error {
-	return r.client.ZAdd(ctx, r.key, redis.Z{
-		Score:  score,
-		Member: userID,
-	}).Err()
+	// ZIncrBy adds `score` to the member's current score (0 if absent),
+	// matching the AddScore semantics. ZAdd would overwrite it instead.
+	return r.client.ZIncrBy(ctx, r.key, score, userID).Err()
 }
 
 func (r *RedisLeaderboardRepository) GetTopRankers(ctx context.Context, n int64) ([]domain.UserScore, error) {

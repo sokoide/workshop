@@ -18,21 +18,21 @@
 
 ### 変更範囲の全体像
 
-| 層               | 変更内容                                                                                          | 役割                                                        |
-| ---------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| **Domain**       | **変更なし**                                                                                      | —                                                           |
-| **UseCase**      | `port.NotificationGateway` interface を新規定義、`CreatePostUseCase` に注入、投稿成功後に呼び出し | 「通知が必要である」という抽象の定義 + 通知のタイミング制御 |
-| **Infra**        | `infra/notification/slack_gateway.go` を新規作成                                                  | Slack API の具体実装                                        |
-| **Presentation** | **変更なし**                                                                                      | —                                                           |
-| **Entity**       | **変更なし**                                                                                      | —                                                           |
+| 層               | 変更内容                                                                                                                           | 役割                                                        |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Domain**       | **変更なし**                                                                                                                       | —                                                           |
+| **UseCase**      | `internal/usecase/notification.go` に `NotificationGateway` interface を新規定義、`CreatePostUseCase` に注入、投稿成功後に呼び出し | 「通知が必要である」という抽象の定義 + 通知のタイミング制御 |
+| **Infra**        | `infra/notification/slack_gateway.go` を新規作成                                                                                   | Slack API の具体実装                                        |
+| **Presentation** | **変更なし**                                                                                                                       | —                                                           |
+| **Entity**       | **変更なし**                                                                                                                       | —                                                           |
 
 ### Step 1: UseCases 層 — 新しい Port の定義
 
 「どう通知するか」ではなく「通知を送るという機能」を抽象として定義します。通知はアプリケーションワークフローに必要な道具であるため、ポートは UseCases 層に所属します。
 
 ```go
-// internal/usecase/port/notification.go（新規ファイル）
-package port
+// internal/usecase/notification.go（新規ファイル）
+package usecase
 
 import "context"
 
@@ -42,6 +42,8 @@ type NotificationGateway interface {
     NotifyNewPost(ctx context.Context, threadTitle string, postAuthor string, postBody string) error
 }
 ```
+
+新規ファイルは `internal/usecase/` の直下、`repository.go` や `transaction.go` と同じ位置に置きます。他の Port と同様、UseCase 層が所有します。
 
 **確認ポイント**: この interface には Slack という言葉が一切出てきません。UseCase は「何を通知するか」を決め、「どう通知するか」は Infra に任せます。
 
@@ -53,18 +55,18 @@ type NotificationGateway interface {
 // internal/usecase/post_usecase.go（既存ファイルを一部変更）
 // ※ `"log/slog"` を import に追加してください
 type CreatePostUseCase struct {
-    threadRepo port.ThreadRepository
-    postRepo   port.PostRepository
-    tm         port.TransactionManager
-    notifier   port.NotificationGateway  // ← 追加: 通知ゲートウェイ
+    threadRepo ThreadRepository
+    postRepo   PostRepository
+    tm         TransactionManager
+    notifier   NotificationGateway  // ← 追加: 通知ゲートウェイ
 }
 
 // コンストラクタ引数に notifier を追加
 func NewCreatePostUseCase(
-    threadRepo port.ThreadRepository,
-    postRepo port.PostRepository,
-    tm port.TransactionManager,
-    notifier port.NotificationGateway,  // ← 追加
+    threadRepo ThreadRepository,
+    postRepo PostRepository,
+    tm TransactionManager,
+    notifier NotificationGateway,  // ← 追加
 ) *CreatePostUseCase {
     return &CreatePostUseCase{
         threadRepo: threadRepo,
@@ -91,6 +93,10 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
         }
         if thread == nil {
             return domain.ErrThreadNotFound
+        }
+        // WS4 で追加した CanPost チェックはそのまま残る（省略せず維持する）
+        if !thread.CanPost(in.Author) {
+            return domain.ErrNotThreadOwner
         }
         count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)
         if err != nil {
