@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 60 minutes
 > **🎯 Level**: Beginner
-> **💻 Environment**: Linux / macOS (podman or docker, Go 1.22+)
+> **💻 Environment**: Linux / macOS (podman or docker, Go 1.23+)
 
 In this workshop, you will build a "Rate Limiting" system to prevent overload of APIs and Web services using Redis data structures.
 
@@ -10,7 +10,7 @@ In this workshop, you will build a "Rate Limiting" system to prevent overload of
 
 ## Prerequisites
 
-- [ ] Go 1.22 or later (`go version`)
+- [ ] Go 1.23 or later (`go version`)
 - [ ] Podman (`podman version`) or Docker
 - [ ] Basic Go syntax (functions, structs, interfaces) — see `../software/clean_arch_en.md` for the layering used in the asset
 
@@ -316,7 +316,6 @@ done
 ```go
 type RateLimiter interface {
     Allow(ctx context.Context, userID string) (bool, error)
-    Reset(ctx context.Context, userID string) error
 }
 ```
 
@@ -324,7 +323,7 @@ type RateLimiter interface {
 
 ```go
 type FixedWindowLimiter struct {
-    redis  *redis.Client
+    client *redis.Client
     limit  int64
     window time.Duration
 }
@@ -334,13 +333,9 @@ func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, er
 }
 ```
 
-**Infra (Redis Adapter):**
+**Infra (Redis Access):**
 
-```go
-type RedisRepository struct {
-    client *redis.Client
-}
-```
+In this asset, the Usecase limiters access Redis directly via `go-redis` — there is no separate Infra adapter (see `usecase/limiters.go`).
 
 ---
 
@@ -350,7 +345,7 @@ type RedisRepository struct {
 - How **Sliding Window** smooths those spikes with a weighted counter (at higher memory/CPU cost)
 - How **Token Bucket** permits bursts while enforcing a steady-state rate
 - Why Lua scripts make each decision atomic on Redis, and when that assumption breaks (Redis Cluster)
-- How the limiter fits Clean Architecture: interface in Domain, algorithms in Usecase, Redis adapter in Infra
+- How the limiter fits Clean Architecture: interface in Domain, algorithms in Usecase (Redis accessed directly from Usecase)
 
 Next steps: apply a limiter to an HTTP server (see `web_security_en.md` for protecting endpoints), and combine with caching (`cache_en.md`).
 

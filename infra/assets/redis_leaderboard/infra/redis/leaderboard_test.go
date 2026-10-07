@@ -121,12 +121,12 @@ func TestGetTopRankers(t *testing.T) {
 
 func TestGetRank(t *testing.T) {
 	tests := []struct {
-		name        string
-		userID      string
-		mockRank    int64
-		mockErr     error
-		wantRank    int64
-		wantErr     bool
+		name     string
+		userID   string
+		mockRank int64
+		mockErr  error
+		wantRank int64
+		wantErr  bool
 	}{
 		{
 			name:     "user found at rank 2",

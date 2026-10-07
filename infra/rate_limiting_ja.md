@@ -2,7 +2,7 @@
 
 > **⏱️ 所要時間**: 約 60 分
 > **🎯 レベル**: 初級
-> **💻 環境**: Linux / macOS（podman または docker、Go 1.22+）
+> **💻 環境**: Linux / macOS（podman または docker、Go 1.23+）
 
 この実習では、Redis のデータ構造を活用して、API や Web サービスの過負荷を防ぐ「レート制限（Rate Limiting）」システムを構築します。
 
@@ -10,7 +10,7 @@
 
 ## 前提条件
 
-- [ ] Go 1.22 以降（`go version`）
+- [ ] Go 1.23 以降（`go version`）
 - [ ] Podman（`podman version`）または Docker
 - [ ] Go の基本文法（関数・構造体・インターフェース）— asset で使われているレイヤー構成は `../software/clean_arch_ja.md` を参照
 
@@ -316,7 +316,6 @@ done
 ```go
 type RateLimiter interface {
     Allow(ctx context.Context, userID string) (bool, error)
-    Reset(ctx context.Context, userID string) error
 }
 ```
 
@@ -324,7 +323,7 @@ type RateLimiter interface {
 
 ```go
 type FixedWindowLimiter struct {
-    redis  *redis.Client
+    client *redis.Client
     limit  int64
     window time.Duration
 }
@@ -334,13 +333,9 @@ func (f *FixedWindowLimiter) Allow(ctx context.Context, userID string) (bool, er
 }
 ```
 
-**Infra（Redis アダプター）:**
+**Infra（Redis アクセス）:**
 
-```go
-type RedisRepository struct {
-    client *redis.Client
-}
-```
+この asset では Usecase のリミッターが `go-redis` 経由で直接 Redis にアクセスします（独立した Infra アダプターはありません。`usecase/limiters.go` を参照）。
 
 ---
 
@@ -350,7 +345,7 @@ type RedisRepository struct {
 - **Sliding Window（スライディング窓）** が加重カウンタでスパイクを滑らかにする仕組み（メモリ/CPU コストは増）
 - **Token Bucket（トークンバケット）** がバーストを許容しつつ定常レートを強制する仕組み
 - Lua スクリプトが Redis 上の各判断をアトミックにする理由と、その前提が崩れるケース（Redis Cluster）
-- Clean Architecture におけるレートリミッタの配置: インターフェースは Domain、アルゴリズムは Usecase、Redis アダプターは Infra
+- Clean Architecture におけるレートリミッタの配置: インターフェースは Domain、アルゴリズムは Usecase（Redis は Usecase から直接アクセス）
 
 次のステップ: HTTP サーバーにレートリミッターを適用する（`web_security_ja.md`）、キャッシュとの組み合わせ（`cache_ja.md`）。
 

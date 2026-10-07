@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/domain"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/domain"
 )
 
 type subscriber struct {

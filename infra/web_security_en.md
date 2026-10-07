@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 120 minutes (4 independent sections — splitting into multiple sessions is recommended)
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Linux / macOS (Go 1.22+, a browser; containers run locally)
+> **💻 Environment**: Linux / macOS (Go 1.26+, a browser; containers run locally)
 >
 > > **⚠️ This workshop consists of 4 independent sections (XSS / CSRF / Clickjacking / CORS). Consider splitting into multiple sessions based on available time.**
 
@@ -209,10 +209,10 @@ Real-world attack script:
     and can send data externally just by requesting a URL.
 ```
 
-**Vulnerable Code (victim/main.go:77-80):**
+**Vulnerable Code (victim/main.go:93-96):**
 
 ```go
-for _, c := range data.Comments {
+for _, c := range comments {
     // ❌ Vulnerability: Output user input directly without escaping
     fmt.Fprintf(w, "<li>%s</li>", c)
 }
@@ -255,7 +255,7 @@ HTML Output:   <p>0 results found for "<img src=x onerror=alert(document.cookie)
        <img onerror> can often bypass them.
 ```
 
-**Vulnerable Code (victim/main.go:84-89):**
+**Vulnerable Code (victim/main.go:100-105):**
 
 ```go
 func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
@@ -341,7 +341,7 @@ Uses a transparent iframe to make the user click a button different from the one
 **Instructions:**
 
 1. Click `Clickjacking Attack Page` under `Attacker Site (port 8081)`.
-2. A "Free Donuts Available!" page is displayed.
+2. A "Free Donuts Giveaway!" page is displayed.
 3. Notice the faintly visible "Follow @hacker" page from the victim site behind the "GET DONUTS" button (semi-transparent for demonstration).
 4. When you click "GET DONUTS", you are actually clicking the hidden "Follow" button.
 5. You end up following @hacker without intending to.
@@ -382,7 +382,7 @@ Uses a transparent iframe to make the user click a button different from the one
 └─────────────────────────────────────┘
 ```
 
-**Vulnerable Code (victim/main.go:119-139):**
+**Vulnerable Code (victim/main.go:137-157):**
 
 ```go
 func followHandler(w http.ResponseWriter, r *http.Request) {
@@ -400,7 +400,7 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 
 ```javascript
 // Attackers identify the position of the victim's button and adjust the fake button
-// padding-top: 105px → Matches the position of the victim's button
+// .fake-btn { margin-top: 105px } → Matches the position of the victim's button
 ```
 
 ---
@@ -458,14 +458,16 @@ Origin matches → Allowed
 → Attacker site's JavaScript can read the response!
 ```
 
-**Vulnerable Code (victim/main.go:141-):**
+**Vulnerable Code (victim/main.go:159-188):**
 
 ```go
 func profileHandler(w http.ResponseWriter, r *http.Request) {
-    // ❌ Vulnerability: Origin Reflection
+    // ❌ Vulnerability: Origin Reflection (trusts any origin)
     origin := r.Header.Get("Origin")
-    w.Header().Set("Access-Control-Allow-Origin", origin)
-    w.Header().Set("Access-Control-Allow-Credentials", "true")
+    if origin != "" {
+        w.Header().Set("Access-Control-Allow-Origin", origin)
+        w.Header().Set("Access-Control-Allow-Credentials", "true")
+    }
 
     // Returns authenticated user's sensitive data
     json.NewEncoder(w).Encode(profile)

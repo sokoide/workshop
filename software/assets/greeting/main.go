@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"workshop/greeting/presentation"
 	"workshop/greeting/infra"
+	"workshop/greeting/presentation"
 	"workshop/greeting/usecase"
 )
 

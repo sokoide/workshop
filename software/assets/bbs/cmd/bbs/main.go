@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/sokoide/cleanarch1/internal/domain/entity"
+	"github.com/sokoide/cleanarch1/internal/adapters/infra/persistence/sqlite"
 	httpPresentation "github.com/sokoide/cleanarch1/internal/adapters/presentation/http"
 	"github.com/sokoide/cleanarch1/internal/adapters/presentation/http/handler"
-	"github.com/sokoide/cleanarch1/internal/adapters/infra/persistence/sqlite"
+	"github.com/sokoide/cleanarch1/internal/domain/entity"
 	"github.com/sokoide/cleanarch1/internal/usecase"
 )
 

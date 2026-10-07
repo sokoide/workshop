@@ -9,7 +9,7 @@ In this workshop, you will learn how load balancers work behind systems like Kub
 ## Prerequisites
 
 - [ ] Linux (or WSL2) with root/sudo access
-- [ ] `ipvsadm`, `iptables`, `curl` installed (installed in Setup if missing)
+- [ ] `iptables`, `ipvsadm`, and `curl` are not needed on the host — they are installed inside the containers in STEP 2
 - [ ] Recommended first: [`tcpip_stack_en.md`](tcpip_stack_en.md) (NAT/DNAT fundamentals)
 
 > **💡 Glossary**: For technical terms such as [Load Balancer](glossary_en.md#network), [DNAT](glossary_en.md#network), and [Round Robin](glossary_en.md#network), please refer to the [Glossary](glossary_en.md).
@@ -232,14 +232,17 @@ Start the load balancer container.
 
 ```bash
 # For Podman
+# Note: podman accepts --ip only with a single --network,
+# so connect the second network afterwards.
 podman run -d --name loadbalancer \
   --network lb-public \
   --ip 10.0.0.10 \
-  --network lb-backend \
-  --ip 10.0.1.1 \
   --privileged \
   docker.io/library/alpine:latest \
   sleep infinity
+
+# Connect to the backend network afterwards (with a fixed IP)
+podman network connect --ip 10.0.1.1 lb-backend loadbalancer
 
 # For Docker (alternative)
 docker run -d --name loadbalancer \
@@ -285,12 +288,13 @@ podman exec loadbalancer iptables -t nat -N BACKENDS
 podman exec loadbalancer iptables -t nat -A PREROUTING -d 10.0.0.100 -p tcp --dport 80 -j BACKENDS
 
 # Forwarding rules to backends (using statistic module for distribution)
+# Note: -p tcp is required — DNAT to an IP:port needs the protocol.
 # 1/3 probability to Backend 1
-podman exec loadbalancer iptables -t nat -A BACKENDS -m statistic --mode random --probability 0.33 -j DNAT --to-destination 10.0.1.10:80
+podman exec loadbalancer iptables -t nat -A BACKENDS -p tcp -m statistic --mode random --probability 0.33 -j DNAT --to-destination 10.0.1.10:80
 # 1/2 probability of the remaining to Backend 2
-podman exec loadbalancer iptables -t nat -A BACKENDS -m statistic --mode random --probability 0.50 -j DNAT --to-destination 10.0.1.11:80
+podman exec loadbalancer iptables -t nat -A BACKENDS -p tcp -m statistic --mode random --probability 0.50 -j DNAT --to-destination 10.0.1.11:80
 # Remainder to Backend 3
-podman exec loadbalancer iptables -t nat -A BACKENDS -j DNAT --to-destination 10.0.1.12:80
+podman exec loadbalancer iptables -t nat -A BACKENDS -p tcp -j DNAT --to-destination 10.0.1.12:80
 ```
 
 > **💡 Explanation**: Using the `statistic` module allows iptables to achieve load balancing. Probabilities are calculated as follows:
@@ -327,6 +331,7 @@ podman exec loadbalancer ipvsadm -L -n
 Expected output:
 
 ```text
+IP Virtual Server version 1.2.1 (size=4096)
 Prot LocalAddress:Port Scheduler Flags
   -> RemoteAddress:Port           Forward Weight ActiveConn InActConn
 TCP  10.0.0.100:80 rr
@@ -363,27 +368,40 @@ Backend 3
 Check connection statistics:
 
 ```bash
-podman exec loadbalancer ipvsadm -L -c --stats
+podman exec loadbalancer ipvsadm -L --stats
 ```
 
-Expected output example:
+Expected output example (`-c` and `--stats` cannot be combined):
 
 ```text
-CP 00:54 :80          0     0     0     0     0
-  -> 10.0.1.10:80      0     0     4    252     0
-  -> 10.0.1.11:80      0     0     4    252     0
-  -> 10.0.1.12:80      0     0     4    252     0
+IP Virtual Server version 1.2.1 (size=4096)
+Prot LocalAddress:Port               Conns   InPkts  OutPkts  InBytes OutBytes
+  -> RemoteAddress:Port
+TCP  10.0.0.100:80                      12       84       60     5496     6096
+  -> 10.0.1.10:80                        4       28       20     1832     2032
+  -> 10.0.1.11:80                        4       28       20     1832     2032
+  -> 10.0.1.12:80                        4       28       20     1832     2032
 ```
 
 ### STEP 7: Health Check Verification
 
-Observe the behavior when one backend is stopped.
+Observe the behavior when one backend is stopped. Note that `ipvsadm` itself has **no health check** — it keeps sending requests to a stopped backend (about 1 out of 3 requests times out with round robin). Tools like `keepalived` automate exactly the removal performed manually below.
 
 ```bash
 # Stop Backend 1
 podman stop backend1
 
-# Send requests again (requests should not go to the stopped Backend 1)
+# Send requests again — requests are still routed to the stopped Backend 1 and time out
+podman run --rm --network lb-public \
+  docker.io/library/alpine:latest \
+  sh -c "apk add curl && for i in \$(seq 1 6); do curl -s -m 3 10.0.0.100; echo; done"
+
+# Expected result: Backend 2 / Backend 3 responses mixed with timed-out (empty) replies
+
+# Remove the dead backend from the service (what keepalived does automatically)
+podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.10:80
+
+# Send requests again
 podman run --rm --network lb-public \
   docker.io/library/alpine:latest \
   sh -c "apk add curl && for i in \$(seq 1 6); do curl -s 10.0.0.100; echo; done"
@@ -399,8 +417,9 @@ podman run --rm --network lb-public \
 ### ✅ Checkpoint
 
 - [ ] Confirmed requests are evenly distributed across active backends
-- [ ] Checked connection statistics with `podman exec loadbalancer ipvsadm -L -c --stats`
-- [ ] Confirmed traffic is diverted when a backend is stopped
+- [ ] Checked connection statistics with `podman exec loadbalancer ipvsadm -L --stats`
+- [ ] Confirmed that some requests time out while the stopped backend remains registered
+- [ ] Confirmed traffic is diverted after removing the stopped backend with `ipvsadm -d`
 
 ---
 
@@ -426,10 +445,11 @@ podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.10:80
 podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.11:80
 podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.12:80
 
-# Add with weights (-w: weight)
-podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.10:80 -g -w 3  # 3x
-podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.11:80 -g -w 2  # 2x
-podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.12:80 -g -w 1  # 1x
+# Add with weights (-w: weight). Use NAT mode (-m) — DR mode (-g) requires the
+# VIP on each backend and L2 adjacency, which this setup does not provide.
+podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.10:80 -m -w 3  # 3x
+podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.11:80 -m -w 2  # 2x
+podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.12:80 -m -w 1  # 1x
 ```
 
 ---

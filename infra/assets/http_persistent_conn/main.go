@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -98,6 +99,11 @@ func (s *greeterServer) SayHelloStream(in *pb.HelloRequest, stream pb.Greeter_Sa
 func (s *greeterServer) Chat(stream pb.Greeter_ChatServer) error {
 	for {
 		in, err := stream.Recv()
+		// io.EOF はクライアント側の送信終了（half-close）を示すため、
+		// エラーではなく正常終了として扱う（そうしないと grpcurl 等が "Unknown/EOF" エラーを受け取る）
+		if err == io.EOF {
+			return nil
+		}
 		if err != nil {
 			return err
 		}

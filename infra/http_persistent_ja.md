@@ -288,13 +288,13 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 
 ### ✅ チェックポイント
 
-- [ ] Keep-Alive ありの場合、`Re-using existing connection! (#0)` が表示されることを確認した
-- [ ] `Connection: close` の場合、リクエストごとに `Closing connection 0` が発生することを確認した
+- [ ] Keep-Alive ありの場合、接続再利用のメッセージが表示されることを確認した。表記は curl のバージョンで異なり、古いビルド（Ubuntu 24.04 標準の curl 8.5 等）では `Re-using existing connection! (#0) with host localhost`、新しいビルド（curl 8.10 以降）では `Reusing existing http: connection with host localhost` と表示される
+- [ ] `Connection: close` の場合、リクエストごとに新しい接続が確立されることを確認した（古い curl では `Closing connection 0`、curl 8.10 以降では `shutting down connection #0`。`Established connection ...` 行がクライアントポートを変えて 2 回出ることで 2 つの別接続とわかる）
 
 **観察ポイント**:
 
 - **Keep-Alive あり（デフォルト）の場合**:
-  1. **curl のログ**: 2 回目のリクエストのログに `Re-using existing connection! (#0) with host localhost` という表示があることを確認してください。TCP の接続が 1 回で済んでいることがわかります。
+  1. **curl のログ**: 2 回目のリクエストのログに接続再利用の表示があることを確認してください。古い curl では `Re-using existing connection! (#0) with host localhost`、curl 8.10 以降では `Reusing existing http: connection with host localhost` と表示されます。TCP の接続が 1 回で済んでいることがわかります。
   2. **Socket の状態**: Linux なら `ss` で、macOS なら `lsof` で定期的に確認します。
 
      ```bash
@@ -319,7 +319,7 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
   3. **判定基準**: 2 回リクエストを送っても、終了後に残る行（TIME-WAIT 等）が **1 行だけ** であれば、1 つの接続が使い回された証拠です。
 
 - **Keep-Alive なし（Connection: close）の場合**:
-  1. **curl のログ**: 1 回目のレスポンス後に `Closing connection 0` となり、2 回目のリクエストで `Re-using existing connection!` が **表示されない** ことを確認してください。
+  1. **curl のログ**: 1 回目のレスポンス後に接続が切断され（古い curl では `Closing connection 0`、curl 8.10 以降では `shutting down connection #0`）、2 回目のリクエストで接続再利用のメッセージが **表示されない** ことを確認してください。
   2. **Socket の状態**: `ss` で監視していると、**2 つの異なる接続**（クライアント側のポート番号が異なるもの）が作成され、それぞれが終了（TIME-WAIT 等）していく様子が見えます。
 
   ※ macOS の場合は `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` 等を利用してください。
@@ -350,18 +350,26 @@ WebSocket は **HTTP/1.1 の `Upgrade` ヘッダー** を利用して開始さ�
     sleep 1
 done
 ) | websocat -v ws://localhost:8080/ws
-# Expected output: ログに "HTTP/1.1 101 Switching Protocols" が表示され、その後 "message 1" ... "message 5" がエコーとして返る
+# Expected output: ログに WebSocket ハンドシェイク（Upgrade: websocket 応答ヘッダー）が表示され、その後 "echo: message 1" ... "echo: message 5" がエコーとして返る（各応答には約 2 秒かかります）
 ```
 
 ### ✅ チェックポイント
 
-- [ ] `101 Switching Protocols` というレスポンスを確認した
-- [ ] 送信したメッセージがそのまま返ってくる（エコー）ことを確認した
+- [ ] WebSocket ハンドシェイクの応答（101 Switching Protocols）を確認した
+- [ ] 送信したメッセージがエコー (`echo: ...`) として返ってくることを確認した
 
 **観察ポイント**:
 
-1. **ハンドシェイク**: `websocat -v` のログで、`HTTP/1.1 101 Switching Protocols` という応答を確認。これが「HTTP から WebSocket への切り替え」の合図です。
-2. **双方向性の確認**: このサンプル実装は「エコーサーバー」です。クライアントで入力した内容が即座に返ることを確認してください（サーバー起点の定期 Push は未実装）。
+1. **ハンドシェイク**: 最近の `websocat -v` (1.14) はステータス行を出力しないため、代わりに `Connected to ws, response headers: Headers { Upgrade: websocket ... }` という表示を確認してください。生の `HTTP/1.1 101 Switching Protocols` 行を見たい場合は、curl で手動ハンドシェイクを行います:
+
+   ```bash
+   curl -v --max-time 5 -o /dev/null \
+     -H "Connection: Upgrade" -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+     http://localhost:8080/ws
+   ```
+
+2. **双方向性の確認**: このサンプル実装は「エコーサーバー」です。入力した内容に `echo:` が付いて返ることを確認してください（1 件あたり約 2 秒の遅延あり。サーバー起点の定期 Push は未実装）。
 3. **Socket 監視**: `ss` で監視。通信中、ソケットの状態が **ESTABLISHED** のまま維持され、パケットをやり取りしてもソケット自体は 1 つのままであることを確認します。
 
 ### STEP 2b: Traefik を介した WebSocket 接続 (Optional)
@@ -466,12 +474,12 @@ curl --http3 -k -v https://localhost:8444/
 
 ### ✅ チェックポイント
 
-- [ ] `ALPN: h3` という表示を確認した
+- [ ] HTTP/3 で接続されていることを確認した: リクエスト前に `using HTTP/3`、ログに `< HTTP/3 200` と表示される（古い curl ビルドでは代わりに `ALPN: h3` と表示される）
 - [ ] `tcpdump` 等で UDP ポート 8444 にパケットが流れていることを確認した
 
 **観察ポイント**:
 
-1. **プロトコルの違い**: `curl` のログで `ALPN: h3` を確認。
+1. **プロトコルの違い**: 新しい curl ビルドではリクエスト前に `using HTTP/3`、レスポンスとして `< HTTP/3 200` と表示されます。古いビルドでは `ALPN: h3` と表示されます。
 2. **Socket 監視 (UDP)**:
    - UDP 自体はコネクションレスですが、QUIC は UDP データグラム上で暗号ハンドシェイクと接続状態を管理する**接続指向**のトランスポートです。
    - Linux: `sudo tcpdump -i lo -n port 8444`
@@ -509,8 +517,9 @@ grpcurl -plaintext -d '{"name": "stream"}' localhost:50051 pb.Greeter/SayHelloSt
 # Expected output: 5 つのレスポンスが別々の行に逐次表示される
 
 # 3. Bidirectional Streaming のテスト（双方向で送り合う）
-# (Ctrl+D で入力を終了)
-grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 pb.Greeter/Chat
+# (-d は 1 回しか指定できないため、ストリーミング RPC では -d @ で改行区切りの JSON を標準入力から渡す)
+printf '{"name": "Alice"}\n{"name": "Bob"}\n' | grpcurl -plaintext -d @ localhost:50051 pb.Greeter/Chat
+# Expected output: "Echo: Alice" と "Echo: Bob" が返る（各応答には約 2 秒かかります）
 ```
 
 **観察ポイント**:

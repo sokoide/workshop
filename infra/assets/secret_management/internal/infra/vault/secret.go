@@ -3,6 +3,7 @@ package vault
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/vault/api"
@@ -83,38 +84,55 @@ func (r *VaultSecretRepository) PutSecret(ctx context.Context, key, value string
 
 // ListSecrets lists all secrets in Vault KV v2.
 func (r *VaultSecretRepository) ListSecrets(ctx context.Context) ([]domain.SecretMetadata, error) {
-	// List all keys at the root of the KV v2 mount
-	list, err := r.client.Logical().ListWithContext(ctx, r.path+"/metadata")
-	if err != nil {
+	// Vault's LIST only returns one level of keys, so walk the tree.
+	var result []domain.SecretMetadata
+	if err := r.listRecursive(ctx, "", &result); err != nil {
 		return nil, fmt.Errorf("failed to list secrets: %w", err)
 	}
+	return result, nil
+}
 
-	var result []domain.SecretMetadata
-
-	if list != nil && list.Data != nil {
-		keys, ok := list.Data["keys"].([]interface{})
-		if ok {
-			for _, k := range keys {
-				key, ok := k.(string)
-				if !ok {
-					continue
-				}
-				// Get metadata for each secret
-				metadata, err := r.getMetadata(ctx, key)
-				if err != nil {
-					// If we can't get metadata, use default values
-					result = append(result, domain.SecretMetadata{
-						Key:     key,
-						Version: 0,
-					})
-					continue
-				}
-				result = append(result, *metadata)
-			}
-		}
+// listRecursive appends the metadata of every secret under prefix.
+// In a LIST response, Vault marks subdirectories with a trailing "/".
+func (r *VaultSecretRepository) listRecursive(ctx context.Context, prefix string, result *[]domain.SecretMetadata) error {
+	list, err := r.client.Logical().ListWithContext(ctx, r.path+"/metadata/"+prefix)
+	if err != nil {
+		return err
+	}
+	if list == nil || list.Data == nil {
+		return nil
 	}
 
-	return result, nil
+	keys, ok := list.Data["keys"].([]interface{})
+	if !ok {
+		return nil
+	}
+
+	for _, k := range keys {
+		key, ok := k.(string)
+		if !ok {
+			continue
+		}
+		if strings.HasSuffix(key, "/") {
+			// Directory: descend into it (key keeps its trailing slash)
+			if err := r.listRecursive(ctx, prefix+key, result); err != nil {
+				return err
+			}
+			continue
+		}
+		// Get metadata for each secret
+		metadata, err := r.getMetadata(ctx, prefix+key)
+		if err != nil {
+			// If we can't get metadata, use default values
+			*result = append(*result, domain.SecretMetadata{
+				Key:     prefix + key,
+				Version: 0,
+			})
+			continue
+		}
+		*result = append(*result, *metadata)
+	}
+	return nil
 }
 
 // getMetadata retrieves metadata for a specific secret.

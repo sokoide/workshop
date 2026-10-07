@@ -290,13 +290,13 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
 
 ### ✅ Verification Checkpoints
 
-- [ ] Confirmed `Re-using existing connection! (#0)` appears when Keep-Alive is enabled.
-- [ ] Confirmed `Closing connection 0` occurs for each request when `Connection: close` is used.
+- [ ] Confirmed the connection-reuse message appears when Keep-Alive is enabled. The exact wording depends on the curl version: `Re-using existing connection! (#0) with host localhost` on older builds (e.g., Ubuntu 24.04 stock curl 8.5), `Reusing existing http: connection with host localhost` on newer builds (curl 8.10+).
+- [ ] Confirmed a new connection is established for each request when `Connection: close` is used (`Closing connection 0` on older curl, `shutting down connection #0` on curl 8.10+; two `Established connection ...` lines with different client ports prove two separate connections).
 
 **Observation Points**:
 
 - **With Keep-Alive (Default)**:
-  1. **curl Logs**: Check for `Re-using existing connection! (#0) with host localhost` in the second request's log. This confirms the TCP connection is reused.
+  1. **curl Logs**: Check the second request's log for the connection-reuse message: `Re-using existing connection! (#0) with host localhost` on older curl, or `Reusing existing http: connection with host localhost` on curl 8.10+. This confirms the TCP connection is reused.
   2. **Socket Status (ss command)**: In another terminal, verify that there is **only one** connection to `:8080`.
 
      ```bash
@@ -319,7 +319,7 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
      > Removing `| grep -v TIME_WAIT` shows everything, including TIME_WAIT lines.
 
 - **Without Keep-Alive (Connection: close)**:
-  1. **curl Logs**: Note that `Closing connection 0` appears after the first response, and `Re-using existing connection!` **does not appear** for the second request.
+  1. **curl Logs**: Note that the connection is torn down after the first response (`Closing connection 0` on older curl, `shutting down connection #0` on curl 8.10+), and the connection-reuse message **does not appear** for the second request.
   2. **Socket Status**: While monitoring with `ss`, you will see **two distinct connections** (with different client-side port numbers) being created and moving to completion (e.g., TIME-WAIT).
 
   _Note: On macOS, use `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` or similar._
@@ -350,18 +350,26 @@ WebSocket starts with an **HTTP/1.1 `Upgrade` header**, but once established, it
     sleep 1
 done
 ) | websocat -v ws://localhost:8080/ws
-# Expected output: "HTTP/1.1 101 Switching Protocols" in the verbose log, then "message 1" ... "message 5" echoed back
+# Expected output: the verbose log shows the WebSocket handshake (Upgrade: websocket response headers), then "echo: message 1" ... "echo: message 5" echoed back (each reply takes about 2 seconds)
 ```
 
 ### ✅ Verification Checkpoints
 
-- [ ] Confirmed `101 Switching Protocols` response.
+- [ ] Confirmed the WebSocket handshake response (101 Switching Protocols).
 - [ ] Confirmed sent messages are echoed back.
 
 **Observation Points**:
 
-1. **Handshake**: Check for `HTTP/1.1 101 Switching Protocols` in the `websocat -v` log.
-2. **Bi-directional Check**: This sample is an "echo server." Verify that whatever you type is immediately returned.
+1. **Handshake**: Recent `websocat -v` (1.14) does not print the status line; check for `Connected to ws, response headers: Headers { Upgrade: websocket ... }` instead. To see the raw `HTTP/1.1 101 Switching Protocols` line, perform a manual handshake with curl:
+
+   ```bash
+   curl -v --max-time 5 -o /dev/null \
+     -H "Connection: Upgrade" -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+     http://localhost:8080/ws
+   ```
+
+2. **Bi-directional Check**: This sample is an "echo server." Verify that whatever you type is returned with an `echo:` prefix (with a delay of about 2 seconds per message).
 3. **Socket Monitoring**: Use `ss`. The socket remains in **ESTABLISHED** state while you interact, remaining as a single socket.
 
 ### STEP 2b: WebSocket Connection via Traefik (Optional)
@@ -468,12 +476,12 @@ curl --http3 -k -v https://localhost:8444/
 
 ### ✅ Verification Checkpoints
 
-- [ ] Confirmed `ALPN: h3` in the output.
+- [ ] Confirmed the connection uses HTTP/3: `using HTTP/3` before the request and `< HTTP/3 200` in the log (older curl builds print `ALPN: h3` instead).
 - [ ] Confirmed UDP packets are flowing to port 8444 via `tcpdump`.
 
 **Observation Points**:
 
-1. **Protocol Difference**: Check for `ALPN: h3` in the `curl` log.
+1. **Protocol Difference**: Newer curl builds show `using HTTP/3` before the request and `< HTTP/3 200` for the response; older builds show `ALPN: h3`.
 2. **Socket Monitoring (UDP)**:
    - UDP itself is connectionless, but QUIC is a **connection-oriented** transport that manages an encrypted handshake and connection state over UDP datagrams.
    - Linux: `sudo tcpdump -i lo -n port 8444`
@@ -511,8 +519,9 @@ grpcurl -plaintext -d '{"name": "stream"}' localhost:50051 pb.Greeter/SayHelloSt
 # Expected output: five response messages arriving one after another on separate lines
 
 # 3. Bidirectional Streaming Test
-# (Press Ctrl+D to end input)
-grpcurl -plaintext -d '{"name": "Alice"}' -d '{"name": "Bob"}' localhost:50051 pb.Greeter/Chat
+# (-d can only be given once; for streaming RPCs, use -d @ and feed newline-delimited JSON via stdin)
+printf '{"name": "Alice"}\n{"name": "Bob"}\n' | grpcurl -plaintext -d @ localhost:50051 pb.Greeter/Chat
+# Expected output: "Echo: Alice" and "Echo: Bob" (each reply takes about 2 seconds)
 ```
 
 **Observation Points**:
@@ -557,8 +566,9 @@ curl -v http://localhost:8080/sse
 **Observation Points**:
 
 1. **Content-Type**: Check for `text/event-stream`. Data arrives sequentially without closing the connection.
-2. **Lightweight**: Observe how it's implemented as a "long HTTP response" rather than complex framing like WebSocket.
-3. **Socket Monitoring (Platform Specific)**:
+2. **This implementation's behavior**: The sample server sends 5 events at 2-second intervals and then closes the connection (it does not stream forever).
+3. **Lightweight**: Observe how it's implemented as a "long HTTP response" rather than complex framing like WebSocket.
+4. **Socket Monitoring (Platform Specific)**:
    - **Linux**:
 
      ```bash

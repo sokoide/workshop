@@ -76,8 +76,12 @@ graph TB
 ```text
 infra/assets/minio/
 ├── docker-compose.yml
-├── main.go                 # サンプルアプリ (Upload/Share機能の実装)
-└── go.mod
+├── main.go                 # サンプルアプリのエントリーポイント (upload/share コマンド)
+├── go.mod
+└── internal/
+    ├── domain/repository/  # FileRepository インターフェース
+    ├── infra/minio/        # MinIO アダプター (S3 / Presigned URL 操作)
+    └── usecase/            # FileUsecase (Upload / ShareLink)
 ```
 
 ---
@@ -93,7 +97,7 @@ podman compose up -d
 
 MinIO コンソール: `http://localhost:9001`
 
-- Pass: `minioadmin`
+- ユーザー / パス: ともに `minioadmin`
 
 ### ✅ チェックポイント
 
@@ -122,15 +126,18 @@ Go アプリケーションを実行し、バケット `workshop-images` を作�
 **コード実装例 (Infra層)**:
 
 ```go
-// infra/adapter.go (抜粋)
-func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
+// internal/infra/minio/minio_adapter.go (抜粋)
+func (a *Adapter) Upload(ctx context.Context, key string, data []byte) error {
     // S3 (MinIO) にファイルをPutObjectする
-    _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
-        Bucket: aws.String("workshop-images"),
+    _, err := a.client.PutObject(ctx, &s3.PutObjectInput{
+        Bucket: aws.String(a.bucket),
         Key:    aws.String(key),
         Body:   bytes.NewReader(data),
     })
-    return err
+    if err != nil {
+        return fmt.Errorf("failed to upload object to minio: %w", err)
+    }
+    return nil
 }
 ```
 
@@ -145,20 +152,27 @@ go run main.go upload sample.jpg
 
 プライベートなバケットにあるファイルに対して、期限付きのアクセス URL を発行します。これにより、バケット自体を公開設定にすることなく、特定のユーザーにのみファイルを安全に見せることができます。
 
-**コード実装例 (Usecase層)**:
+**コード実装例 (Usecase層 / Infra層)**:
 
 ```go
-// usecase/file_share.go (抜粋)
-func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
-    // 署名付きURL生成クライアントを使用
-    presignClient := s3.NewPresignClient(u.client)
+// internal/usecase/file_usecase.go (抜粋)
+func (u *FileUsecase) GetShareLink(ctx context.Context, filename string) (string, error) {
+    // ビジネスロジックとしての有効期限設定
+    return u.repo.GeneratePresignedURL(ctx, filename, 15*time.Minute)
+}
+```
 
-    // 15分間だけ有効なGET用URLを発行
-    req, _ := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
-        Bucket: aws.String("workshop-images"),
+```go
+// internal/infra/minio/minio_adapter.go (抜粋)
+func (a *Adapter) GeneratePresignedURL(ctx context.Context, key string, expires time.Duration) (string, error) {
+    // presign クライアントで expires の間だけ有効な GET 用 URL を発行
+    req, err := a.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+        Bucket: aws.String(a.bucket),
         Key:    aws.String(key),
-    }, s3.WithPresignExpires(15*time.Minute))
-
+    }, s3.WithPresignExpires(expires))
+    if err != nil {
+        return "", fmt.Errorf("failed to generate presigned URL from minio: %w", err)
+    }
     return req.URL, nil
 }
 ```
@@ -167,7 +181,9 @@ func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
 
 ```bash
 go run main.go share sample.jpg
-# Output: http://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
+# Expected output:
+# Presigned URL (valid for 15m):
+# http://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
 ```
 
 **なぜ安全なのか？**: URL には暗号学的な署名が含まれており、有効期限やパスの一部でも改ざんされると無効になります。
@@ -207,7 +223,7 @@ go run main.go share sample.jpg
 podman compose down
 ```
 
-データの永続化設定をしていない場合、コンテナ削除と共にデータも消えます。
+アップロードしたデータは名前付きボリューム `minio_data` に保存されるため、`podman compose down` でも残ります。データも削除したい場合は `podman compose down -v` を実行してください。
 
 ---
 
@@ -244,7 +260,7 @@ podman compose down
 
 **原因と対処**:
 
-- **認証情報の不一致**: アプリ側の `AWS_ACCESS_KEY_ID` と `AWS_SECRET_ACCESS_KEY` が MinIO の設定値 (`minioadmin`) と一致しているか確認してください。
+- **認証情報の不一致**: `main.go` の `accessKey`/`secretKey` 定数が MinIO の設定値 (`minioadmin`) と一致しているか確認してください。
 - **時刻のズレ**: クライアント（Go アプリ）とサーバー（MinIO）の時刻が著しくズレていると署名が正しく検証されません。
 
 ---

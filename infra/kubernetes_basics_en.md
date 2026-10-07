@@ -366,7 +366,13 @@ kubectl run test-dns --image=busybox:1.37 --rm -it --restart=Never -- nslookup n
 
 # Expose externally via NodePort
 kubectl patch service nginx-service -p '{"spec":{"type":"NodePort"}}'
+
+# Verify from a Pod inside the cluster (node IP + assigned NodePort)
+kubectl run test-nodeport --image=busybox:1.37 --rm -it --restart=Never \
+  -- wget -O- http://$(kubectl get node k8s-workshop-control-plane -o jsonpath='{.status.addresses[0].address}'):$(kubectl get service nginx-service -o jsonpath='{.spec.ports[0].nodePort}')
 ```
+
+> **📌 Note**: With the default kind cluster configuration, you cannot reach the node IP NodePort directly from the host machine. To access it from the host, the kind cluster must be created with `extraPortMappings` that forward the NodePort range (e.g. 30000-32767). Verifying from a Pod inside the cluster, as above, is the simplest approach.
 
 ### ✅ Checklist
 
@@ -549,7 +555,7 @@ spec:
             [
               "sh",
               "-c",
-              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600",
+              'echo "Hello at $(date)" >> /data/test.txt && cat /data/test.txt && sleep 3600',
             ]
           volumeMounts:
             - name: data-volume
@@ -624,6 +630,8 @@ curl http://nginx.local
 # Expected output: the NGINX welcome page HTML
 ```
 
+> **📌 Note (podman users)**: When kind uses rootless podman as its provider, the node IP is not directly reachable from the host. The Ingress Controller forwards hostPort 80/443 to the host's localhost, so add `127.0.0.1 nginx.local` to /etc/hosts instead (if you already added the node IP, remove it first with `sudo sed -i '/nginx.local/d' /etc/hosts`).
+
 ### ✅ Checklist
 
 - [ ] Ingress Controller Pod is `Running`.
@@ -643,12 +651,22 @@ tree myapp/
 # myapp/
 # ├── Chart.yaml
 # ├── values.yaml
-# ├── templates/
-# │   ├── deployment.yaml
-# │   ├── service.yaml
-# │   ├── ingress.yaml
-# │   └── _helpers.tpl
-# └── values.schema.json
+# ├── values.schema.json
+# ├── .helmignore
+# ├── charts/
+# └── templates/
+#     ├── deployment.yaml
+#     ├── service.yaml
+#     ├── serviceaccount.yaml
+#     ├── ingress.yaml
+#     ├── hpa.yaml
+#     ├── httproute.yaml
+#     ├── NOTES.txt
+#     ├── _helpers.tpl
+#     └── tests/
+#         └── test-connection.yaml
+# Note: the exact template set varies by Helm version
+# (httproute.yaml appears in Helm 3.18+)
 
 # Edit values.yaml (as needed)
 # Set custom images, replica count, etc.
@@ -704,11 +722,11 @@ kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
 kubectl logs -l app=nginx --tail=100
 kubectl logs -f deployment/nginx-deployment
 
-# Multi-container Pod logs
-kubectl logs nginx-pod -c nginx
+# Multi-container Pod logs (replace <pod-name> with an actual Pod name)
+kubectl logs <pod-name> -c <container-name>
 
 # Previous logs (even after restart)
-kubectl logs nginx-pod --previous
+kubectl logs <pod-name> --previous
 ```
 
 ### ✅ Checklist
@@ -782,7 +800,12 @@ EOF
 docker build -t k8s-app:latest .
 # Expected output: (build completes with "naming to ... k8s-app:latest")
 kind load docker-image k8s-app:latest --name k8s-workshop
-# Expected output: Image: "k8s-app:latest" with ID "sha256:..." found to be already present
+# Expected output: (finishes without errors; the image is now available in the cluster)
+
+# With podman (when Docker is unavailable):
+podman build -t docker.io/library/k8s-app:latest .
+podman save -o /tmp/k8s-app.tar docker.io/library/k8s-app:latest
+kind load image-archive /tmp/k8s-app.tar --name k8s-workshop
 
 # Create manifests (manifests/ is directly under ~/k8s-workshop, alongside app/)
 mkdir -p ~/k8s-workshop/manifests
@@ -804,6 +827,9 @@ spec:
       containers:
       - name: server
         image: k8s-app:latest
+        # The :latest tag defaults to imagePullPolicy: Always; IfNotPresent is
+        # required to use the local image loaded into kind
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
         env:

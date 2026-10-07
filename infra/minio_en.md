@@ -76,8 +76,12 @@ graph TB
 ```text
 infra/assets/minio/
 ├── docker-compose.yml
-├── main.go                 # Sample App (Implementation of Upload/Share features)
-└── go.mod
+├── main.go                 # Sample App entry point (upload/share commands)
+├── go.mod
+└── internal/
+    ├── domain/repository/  # FileRepository interface
+    ├── infra/minio/        # MinIO Adapter (S3 / Presigned URL operations)
+    └── usecase/            # FileUsecase (Upload / ShareLink)
 ```
 
 ---
@@ -93,7 +97,7 @@ podman compose up -d
 
 MinIO Console: `http://localhost:9001`
 
-- Pass: `minioadmin`
+- User / Pass: `minioadmin` / `minioadmin`
 
 ### ✅ Verification Checkpoints
 
@@ -122,15 +126,18 @@ Run the Go application to create a bucket `workshop-images` and upload a file.
 **Code Example (Infra Layer)**:
 
 ```go
-// infra/adapter.go (Excerpt)
-func (s *S3Adapter) Upload(ctx context.Context, key string, data []byte) error {
+// internal/infra/minio/minio_adapter.go (Excerpt)
+func (a *Adapter) Upload(ctx context.Context, key string, data []byte) error {
     // PutObject to S3 (MinIO)
-    _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
-        Bucket: aws.String("workshop-images"),
+    _, err := a.client.PutObject(ctx, &s3.PutObjectInput{
+        Bucket: aws.String(a.bucket),
         Key:    aws.String(key),
         Body:   bytes.NewReader(data),
     })
-    return err
+    if err != nil {
+        return fmt.Errorf("failed to upload object to minio: %w", err)
+    }
+    return nil
 }
 ```
 
@@ -145,20 +152,27 @@ go run main.go upload sample.jpg
 
 Issue a time-limited access URL for a file in a private bucket. This allows you to securely show files only to specific users without making the bucket itself public.
 
-**Code Example (Usecase Layer)**:
+**Code Example (Usecase / Infra Layers)**:
 
 ```go
-// usecase/file_share.go (Excerpt)
-func (u *FileShareUsecase) GenerateShareLink(key string) (string, error) {
-    // Use presign client
-    presignClient := s3.NewPresignClient(u.client)
+// internal/usecase/file_usecase.go (Excerpt)
+func (u *FileUsecase) GetShareLink(ctx context.Context, filename string) (string, error) {
+    // Presigned URL expiry as business logic
+    return u.repo.GeneratePresignedURL(ctx, filename, 15*time.Minute)
+}
+```
 
-    // Issue GET URL valid for 15 minutes
-    req, _ := presignClient.PresignGetObject(context.TODO(), &s3.GetObjectInput{
-        Bucket: aws.String("workshop-images"),
+```go
+// internal/infra/minio/minio_adapter.go (Excerpt)
+func (a *Adapter) GeneratePresignedURL(ctx context.Context, key string, expires time.Duration) (string, error) {
+    // Issue a GET URL valid for expires via the presign client
+    req, err := a.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+        Bucket: aws.String(a.bucket),
         Key:    aws.String(key),
-    }, s3.WithPresignExpires(15*time.Minute))
-
+    }, s3.WithPresignExpires(expires))
+    if err != nil {
+        return "", fmt.Errorf("failed to generate presigned URL from minio: %w", err)
+    }
     return req.URL, nil
 }
 ```
@@ -167,7 +181,9 @@ Command:
 
 ```bash
 go run main.go share sample.jpg
-# Output: http://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
+# Expected output:
+# Presigned URL (valid for 15m):
+# http://localhost:9000/workshop-images/sample.jpg?X-Amz-Algorithm=...
 ```
 
 **Why is it secure?**: The URL contains a cryptographic signature, so if any part of the path or expiration time is tampered with, it becomes invalid.
@@ -207,7 +223,7 @@ This allows switching between local disk in development, AWS S3 in production, a
 podman compose down
 ```
 
-If data persistence is not configured, data will be lost when containers are removed.
+Uploaded data is kept in the named volume `minio_data`, so it survives `podman compose down`. Run `podman compose down -v` if you also want to delete the data.
 
 ---
 
@@ -244,7 +260,7 @@ If data persistence is not configured, data will be lost when containers are rem
 
 **Causes and Solutions**:
 
-- **Credentials Mismatch**: Ensure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in your app match MinIO's settings (`minioadmin`).
+- **Credentials Mismatch**: Ensure the `accessKey`/`secretKey` constants in `main.go` match MinIO's settings (`minioadmin`).
 - **Clock Skew**: Significant time difference between the client (Go app) and server (MinIO) can invalidate signatures.
 
 ---

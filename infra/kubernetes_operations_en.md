@@ -205,9 +205,11 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              name: kube-system
+              kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: UDP
+          port: 53
+        - protocol: TCP
           port: 53
     - to:
         - podSelector:
@@ -216,11 +218,44 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-egress
+  namespace: development
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution via CoreDNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # frontend to web traffic
+    - to:
+        - podSelector:
+            matchLabels:
+              app: web
+      ports:
+        - protocol: TCP
+          port: 80
 ```
 
 ```bash
 # Verify CNI plugin (Kind uses kindnet)
-# NOTE: kindnet has limited NetworkPolicy support. For full support, use Calico or Cilium.
+# NOTE: recent kind releases make kindnet enforce basic NetworkPolicies
+# (check the kind version in your environment).
+# If you need advanced policies, consider Calico or Cilium.
 kubectl get pods -n kube-system -l k8s-app=kindnet
 
 # Test deployments
@@ -228,7 +263,15 @@ kubectl create deployment web --image=nginx:1.25-alpine -n development
 kubectl create deployment frontend --image=busybox:1.36 -n development -- sleep 3600
 kubectl create deployment database --image=postgres:16-alpine -n development
 
-# Add labels
+# postgres fails to start without POSTGRES_PASSWORD
+kubectl set env deployment/database POSTGRES_PASSWORD=workshop -n development
+
+# Create Services so the names resolve via DNS
+kubectl expose deployment web --port=80 -n development
+kubectl expose deployment database --port=5432 -n development
+
+# Add labels (kubectl create deployment already sets app=<name> on the Pod
+# template, so these report "not labeled" — that is expected)
 kubectl label deployment web app=web -n development
 kubectl label deployment frontend app=frontend -n development
 kubectl label deployment database app=database -n development
@@ -236,8 +279,8 @@ kubectl label deployment database app=database -n development
 # Apply NetworkPolicy
 kubectl apply -f manifests/network-policy.yaml
 
-# Verify connectivity
-kubectl exec -n development deploy/frontend -- wget -O- http://web -T 2
+# Verify connectivity (frontend → web is allowed even under deny-all)
+kubectl exec -n development deploy/frontend -- wget -O- http://web -T 5
 ```
 
 ### ✅ Checklist
@@ -275,7 +318,10 @@ spec:
       type: RuntimeDefault
   containers:
     - name: app
-      image: nginx:1.25-alpine
+      # Note: nginx cannot start under the restricted level because it needs the
+      # CHOWN / SETGID / SETUID capabilities, so use busybox httpd (runs as non-root)
+      image: busybox:1.36
+      command: ["httpd", "-f", "-p", "8080", "-h", "/etc"]
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -288,11 +334,25 @@ spec:
 # Apply
 kubectl apply -f manifests/pod-security.yaml
 
+# Verify
+kubectl get pod secure-pod -n secure-app
+kubectl exec -n secure-app secure-pod -- wget -qO- http://localhost:8080/hostname
+
 # Verify privileged container rejection
 kubectl run privileged --image=nginx:1.25-alpine -n secure-app --privileged --restart=Never
 # Should error
 
-# Check audit logs
+# Check warn-mode output (shown immediately):
+# relax enforce, create a violating Pod, and a Warning is printed to stderr
+kubectl label namespace secure-app pod-security.kubernetes.io/enforce=privileged --overwrite
+kubectl run audit-test --image=busybox:1.36 -n secure-app --restart=Never -- sleep 3600
+# Warning: would violate PodSecurity "restricted:latest": ...
+kubectl delete pod audit-test -n secure-app
+kubectl label namespace secure-app pod-security.kubernetes.io/enforce=restricted --overwrite
+
+# Audit-mode Violation events are recorded by the controller's periodic check,
+# so they do not appear immediately after creation (the interval varies by
+# Kubernetes version)
 kubectl get events -n secure-app --field-selector reason=Violation
 ```
 
@@ -411,9 +471,13 @@ kubectl apply -f manifests/hpa.yaml
 kubectl get hpa scalable-hpa --watch
 kubectl get pods -l app=scalable --watch
 
-# To test scale-down: reduce load by patching to 0 CPU workers
+# To test scale-down: remove the load (passing --cpu 0 to stress makes it exit
+# immediately and causes CrashLoopBackOff, so switch to a sleep command instead)
 kubectl patch deployment scalable-app --type=json \
-  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["--cpu","0","--vm","0","--timeout","3600s"]}]'
+  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/command","value":["sh","-c"]},{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["sleep 3600"]}]'
+
+# Note: scaleDown.stabilizationWindowSeconds is 300 (5 minutes), so it takes
+# a few minutes before replicas start to decrease
 ```
 
 ### ✅ Checklist
@@ -465,15 +529,23 @@ kubectl apply -f manifests/quota.yaml
 kubectl describe resourcequota compute-quota -n development
 
 # Test limit exceeded
-kubectl create deployment big-app --image=nginx:1.25-alpine -n development --replicas=10
-# Should error
+# With the LimitRange defaults (100m request per container), 10 replicas do not
+# reach the quota (requests.cpu 4), so scale up to 50 replicas
+kubectl create deployment big-app --image=nginx:1.25-alpine -n development --replicas=50
+# The Deployment itself is created, but once the quota is reached no further
+# Pods are created and READY stops partway
+kubectl get deployment big-app -n development
+
+# Check the exceeded-quota errors in ReplicaSet events
+kubectl get events -n development --field-selector reason=FailedCreate
+# Error creating: pods "..." is forbidden: exceeded quota: compute-quota, ...
 ```
 
 ### ✅ Checklist
 
 - [ ] ResourceQuota tracks consumption
 - [ ] LimitRange sets default values
-- [ ] Excess deployment is rejected
+- [ ] Excess Pods are rejected and FailedCreate events are recorded
 
 ### STEP 6: GitOps (ArgoCD)
 
@@ -482,7 +554,10 @@ Use Git repository as single source of truth for deployments.
 ```bash
 # Install ArgoCD
 kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# --server-side is required on recent Kubernetes versions: client-side apply
+# fails with "metadata.annotations: Too long" on the ApplicationSets CRD
+kubectl apply -n argocd --server-side --force-conflicts \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # Get password
 argocd admin initial-password -n argocd
@@ -494,6 +569,9 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 # Install CLI
 brew install argocd
+# Linux alternative (download the binary from the releases page):
+curl -sLO https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+sudo install -m 755 argocd-linux-amd64 /usr/local/bin/argocd
 
 # Login
 argocd login localhost:8080 --insecure --username admin --password <PASSWORD>
@@ -675,6 +753,22 @@ kind get clusters
        prune: true
        selfHeal: true
    ```
+
+### ArgoCD Pods Fail to Start Due to inotify Limits
+
+**Symptoms**: `argocd-repo-server` is in CrashLoopBackOff and its logs show
+`failed to create fsnotify Watcher: couldn't initialize inotify: too many open files`
+
+**Causes & Fixes**: The host reached its inotify instance limit (common with multi-node kind clusters).
+
+```bash
+# Check the current limit
+sysctl fs.inotify.max_user_instances
+
+# Raise the limit and recreate the Pod
+sudo sysctl -w fs.inotify.max_user_instances=1024
+kubectl delete pod -n argocd -l app.kubernetes.io/name=argocd-repo-server
+```
 
 ---
 

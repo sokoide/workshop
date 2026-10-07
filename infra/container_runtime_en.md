@@ -108,7 +108,7 @@ podman rm tmp-alpine
 mkdir -p rootfs && tar -xf rootfs.tar -C rootfs
 cp /etc/resolv.conf rootfs/etc/resolv.conf
 ls -F rootfs/bin/sh
-# Expected output: rootfs/bin/sh
+# Expected output: rootfs/bin/sh@ (trailing @ marks a symlink)
 ```
 
 ### ✅ Verification Checkpoints
@@ -221,7 +221,8 @@ sudo ip link del veth-host || true
 sudo rmdir /sys/fs/cgroup/workshop
 
 # Remove the working directory (rootfs and the compiled binary)
-rm -rf ~/container-handson
+# sudo is required: the extracted rootfs contains read-only directories
+sudo rm -rf ~/container-handson
 ```
 
 Verification:

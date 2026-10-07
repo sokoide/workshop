@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
-	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/domain"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/sokoide/workshop/infra/assets/rabbitmq_crypto/internal/domain"
 )
 
 type publisher struct {
@@ -24,8 +25,11 @@ func (p *publisher) Publish(ctx context.Context, trade domain.Trade) error {
 		return fmt.Errorf("could not marshal trade: %w", err)
 	}
 
-	// Routing Key: market.<symbol>.<target> (e.g., market.btc.usd)
-	routingKey := fmt.Sprintf("market.%s.%s", trade.Symbol, trade.TargetCurrency)
+	// Routing Key: market.<symbol>.<target> (e.g., market.btc.usd).
+	// Topic exchanges match routing keys case-sensitively, so normalize to
+	// lowercase — otherwise bindings like "market.btc.#" never match.
+	routingKey := fmt.Sprintf("market.%s.%s",
+		strings.ToLower(trade.Symbol), strings.ToLower(trade.TargetCurrency))
 
 	return p.ch.PublishWithContext(ctx,
 		ExchangeName, // exchange

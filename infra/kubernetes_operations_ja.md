@@ -207,9 +207,11 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              name: kube-system
+              kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: UDP
+          port: 53
+        - protocol: TCP
           port: 53
     - to:
         - podSelector:
@@ -218,11 +220,44 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-egress
+  namespace: development
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Egress
+  egress:
+    # DNS 解決用の CoreDNS への通信
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # frontend から web への通信
+    - to:
+        - podSelector:
+            matchLabels:
+              app: web
+      ports:
+        - protocol: TCP
+          port: 80
 ```
 
 ```bash
 # CNI プラグイン確認 (Kind は kindnet 使用)
-# 注意: kindnet は NetworkPolicy のサポートが限定的。完全なサポートには Calico または Cilium を使用
+# 注意: 最近の kind では kindnet が基本的な NetworkPolicy の強制を行います
+# (お使いの環境の kind バージョンで動作を確認してください)。
+# 高度なポリシーが必要な場合は Calico / Cilium も検討してください。
 kubectl get pods -n kube-system -l k8s-app=kindnet
 
 # テスト用デプロイメント
@@ -230,7 +265,15 @@ kubectl create deployment web --image=nginx:1.25-alpine -n development
 kubectl create deployment frontend --image=busybox:1.36 -n development -- sleep 3600
 kubectl create deployment database --image=postgres:16-alpine -n development
 
-# ラベル付与
+# postgres は POSTGRES_PASSWORD が無いと起動しないため環境変数を設定
+kubectl set env deployment/database POSTGRES_PASSWORD=workshop -n development
+
+# DNS で名前解決できるように Service を作成
+kubectl expose deployment web --port=80 -n development
+kubectl expose deployment database --port=5432 -n development
+
+# ラベル付与 (create deployment は Pod テンプレートに app=<名前> を自動付与するため、
+# 実行すると "not labeled" と表示されますが問題ありません)
 kubectl label deployment web app=web -n development
 kubectl label deployment frontend app=frontend -n development
 kubectl label deployment database app=database -n development
@@ -238,8 +281,8 @@ kubectl label deployment database app=database -n development
 # NetworkPolicy 適用
 kubectl apply -f manifests/network-policy.yaml
 
-# 通信確認
-kubectl exec -n development deploy/frontend -- wget -O- http://web -T 2
+# 通信確認 (deny-all でも frontend → web は許可される)
+kubectl exec -n development deploy/frontend -- wget -O- http://web -T 5
 ```
 
 ### ✅ チェックポイント
@@ -277,7 +320,10 @@ spec:
       type: RuntimeDefault
   containers:
     - name: app
-      image: nginx:1.25-alpine
+      # 注意: nginx は restricted レベルで必要となる CHOWN / SETGID / SETUID
+      # ケイパビリティが使えず起動しないため、非 root で動く busybox httpd を使用
+      image: busybox:1.36
+      command: ["httpd", "-f", "-p", "8080", "-h", "/etc"]
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:
@@ -290,11 +336,24 @@ spec:
 # 適用
 kubectl apply -f manifests/pod-security.yaml
 
+# 動作確認
+kubectl get pod secure-pod -n secure-app
+kubectl exec -n secure-app secure-pod -- wget -qO- http://localhost:8080/hostname
+
 # 特権コンテナの拒絶を確認
 kubectl run privileged --image=nginx:1.25-alpine -n secure-app --privileged --restart=Never
 # エラーが出るはず
 
-# Audit ログ確認
+# warn モードの警告を確認 (即時表示される)
+# enforce を一時的に緩めて違反 Pod を作成すると、Warning が stderr に出力される
+kubectl label namespace secure-app pod-security.kubernetes.io/enforce=privileged --overwrite
+kubectl run audit-test --image=busybox:1.36 -n secure-app --restart=Never -- sleep 3600
+# Warning: would violate PodSecurity "restricted:latest": ... と表示される
+kubectl delete pod audit-test -n secure-app
+kubectl label namespace secure-app pod-security.kubernetes.io/enforce=restricted --overwrite
+
+# audit 違反の Violation イベントはコントローラの定期監査で記録されるため、
+# 作成直後には表示されない点に注意 (監査間隔は Kubernetes バージョンにより異なる)
 kubectl get events -n secure-app --field-selector reason=Violation
 ```
 
@@ -413,9 +472,13 @@ kubectl apply -f manifests/hpa.yaml
 kubectl get hpa scalable-hpa --watch
 kubectl get pods -l app=scalable --watch
 
-# スケールダウン確認: CPU ワーカーを 0 に減らして負荷を下げる
+# スケールダウン確認: 負荷を止める (stress に --cpu 0 を渡すと即終了して
+# CrashLoopBackOff になるため、待機コマンドに切り替える)
 kubectl patch deployment scalable-app --type=json \
-  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["--cpu","0","--vm","0","--timeout","3600s"]}]'
+  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/command","value":["sh","-c"]},{"op":"replace","path":"/spec/template/spec/containers/0/args","value":["sleep 3600"]}]'
+
+# scaleDown.stabilizationWindowSeconds: 300 (5分) のため、
+# 縮小が始まるまで数分かかる点に注意
 ```
 
 ### ✅ チェックポイント
@@ -467,15 +530,23 @@ kubectl apply -f manifests/quota.yaml
 kubectl describe resourcequota compute-quota -n development
 
 # 制限超過のテスト
-kubectl create deployment big-app --image=nginx:1.25-alpine -n development --replicas=10
-# エラーになるはず
+# LimitRange のデフォルト (requests 100m/コンテナ) の場合、10 レプリカでは
+# quota (requests.cpu 4) に達しないため、50 レプリカまで増やす
+kubectl create deployment big-app --image=nginx:1.25-alpine -n development --replicas=50
+# Deployment の作成自体は成功するが、Pod は quota に達した時点で
+# それ以上作成されず READY が途中で止まる
+kubectl get deployment big-app -n development
+
+# ReplicaSet のイベントで超過エラーを確認
+kubectl get events -n development --field-selector reason=FailedCreate
+# Error creating: pods "..." is forbidden: exceeded quota: compute-quota, ...
 ```
 
 ### ✅ チェックポイント
 
 - [ ] ResourceQuota で消費量が追跡される
 - [ ] LimitRange でデフォルト値が設定される
-- [ ] 制限超過でデプロイが拒否される
+- [ ] 制限超過で Pod の追加作成が拒否され、FailedCreate イベントが記録される
 
 ### STEP 6: GitOps (ArgoCD)
 
@@ -484,7 +555,10 @@ Git リポジトリを単一の情報源としてデプロイを管理します�
 ```bash
 # ArgoCD インストール
 kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# 最近の Kubernetes では --server-side が必須:
+# クライアントサイド apply は ApplicationSets CRD で "metadata.annotations: Too long" エラーになる
+kubectl apply -n argocd --server-side --force-conflicts \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # パスワード取得
 argocd admin initial-password -n argocd
@@ -496,6 +570,9 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 # CLI インストール
 brew install argocd
+# Linux の場合（リリースページからバイナリをダウンロード）:
+curl -sLO https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+sudo install -m 755 argocd-linux-amd64 /usr/local/bin/argocd
 
 # ログイン
 argocd login localhost:8080 --insecure --username admin --password <PASSWORD>
@@ -677,6 +754,22 @@ kind get clusters
        prune: true
        selfHeal: true
    ```
+
+### ArgoCD の Pod が inotify 制限で起動しない
+
+**症状**: `argocd-repo-server` が CrashLoopBackOff になり、ログに
+`failed to create fsnotify Watcher: couldn't initialize inotify: too many open files` と出る
+
+**原因と対処**: ホストの inotify インスタンス上限に達しています（kind のマルチノード構成で発生しやすい）。
+
+```bash
+# 現在の上限を確認
+sysctl fs.inotify.max_user_instances
+
+# 上限を引き上げて Pod を再作成
+sudo sysctl -w fs.inotify.max_user_instances=1024
+kubectl delete pod -n argocd -l app.kubernetes.io/name=argocd-repo-server
+```
 
 ---
 

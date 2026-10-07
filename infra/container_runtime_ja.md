@@ -108,7 +108,7 @@ podman rm tmp-alpine
 mkdir -p rootfs && tar -xf rootfs.tar -C rootfs
 cp /etc/resolv.conf rootfs/etc/resolv.conf
 ls -F rootfs/bin/sh
-# Expected output: rootfs/bin/sh
+# Expected output: rootfs/bin/sh@（末尾の @ はシンボリックリンクを示す）
 ```
 
 ### ✅ チェックポイント
@@ -221,7 +221,8 @@ sudo ip link del veth-host || true
 sudo rmdir /sys/fs/cgroup/workshop
 
 # 作業ディレクトリを削除 (rootfs とビルド済みバイナリ)
-rm -rf ~/container-handson
+# rootfs 内に読み取り専用ディレクトリが残るため sudo が必要
+sudo rm -rf ~/container-handson
 ```
 
 確認:

@@ -9,7 +9,7 @@
 ## 前提条件
 
 - [ ] root/sudo 権限のある Linux（または WSL2）
-- [ ] `ipvsadm`・`iptables`・`curl` がインストール済み（無い場合は準備セクションで導入）
+- [ ] `iptables`・`ipvsadm`・`curl` はホストには不要 — STEP 2 でコンテナ内にインストールする
 - [ ] 推奨: 先に [`tcpip_stack_ja.md`](tcpip_stack_ja.md)（NAT/DNAT の基礎）
 
 > **💡 用語集**: この実習で登場する[Load Balancer](glossary_ja.md#network)や[DNAT](glossary_ja.md#network)、[Round Robin](glossary_ja.md#network)などの専門用語は [用語集](glossary_ja.md) を参照してください。
@@ -85,9 +85,9 @@ graph LR
     B2[Backend 2<br>2,5]
     B3[Backend 3<br>3,6]
 
-    R -->|轮| B1
-    R -->|轮| B2
-    R -->|轮| B3
+    R -->|順番| B1
+    R -->|順番| B2
+    R -->|順番| B3
 ```
 
 単純に順番に割り振る。均等に分散されるが、サーバーの性能差を考慮しない。
@@ -232,14 +232,17 @@ echo "Backend 3" | podman exec -i backend3 sh -c 'cat > /usr/share/nginx/html/in
 
 ```bash
 # Podman の場合
+# 注意: podman の --ip は --network 1 つしか指定できないため、
+# 2 つ目のネットワークは後から接続する
 podman run -d --name loadbalancer \
   --network lb-public \
   --ip 10.0.0.10 \
-  --network lb-backend \
-  --ip 10.0.1.1 \
   --privileged \
   docker.io/library/alpine:latest \
   sleep infinity
+
+# 後から backend ネットワークに接続（固定 IP 付き）
+podman network connect --ip 10.0.1.1 lb-backend loadbalancer
 
 # Docker の場合（読み替え）
 docker run -d --name loadbalancer \
@@ -285,12 +288,13 @@ podman exec loadbalancer iptables -t nat -N BACKENDS
 podman exec loadbalancer iptables -t nat -A PREROUTING -d 10.0.0.100 -p tcp --dport 80 -j BACKENDS
 
 # バックエンドへの転送ルール（統計モジュールで分散）
+# 注意: -p tcp が必須 — IP:ポートへの DNAT にはプロトコル指定が必要
 # 1/3 の確率で Backend 1 へ
-podman exec loadbalancer iptables -t nat -A BACKENDS -m statistic --mode random --probability 0.33 -j DNAT --to-destination 10.0.1.10:80
+podman exec loadbalancer iptables -t nat -A BACKENDS -p tcp -m statistic --mode random --probability 0.33 -j DNAT --to-destination 10.0.1.10:80
 # 残りの 1/2 の確率で Backend 2 へ
-podman exec loadbalancer iptables -t nat -A BACKENDS -m statistic --mode random --probability 0.50 -j DNAT --to-destination 10.0.1.11:80
+podman exec loadbalancer iptables -t nat -A BACKENDS -p tcp -m statistic --mode random --probability 0.50 -j DNAT --to-destination 10.0.1.11:80
 # 残りは Backend 3 へ
-podman exec loadbalancer iptables -t nat -A BACKENDS -j DNAT --to-destination 10.0.1.12:80
+podman exec loadbalancer iptables -t nat -A BACKENDS -p tcp -j DNAT --to-destination 10.0.1.12:80
 ```
 
 > **💡 解説**: `statistic` モジュールを使用することで、iptables でも負荷分散を実現できます。確率は以下のように計算します:
@@ -327,6 +331,7 @@ podman exec loadbalancer ipvsadm -L -n
 期待される出力:
 
 ```text
+IP Virtual Server version 1.2.1 (size=4096)
 Prot LocalAddress:Port Scheduler Flags
   -> RemoteAddress:Port           Forward Weight ActiveConn InActConn
 TCP  10.0.0.100:80 rr
@@ -363,27 +368,40 @@ Backend 3
 接続統計の確認:
 
 ```bash
-podman exec loadbalancer ipvsadm -L -c --stats
+podman exec loadbalancer ipvsadm -L --stats
 ```
 
-期待される出力例:
+期待される出力例（`-c` と `--stats` は併用不可）:
 
 ```text
-CP 00:54 :80          0     0     0     0     0
-  -> 10.0.1.10:80      0     0     4    252     0
-  -> 10.0.1.11:80      0     0     4    252     0
-  -> 10.0.1.12:80      0     0     4    252     0
+IP Virtual Server version 1.2.1 (size=4096)
+Prot LocalAddress:Port               Conns   InPkts  OutPkts  InBytes OutBytes
+  -> RemoteAddress:Port
+TCP  10.0.0.100:80                      12       84       60     5496     6096
+  -> 10.0.1.10:80                        4       28       20     1832     2032
+  -> 10.0.1.11:80                        4       28       20     1832     2032
+  -> 10.0.1.12:80                        4       28       20     1832     2032
 ```
 
 ### STEP 7: ヘルスチェックの動作確認
 
-バックエンドを 1 台停止した際の挙動を確認します。
+バックエンドを 1 台停止した際の挙動を確認します。`ipvsadm` 自体には**ヘルスチェック機能はありません** — 停止したバックエンドにもリクエストを送り続け、ラウンドロビンでは約 1/3 のリクエストがタイムアウトします。keepalived のようなツールが自動化しているのは、下で手動で行う除外操作です。
 
 ```bash
 # Backend 1 を停止
 podman stop backend1
 
-# 再度リクエストを送信（停止した Backend 1 には振られない）
+# 再度リクエストを送信 — 停止した Backend 1 にも振り分けられ、タイムアウトする
+podman run --rm --network lb-public \
+  docker.io/library/alpine:latest \
+  sh -c "apk add curl && for i in \$(seq 1 6); do curl -s -m 3 10.0.0.100; echo; done"
+
+# 期待される結果: Backend 2 / Backend 3 の応答と、タイムアウト（空の）応答が混在
+
+# 停止したバックエンドをサービスから除外（keepalived が自動で行う操作）
+podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.10:80
+
+# 再度リクエストを送信
 podman run --rm --network lb-public \
   docker.io/library/alpine:latest \
   sh -c "apk add curl && for i in \$(seq 1 6); do curl -s 10.0.0.100; echo; done"
@@ -399,8 +417,9 @@ podman run --rm --network lb-public \
 ### ✅ チェックポイント
 
 - [ ] リクエストがバックエンド間で均等に分散されていることを確認した
-- [ ] `podman exec loadbalancer ipvsadm -L -c --stats` で接続統計を確認した
-- [ ] バックエンド停止時にトラフィックが回避されることを確認した
+- [ ] `podman exec loadbalancer ipvsadm -L --stats` で接続統計を確認した
+- [ ] 停止したバックエンドが登録されたままの場合、一部リクエストがタイムアウトすることを確認した
+- [ ] `ipvsadm -d` で停止したバックエンドを除外するとトラフィックが回避されることを確認した
 
 ---
 
@@ -426,10 +445,11 @@ podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.10:80
 podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.11:80
 podman exec loadbalancer ipvsadm -d -t 10.0.0.100:80 -r 10.0.1.12:80
 
-# 重みを変えて追加（-w: weight）
-podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.10:80 -g -w 3  # 3倍
-podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.11:80 -g -w 2  # 2倍
-podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.12:80 -g -w 1  # 1倍
+# 重みを変えて追加（-w: weight）。NAT モード（-m）を使用 —
+# DR モード（-g）には各バックエンドへの VIP 設定と L2 隣接が必要で、この構成では機能しない
+podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.10:80 -m -w 3  # 3倍
+podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.11:80 -m -w 2  # 2倍
+podman exec loadbalancer ipvsadm -a -t 10.0.0.100:80 -r 10.0.1.12:80 -m -w 1  # 1倍
 ```
 
 ---
