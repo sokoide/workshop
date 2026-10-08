@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/sokoide/workshop/secret_management/internal/domain"
+	"github.com/sokoide/workshop/infra/assets/secret_management/internal/domain"
 )
 
 // SecretManager provides high-level secret management operations.

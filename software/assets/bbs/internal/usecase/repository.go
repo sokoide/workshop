@@ -3,7 +3,7 @@ package usecase
 import (
 	"context"
 
-	"github.com/sokoide/cleanarch1/internal/domain/entity"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/domain/entity"
 )
 
 // Repository ports are owned by the application workflows that need them.

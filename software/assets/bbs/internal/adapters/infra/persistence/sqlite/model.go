@@ -3,7 +3,7 @@ package sqlite
 import (
 	"time"
 
-	"github.com/sokoide/cleanarch1/internal/domain/entity"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/domain/entity"
 )
 
 // DB models — separate from domain entities to avoid leaking persistence concerns.

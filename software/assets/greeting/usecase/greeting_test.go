@@ -3,7 +3,8 @@ package usecase
 import (
 	"context"
 	"testing"
-	"workshop/greeting/domain"
+
+	"github.com/sokoide/workshop/software/assets/greeting/domain"
 )
 
 // MockUserRepository はテスト用のリポジトリ実装です

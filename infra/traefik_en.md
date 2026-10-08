@@ -91,7 +91,7 @@ version: "3"
 services:
   # Traefik Reverse Proxy
   traefik:
-    image: traefik:v2.10
+    image: traefik:v3.1
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"

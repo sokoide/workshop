@@ -7,9 +7,9 @@ TAG  ?= latest
 vuln:
 	govulncheck ./...
 
-# Docker イメージのビルド
+# コンテナイメージのビルド
 build:
-	docker build -t $(IMAGE):$(TAG) .
+	podman build -t $(IMAGE):$(TAG) .
 
 # コンテナイメージの脆弱性スキャン
 scan:

@@ -2,12 +2,12 @@
 
 > **⏱️ Estimated Time**: Approx. 90 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Linux / macOS (Go 1.22+, Docker or Podman; security tools are installed in Setup)
+> **💻 Environment**: Linux / macOS (Go 1.22+, Podman; security tools are installed in Setup)
 
 ## Prerequisites
 
 - [ ] Go 1.22+ installed (`go version`)
-- [ ] Docker or Podman working (`docker version` / `podman version`)
+- [ ] Podman working (`podman version`)
 - [ ] Basic Go module knowledge (`go mod tidy`)
 - [ ] Recommended first: [`web_security_en.md`](web_security_en.md) for the attacker's perspective
 
@@ -277,7 +277,7 @@ Use `Trivy` to scan container images for vulnerabilities in OS packages and appl
 1. Build using a deliberately vulnerable base image.
 
    ```bash
-   docker build -t vulnerable-app:latest .
+   podman build -t vulnerable-app:latest .
    ```
 
 2. Scan the image.
@@ -318,7 +318,7 @@ Use `Trivy` to scan container images for vulnerabilities in OS packages and appl
 Dockerfile:
   FROM alpine:3.12  ← ❌ Released in 2020, many known CVEs
   ↓
-docker build
+podman build
   ↓
 Trivy scan:
   1. Analyze image layers
@@ -476,7 +476,7 @@ Use `cosign` to sign container images and verify their signatures before deploym
 1. Tag the image locally (for demo purposes).
 
    ```bash
-   docker tag vulnerable-app:latest demo-app:v1
+   podman tag vulnerable-app:latest demo-app:v1
    ```
 
 2. Sign the image with cosign.
@@ -499,7 +499,7 @@ Use `cosign` to sign container images and verify their signatures before deploym
 
    ```bash
    # Replace with a different image
-   docker tag alpine:latest demo-app:v1
+   podman tag alpine:latest demo-app:v1
 
    # Verification should fail
    cosign verify --key cosign.pub demo-app:v1
@@ -510,8 +510,8 @@ Use `cosign` to sign container images and verify their signatures before deploym
 
 ```text
 Developer:
-  docker build -t registry.example.com/app:v1.2.3 .
-  docker push registry.example.com/app:v1.2.3
+  podman build -t registry.example.com/app:v1.2.3 .
+  podman push registry.example.com/app:v1.2.3
   cosign sign --key cosign.key registry.example.com/app:v1.2.3
   ↓
 Registry:
@@ -530,7 +530,7 @@ Production deploy:
 Attacker:
   1. Compromises registry access
   2. Pushes malicious image under a legitimate tag
-  docker push registry.example.com/app:v1.2.3  ← overwrite!
+  podman push registry.example.com/app:v1.2.3  ← overwrite!
   ↓
 Deploy:
   Production deploys the malicious image
@@ -577,32 +577,37 @@ Learn how to integrate the four defense layers into a CI/CD pipeline.
    IMAGE ?= supply-chain-demo
    TAG  ?= latest
 
-   .PHONY: vuln scan sbom sign verify all
+   .PHONY: vuln scan sbom sign verify all clean
 
    # Source code vulnerability scanning
    vuln:
    	govulncheck ./...
 
+   # Container image build
+   build:
+   	podman build -t $(IMAGE):$(TAG) .
+
    # Container image scanning
    scan:
-   	trivy image --severity HIGH,CRITICAL --exit-code 1 $(IMAGE):$(TAG)
+   	trivy image --severity HIGH,CRITICAL $(IMAGE):$(TAG)
 
    # SBOM generation and scanning
    sbom:
+   	syft $(IMAGE):$(TAG) -o table
    	syft $(IMAGE):$(TAG) -o spdx-json > sbom.spdx.json
    	grype sbom:sbom.spdx.json --fail-on high
 
-   # Image signing
-   sign:
+   # Image signing (requires a key pair)
+   sign: build
    	cosign sign --key cosign.key $(IMAGE):$(TAG)
 
    # Signature verification
    verify:
    	cosign verify --key cosign.pub $(IMAGE):$(TAG)
 
-   # Run all checks
-   all: vuln scan sbom verify
-   	@echo "✓ All security checks passed"
+   # Run all security checks
+   all: vuln build scan sbom
+   	@echo "All security checks completed"
    ```
 
 2. Run all checks locally.
@@ -798,7 +803,7 @@ cd infra/assets/supply_chain
 rm -f sbom.spdx.json cosign.key cosign.pub
 
 # Remove the local demo images
-docker rmi vulnerable-app:latest demo-app:v1 2>/dev/null || podman rmi vulnerable-app:latest demo-app:v1 2>/dev/null || true
+podman rmi vulnerable-app:latest demo-app:v1 2>/dev/null || true
 ```
 
 > **Note**: `cosign.key` / `cosign.pub` are the key pair you generated for signing. Deleting them is fine here — nothing in this workshop verifies those signatures afterwards.

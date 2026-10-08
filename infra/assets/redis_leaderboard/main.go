@@ -8,8 +8,8 @@ import (
 	"os"
 
 	"github.com/redis/go-redis/v9"
-	redisrepo "github.com/sokoide/workshop/leaderboard/infra/redis"
-	"github.com/sokoide/workshop/leaderboard/usecase"
+	redisrepo "github.com/sokoide/workshop/infra/assets/redis_leaderboard/infra/redis"
+	"github.com/sokoide/workshop/infra/assets/redis_leaderboard/usecase"
 )
 
 func main() {

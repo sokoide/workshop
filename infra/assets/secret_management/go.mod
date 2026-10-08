@@ -1,4 +1,4 @@
-module github.com/sokoide/workshop/secret_management
+module github.com/sokoide/workshop/infra/assets/secret_management
 
 go 1.25.5
 

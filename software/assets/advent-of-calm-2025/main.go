@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/adapters/infra/client"
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/adapters/infra/messaging"
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/adapters/infra/repository"
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/adapters/infra/util"
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/usecase"
+	"github.com/sokoide/workshop/software/assets/advent-of-calm-2025/internal/adapters/infra/client"
+	"github.com/sokoide/workshop/software/assets/advent-of-calm-2025/internal/adapters/infra/messaging"
+	"github.com/sokoide/workshop/software/assets/advent-of-calm-2025/internal/adapters/infra/repository"
+	"github.com/sokoide/workshop/software/assets/advent-of-calm-2025/internal/adapters/infra/util"
+	"github.com/sokoide/workshop/software/assets/advent-of-calm-2025/internal/usecase"
 )
 
 func main() {

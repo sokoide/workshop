@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a collection of hands-on technical workshops covering infrastructure and software architecture topics. The repository serves as educational material with practical, executable examples.
 
-**Primary Language:** Go 1.26.4
+**Primary Language:** Go 1.21+ (module `go` directives vary by workshop asset — check each `go.mod`; never auto-bump them)
 **Documentation:** Bilingual (English/Japanese)
 **Architecture Pattern:** Clean Architecture (3-layer variant: Adapters / UseCases / Domain)
 
@@ -17,12 +17,13 @@ See [Architecture Guide](software/clean_arch.md) for details.
 ```text
 /workshop/
 ├── infra/              # Infrastructure workshops (DNS, VLAN, K8s, TLS, etc.)
+│   └── assets/         # Runnable assets per workshop (each self-contained)
 ├── software/           # Software architecture workshops
-│   ├── advent-of-calm-2025/    # Clean Architecture reference implementation
-│   └── go_cache_patterns/      # Caching pattern examples (5 patterns)
-└── Makefile            # Repository-level markdown formatting
-```text
-
+│   └── assets/         # Reference implementations (advent-of-calm-2025, bbs,
+│                       # clean_arch_ws1/ws2, go_cache_patterns, go_mq_patterns, ...)
+├── docs/               # TEMPLATE.md and verification scripts (check_heading_structure.py, check_go.py)
+└── Makefile            # Repository-level markdown formatting and checks (format, check-headings, check-go)
+```
 
 **Directory Pattern per Project:**
 
@@ -112,14 +113,14 @@ func TestFeature(t *testing.T) {
 
 - **Naming:** `MixedCaps` for exported names, `mixedCaps` for private (no underscores in names)
 - **Formatting:** Use `gofmt` or `go fmt ./...`
-- **Interfaces:** Defined in Domain layer, implemented in Infra layer
+- **Interfaces (Ports):** Owned by Domain or UseCases (see Port Ownership Guidance in the Architecture Guide), implemented in Infra layer
 - **Context:** Always pass `context.Context` as first parameter for cancellation/timeout/tracing
 - **Error Handling:** Explicit error checking, never ignore errors
 
 ## Project Management Workflow
 
 - **TDD (Test-Driven Development):** Red → Green → Refactor cycle
-- **High Coverage:** Target >80% code coverage
+- **Coverage Policy:** Tests are required for `domain` and `usecase` layers; tests for `main.go` wiring and thin infra adapters are optional (target >80% coverage where tests are required)
 - **Git Notes:** Attach task summaries to commits using `git notes add`
 - **Checkpoints:** Create phase checkpoint commits with verification reports
 

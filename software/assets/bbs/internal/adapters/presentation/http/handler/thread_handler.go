@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/sokoide/cleanarch1/internal/domain"
-	"github.com/sokoide/cleanarch1/internal/usecase"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/domain"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/usecase"
 )
 
 type ThreadHandler struct {

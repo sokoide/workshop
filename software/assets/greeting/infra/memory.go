@@ -3,7 +3,7 @@ package infra
 import (
 	"context"
 
-	"workshop/greeting/domain"
+	"github.com/sokoide/workshop/software/assets/greeting/domain"
 )
 
 type MemoryUserRepo struct {

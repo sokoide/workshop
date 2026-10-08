@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sokoide/cleanarch1/internal/domain"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/domain"
 )
 
 type Post struct {

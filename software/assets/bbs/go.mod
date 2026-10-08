@@ -1,4 +1,4 @@
-module github.com/sokoide/cleanarch1
+module github.com/sokoide/workshop/software/assets/bbs
 
 go 1.26.2
 

@@ -1,6 +1,6 @@
 services:
   traefik:
-    image: traefik:v2.10
+    image: traefik:v3.1
     command:
       - "--api.insecure=true"
       - "--api.dashboard=true"
@@ -11,7 +11,7 @@ services:
       - "80:80"
       - "8080:8080"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/podman/podman.sock:/var/run/docker.sock:ro
 
   whoami-a:
     image: traefik/whoami

@@ -149,7 +149,7 @@ package infra
 import (
 	"context"
 
-	"workshop/greeting/domain"
+	"github.com/sokoide/workshop/software/assets/greeting/domain"
 )
 
 type SliceUserRepo struct {
@@ -232,11 +232,11 @@ This is the first step toward a "Clean" design that is highly maintainable, easy
 
 ## Troubleshooting
 
-| Symptom                       | Cause                                            | Fix                                                                    |
-| ----------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
-| `curl` cannot connect         | Server not running or another process uses :8080 | Check `go run main.go` output; free the port or change it in `main.go` |
-| `go test ./usecase/...` fails | Module not built / wrong directory               | Run from `software/assets/greeting/` after `go mod tidy`               |
-| Compile error after Step 4    | `slice.go` package path typo                     | Package must be `infra` and import `workshop/greeting/domain`          |
+| Symptom                       | Cause                                            | Fix                                                                                              |
+| ----------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `curl` cannot connect         | Server not running or another process uses :8080 | Check `go run main.go` output; free the port or change it in `main.go`                           |
+| `go test ./usecase/...` fails | Module not built / wrong directory               | Run from `software/assets/greeting/` after `go mod tidy`                                         |
+| Compile error after Step 4    | `slice.go` package path typo                     | Package must be `infra` and import `github.com/sokoide/workshop/software/assets/greeting/domain` |
 
 ---
 

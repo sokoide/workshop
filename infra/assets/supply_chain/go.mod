@@ -1,4 +1,4 @@
-module example.com/supply-chain-demo
+module github.com/sokoide/workshop/infra/assets/supply_chain
 
 go 1.21
 

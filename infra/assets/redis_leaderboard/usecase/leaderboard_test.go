@@ -3,8 +3,9 @@ package usecase
 import (
 	"context"
 
-	"github.com/sokoide/workshop/leaderboard/domain"
 	"testing"
+
+	"github.com/sokoide/workshop/infra/assets/redis_leaderboard/domain"
 )
 
 type mockRepository struct {

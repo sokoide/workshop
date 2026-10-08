@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sokoide/workshop/secret_management/internal/domain"
+	"github.com/sokoide/workshop/infra/assets/secret_management/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

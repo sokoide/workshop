@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/sokoide/cleanarch1/internal/usecase"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/usecase"
 )
 
 type BoardHandler struct {

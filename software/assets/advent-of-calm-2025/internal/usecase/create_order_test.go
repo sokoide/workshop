@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/domain/entity"
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/usecase"
+	"github.com/sokoide/workshop/software/assets/advent-of-calm-2025/internal/domain/entity"
+	"github.com/sokoide/workshop/software/assets/advent-of-calm-2025/internal/usecase"
 )
 
 // MockOrderRepository implements repository.OrderRepository

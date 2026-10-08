@@ -44,6 +44,13 @@ bin/
 vendor/
 # Software specific binary
 software/advent-of-calm-2025/advent-of-calm-2025
+# Binaries built while following the oauth2 workshop docs (envoy-backend is tracked on purpose)
+infra/assets/oauth2/api/oauth2-resource-server
+infra/assets/oauth2/client/oauth2-client
+# Supply chain workshop build artifacts and generated files (cosign.key is covered by *.key above)
+infra/assets/supply_chain/supply-chain-demo
+infra/assets/supply_chain/sbom.spdx.json
+infra/assets/supply_chain/cosign.pub
 
 # Terraform
 .terraform/

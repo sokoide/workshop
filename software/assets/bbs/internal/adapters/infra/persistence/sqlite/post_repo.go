@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sokoide/cleanarch1/internal/domain"
-	"github.com/sokoide/cleanarch1/internal/domain/entity"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/domain"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/domain/entity"
 )
 
 type PostRepository struct {

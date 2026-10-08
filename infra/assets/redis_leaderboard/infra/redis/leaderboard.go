@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/sokoide/workshop/leaderboard/domain"
+	"github.com/sokoide/workshop/infra/assets/redis_leaderboard/domain"
 )
 
 type RedisLeaderboardRepository struct {

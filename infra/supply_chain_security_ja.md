@@ -2,12 +2,12 @@
 
 > **⏱️ 所要時間**: 約 90 分
 > **🎯 レベル**: 中級
-> **💻 環境**: Linux / macOS（Go 1.22+、Docker または Podman。セキュリティツールはセットアップで導入）
+> **💻 環境**: Linux / macOS（Go 1.22+、Podman。セキュリティツールはセットアップで導入）
 
 ## 前提条件
 
 - [ ] Go 1.22+ インストール済み（`go version`）
-- [ ] Docker または Podman が動作すること（`docker version` / `podman version`）
+- [ ] Podman が動作すること（`podman version`）
 - [ ] Go モジュールの基本知識（`go mod tidy`）
 - [ ] 推奨: 先に [`web_security_ja.md`](web_security_ja.md) で攻撃者視点を学習
 
@@ -278,7 +278,7 @@ govulncheck ./...
 
    ```bash
    # 古い Alpine イメージでビルド
-   docker build -t vulnerable-app:latest .
+   podman build -t vulnerable-app:latest .
    ```
 
 2. イメージをスキャンします。
@@ -319,7 +319,7 @@ govulncheck ./...
 Dockerfile:
   FROM alpine:3.12  ← ❌ 2020 年リリース、既知の CVE 多数
   ↓
-docker build
+podman build
   ↓
 Trivy スキャン:
   1. イメージのレイヤーを解析
@@ -478,7 +478,7 @@ sbom:
 
    ```bash
    # デモ用のローカルタグ
-   docker tag vulnerable-app:latest demo-app:v1
+   podman tag vulnerable-app:latest demo-app:v1
    ```
 
 2. cosign でイメージを署名します。
@@ -502,7 +502,7 @@ sbom:
 
    ```bash
    # イメージを変更（タグだけ変えて別イメージを用意）
-   docker tag alpine:latest demo-app:v1
+   podman tag alpine:latest demo-app:v1
 
    # 署名検証が失敗することを確認
    cosign verify --key cosign.pub demo-app:v1
@@ -513,8 +513,8 @@ sbom:
 
 ```text
 開発者:
-  docker build -t registry.example.com/app:v1.2.3 .
-  docker push registry.example.com/app:v1.2.3
+  podman build -t registry.example.com/app:v1.2.3 .
+  podman push registry.example.com/app:v1.2.3
   cosign sign --key cosign.key registry.example.com/app:v1.2.3
   ↓
 レジストリ:
@@ -533,7 +533,7 @@ sbom:
 攻撃者:
   1. レジストリへのアクセス権を奪取
   2. 悪意あるイメージを正規タグで push
-  docker push registry.example.com/app:v1.2.3  ← 上書き!
+  podman push registry.example.com/app:v1.2.3  ← 上書き!
   ↓
 デプロイ:
   本番環境が悪意あるイメージをデプロイしてしまう
@@ -580,32 +580,37 @@ cosign verify \
    IMAGE ?= supply-chain-demo
    TAG  ?= latest
 
-   .PHONY: vuln scan sbom sign verify all
+   .PHONY: vuln scan sbom sign verify all clean
 
    # ソースコードの脆弱性スキャン
    vuln:
    	govulncheck ./...
 
-   # コンテナイメージのスキャン
+   # コンテナイメージのビルド
+   build:
+   	podman build -t $(IMAGE):$(TAG) .
+
+   # コンテナイメージの脆弱性スキャン
    scan:
-   	trivy image --severity HIGH,CRITICAL --exit-code 1 $(IMAGE):$(TAG)
+   	trivy image --severity HIGH,CRITICAL $(IMAGE):$(TAG)
 
    # SBOM 生成とスキャン
    sbom:
+   	syft $(IMAGE):$(TAG) -o table
    	syft $(IMAGE):$(TAG) -o spdx-json > sbom.spdx.json
    	grype sbom:sbom.spdx.json --fail-on high
 
-   # イメージ署名
-   sign:
+   # イメージ署名（鍵ペアが必要）
+   sign: build
    	cosign sign --key cosign.key $(IMAGE):$(TAG)
 
    # 署名検証
    verify:
    	cosign verify --key cosign.pub $(IMAGE):$(TAG)
 
-   # 全チェック実行
-   all: vuln scan sbom verify
-   	@echo "✓ All security checks passed"
+   # 全セキュリティチェック実行
+   all: vuln build scan sbom
+   	@echo "All security checks completed"
    ```
 
 2. ローカルで全チェックを実行します。
@@ -801,7 +806,7 @@ cd infra/assets/supply_chain
 rm -f sbom.spdx.json cosign.key cosign.pub
 
 # ローカルのデモイメージを削除
-docker rmi vulnerable-app:latest demo-app:v1 2>/dev/null || podman rmi vulnerable-app:latest demo-app:v1 2>/dev/null || true
+podman rmi vulnerable-app:latest demo-app:v1 2>/dev/null || true
 ```
 
 > **注意**: `cosign.key` / `cosign.pub` は署名用に生成した鍵ペアです。この実習の後にこれらの署名を検証することはないため、削除して問題ありません。

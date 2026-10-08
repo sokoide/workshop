@@ -149,7 +149,7 @@ package infra
 import (
 	"context"
 
-	"workshop/greeting/domain"
+	"github.com/sokoide/workshop/software/assets/greeting/domain"
 )
 
 type SliceUserRepo struct {
@@ -232,11 +232,11 @@ Presentation Adapters    → ドメインエラーを HTTP ステータスに変
 
 ## 🔧 トラブルシューティング
 
-| 症状                           | 原因                                              | 対処                                                                   |
-| ------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------- |
-| `curl` で接続できない          | サーバー未起動、または :8080 を別プロセスが使用中 | `go run main.go` の出力を確認。ポートを空けるか `main.go` でポート変更 |
-| `go test ./usecase/...` が失敗 | モジュール未ビルド・誤ったディレクトリ            | `software/assets/greeting/` で `go mod tidy` 後に実行                  |
-| Step 4 後にコンパイルエラー    | `slice.go` のパッケージパスの誤り                 | パッケージは `infra`、import は `workshop/greeting/domain` にする      |
+| 症状                           | 原因                                              | 対処                                                                                                 |
+| ------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `curl` で接続できない          | サーバー未起動、または :8080 を別プロセスが使用中 | `go run main.go` の出力を確認。ポートを空けるか `main.go` でポート変更                               |
+| `go test ./usecase/...` が失敗 | モジュール未ビルド・誤ったディレクトリ            | `software/assets/greeting/` で `go mod tidy` 後に実行                                                |
+| Step 4 後にコンパイルエラー    | `slice.go` のパッケージパスの誤り                 | パッケージは `infra`、import は `github.com/sokoide/workshop/software/assets/greeting/domain` にする |
 
 ---
 

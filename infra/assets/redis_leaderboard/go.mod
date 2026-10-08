@@ -1,4 +1,4 @@
-module github.com/sokoide/workshop/leaderboard
+module github.com/sokoide/workshop/infra/assets/redis_leaderboard
 
 go 1.25.6
 

@@ -3,8 +3,9 @@ package presentation
 import (
 	"errors"
 	"net/http"
-	"workshop/greeting/domain"
-	"workshop/greeting/usecase"
+
+	"github.com/sokoide/workshop/software/assets/greeting/domain"
+	"github.com/sokoide/workshop/software/assets/greeting/usecase"
 )
 
 type GreetingHandler struct {

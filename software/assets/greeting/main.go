@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"workshop/greeting/infra"
-	"workshop/greeting/presentation"
-	"workshop/greeting/usecase"
+
+	"github.com/sokoide/workshop/software/assets/greeting/infra"
+	"github.com/sokoide/workshop/software/assets/greeting/presentation"
+	"github.com/sokoide/workshop/software/assets/greeting/usecase"
 )
 
 func main() {

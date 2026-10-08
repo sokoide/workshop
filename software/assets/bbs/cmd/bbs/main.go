@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/sokoide/cleanarch1/internal/adapters/infra/persistence/sqlite"
-	httpPresentation "github.com/sokoide/cleanarch1/internal/adapters/presentation/http"
-	"github.com/sokoide/cleanarch1/internal/adapters/presentation/http/handler"
-	"github.com/sokoide/cleanarch1/internal/domain/entity"
-	"github.com/sokoide/cleanarch1/internal/usecase"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/adapters/infra/persistence/sqlite"
+	httpPresentation "github.com/sokoide/workshop/software/assets/bbs/internal/adapters/presentation/http"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/adapters/presentation/http/handler"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/domain/entity"
+	"github.com/sokoide/workshop/software/assets/bbs/internal/usecase"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sokoide/advent-of-calm-2025/cleanarch/internal/domain/entity"
+	"github.com/sokoide/workshop/software/assets/advent-of-calm-2025/internal/domain/entity"
 )
 
 type RabbitMQPaymentPublisher struct{}

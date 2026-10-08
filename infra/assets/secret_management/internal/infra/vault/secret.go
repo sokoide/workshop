@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault/api"
-	"github.com/sokoide/workshop/secret_management/internal/domain"
+	"github.com/sokoide/workshop/infra/assets/secret_management/internal/domain"
 )
 
 // KVPath is the default KV v2 secrets engine mount path.

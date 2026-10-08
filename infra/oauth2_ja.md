@@ -67,7 +67,7 @@ graph LR
 
 ```text
 infra/assets/oauth2/
-├── docker-compose.yml       # Keycloak 起動
+├── compose.yaml             # Keycloak 起動
 ├── realm-export.json        # 初期Realm定義（任意）
 ├── client/
 │   ├── main.go              # Go OIDC Client App
@@ -91,21 +91,8 @@ infra/assets/oauth2/
 ### 1. Keycloak の起動（Podman）
 
 ```bash
-mkdir -p infra/assets/oauth2 && cd infra/assets/oauth2
-cat > docker-compose.yml <<'YAML'
-services:
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.1
-    container_name: workshop-keycloak
-    command: start-dev
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-    ports:
-      - "8080:8080"
-YAML
-
-podman compose up -d
+cd infra/assets/oauth2
+podman compose up -d   # このディレクトリの compose.yaml を使用
 ```
 
 Keycloak 管理画面: `http://localhost:8080`
