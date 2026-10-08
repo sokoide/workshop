@@ -19,7 +19,7 @@ By completing this workshop, you will be able to:
 
 ## Prerequisites
 
-- [ ] Podman 5.x (`podman version`) with the Docker-compatible API socket at `/run/podman/podman.sock`
+- [ ] Podman 4.x+ (`podman version`) with the Docker-compatible API socket running (`podman system service` — rootless keeps it at `$XDG_RUNTIME_DIR/podman/podman.sock`, e.g. `/run/user/1000/podman/podman.sock`)
 - [ ] `podman compose` or `podman-compose`
 - [ ] `curl`
 - [ ] `htpasswd` (`sudo apt install -y apache2-utils`) — used in STEP 4
@@ -98,10 +98,11 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
     ports:
-      - "80:80"
+      - "8088:80" # host 8088: rootless podman cannot bind ports < 1024 (use 80:80 on Docker/rootful)
       - "8080:8080" # Dashboard
     volumes:
-      - /run/podman/podman.sock:/var/run/docker.sock:ro
+      # rootless: $XDG_RUNTIME_DIR/podman/podman.sock, rootful/docker: /var/run/docker.sock
+      - ${PODMAN_SOCKET:-${XDG_RUNTIME_DIR}/podman/podman.sock}:/var/run/docker.sock:ro
 
   # Backend A (Whoami)
   whoami-a:
@@ -149,11 +150,11 @@ Send requests to `whoami.localhost` and confirm that Traefik distributes request
 
 ```bash
 # 1st request
-curl -H "Host: whoami.localhost" http://localhost
+curl -H "Host: whoami.localhost" http://localhost:8088
 # Output: Hostname: <Container-ID-A>
 
 # 2nd request
-curl -H "Host: whoami.localhost" http://localhost
+curl -H "Host: whoami.localhost" http://localhost:8088
 # Output: Hostname: <Container-ID-B>
 ```
 
@@ -175,13 +176,13 @@ podman run -d --name nginx-demo \
 Verify:
 
 ```bash
-curl http://localhost/nginx
+curl http://localhost:8088/nginx
 # Expected output: Nginx welcome page ("Welcome to nginx!")
 ```
 
 ### ✅ Verification Checkpoints
 
-- [ ] Confirmed different container IDs are returned by `curl -H "Host: whoami.localhost" http://localhost`.
+- [ ] Confirmed different container IDs are returned by `curl -H "Host: whoami.localhost" http://localhost:8088`.
 - [ ] Confirmed the `nginx-demo` service immediately appears in the dashboard after starting it via `podman run`.
 - [ ] Confirmed `/nginx` returns the Nginx welcome page or response.
 

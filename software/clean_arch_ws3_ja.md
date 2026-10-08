@@ -330,7 +330,7 @@ grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
 #   ]
 # }
 
-grpcurl -plaintext -d '{"board_name":"program","title":"Go言語スレ","author":"gopher","body":"Go最高！"}' \
+grpcurl -plaintext -d '{"board_name":"programming","title":"Go言語スレ","author":"gopher","body":"Go最高！"}' \
     localhost:9090 bbs.BBSService/CreateThread
 # Expected output: 作成された "thread"（postCount: "1"）と最初の "post"（number: "1"）
 # を含む JSON が返る

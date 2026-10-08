@@ -141,7 +141,9 @@ func main() {
 	}()
 
 	// Give consumer time to start
-	time.Sleep(time.Second)
+	// Give the consumer time to join the group (the first rebalance on a
+	// fresh broker can take a few seconds) before publishing.
+	time.Sleep(5 * time.Second)
 
 	// Publish messages
 	for i := 0; i < 5; i++ {
@@ -156,7 +158,8 @@ func main() {
 	}
 
 	// Wait for messages to be processed
-	time.Sleep(2 * time.Second)
+	// Wait for messages to be processed
+	time.Sleep(5 * time.Second)
 	cancel()
 	wg.Wait()
 }

@@ -650,6 +650,17 @@ sudo ip netns delete workshop
 
 Raw Socket のオープンエラーやビルドエラーについては、[パート 1](tcpip_stack_ja.md) のトラブルシューティングを参照してください。
 
+### UDP Echo がタイムアウトする / "invalid UDP checksum" が出る
+
+**症状**: `tcpdump` に `[bad udp cksum ...]` が表示され、Echo テストがタイムアウトする
+
+**原因と対処**: veth の TX checksum offload が有効だと、カーネルは CHECKSUM_PARTIAL（checksum フィールドが未完成）のフレームを送出します。ユーザースペーススタック（raw socket）が受け取るのはこの未完成のフレームなので、`pkg/udp` の `VerifyChecksum` が正しく拒否します。`make setup-env` は `ethtool -K ... tx off` で offload を無効化します。veth を手動で作成した場合は次を実行してください:
+
+```bash
+sudo ethtool -K veth-host tx off rx off tso off gso off gro off
+sudo ip netns exec workshop ethtool -K veth-ns tx off rx off tso off gso off gro off
+```
+
 ### Ping が通らない
 
 **症状**: `From 192.168.100.2 icmp_seq=1 Destination Host Unreachable`

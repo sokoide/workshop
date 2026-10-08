@@ -1,17 +1,18 @@
-version: '3.8'
-
 services:
   minio:
-    image: quay.io/minio/minio
+    # MinIO stopped publishing community images (Oct 2025) and later deleted
+    # its Docker Hub / quay.io repositories (Sep 2026). bitnamilegacy hosts a
+    # frozen mirror of the last community build — fine for local study, not
+    # for production. Note: this build has no embedded web Console; verify
+    # with the S3 API on :9000 (mc / aws CLI / curl health check).
+    image: docker.io/bitnamilegacy/minio:latest
     ports:
       - "9000:9000"
-      - "9001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
     volumes:
-      - minio_data:/data
+      - minio_data:/bitnami/minio/data
 
 volumes:
   minio_data:

@@ -213,7 +213,7 @@ go build -o bbs ./cmd/bbs/
 curl http://localhost:8080/api/boards
 
 # 認証なしで POST → 401 Unauthorized
-curl -X POST http://localhost:8080/api/boards/program/threads \
+curl -X POST http://localhost:8080/api/boards/programming/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"テスト","author":"gopher","body":"hello"}'
 
@@ -254,7 +254,7 @@ go mod tidy
 TOKEN=$(go run . "my-secret-key")
 
 # 認証ありで POST → 成功
-curl -X POST http://localhost:8080/api/boards/program/threads \
+curl -X POST http://localhost:8080/api/boards/programming/threads \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"認証テスト","author":"gopher","body":"hello with auth"}'

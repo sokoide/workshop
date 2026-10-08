@@ -8,6 +8,8 @@ In this workshop, you will build an AWS S3-compatible object storage server usin
 
 > **💡 Glossary**: Please refer to [Object Storage](glossary_en.md#storage), [Bucket](glossary_en.md#storage), or [Presigned URL](glossary_en.md#security) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
+**⚠️ MinIO image availability (2026)**: MinIO stopped publishing free community container images in October 2025 and later removed its Docker Hub and quay.io repositories. This lab uses the frozen Bitnami mirror (`docker.io/bitnamilegacy/minio`), which is fine for local study — never use it in production. The last community build has **no embedded web Console**; this workshop verifies everything through the S3 API (`aws` CLI / `mc`).
+
 ## Goal
 
 By completing this workshop, you will be able to:
@@ -21,9 +23,8 @@ By completing this workshop, you will be able to:
 
 - [ ] **Podman** 4.x or later with `podman compose` available (`podman --version`)
 - [ ] **Go** 1.25 or later (`go version`)
-- [ ] **AWS CLI** (optional — used for the client verification in Preparation)
+- [ ] **AWS CLI** (used for the client verification in Preparation)
 - [ ] **MinIO Client (`mc`)** (optional — alternative to AWS CLI)
-- [ ] A web browser to access the MinIO Console at `http://localhost:9001`
 
 ---
 
@@ -95,15 +96,13 @@ cd infra/assets/minio
 podman compose up -d
 ```
 
-MinIO Console: `http://localhost:9001`
-
-- User / Pass: `minioadmin` / `minioadmin`
+S3 API: `http://localhost:9000` — User / Pass: `minioadmin` / `minioadmin`
 
 ### ✅ Verification Checkpoints
 
 - [ ] Confirmed MinIO container is running via `podman ps`.
-- [ ] Confirmed MinIO Console is accessible at `http://localhost:9001`.
-- [ ] Confirmed a test bucket can be created via the console.
+- [ ] Confirmed the health endpoint responds: `curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/minio/health/live` prints `200`.
+- [ ] Confirmed a test bucket can be created via the client in the next step.
 
 ### 2. Client Setup (Alias)
 

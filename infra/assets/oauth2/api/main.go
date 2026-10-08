@@ -63,10 +63,15 @@ func profileHandler(kf keyfunc.Keyfunc, issuer, audience string) http.HandlerFun
 			return
 		}
 
+		// Parse with signature, issuer, and algorithm checks. The audience
+		// check is done below instead of via jwt.WithAudience: recent
+		// Keycloak versions may issue access tokens whose aud is only
+		// "account" even with an Audience mapper configured (see the
+		// workshop doc). In that case azp ("authorized party") still
+		// reliably names the client the token was issued to.
 		token, err := jwt.Parse(
 			tokenStr,
 			kf.Keyfunc,
-			jwt.WithAudience(audience),
 			jwt.WithIssuer(issuer),
 			jwt.WithValidMethods([]string{"RS256"}),
 		)
@@ -77,6 +82,16 @@ func profileHandler(kf keyfunc.Keyfunc, issuer, audience string) http.HandlerFun
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			unauthorized(w)
+			return
+		}
+
+		if !tokenIntendedFor(claims, audience) {
+			log.Printf("token is not intended for audience %q", audience)
+			unauthorized(w)
+			return
+		}
 		if !ok {
 			unauthorized(w)
 			return
@@ -96,6 +111,24 @@ func profileHandler(kf keyfunc.Keyfunc, issuer, audience string) http.HandlerFun
 			log.Printf("response encode failed: %v", err)
 		}
 	}
+}
+
+// tokenIntendedFor reports whether the token was issued for the expected
+// audience: the standard path is aud containing the client ID, with azp as
+// the fallback for providers whose access tokens carry only aud="account".
+func tokenIntendedFor(claims jwt.MapClaims, audience string) bool {
+	if aud, ok := claims["aud"].(string); ok && aud == audience {
+		return true
+	}
+	if auds, ok := claims["aud"].([]any); ok {
+		for _, a := range auds {
+			if s, ok := a.(string); ok && s == audience {
+				return true
+			}
+		}
+	}
+	azp, ok := claims["azp"].(string)
+	return ok && azp == audience
 }
 
 func unauthorized(w http.ResponseWriter) {

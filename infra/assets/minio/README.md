@@ -14,7 +14,9 @@ A Go CLI that uploads files to MinIO (S3-compatible storage) and issues presigne
 
 ## How to run
 
-Start MinIO first (API on :9000, console on :9001):
+> **⚠️ Image note (2026)**: MinIO stopped publishing community images (Oct 2025) and later deleted its Docker Hub/quay.io repositories, so this asset uses the frozen Bitnami mirror `docker.io/bitnamilegacy/minio` — fine for local study, not for production. The last community build has no embedded web Console; everything is verified via the S3 API on `:9000`.
+
+Start MinIO first (S3 API on :9000):
 
 ```bash
 podman compose up -d   # or: docker compose up -d
@@ -32,14 +34,14 @@ go run main.go share somefile.jpg
 # Output: a presigned URL valid for 15 minutes
 ```
 
-The [workshop](../../minio_en.md) walks through the MinIO console and the S3 API details.
+The [workshop](../../minio_en.md) walks through the S3 API details with the `aws` CLI.
 
 ## Layout
 
 ```text
 .
 ├── main.go                 # CLI entry point: upload / share subcommands
-├── docker-compose.yml      # MinIO server (ports 9000/9001, minioadmin creds)
+├── docker-compose.yml      # MinIO server (S3 API on 9000, minioadmin creds)
 └── internal/
     ├── usecase/            # File upload / share-link use cases
     └── infra/minio/        # S3 adapter (AWS SDK v2, path-style)

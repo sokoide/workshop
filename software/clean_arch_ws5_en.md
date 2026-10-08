@@ -305,8 +305,8 @@ go build -o bbs ./cmd/bbs/
 # Verify (API is unchanged)
 curl http://localhost:8080/api/boards
 # Expected output: HTTP 200 with a JSON array of boards, e.g.
-# [{"id":1,"name":"program","description":"Programming General",...}]
-curl -X POST http://localhost:8080/api/boards/program/threads \
+# [{"id":1,"name":"programming","description":"Programming General",...}]
+curl -X POST http://localhost:8080/api/boards/programming/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"PostgreSQL thread","author":"pg","body":"Migration successful!"}'
 # Expected output: the created thread as JSON (the same shape the SQLite version returned)

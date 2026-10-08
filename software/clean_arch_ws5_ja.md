@@ -309,8 +309,8 @@ go build -o bbs ./cmd/bbs/
 # 動作確認（API は変わらない）
 curl http://localhost:8080/api/boards
 # Expected output: HTTP 200 で板一覧の JSON 配列が返る。例:
-# [{"id":1,"name":"program","description":"Programming General",...}]
-curl -X POST http://localhost:8080/api/boards/program/threads \
+# [{"id":1,"name":"programming","description":"Programming General",...}]
+curl -X POST http://localhost:8080/api/boards/programming/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"PostgreSQLスレ","author":"pg","body":"移行成功！"}'
 # Expected output: 作成されたスレッドが JSON で返る（SQLite 版が同じリクエストに返したのと同じ形）

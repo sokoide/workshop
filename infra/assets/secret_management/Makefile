@@ -1,7 +1,7 @@
 .PHONY: vault-up vault-down vault-logs vault-status
 
 vault-up:
-	podman run -d --name workshop-vault \
+	podman run -d --replace --name workshop-vault \
 		-p 8200:8200 \
 		-e 'VAULT_DEV_ROOT_TOKEN_ID=dev-workshop-token' \
 		-e 'VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200' \

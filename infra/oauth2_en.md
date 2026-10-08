@@ -119,6 +119,8 @@ Keycloak admin console: `http://localhost:8080`
    - `Add to token introspection`: `On`
    - Without this, the Go API later fails with `token has invalid audience`
 
+> **⚠️ Keycloak version note**: on some recent Keycloak versions (e.g. 26.1.x), the access token may still carry only `aud=account` even with this mapper configured, while the ID token gets `aud=workshop-client`. The bundled resource server therefore also accepts the `azp` (authorized party) claim as a fallback — `azp` always names the client the token was issued to. See `api/main.go` (`tokenIntendedFor`).
+
 Notes:
 
 - OAuth 2.0 is a way for an app to call an API safely on behalf of a user
@@ -434,7 +436,7 @@ Expected behavior:
 - After login, the browser returns to the Go client app's `/callback`
 - The response shows `token_received: true` and the API response (not the access token itself)
 - It also shows the `/api/profile` response
-- If you see `token has invalid audience`, the Audience mapper is missing in Keycloak
+- If you see `token has invalid audience`, the Audience mapper is missing in Keycloak. If the mapper is set but recent Keycloak still issues only `aud=account`, the resource server falls back to `azp` — no action needed (see the note in Keycloak Initial Setup)
 
 ### STEP 2: Build the Go Resource Server
 

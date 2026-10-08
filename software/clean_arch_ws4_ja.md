@@ -351,7 +351,7 @@ go build -o bbs ./cmd/bbs/
 # Expected output: サーバーが起動し、:8080 で待ち受ける
 
 # スレ主限定スレッドを作成
-curl -X POST http://localhost:8080/api/boards/program/threads \
+curl -X POST http://localhost:8080/api/boards/programming/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"スレ主限定スレ","author":"gopher","body":"限定モードON","owner_only":true}'
 # Expected output: HTTP 201 — 作成されたスレッド（限定モード有効）と最初の投稿の JSON

@@ -60,6 +60,11 @@ setup-env:
 	sudo ip netns exec workshop ip link set veth-ns up
 	sudo ip netns exec workshop ip addr add 192.168.100.2/24 dev veth-ns || true
 	sudo ip netns exec workshop ip neigh replace 192.168.100.1 lladdr $$(cat /sys/class/net/veth-host/address) nud permanent dev veth-ns
+	@# Disable checksum offload: with it on, veth TX sends CHECKSUM_PARTIAL
+	@# frames whose UDP checksum field is not final, and the userspace stack
+	@# (raw socket) sees those unfinalized checksums and rejects them.
+	sudo ethtool -K veth-host tx off rx off tso off gso off gro off 2>/dev/null || true
+	sudo ip netns exec workshop ethtool -K veth-ns tx off rx off tso off gso off gro off 2>/dev/null || true
 	@echo "Environment setup complete."
 	@echo "veth-host: no kernel IP (userspace stack owns 192.168.100.1)"
 	@echo "veth-ns:   192.168.100.2 (Namespace side)"

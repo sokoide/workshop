@@ -19,7 +19,7 @@
 
 ## 前提条件
 
-- [ ] Podman 5.x（`podman version`）。Docker 互換 API ソケットが `/run/podman/podman.sock` にあること
+- [ ] Podman 4.x 以上（`podman version`）。Docker 互換 API ソケットが動作していること（`podman system service` — rootless では `$XDG_RUNTIME_DIR/podman/podman.sock`、例: `/run/user/1000/podman/podman.sock` にあります）
 - [ ] `podman compose` または `podman-compose`
 - [ ] `curl`
 - [ ] `htpasswd`（`sudo apt install -y apache2-utils`）— STEP 4 で使用
@@ -98,10 +98,11 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
     ports:
-      - "80:80"
+      - "8088:80" # host 8088: rootless podman cannot bind ports < 1024 (use 80:80 on Docker/rootful)
       - "8080:8080" # Dashboard
     volumes:
-      - /run/podman/podman.sock:/var/run/docker.sock:ro
+      # rootless: $XDG_RUNTIME_DIR/podman/podman.sock、rootful/docker: /var/run/docker.sock
+      - ${PODMAN_SOCKET:-${XDG_RUNTIME_DIR}/podman/podman.sock}:/var/run/docker.sock:ro
 
   # バックエンド A (Whoami)
   whoami-a:
@@ -149,11 +150,11 @@ Traefik が Podman 上で実行されているサービス（`whoami-a`, `whoami
 
 ```bash
 # 1回目
-curl -H "Host: whoami.localhost" http://localhost
+curl -H "Host: whoami.localhost" http://localhost:8088
 # Output: Hostname: <Container-ID-A>
 
 # 2回目
-curl -H "Host: whoami.localhost" http://localhost
+curl -H "Host: whoami.localhost" http://localhost:8088
 # Output: Hostname: <Container-ID-B>
 ```
 
@@ -175,13 +176,13 @@ podman run -d --name nginx-demo \
 確認：
 
 ```bash
-curl http://localhost/nginx
+curl http://localhost:8088/nginx
 # Expected output: nginx の Welcome ページ（"Welcome to nginx!"）
 ```
 
 ### ✅ チェックポイント
 
-- [ ] `curl -H "Host: whoami.localhost" http://localhost` を複数回実行し、異なるコンテナ ID が返ることを確認した
+- [ ] `curl -H "Host: whoami.localhost" http://localhost:8088` を複数回実行し、異なるコンテナ ID が返ることを確認した
 - [ ] `podman run` で追加した nginx コンテナが Dashboard に即座に現れることを確認した
 - [ ] `/nginx` へのアクセスで nginx の Welcome ページ（または 404 Nginx 版）が返ることを確認した
 

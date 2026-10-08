@@ -8,6 +8,8 @@
 
 > **💡 用語集**: この実習で登場する[Object Storage](glossary_ja.md#storage)や[Bucket](glossary_ja.md#storage)、[Presigned URL](glossary_ja.md#security)などの専門用語は [用語集](glossary_ja.md) を参照してください。
 
+**⚠️ MinIO イメージの入手性について（2026 年時点）**: MinIO は 2025 年 10 月に無料のコミュニティコンテナイメージの公開を終了し、その後 Docker Hub / quay.io のリポジトリも削除されました。本実習では凍結された Bitnami ミラー（`docker.io/bitnamilegacy/minio`）を使用します。ローカル学習には問題ありませんが、本番では使用しないでください。なお最終コミュニティビルドには**埋め込み Web コンソールが存在しない**ため、本実習ではすべて S3 API（`aws` CLI / `mc`）経由で確認します。
+
 ## ゴール
 
 この実習を完了すると、以下のことができるようになります：
@@ -21,9 +23,8 @@
 
 - [ ] **Podman** 4.x 以上（`podman compose` が使えること、`podman --version` で確認）
 - [ ] **Go** 1.25 以上（`go version` で確認）
-- [ ] **AWS CLI**（任意 — 準備のクライアント確認で使用）
+- [ ] **AWS CLI**（準備のクライアント確認で使用）
 - [ ] **MinIO Client (`mc`)**（任意 — AWS CLI の代替）
-- [ ] MinIO コンソール（`http://localhost:9001`）にアクセスできる Web ブラウザ
 
 ---
 
@@ -95,15 +96,13 @@ cd infra/assets/minio
 podman compose up -d
 ```
 
-MinIO コンソール: `http://localhost:9001`
-
-- ユーザー / パス: ともに `minioadmin`
+S3 API: `http://localhost:9000` — ユーザー / パス: ともに `minioadmin`
 
 ### ✅ チェックポイント
 
 - [ ] `podman ps` で MinIO コンテナが実行中であることを確認した
-- [ ] ブラウザで `http://localhost:9001` を開き、ログインできることを確認した
-- [ ] コンソールからテスト用のバケットが作成できることを確認した
+- [ ] ヘルスチェックエンドポイントが応答することを確認した: `curl -s -o /dev/null -w '%{http_code}' http://localhost:9000/minio/health/live` が `200` を表示
+- [ ] 次のステップのクライアントでテスト用のバケットが作成できることを確認した
 
 ### 2. クライアント設定 (Alias)
 
@@ -190,7 +189,7 @@ go run main.go share sample.jpg
 
 ### ✅ チェックポイント
 
-- [ ] `go run main.go upload` が正常に終了し、MinIO コンソールでファイルを確認できた
+- [ ] `go run main.go upload` が正常に終了し、`aws --endpoint-url http://localhost:9000 s3 ls s3://workshop-images` でファイルを確認できた
 - [ ] `go run main.go share` で生成された URL が期待通りの形式であることを確認した
 - [ ] `curl -I "<URL>"` で HTTP 200 OK が返ることを確認した
 

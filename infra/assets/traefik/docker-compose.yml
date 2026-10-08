@@ -8,10 +8,15 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
     ports:
-      - "80:80"
+      # host 8088 (>=1024) because rootless podman cannot bind privileged ports
+      - "8088:80"
       - "8080:8080"
     volumes:
-      - /run/podman/podman.sock:/var/run/docker.sock:ro
+      # Docker-compatible API socket. Rootless podman keeps it under the
+      # user's runtime directory (e.g. /run/user/1000/podman/podman.sock);
+      # rootful podman and Docker use /var/run/docker.sock. Override with
+      # PODMAN_SOCKET=... if your layout differs.
+      - ${PODMAN_SOCKET:-${XDG_RUNTIME_DIR}/podman/podman.sock}:/var/run/docker.sock:ro
 
   whoami-a:
     image: traefik/whoami

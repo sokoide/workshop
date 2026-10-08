@@ -596,6 +596,15 @@ sudo ip netns delete workshop
 
 For raw socket and build errors, see the Troubleshooting section of [Part 1](tcpip_stack_en.md).
 
+### UDP Echo Times Out / "invalid UDP checksum"
+
+If `tcpdump` shows `[bad udp cksum ...]` on UDP frames, the veth TX checksum offload is sending CHECKSUM_PARTIAL frames — their checksum field is not final, so the userspace stack (raw socket) rightly rejects them. `make setup-env` disables the offload with `ethtool -K ... tx off`; if you created the veth manually, run:
+
+```bash
+sudo ethtool -K veth-host tx off rx off tso off gso off gro off
+sudo ip netns exec workshop ethtool -K veth-ns tx off rx off tso off gso off gro off
+```
+
 ### Ping Does Not Work
 
 Ensure the stack is running, inspect the interface, and confirm the namespace's permanent neighbor entry from setup.

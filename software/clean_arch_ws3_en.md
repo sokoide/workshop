@@ -329,7 +329,7 @@ grpcurl -plaintext localhost:9090 bbs.BBSService/ListBoards
 #   ]
 # }
 
-grpcurl -plaintext -d '{"board_name":"program","title":"Go thread","author":"gopher","body":"Go is great!"}' \
+grpcurl -plaintext -d '{"board_name":"programming","title":"Go thread","author":"gopher","body":"Go is great!"}' \
     localhost:9090 bbs.BBSService/CreateThread
 # Expected output: JSON containing the created "thread" (postCount: "1")
 # and the first "post" (number: "1")

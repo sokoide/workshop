@@ -17,7 +17,7 @@
 - [ ] Linux (Ubuntu 22.04/24.04 推奨) — Raw Socket (`AF_PACKET`) とネットワーク名前空間が必須
 - [ ] Go 1.22 以降（`go version`）
 - [ ] CGO が有効な GCC（`gcc --version`、`go env CGO_ENABLED`）
-- [ ] `tcpdump` と `iproute2`（`ip`、`ip netns`）— `sudo apt install -y golang-go gcc tcpdump iproute2` で導入
+- [ ] `tcpdump`、`iproute2`（`ip`、`ip netns`）、`ethtool` — `sudo apt install -y golang-go gcc tcpdump iproute2 ethtool` で導入
 - [ ] root/sudo 権限（ネットワーク名前空間の作成と Raw Socket のオープンには `CAP_NET_RAW` が必要）
 
 ---

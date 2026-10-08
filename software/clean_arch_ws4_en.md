@@ -355,7 +355,7 @@ go build -o bbs ./cmd/bbs/
 # Expected output: the server starts and listens on :8080
 
 # Create an owner-only thread
-curl -X POST http://localhost:8080/api/boards/program/threads \
+curl -X POST http://localhost:8080/api/boards/programming/threads \
   -H 'Content-Type: application/json' \
   -d '{"title":"Owner-only thread","author":"gopher","body":"Restricted mode ON","owner_only":true}'
 # Expected output: HTTP 201 — JSON of the created thread (with owner-only enabled) and the first post

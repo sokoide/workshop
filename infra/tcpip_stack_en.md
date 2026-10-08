@@ -17,7 +17,7 @@ Observe what the kernel usually hides, then implement it yourself: by the end of
 - [ ] Linux (Ubuntu 22.04/24.04 recommended) — Raw Sockets (`AF_PACKET`) and network namespaces are required
 - [ ] Go 1.22 or later (`go version`)
 - [ ] GCC with CGO enabled (`gcc --version`, `go env CGO_ENABLED`)
-- [ ] `tcpdump` and `iproute2` (`ip`, `ip netns`) — `sudo apt install -y golang-go gcc tcpdump iproute2`
+- [ ] `tcpdump`, `iproute2` (`ip`, `ip netns`), and `ethtool` — `sudo apt install -y golang-go gcc tcpdump iproute2 ethtool`
 - [ ] Root/sudo privileges (creating network namespaces and opening raw sockets requires `CAP_NET_RAW`)
 
 ---

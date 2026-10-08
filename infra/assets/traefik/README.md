@@ -10,14 +10,14 @@ This asset is configuration-only — there is no Go code or `go.mod`. `docker-co
 
 - Podman (or Docker) with `podman compose` — the stack mounts `/run/podman/podman.sock` into the container as `/var/run/docker.sock`, so a Docker-compatible socket is required
 - Makefile targets: `up`, `down`, `logs`, `clean`
-- Ports 80 (entrypoint) and 8080 (dashboard)
+- Ports 8088 (entrypoint; 80 is unavailable to rootless podman) and 8080 (dashboard)
 
 ## How to run
 
 ```bash
 make up   # podman compose up -d
 
-curl -H "Host: whoami.localhost" http://localhost/
+curl -H "Host: whoami.localhost" http://localhost:8088/
 # Output: whoami response; repeat the call and the "Hostname" line
 # alternates between the two whoami containers
 ```
