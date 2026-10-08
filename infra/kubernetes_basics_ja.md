@@ -195,10 +195,13 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
 ```bash
 # Kind クラスタ作成
 kind create cluster --name k8s-workshop
+# Expected output: Creating cluster "k8s-workshop" ...
 
-# コンテキスト確認
-kubectl config current-context
-kubectl cluster-info
+# 接続確認
+kubectl get nodes
+# Expected output:
+# NAME                          STATUS   ROLES           AGE   VERSION
+# k8s-workshop-control-plane    Ready    control-plane   10s   v1.xx.x
 ```
 
 ### ✅ チェックポイント

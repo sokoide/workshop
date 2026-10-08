@@ -277,4 +277,4 @@ podman rm -f nginx-demo
 
 ### Windows の場合
 
-- WSL2 で実行する場合、localhost 転送を有効にする必要があります。ブラウザから Dashboard にアクセスできない場合は `wsl.conf` や Windows のファイアウォール設定を確認してください。
+- WSL2 で実行する場合、localhost 転送を有効にする必要があります。ブラウザから Dashboard にアクセスできない場合は `wsl.conf` や Windows のファイアウォール設定を確認してください。ブラウザで接続できないときは、WSL ターミナル内で直接 `curl` を試してみてください。

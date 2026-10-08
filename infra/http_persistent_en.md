@@ -237,9 +237,6 @@ sequenceDiagram
 
    ```bash
    make setup
-   ```
-
-   ```bash
    # (Tool paths appear; no output if already installed)
    which protoc-gen-go grpcurl
    ```
@@ -319,6 +316,8 @@ curl -v -H "Connection: close" http://localhost:8080/ http://localhost:8080/
            sleep 0.1
        done
        ```
+
+       On macOS, `netstat` shows `ESTABLISHED`/`TIME_WAIT`/`CLOSE_WAIT` all at once, so the Keep-Alive connection should become visible. If sending a request with `curl` to `http://localhost:8080/` does not return `Connection refused`, the `netstat` output will keep showing a persistent `*:8080` or `127.0.0.1.8080` entry.
 
        > Removing `| grep -v TIME_WAIT` shows everything, including TIME_WAIT lines. `watch -n 0.1 "lsof -iTCP:8080 -sTCP:ESTABLISHED"` also works.
 

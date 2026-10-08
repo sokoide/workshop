@@ -1,6 +1,6 @@
 # ワークショップ改善計画 (Improvement Plan)
 
-対象: ジュニア SWE(経験 1〜3 年)向け学習素材としての `infra/`・`software/`
+対象: ソフトウェアエンジニア向け学習素材としての `infra/`・`software/`
 評価軸: **Easy to follow(追従容易) / Simple(単純) / Concise(簡潔) / Correct(正確)**
 作成日: 2026-10-07(全文レビュー: infra 27 本・software 16 本・assets 19 ディレクトリ)
 
@@ -29,7 +29,7 @@
 | Cleanup                   | 10/27       | —              | supply_chain・oauth2_entra(有償!)・k8s_operations なし |
 | References                | 18/27       | —              | —                                                      |
 | Summary/What you learned  | —           | —              | 計42本中10本のみ                                       |
-| 期待出力(Expected output) | 4/42        | —              | ジュニアの自己検証が不可能                             |
+| 期待出力(Expected output) | 4/42        | —              | 学習者の自己検証が不可能                             |
 | 所要時間                  | 3/42        | —              | idempotency のみ45分表記                               |
 | チェックポイント          | 20/27       | 1/15           | セクション間で文化が違う                               |
 

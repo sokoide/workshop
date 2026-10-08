@@ -246,7 +246,7 @@ rm rootCA.* server.* dynamic_conf.yaml
 
   ```bash
   openssl verify -CAfile rootCA.crt server.crt
-  # server.crt: OK と表示されるはず
+  # Expected output: server.crt: OK
   ```
 
 ### Traefik が起動しない

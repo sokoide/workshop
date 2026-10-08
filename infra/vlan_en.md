@@ -66,6 +66,33 @@ Traditionally, physically separating networks required separate switches and cab
 - **VLAN**: Logically creates multiple independent "pipes" within a single physical cable.
 - **macvlan**: Assigns a unique MAC address to a container, making it appear directly connected to the physical network. This enables high-speed communication without the overhead of virtual bridges.
 
+```mermaid
+graph TD
+    subgraph Host_OS [Host: Linux Kernel]
+        PhysNIC[Physical NIC (eth0)]
+
+        subgraph VLAN_Interfaces [VLAN Sub-interfaces]
+            V10[eth0.10<br>(Tag: 10)]
+            V20[eth0.20<br>(Tag: 20)]
+        end
+
+        PhysNIC --- V10
+        PhysNIC --- V20
+    end
+
+    subgraph Containers [Podman Containers]
+        ContA[Container A<br>(IP: 192.168.10.10)]
+        ContB[Container B<br>(IP: 192.168.20.20)]
+    end
+
+    V10 -. "macvlan<br>(Direct L2 Access)" .- ContA
+    V20 -. "macvlan<br>(Direct L2 Access)" .- ContB
+
+    style PhysNIC fill:#eee,stroke:#333
+    style V10 fill:#d1e7dd,stroke:#0f5132
+    style V20 fill:#f8d7da,stroke:#842029
+```
+
 ---
 
 ## Architecture
@@ -93,8 +120,9 @@ In this workshop, we use Rootful Podman and directly manipulate Linux kernel net
 ### 2. Verify Environment
 
 ```bash
-# Ensure Rootful mode (should be false)
+# Ensure Rootful mode
 sudo podman info | grep rootless
+# Expected result: rootless: false
 # rootless: false
 ```
 
@@ -220,32 +248,60 @@ sudo ip link delete $IF.20
 
 ### Containers Cannot Communicate
 
-If `ping` fails, check IP forwarding and the router's forwarding rules.
+**Symptom**: `ping` does not get through
 
-```bash
-sudo podman exec router sysctl net.ipv4.ip_forward
-# Expected: net.ipv4.ip_forward = 1
-sudo podman exec router iptables -L FORWARD -v -n
-```
+**Cause and fix**:
+
+- Check that the router container has IP forwarding enabled
+
+  ```bash
+  sudo podman exec router sysctl net.ipv4.ip_forward
+  # Expected result: net.ipv4.ip_forward = 1
+  ```
+
+- Check that the iptables forwarding rules are set correctly
+
+  ```bash
+  sudo podman exec router iptables -L FORWARD -v -n
+  ```
 
 ### Podman Network Creation Fails
 
-Verify that VLAN subinterfaces exist and that Podman runs in rootful mode.
+**Symptom**: `podman network create` reports an error
 
-```bash
-ip link show | grep "$IF"
-sudo podman info | grep rootless
-# Expected: rootless: false
-```
+**Cause and fix**:
+
+- Check that the VLAN subinterfaces were created correctly
+
+  ```bash
+  ip link show | grep $IF
+  ```
+
+- Check that you are not running in rootless mode
+
+  ```bash
+  sudo podman info | grep rootless
+  # Expected: rootless: false
+  ```
 
 ### Internet Access Through NAT Fails
 
-Inspect the router's default route and MASQUERADE rule.
+**Symptom**: `ping` or `curl` to the outside fails
 
-```bash
-sudo podman exec router ip route
-sudo podman exec router iptables -t nat -L POSTROUTING -v -n
-```
+**Cause and fix**:
+
+- Check that the router's default route is set correctly
+
+  ```bash
+  sudo podman exec router ip route
+  # Expected: something like "default via 192.168.1.1 dev eth0"
+  ```
+
+- Check that the MASQUERADE rule is configured
+
+  ```bash
+  sudo podman exec router iptables -t nat -L POSTROUTING -v -n
+  ```
 
 The default route must point to a reachable upstream gateway for your environment.
 

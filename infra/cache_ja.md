@@ -200,9 +200,7 @@ podman rm workshop-redis
 - Redis コンテナが起動しているか確認
 
   ```bash
-  podman ps | grep redis
-  # または
-  make redis-status  # Makefile に定義されている場合
+  podman ps --filter name=workshop-redis
   ```
 
 - ポート 6379 が正しく公開されているか確認

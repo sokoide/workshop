@@ -229,7 +229,7 @@ sudo podman exec a curl -s http://192.168.10.100
 
 ### ✅ Verification Checkpoints
 
-- [ ] Confirmed communication to `http://192.168.10.100` returns "Hello from Pod B".
+- [ ] Confirmed `curl http://192.168.10.100` returns "Hello from Pod B".
 - [ ] Confirmed packet counts are increasing via `podman exec router iptables -t nat -L -v`.
 
 ---

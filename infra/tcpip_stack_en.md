@@ -124,25 +124,64 @@ Before implementing packets, compare an application's HTTP exchange with the pac
 Start a local server in another terminal, then make a request.
 
 ```bash
+# In another terminal: start a minimal HTTP server
 python3 -m http.server 8000
-# In the client terminal:
+
+# In the main terminal: request with verbose logging
 curl -v http://localhost:8000/
 ```
 
-The output shows connection status, request and response headers, and the response body. It does not show individual TCP segments or their headers.
+What `curl -v` shows is the exchange of HTTP, a human-readable protocol:
+
+```text
+*   Trying 127.0.0.1:8000...
+* Connected to localhost (127.0.0.1) port 8000 (#0)
+> GET / HTTP/1.1
+> Host: localhost:8000
+> User-Agent: curl/8.x
+> Accept: */*
+>
+< HTTP/1.1 200 OK
+< Server: SimpleHTTP/0.6 Python/3.x
+< Content-Length: 1234
+<
+(HTML body follows)
+```
+
+**The TCP connection (three-way handshake), IP address encapsulation, and Ethernet frames are nowhere to be seen.** The kernel hides all of it for us.
 
 #### 2. What the Kernel Actually Sends (tcpdump)
 
 Capture the same request on Linux loopback.
 
 ```bash
+# In another terminal: start capturing the loopback interface
 sudo tcpdump -i lo -nn -vv 'tcp port 8000'
-# In the client terminal:
+
+# Repeat the request
 curl -s http://localhost:8000/ > /dev/null
 # Expected output: TCP packets with flags [S], [S.] (handshake), then [P.] data segments and [F]/[R] teardown
 ```
 
-Look for `[S]`, `[S.]`, and `[.]`: SYN, SYN-ACK, and ACK establish the TCP connection. Data, acknowledgements, and connection teardown follow. The loopback capture shows IP/TCP traffic; Ethernet framing is examined later on the veth interfaces.
+```text
+13:00:01.123456 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    127.0.0.1.54321 > 127.0.0.1.8000: Flags [S], cksum 0xfe34, seq 123456789, win 65535
+13:00:01.123489 IP (... length 60)
+    127.0.0.1.8000 > 127.0.0.1.54321: Flags [S.], cksum 0xfe34, seq 987654321, ack 123456790, win 65535
+13:00:01.123501 IP (... length 52)
+    127.0.0.1.54321 > 127.0.0.1.8000: Flags [.], cksum 0xfe34, ack 1, win 65535
+13:00:01.123590 IP (... length 100)
+    127.0.0.1.54321 > 127.0.0.1.8000: Flags [P.], seq 1:49, ack 1, win 65535, length 48: HTTP, length: 48
+    GET / HTTP/1.1
+```
+
+This is what communication actually looks like. Behind a single `curl`:
+
+- `[S]` `[S.]` `[.]` = the **three-way handshake** (SYN, SYN-ACK, ACK)
+- `[P.]` = data-carrying packets (PSH-ACK)
+- followed by further ACKs, FIN, FIN-ACK, and so on
+
+TCP drives this complex state machine to guarantee reliability. The loopback capture shows IP/TCP traffic; Ethernet framing is examined later on the veth interfaces.
 
 #### Key Learning Points
 
@@ -156,7 +195,12 @@ Look for `[S]`, `[S.]`, and `[.]`: SYN, SYN-ACK, and ACK establish the TCP conne
 - [ ] Identify the three-way handshake in `tcpdump`.
 - [ ] Confirm that one HTTP request involves multiple packets.
 
-Stop the HTTP server with Ctrl-C in its terminal.
+Stop the HTTP server with Ctrl-C in its terminal, or kill it explicitly:
+
+```bash
+# Cleanup: stop the HTTP server (Ctrl-C in its terminal, or kill it)
+pkill -f "python3 -m http.server 8000"
+```
 
 ---
 
@@ -818,24 +862,44 @@ sudo ip netns delete workshop
 
 ### Cannot Open a Raw Socket
 
-Run with root privileges or grant `CAP_NET_RAW`, and specify both the interface and userspace IP.
+**Symptom**: `failed to open raw socket` error
 
-```bash
-sudo ./tcpip_stack -iface veth-host -ip 192.168.100.1
-# Alternative to running as root:
-getcap ./tcpip_stack
-sudo setcap cap_net_raw+ep ./tcpip_stack
-```
+**Cause and fix**:
+
+- Check that you are running with root privileges
+
+  ```bash
+  sudo ./tcpip_stack -iface veth-host -ip 192.168.100.1
+  ```
+
+- Check whether the binary has the `CAP_NET_RAW` capability
+
+  ```bash
+  getcap ./tcpip_stack
+  # Grant it if missing
+  sudo setcap cap_net_raw+ep ./tcpip_stack
+  ```
 
 ### Build Errors
 
-The raw socket adapter requires Linux, CGO, and a C compiler.
+**Symptom**: `cgo`-related errors
 
-```bash
-gcc --version
-go env CGO_ENABLED
-sudo apt install build-essential linux-libc-dev
-```
+**Cause and fix**:
+
+- Check that GCC is installed and CGO is enabled
+
+  ```bash
+  gcc --version
+  go env CGO_ENABLED
+  # Install the toolchain if missing
+  sudo apt install build-essential
+  ```
+
+- Check that the Linux headers are installed
+
+  ```bash
+  sudo apt install linux-headers-$(uname -r)
+  ```
 
 ## 💻 Environment Notes
 

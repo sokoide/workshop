@@ -9,7 +9,7 @@
 
 This repository provides hands-on technical workshops covering infrastructure and software architecture topics.
 
-This collection is aimed at junior software engineers. Each workshop is self-contained — follow the
+This collection is aimed at software engineers. Each workshop is self-contained — follow the
 recommended order within each difficulty level below, or start directly with any topic that interests
 you. Difficulty labels come from the 🎯 Level marker in each document, and known prerequisite
 workshops are noted inline.

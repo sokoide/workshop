@@ -193,33 +193,56 @@ podman rm workshop-redis
 
 ### Cannot Connect to Redis
 
-For `dial tcp: connection refused`, verify that Redis is running and port 6379 is published.
+**Symptom**: `dial tcp: connection refused`
 
-```bash
-podman ps --filter name=workshop-redis
-podman port workshop-redis
-```
+**Cause and fix**:
+
+- Verify that the Redis container is running
+
+  ```bash
+  podman ps --filter name=workshop-redis
+  ```
+
+- Verify that port 6379 is published
+
+  ```bash
+  podman port workshop-redis
+  # Should show: 6379/tcp -> 0.0.0.0:6379
+  ```
 
 ### Program Panics
 
-If the program reports `runtime error: invalid memory address`, inspect the stack trace and check that connection errors are handled before using the Redis client. Start Redis before running the sample.
+**Symptom**: `runtime error: invalid memory address`
 
-```bash
-make redis-up
-# Or restart an existing container:
-podman start workshop-redis
-```
+**Cause and fix**:
+
+- The program was run before Redis was up; inspect the stack trace and make sure connection errors are handled before using the Redis client
+
+  ```bash
+  # Start Redis first
+  make redis-up
+  # Or restart an existing container:
+  podman start workshop-redis
+  ```
 
 ### Scores Are Not Reflected
 
-Inspect the ranking and ban list directly, using the key names configured in the sample.
+**Symptom**: a user whose score was added does not appear in the ranking
 
-```bash
-podman exec -it workshop-redis redis-cli
-# In redis-cli:
-ZREVRANGE game_leaderboard 0 -1 WITHSCORES
-SMEMBERS banned_users
-```
+**Cause and fix**:
+
+- Inspect the sorted set directly, using the key names configured in the sample
+
+  ```bash
+  podman exec -it workshop-redis redis-cli
+  > ZREVRANGE game_leaderboard 0 -1 WITHSCORES
+  ```
+
+- Check the ban list
+
+  ```bash
+  > SMEMBERS banned_users
+  ```
 
 ## Environment Notes
 

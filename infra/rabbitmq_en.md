@@ -209,12 +209,19 @@ Open <http://localhost:15672> with `guest/guest`. In Exchanges, verify that `cry
 
 ### Connection Errors
 
-For `dial tcp: connection refused`, check that the container is running and ports 5672 (AMQP) and 15672 (management) are published.
+For `dial tcp: connection refused`, check the following:
 
-```bash
-podman ps --filter name=workshop-mq
-podman port workshop-mq
-```
+- The RabbitMQ container is running:
+
+  ```bash
+  podman ps --filter name=workshop-mq
+  ```
+
+- Ports 5672 (AMQP) and 15672 (management) are published:
+
+  ```bash
+  podman port workshop-mq
+  ```
 
 ### Cannot Open the Management UI
 

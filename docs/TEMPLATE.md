@@ -30,6 +30,6 @@ Required sections, in this order:
 Rules:
 
 - Bilingual pairs (`*_en.md` / `*_ja.md`) must keep identical heading structure (`make check-headings`).
-- Every command block a junior cannot self-verify gets an expected-output comment.
+- Every command block a reader cannot self-verify gets an expected-output comment.
 - Go snippets follow repo conventions: `context.Context` first parameter, explicit error checks, MixedCaps.
 - Keep single-session length under ~600 lines; split into parts beyond that and say so in the header block.

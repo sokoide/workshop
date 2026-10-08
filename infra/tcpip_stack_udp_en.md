@@ -66,7 +66,22 @@ Read the [executable UDP implementation](assets/tcpip_stack/pkg/udp/message.go) 
 
 ##### The Pseudo-Header's Role
 
-Checksum input includes source and destination IPv4 addresses, a zero byte, protocol number 17, and UDP length, followed by the datagram. A computed checksum of zero is transmitted as `0xffff`; a transmitted zero means the IPv4 sender omitted the checksum.
+The UDP/TCP checksum covers not only the UDP header but also **part of the IP header (source IP, destination IP, protocol number, length)**. This prefix is called the "pseudo-header":
+
+```text
++--------+--------+--------+--------+
+|           Source IP Address       |   <- information from the IP layer
++--------+--------+--------+--------+
+|        Destination IP Address     |   <- information from the IP layer
++--------+--------+--------+--------+
+|  zero   | Protocol|  UDP Length   |   <- Protocol = 17 (UDP)
++--------+--------+--------+--------+
+|         Source Port              |
++--------+--------+--------+--------+
+|  (the actual UDP datagram follows)|
+```
+
+**Why is this necessary?** So that a datagram delivered to the wrong destination or protocol at the IP layer boundary is still detected at the transport layer. It is not a defense against attackers who can recompute the checksum. A computed checksum of zero is transmitted as `0xffff`; a transmitted zero means the IPv4 sender omitted the checksum.
 
 ##### What Connectionless Means
 
@@ -402,9 +417,13 @@ sudo tcpdump -i veth-host -nn -vv icmp
 
 ### 5. UDP Echo Test
 
+Send data to the UDP Echo service (port 7).
+
 ```bash
+# Send from within the namespace and confirm the same data comes back
 sudo ip netns exec workshop python3 - <<'PY'
 import socket
+
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.settimeout(1)
 sock.sendto(b"hello udp", ("192.168.100.1", 7))
@@ -413,8 +432,18 @@ assert data == b"hello udp", (data, peer)
 print(f"reply={data!r} from {peer}")
 # Expected output: reply=b'hello udp' from ('192.168.100.1', 7)
 PY
+```
 
-sudo tcpdump -i veth-host -nn -vv -XX 'udp port 7'
+If the custom stack's log shows a line like `UDP Echo from 192.168.100.2:xxxxx (len=10)`, the test succeeded. The reply packet can be confirmed with `tcpdump`:
+
+```bash
+# In another terminal: observe the UDP round trip
+sudo tcpdump -i veth-host -nn -vv 'udp port 7'
+```
+
+```text
+13:00:05.123 IP 192.168.100.2.54321 > 192.168.100.1.7: UDP, length 10
+13:00:05.124 IP 192.168.100.1.7 > 192.168.100.2.54321: UDP, length 10
 ```
 
 ---
@@ -607,12 +636,26 @@ sudo ip netns exec workshop ethtool -K veth-ns tx off rx off tso off gso off gro
 
 ### Ping Does Not Work
 
-Ensure the stack is running, inspect the interface, and confirm the namespace's permanent neighbor entry from setup.
+**Symptom**: `From 192.168.100.2 icmp_seq=1 Destination Host Unreachable`
 
-```bash
-ip link show veth-host
-ip addr show veth-host
-sudo ip netns exec workshop ip neigh show
-sudo ip netns exec workshop ping 192.168.100.1
-sudo tcpdump -i veth-host -nn -vv icmp
-```
+**Cause and fix**:
+
+- Check that the custom stack is running and answering
+
+  ```bash
+  sudo ip netns exec workshop ping 192.168.100.1
+  ```
+
+- Check the interface state and the namespace's permanent neighbor entry from setup
+
+  ```bash
+  ip link show veth-host
+  ip addr show veth-host
+  sudo ip netns exec workshop ip neigh show
+  ```
+
+- Check the packets with tcpdump
+
+  ```bash
+  sudo tcpdump -i veth-host -nn -vv icmp
+  ```

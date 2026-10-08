@@ -435,17 +435,6 @@ go run main.go
 # Search("ban") = true
 ```
 
-実行結果:
-
-```text
-Search("app")   = true
-Search("apple") = true
-Search("ap")    = false
-Search("ban")   = true
-Search("band")  = false
-Search("ban")   = true
-```
-
 ### このコードで理解すべき点
 
 - `base[s] + code(c)` が次の状態番号になる（ポインタの代わり）

@@ -224,13 +224,13 @@ make mq-down
 - RabbitMQ コンテナが起動しているか確認
 
   ```bash
-  podman ps | grep rabbitmq
+  podman ps --filter name=workshop-mq
   ```
 
 - ポート 5672 (AMQP) と 15672 (管理画面) が公開されているか確認
 
   ```bash
-  podman port $(podman ps -q --filter "ancestor=rabbitmq")
+  podman port workshop-mq
   ```
 
 ### 管理画面にアクセスできない
