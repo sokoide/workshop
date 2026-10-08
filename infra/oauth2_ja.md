@@ -542,9 +542,13 @@ API 例:
 
 ```bash
 curl -i http://localhost:8081/health
+# Expected output: HTTP/1.1 200 OK — ボディ: OK
 
 curl -i http://localhost:8081/api/profile \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
+# Expected output: 有効なトークンなら HTTP/1.1 200 OK と JSON ボディ
+# {"message":"Hello, authenticated SWE!","sub":"..."}、
+# トークンなし・不正トークンなら HTTP/1.1 401 Unauthorized
 ```
 
 期待結果:

@@ -255,7 +255,7 @@ sudo ip link delete $IF.20
 
   ```bash
   sudo podman exec router sysctl net.ipv4.ip_forward
-  # net.ipv4.ip_forward = 1 でなければ有効化
+  # 期待される結果: net.ipv4.ip_forward = 1
   ```
 
 - iptables のフォワードルールが正しく設定されているか確認
@@ -280,7 +280,7 @@ sudo ip link delete $IF.20
 
   ```bash
   sudo podman info | grep rootless
-  # rootless: false である必要あり
+  # 期待される結果: rootless: false
   ```
 
 ### NAT 経由でインターネットに接続できない

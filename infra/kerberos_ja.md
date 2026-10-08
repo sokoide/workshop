@@ -282,7 +282,7 @@ klist
 # チケット破棄
 kdestroy
 
-# 破棄確認（通常は "No credentials cache found" になる）
+# 期待される結果: "No credentials cache found"
 klist
 ```
 
@@ -302,7 +302,7 @@ klist
 
 # 3. curl が SPNEGO 対応か確認
 curl -V
-# Features に SPNEGO と GSS-API が含まれることを確認
+# 期待される結果: Features 行に SPNEGO と GSS-API が含まれる
 
 # 4. SPNEGO 認証によるアクセス
 curl -i --negotiate -u : http://nginx.test.local:8080/

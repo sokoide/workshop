@@ -8,6 +8,24 @@
 
 ---
 
+## ゴール
+
+この資料を読み終えると、次のことができるようになります:
+
+- SOLID 5 原則をそれぞれ「変更の理由」の観点で説明し、コードレビューで違反を見つけられる
+- 各原則の Go 流の実践方法（利用側インターフェース、エラー契約の統一、変更圧が出てからの抽象化）を適用できる
+- 各原則が守るクリーンアーキテクチャの層を対応付けられる
+
+---
+
+## 前提知識
+
+- [ ] Go 1.22 以上がインストール済み（`go version` で確認）
+- [ ] インターフェースと `context.Context` を使う Go コードが読める
+- [ ] SOLID の事前知識は不要 — 各原則は悪い例から始めます
+
+---
+
 ## S: Single Responsibility Principle (単一責任の原則)
 
 1 つの型・関数は、1 つの理由でだけ変更されるべきです。
@@ -143,6 +161,10 @@ func (n MailNotifier) SendOrderCreated(ctx context.Context, to, body string) err
 - API 入出力形式変更: Framework だけ
 - メール送信方式変更（SMTP -> SES など）: Infra Adapters だけ
 
+### ✅ Checkpoint
+
+- [ ] `ProcessOrder` を pricer / repository / notifier に分割すると、税ルール変更が `OrderPricer` だけに閉じ込まる理由を説明できる
+
 ---
 
 ## O: Open/Closed Principle (開放/閉鎖の原則)
@@ -196,6 +218,10 @@ func Checkout(ctx context.Context, pm PaymentMethod, amount int) error {
 
 クリーンアーキテクチャ的には、`PaymentMethod` は UseCase 側の Port として置き、`CardPayment` などは Infra Adapter として追加します。既存 UseCase を編集せずに拡張できます。
 
+### ✅ Checkpoint
+
+- [ ] 新しい支払い方法の追加に、各バージョンで何が必要か説明できる: `Checkout` の `switch` 編集 vs `PaymentMethod` 実装の追加
+
 ---
 
 ## L: Liskov Substitution Principle (リスコフの置換原則)
@@ -244,6 +270,10 @@ func Checkout(ctx context.Context, gw PaymentGateway, amount int) error {
 
 クリーンアーキテクチャ的には、同じ Output Port を実装する全 Adapter が同じ契約（戻り値、エラー意味、タイムアウト方針）を守る必要があります。
 
+### ✅ Checkpoint
+
+- [ ] `PanicGateway` が壊す契約（失敗は `error` で返し、panic しない）と、置換が安全でなくなる理由を説明できる
+
 ---
 
 ## I: Interface Segregation Principle (インターフェース分離の原則)
@@ -285,6 +315,10 @@ type UserCreator interface {
 
 クリーンアーキテクチャでは Input Port も UseCase ごとに細かく分けると分かりやすくなります。例: `CreateUserUseCase`, `GetUserUseCase`。
 
+### ✅ Checkpoint
+
+- [ ] 読み取り専用の呼び出し側に必要なのが `UserFinder` だけだと分かり、より狭いインターフェースが結合度とモック負担を減らす理由を説明できる
+
 ---
 
 ## D: Dependency Inversion Principle (依存性逆転の原則)
@@ -320,6 +354,10 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, sku string, qty int) 
 
 クリーンアーキテクチャの依存方向（外 -> 内）を守ると、ビジネスルールは技術変更の影響を受けにくくなります。
 
+### ✅ Checkpoint
+
+- [ ] 抽象（`InventoryGateway`）をどこに置くか、そして `CreateOrderUseCase` が DB クライアントを import せずにコンパイルできる理由を説明できる
+
 ---
 
 ## まとめ: SOLID を使う目的
@@ -349,6 +387,12 @@ SOLID は「きれいに書くため」ではなく、以下を下げるため�
 - 抽象化すべきでない場合の判断: 重複や変更圧が出てからインターフェースを導入する
 
 **次のステップ**: これらの境界を実アプリケーション構造に適用する様子は [クリーンアーキテクチャ](clean_arch_ja.md) を参照してください。
+
+---
+
+## 片付け
+
+この資料は読むだけで完結します。コンテナ、サービス、生成ファイルは一切使いません。試しにスニペットを作業用モジュールに写した場合は、使い終わったらそのディレクトリを削除してください。
 
 ---
 

@@ -47,6 +47,13 @@ project/
 ```bash
 # Format all markdown files
 make format
+
+# Documentation quality gate (headings sync, links, glossary anchors,
+# asset paths, workshop skeleton per docs/TEMPLATE.md)
+make check-docs
+
+# Full verification (docs + all Go modules)
+make check
 ```
 
 ### Go Projects (Individual Workshops)

@@ -8,6 +8,13 @@
 
 In this workshop, we will extend the existing example by adding business rules and replacing the infrastructure, experiencing the benefits of Clean Architecture firsthand.
 
+## Goal
+
+By the end of this workshop, you can:
+
+- Implement a business rule ("employees with 5+ years of service are veterans") as an Entity method and a Domain Service, testable with no DB or mocks
+- Swap the infrastructure (SQL → Active Directory) by changing only the Infra Adapter and the Composition Root — with zero changes to Domain and UseCase
+
 ## Workshop Scenario
 
 1. **Add Business Rules:** Implement the rule "Employees with 5 or more years of service are recognized as veterans" using Entities and Domain Services.
@@ -459,6 +466,16 @@ If "the definition of a veteran changed from 5 years to 3 years," which layer wo
 - External systems (SQL databases, LDAP directories) can be replaced with in-memory stand-ins and stubs, keeping workshops runnable with zero external dependencies.
 
 **Next**: [WS2: Extension and Optimization](./clean_arch_ws2_en.md) — abstract side effects (notification) and add a transparent cache with the Decorator pattern.
+
+---
+
+## Cleanup
+
+This workshop uses no containers or external services. Once you no longer need your working directory, remove it:
+
+```bash
+rm -rf ~/ws1
+```
 
 ---
 

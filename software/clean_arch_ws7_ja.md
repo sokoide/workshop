@@ -7,6 +7,13 @@
 この実習では、BBS（2 ちゃんねる風掲示板）に JWT Bearer Token 認証を追加します。
 **Presentation 層に横断的関心を追加するパターン**を体験し、内側の層（Domain・UseCase・Infra）を一切変更しないことを確認します。
 
+## ゴール
+
+この実習を終えると、次のことができるようになります:
+
+- JWT Bearer Token 認証を Presentation 層のミドルウェアとして BBS に追加し、Domain・UseCase・Infra には一切手を加えずに済む
+- 認証済みユーザーを Handler から UseCase へ普通の入力データとして渡し、内側の層をプロトコル非依存に保てる
+
 ## 前提知識
 
 - [ ] WS1〜WS4 完了、または [BBS プロジェクト](./assets/bbs/) をビルド・テストできる状態（`go build ./...` と `go test ./...` が通る）

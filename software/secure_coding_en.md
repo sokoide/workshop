@@ -8,6 +8,23 @@ Learn about vulnerabilities commonly introduced during everyday coding and the h
 
 ---
 
+## Goal
+
+By the end of this guide, you can:
+
+- Review Go code for the eight implementation-level risks covered here (SQL injection, unvalidated input, path traversal, weak hashing, insecure randomness, information leakage, secret logging, race conditions)
+- Apply the matching defense for each risk: parameterized queries, boundary validation, bcrypt/argon2id, `crypto/rand`, sanitized errors and logs, mutexes and transactions
+
+---
+
+## Prerequisites
+
+- [ ] Go 1.22+ installed — verify with `go version`
+- [ ] You can read Go code using `database/sql`, `net/http` handlers, and goroutines
+- [ ] No security background required — each best practice starts from its vulnerable code
+
+---
+
 ## Table of Contents
 
 1. [SQL Injection Prevention](#bp1-sql-injection-prevention)
@@ -763,6 +780,12 @@ func WithdrawDB(ctx context.Context, db *sql.DB, userID int, amount int) error {
 - How to spot and prevent race conditions and TOCTOU bugs with mutexes and transactions
 
 **Next step**: see the HTTP-level counterpart of these risks (XSS, CSRF, session handling) in [Web Security](../infra/web_security_en.md).
+
+---
+
+## Cleanup
+
+This guide is reading-only: the code fences are explanatory snippets (fragments, not runnable programs), so no containers, services, or files are created. Nothing to clean up.
 
 ---
 

@@ -167,10 +167,14 @@ infra/assets/web_security/
 # ターミナル1: 被害者サイト
 cd infra/assets/web_security/victim
 go run main.go
+# Expected output:
+# 20xx/... INFO victim site starting addr=:8080
 
 # ターミナル2: 攻撃者サイト
 cd infra/assets/web_security/attacker
 go run main.go
+# Expected output:
+# 20xx/... INFO attacker site starting addr=:8081
 ```
 
 ### 2. 動作確認

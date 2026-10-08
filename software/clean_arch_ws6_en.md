@@ -9,6 +9,13 @@
 In this workshop, you will add "Slack notification on new posts" to the BBS (2channel-style bulletin board).
 You will experience the **new Port/Adapter pattern** — defining a new Port and adding an Infra Adapter — with minimal impact on existing code.
 
+## Goal
+
+By the end of this workshop, you can:
+
+- Add a new external integration (Slack notification on new posts) by defining a new Port and implementing its Infra Adapter
+- Keep the system runnable and testable without Slack, using a NoOp gateway wired at the Composition Root
+
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.

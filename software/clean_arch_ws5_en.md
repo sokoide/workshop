@@ -9,6 +9,13 @@
 In this workshop, you will migrate the BBS (2channel-style bulletin board) database from SQLite to PostgreSQL.
 You will modify **the Infra Adapter layer and Composition Root wiring**, confirming that Domain, UseCase, and Presentation remain completely untouched.
 
+## Goal
+
+By the end of this workshop, you can:
+
+- Migrate the BBS database from SQLite to PostgreSQL by rewriting only the Infra Adapter and the Composition Root wiring
+- Demonstrate that Domain, UseCase, and Presentation remain completely untouched during a persistence-layer swap
+
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.

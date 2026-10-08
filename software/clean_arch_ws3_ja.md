@@ -9,6 +9,13 @@
 この実習では、BBS（2 ちゃんねる風掲示板）の REST API を gRPC に移行します。
 **Presentation Adapter** を差し替え、それを組み立てる **Composition Root** を更新します。Domain・UseCase・Infrastructure Adapters は変更しません。
 
+## ゴール
+
+この実習を終えると、次のことができるようになります:
+
+- BBS の REST API を gRPC に移行する際、変更するのが Presentation Adapter と Composition Root の配線だけであることを実際に確認できる
+- 通信プロトコルが変わっても Domain・UseCase・Infrastructure Adapters に手を加えずに済む理由を説明できる
+
 ## BBS アプリの概要
 
 題材とする BBS は、掲示板（Board）→ スレッド（Thread）→ 投稿（Post）の 3 階層を持つシンプルな掲示板アプリです。REST API の詳細や操作方法は [BBS README](assets/bbs/README_ja.md) を参照してください。

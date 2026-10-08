@@ -9,6 +9,13 @@
 In this workshop, you will add a "only the thread owner can post" business rule to the BBS (2channel-style bulletin board).
 You will observe how **changes propagate from inside to outside**, with each layer modifying only its own responsibility.
 
+## Goal
+
+By the end of this workshop, you can:
+
+- Add the "only the thread owner can post" business rule, starting from the Domain layer and watching the change propagate outward through each layer's own responsibility
+- Predict which layer a requirement change will touch — and which layers it will never reach
+
 ## Prerequisites
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.

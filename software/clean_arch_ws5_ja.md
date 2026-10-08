@@ -9,6 +9,13 @@
 この実習では、BBS（2 ちゃんねる風掲示板）のデータベースを SQLite から PostgreSQL に移行します。
 **Infra Adapter 層と Composition Root の配線だけを変更**し、Domain・UseCase・Presentation が一切変更不要であることを体験します。
 
+## ゴール
+
+この実習を終えると、次のことができるようになります:
+
+- BBS のデータベースを SQLite から PostgreSQL に移行する際、変更するのが Infra Adapter と Composition Root の配線だけであることを実際に確認できる
+- 永続化層の差し替え中も Domain・UseCase・Presentation が一切変更されないことを示せる
+
 ## 前提知識
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。

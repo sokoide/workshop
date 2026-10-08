@@ -8,6 +8,10 @@
 
 > **💡 用語集**: この実習で登場する専門用語は [用語集](glossary_ja.md) を参照してください。
 
+## ゴール
+
+カーネルが普段隠している通信の中身を観察し、それを自分の手で実装します。このパートを終える時点で、AF_PACKET の Packet Socket 上に `pkg/rawsock`・`pkg/ethernet`・`pkg/ipv4`・`pkg/icmp` の各パッケージが構築済みとなり、`go build ./...` でスタック全体がコンパイルできる状態になることを確認します。スタックの統合と Ping／UDP Echo の動作確認は[パート 2](tcpip_stack_udp_ja.md)で行います。
+
 ## 前提条件
 
 - [ ] Linux (Ubuntu 22.04/24.04 推奨) — Raw Socket (`AF_PACKET`) とネットワーク名前空間が必須

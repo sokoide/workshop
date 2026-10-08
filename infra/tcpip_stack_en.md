@@ -8,6 +8,10 @@ In this two-part workshop, you will combine Go and C to **build a TCP/IP protoco
 
 > **💡 Glossary**: Please refer to [Raw Socket](glossary_en.md#protocol) or [Encapsulation](glossary_en.md#protocol) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
+## Goal
+
+Observe what the kernel usually hides, then implement it yourself: by the end of this part you will have built the `pkg/rawsock`, `pkg/ethernet`, `pkg/ipv4`, and `pkg/icmp` packages on top of an AF_PACKET raw socket, and confirmed with `go build ./...` that the whole stack compiles. The integrated stack — live ping and UDP echo from inside the namespace — is verified in [Part 2](tcpip_stack_udp_en.md).
+
 ## Prerequisites
 
 - [ ] Linux (Ubuntu 22.04/24.04 recommended) — Raw Sockets (`AF_PACKET`) and network namespaces are required

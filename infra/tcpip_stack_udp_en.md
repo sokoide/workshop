@@ -8,6 +8,10 @@ This is Part 2 of the two-part TCP/IP Protocol Stack Workshop. [Part 1: Ethernet
 
 > **💡 Glossary**: Please refer to [Raw Socket](glossary_en.md#protocol) or [Encapsulation](glossary_en.md#protocol) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
 
+## Goal
+
+Implement the UDP layer (`pkg/udp`), wire every component into `main.go`, and verify your own stack with live traffic: a ping from inside the namespace gets replies from `192.168.100.1`, and the UDP echo test returns `b'hello udp'` from your stack.
+
 ## Prerequisites
 
 - [ ] Completed [Part 1: Ethernet, IP & ICMP](tcpip_stack_en.md) — the `pkg/rawsock`, `pkg/ethernet`, `pkg/ipv4`, and `pkg/icmp` packages exist in the project created there

@@ -6,6 +6,13 @@
 
 In this workshop, you will experience the design philosophy of Clean Architecture (3-layer variant: Adapters / UseCases / Domain) and its "resilience to change" through a "User Greeting App" consisting of only about 100 lines of code.
 
+## Goal
+
+By the end of this workshop, you can:
+
+- Explain the three layers (Adapters / UseCases / Domain) and the inward dependency rule of this Clean Architecture variant
+- Experience "resilience to change" in the ~100-line greeting app: swap the user storage by editing only the Infra Adapter and the Composition Root
+
 ## Prerequisites
 
 - [ ] Go 1.22 or later (`go version`)

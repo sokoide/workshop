@@ -10,6 +10,10 @@ EXCLUDED_DIRECTORIES = {
     '.venv', 'venv', 'conductor', 'node_modules',
 }
 
+# Meta documents that quote example paths and anchors instead of teaching:
+# workshop-level checks (links, asset paths, skeleton) do not apply to them.
+EXCLUDED_FILES = {'CLAUDE.md', 'IMPROVEMENT_PLAN.md'}
+
 
 def markdown_files(root: Path) -> list[Path]:
     files = []
@@ -18,7 +22,7 @@ def markdown_files(root: Path) -> list[Path]:
         files.extend(
             Path(directory) / name
             for name in names
-            if name.endswith('.md') and name != 'CLAUDE.md'
+            if name.endswith('.md') and name not in EXCLUDED_FILES
             and not (Path(directory) / name).is_symlink()
         )
     return sorted(files)

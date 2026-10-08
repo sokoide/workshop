@@ -6,6 +6,10 @@
 
 In this workshop, you will use **Microsoft Entra ID** as the authorization server and a **Go REST API** as the resource server to understand OAuth 2.0 / OpenID Connect in real-world scenarios.
 
+## Goal
+
+Register an API app and a client app in Microsoft Entra ID, expose both an App Role (M2M) and a delegated scope (user sign-in), and run a Go resource server that validates v2 access tokens via JWKS. You finish by calling `/api/profile` with tokens acquired through both the Managed Identity (client credentials) and the Authorization Code + PKCE flows.
+
 ## Prerequisites
 
 - [ ] An Azure subscription you can create resources in (a free trial works)
@@ -111,6 +115,9 @@ To verify your configuration, decode the acquired token and inspect its contents
 ```bash
 # Decode token (without signature validation)
 echo "<TOKEN>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
+# Expected output: decoded claims — aud = API Client ID,
+# iss = https://login.microsoftonline.com/<tenant-id>/v2.0,
+# scp = access_as_user (user-delegated) or roles = ["Svc.Invoke"] (M2M)
 ```
 
 ### Claims to Verify
@@ -606,6 +613,7 @@ go run main.go
 ```bash
 # Call the API with the acquired token
 curl -H "Authorization: Bearer <token>" http://localhost:8081/api/profile
+# Expected output: {"claims":{...},"status":"ok","user":"<name>"}
 ```
 
 #### For M2M (Using Azure CLI)
@@ -624,6 +632,7 @@ TOKEN=$(az account get-access-token \
 
 # API call
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
+# Expected output: {"claims":{...,"roles":["Svc.Invoke"],...},"status":"ok",...}
 ```
 
 ### 3. Common Errors and Verification

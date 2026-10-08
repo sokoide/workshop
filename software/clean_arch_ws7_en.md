@@ -7,6 +7,13 @@
 In this workshop, you will add JWT Bearer Token authentication to the BBS (2channel-style bulletin board).
 You will experience the **cross-cutting concern pattern** — adding authentication in the Presentation layer — without modifying any inner layers (Domain, UseCase, Infra).
 
+## Goal
+
+By the end of this workshop, you can:
+
+- Add JWT Bearer Token authentication to the BBS as Presentation-layer middleware, without modifying Domain, UseCase, or Infra
+- Pass the authenticated user from the handler into UseCases as plain input data, keeping inner layers protocol-agnostic
+
 ## Prerequisites
 
 - [ ] WS1–WS4 completed, or you can build and test the [BBS project](./assets/bbs/) (`go build ./...` and `go test ./...` pass)

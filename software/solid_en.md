@@ -8,6 +8,24 @@ SOLID is a set of five design principles for building code that is easier to cha
 
 ---
 
+## Goal
+
+By the end of this guide, you can:
+
+- Explain each of the five SOLID principles in terms of "reason to change" and spot their violations in a code review
+- Apply the Go idiom for each principle: consumer-side interfaces, consistent error contracts, and abstraction introduced only under change pressure
+- Connect each principle to the Clean Architecture layers it protects
+
+---
+
+## Prerequisites
+
+- [ ] Go 1.22+ installed — verify with `go version`
+- [ ] You can read Go code that uses interfaces and `context.Context`
+- [ ] No prior SOLID knowledge required — every principle starts from a bad example
+
+---
+
 ## S: Single Responsibility Principle
 
 A type or function should have only one reason to change.
@@ -142,6 +160,10 @@ The key point is that fix locations are separated by change reason.
 - API input/output format change: Framework only
 - Email provider change (SMTP -> SES): Infra Adapters only
 
+### ✅ Checkpoint
+
+- [ ] You can explain why splitting `ProcessOrder` into pricer / repository / notifier confines a tax-rule change to `OrderPricer` alone
+
 ---
 
 ## O: Open/Closed Principle
@@ -195,6 +217,10 @@ A new payment method can be added by implementing `PaymentMethod`, without modif
 
 In Clean Architecture terms, `PaymentMethod` is a UseCase-side port, while implementations like `CardPayment` live in Infra Adapters.
 
+### ✅ Checkpoint
+
+- [ ] You can describe what a new payment method requires in each version: editing the `switch` in `Checkout` vs. adding a `PaymentMethod` implementation
+
 ---
 
 ## L: Liskov Substitution Principle
@@ -244,6 +270,10 @@ Replacing with `PanicGateway` breaks that assumption, so safe substitution no lo
 
 In Clean Architecture terms, every adapter implementing the same output port must keep the same contract (return shape, error semantics, timeout behavior).
 
+### ✅ Checkpoint
+
+- [ ] You can name the contract `PanicGateway` breaks (failures must be returned as `error`, not panicked) and why it makes substitution unsafe
+
 ---
 
 ## I: Interface Segregation Principle
@@ -285,6 +315,10 @@ A read-only use case depends only on `UserFinder`, minimizing coupling.
 
 In Clean Architecture, input ports are also easier to reason about when split per use case (e.g., `CreateUserUseCase`, `GetUserUseCase`).
 
+### ✅ Checkpoint
+
+- [ ] You can tell which caller needs only `UserFinder` and why that narrower interface reduces both coupling and mock burden
+
 ---
 
 ## D: Dependency Inversion Principle
@@ -320,6 +354,10 @@ When `infra` implements `InventoryGateway`, UseCase remains isolated from extern
 
 Keeping the Clean Architecture dependency direction (outer -> inner) protects business rules from technology churn.
 
+### ✅ Checkpoint
+
+- [ ] You can point out where the abstraction (`InventoryGateway`) lives and why `CreateOrderUseCase` compiles without any DB client import
+
 ---
 
 ## Summary: Why Use SOLID
@@ -349,6 +387,12 @@ SOLID is not just about writing "clean-looking" code. It is a practical set of r
 - When _not_ to abstract: introduce interfaces only when duplication or change pressure appears
 
 **Next step**: apply these boundaries to a full application structure in [Clean Architecture](clean_arch_en.md).
+
+---
+
+## Cleanup
+
+This guide is reading-only: no containers, services, or generated files are involved. If you copied any snippet into a scratch module to experiment, delete that directory when you are done.
 
 ---
 

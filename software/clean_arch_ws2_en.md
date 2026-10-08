@@ -8,6 +8,13 @@
 
 Following WS1, we will learn about the benefits of layer separation in side-effect control and performance optimization through further practical scenarios.
 
+## Goal
+
+By the end of this workshop, you can:
+
+- Add a new side effect (notification) as a UseCase-owned port and swap its implementation (Email → Slack) with a one-line change in the Composition Root
+- Introduce a transparent cache with the Decorator pattern, keeping Domain and UseCase unaware that caching exists
+
 ## Workshop Scenario
 
 1. **Notification Channel Diversification:** Change the notification method from Email to Slack without altering business logic.
@@ -446,6 +453,16 @@ When using `CachedUserRepository`, even if the DB data is updated, the cache may
 - External services (Slack, Redis) can be replaced with stand-ins behind infra-internal interfaces, keeping the workshop runnable with zero external dependencies while remaining one file away from the real thing.
 
 **Next**: [WS3: Swapping Communication Protocols](./clean_arch_ws3_en.md) — migrate the BBS REST API to gRPC without touching Domain, UseCase, or Infra.
+
+---
+
+## Cleanup
+
+This workshop uses no containers or external services (notifiers and cache are stand-ins). Once you no longer need your working directory, remove it:
+
+```bash
+rm -rf ~/ws2
+```
 
 ---
 

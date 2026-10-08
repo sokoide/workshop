@@ -167,10 +167,14 @@ Open two terminals and start each server.
 # Terminal 1: Victim Site
 cd infra/assets/web_security/victim
 go run main.go
+# Expected output:
+# 20xx/... INFO victim site starting addr=:8080
 
 # Terminal 2: Attacker Site
 cd infra/assets/web_security/attacker
 go run main.go
+# Expected output:
+# 20xx/... INFO attacker site starting addr=:8081
 ```
 
 ### 2. Verification

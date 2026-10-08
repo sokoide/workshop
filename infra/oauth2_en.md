@@ -542,9 +542,13 @@ API endpoints:
 
 ```bash
 curl -i http://localhost:8081/health
+# Expected output: HTTP/1.1 200 OK — body: OK
 
 curl -i http://localhost:8081/api/profile \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
+# Expected output: with a valid token, HTTP/1.1 200 OK and the JSON body
+# {"message":"Hello, authenticated SWE!","sub":"..."}; without or with an
+# invalid token, HTTP/1.1 401 Unauthorized
 ```
 
 Expected results:

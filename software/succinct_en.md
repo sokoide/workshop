@@ -10,6 +10,17 @@ In this guide, we will first look at a standard `Trie`, then follow the flow of 
 
 ---
 
+## Goal
+
+By the end of this guide, you can:
+
+- Explain what makes a data structure succinct: representing data in `n + o(n)` bits and operating on it without decompression
+- Trace the compression path from a pointer-based Trie through Radix Tree and Double Array to LOUDS bit strings
+- Run the included Go examples (pointer Trie, Double Array Trie, minimal `rank`) and read their output
+- Choose between Radix Tree / Double Array / LOUDS for a given workload (routing, fixed dictionaries, hundreds of millions of keys)
+
+---
+
 ## Prerequisites
 
 ### Succinct vs. Compressed
@@ -89,6 +100,16 @@ func main() {
 }
 ```
 
+Save the listing above as `main.go` and run it (a single file needs no `go mod init`):
+
+```bash
+go run main.go
+# Expected output:
+# true
+# false
+# true
+```
+
 ### Structure Image
 
 ```mermaid
@@ -120,6 +141,10 @@ The theoretical information of a `Trie` is simply "which node has which characte
 
 In short, you only want to represent the "shape of the tree," but you are paying a lot of memory for **pointers, hash tables, and allocator management information**.
 
+### ✅ Checkpoint
+
+- [ ] You ran the pointer-based Trie example and can name where its memory goes (per-node maps, pointers, allocator overhead)
+
 ---
 
 ## 2. Radix Tree / Patricia Trie (Structure Compression)
@@ -140,6 +165,10 @@ graph TD
     BA -- "nana" --> BANANA["banana *"]
     BA -- "ll" --> BALL["ball *"]
 ```
+
+### ✅ Checkpoint
+
+- [ ] You can explain what a Radix Tree compresses relative to the pointer-based Trie (single-child chains folded into labeled edges)
 
 ---
 
@@ -393,12 +422,29 @@ func main() {
 }
 ```
 
+Save the listing above as `main.go` and run it:
+
+```bash
+go run main.go
+# Expected output:
+# Search("app") = true
+# Search("apple") = true
+# Search("ap") = false
+# Search("ban") = true
+# Search("band") = false
+# Search("ban") = true
+```
+
 ### Key Understanding Points
 
 - `base[s] + code(c)` becomes the next state number (replaces pointers).
 - `check[next] == s` verifies if the transition actually originated from this parent.
 - The `base` value is searched as the "minimum offset where all children fit into empty slots."
 - In production, this is often combined with pre-calculating array sizes, sparse compression, or DAFSA.
+
+### ✅ Checkpoint
+
+- [ ] You ran the Double Array Trie example and can explain how `base[s] + code(c)` plus the `check` array replaces pointer traversal
 
 ---
 
@@ -474,6 +520,10 @@ While memory efficient, implementation and updates are more difficult.
 - For small data, the effect might not justify the implementation complexity.
 - If label search or auxiliary index design is incorrect, the expected speed will not be achieved.
 
+### ✅ Checkpoint
+
+- [ ] You can decode a LOUDS bit string (`1...10` per node in BFS order) back into the tree shape it encodes
+
 ---
 
 ## 5. Minimal Rank Implementation in Go (For Learning)
@@ -544,6 +594,10 @@ func (bv *BitVector) Rank1(i int) int {
 - Pack bit strings into `[]uint64` instead of `[]bool`.
 - Use `math/bits` to count the number of `1`s.
 - In practice, instead of scanning everything in `Rank1`, auxiliary arrays are added for acceleration.
+
+### ✅ Checkpoint
+
+- [ ] You can explain why `[]uint64` with `math/bits` beats `[]bool` for a bit vector (word-level parallelism, no byte-per-bit storage)
 
 ---
 
@@ -644,6 +698,10 @@ flowchart TD
     C -->|Balance| G["Radix Tree"]
 ```
 
+### ✅ Checkpoint
+
+- [ ] You can pick a structure from the decision flow for a given requirement (speed / memory / update frequency)
+
 ---
 
 ## 7. SWE Implementation Guide (Go)
@@ -660,6 +718,10 @@ flowchart TD
 2. Implement `Rank/Select`.
 3. Add tree structure using `LOUDS`.
 4. Benchmark and compare with standard Trie.
+
+### ✅ Checkpoint
+
+- [ ] You can recite the introduction order (`BitVector` -> `Rank/Select` -> `LOUDS`) and justify why each step builds on the previous one
 
 ---
 
@@ -687,6 +749,10 @@ flowchart TD
 
 - **Common Prefix Search**: Japanese "yomi" (readings) often overlap, and Trie's prefix sharing directly leads to massive memory savings.
 - **Deterministic Speed**: Unlike hash tables, lookups have a constant speed ($O(1)$ per char for Double-Array), minimizing latency for the user.
+
+### ✅ Checkpoint
+
+- [ ] You can explain why Mozc uses LOUDS/Double Array for the static system dictionary but hash tables for the dynamic user dictionary
 
 ---
 
@@ -717,6 +783,10 @@ IMEs like Mozc choose different data structures based on the use case:
 | **LOUDS**         | **High (Compression)** | Smallest size. Powerful in memory-constrained environments like mobile devices.                   |
 | **Radix Tree**    | Medium                 | Effective for long readings. Concepts are sometimes integrated into LOUDS internal optimizations. |
 
+### ✅ Checkpoint
+
+- [ ] You can explain how UTF-8 byte decomposition keeps the branching factor bounded at 256 for multi-byte scripts
+
 ---
 
 ## Summary
@@ -736,6 +806,12 @@ IMEs like Mozc choose different data structures based on the use case:
 - How `rank`/`select` over a bit vector reduce tree navigation to bit operations
 - The trade-off matrix: Radix Tree for routing, Double Array for static dictionaries, LOUDS for billions of entries
 - A phased adoption path: `BitVector -> rank/select -> LOUDS`, instead of implementing everything at once
+
+---
+
+## Cleanup
+
+This guide uses no containers or external services — the examples are single-file Go programs. If you saved any of them into a scratch directory, delete it when you are done.
 
 ---
 

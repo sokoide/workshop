@@ -277,7 +277,7 @@ klist
 # Destroy ticket
 kdestroy
 
-# Confirm destroy (typically shows "No credentials cache found")
+# Expected output: "No credentials cache found"
 klist
 ```
 
@@ -297,7 +297,7 @@ klist
 
 # 3. Check whether curl supports SPNEGO
 curl -V
-# Confirm that SPNEGO and GSS-API are included in Features
+# Expected output: Features line includes SPNEGO and GSS-API
 
 # 4. Access via SPNEGO authentication
 curl -i --negotiate -u : http://nginx.test.local:8080/

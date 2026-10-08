@@ -9,6 +9,13 @@
 In this workshop, you will migrate the BBS (2channel-style bulletin board) REST API to gRPC.
 You will replace the **Presentation Adapter** and update the **Composition Root** that wires it, while leaving Domain, UseCase, and Infrastructure Adapters untouched.
 
+## Goal
+
+By the end of this workshop, you can:
+
+- Migrate the BBS REST API to gRPC by replacing only the Presentation Adapter and the Composition Root wiring
+- Explain why Domain, UseCase, and Infrastructure Adapters stay untouched when the transport protocol changes
+
 ## BBS App Overview
 
 The BBS in this workshop is a simple 3-tier bulletin board: Boards → Threads → Posts. For detailed REST API specifications and usage examples, refer to the [BBS README (Japanese)](assets/bbs/README_ja.md).

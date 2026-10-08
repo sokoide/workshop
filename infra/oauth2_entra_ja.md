@@ -6,6 +6,10 @@
 
 この実習では、**Microsoft Entra ID** を認可サーバー、**Go 製 REST API** をリソースサーバーとして使い、OAuth 2.0 / OpenID Connect の実運用パターンを確認します。
 
+## ゴール
+
+Microsoft Entra ID に API アプリとクライアントアプリを登録し、App Role（M2M）と委任スコープ（ユーザーサインイン）の両方を公開します。そして JWKS で v2 アクセストークンを検証する Go リソースサーバーを動かし、Managed Identity（client credentials）と Authorization Code + PKCE の両フローで取得したトークンで `/api/profile` を呼び出せることを確認します。
+
 ## 前提条件
 
 - [ ] リソースを作成できる Azure サブスクリプション（無料試用版で可）
@@ -111,6 +115,9 @@ Entra ID は 2 種類のアクセストークン形式を発行します。こ�
 ```bash
 # トークンをデコード（署名検証なし）
 echo "<トークン>" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
+# Expected output: デコードされた claims — aud = API の Client ID、
+# iss = https://login.microsoftonline.com/<tenant-id>/v2.0、
+# scp = access_as_user（ユーザー委任）または roles = ["Svc.Invoke"]（M2M）
 ```
 
 ### 確認すべき Claim
@@ -611,6 +618,7 @@ go run main.go
 ```bash
 # 取得したトークンで API 呼び出し
 curl -H "Authorization: Bearer <token>" http://localhost:8081/api/profile
+# Expected output: {"claims":{...},"status":"ok","user":"<名前>"}
 ```
 
 #### M2M の場合（Azure CLI 使用）
@@ -632,6 +640,7 @@ TOKEN=$(az account get-access-token \
 
 # API 呼び出し
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/profile
+# Expected output: {"claims":{...,"roles":["Svc.Invoke"],...},"status":"ok",...}
 ```
 
 ### 3. よくあるエラーと確認方法
