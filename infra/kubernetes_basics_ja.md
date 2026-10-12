@@ -12,6 +12,16 @@
 
 ---
 
+## 3 セッションの進め方
+
+| 回  | 範囲         | 完了時に確認する成果                     |
+| --- | ------------ | ---------------------------------------- |
+| 1   | 準備〜STEP 3 | Deployment のアプリへ Service 経由で接続 |
+| 2   | STEP 4〜6    | 設定の注入、Pod 再作成後のデータ保持     |
+| 3   | STEP 7〜10   | Ingress、Helm、監視、Go アプリ公開       |
+
+各回の読解・操作は約 45〜60 分が目安です。初回ツール導入、イメージ取得、トラブル対応は別に時間を確保してください。以下の中断位置ではクラスタを削除せず、最後の回の後だけ片付けます。
+
 ## なぜソフトウェアエンジニアが Kubernetes を学ぶのか？
 
 現代のソフトウェア開発において、Kubernetes は単なる「運用ツールのひとつ」ではありません。開発者が K8s を理解することで、以下のようなメリットがあります。
@@ -136,7 +146,7 @@ graph TB
 ### 想定ディレクトリ構造
 
 ```text
-~/k8s-workshop/
+/tmp/k8s-workshop/
 ├── manifests/           # Kubernetes マニフェスト
 │   ├── 01-pod.yaml
 │   ├── 02-deployment.yaml
@@ -171,6 +181,14 @@ graph TB
 ---
 
 ## 準備
+
+リポジトリルートから開始します。`/tmp/k8s-workshop` はこの実習の作業場所です。既存の作業がある場合は別名を全手順で使ってください。各 YAML ブロックは先頭コメントのファイル名で保存してから `kubectl apply` します。
+
+```bash
+mkdir -p /tmp/k8s-workshop/manifests
+cd /tmp/k8s-workshop
+# 期待される結果: 作業場所と manifests ディレクトリが用意される
+```
 
 ### 1. ツールインストール
 
@@ -398,6 +416,24 @@ kubectl run test-nodeport --image=busybox:1.37 --rm -it --restart=Never \
 - [ ] `nginx-service.default.svc.cluster.local` で DNS 解決できる
 - [ ] NodePort でノード経由アクセスが可能
 
+### 中断・再開: セッション 1
+
+`kubectl port-forward` とログ監視を Ctrl+C で止めます。`/tmp/k8s-workshop` の YAML とクラスタを残します。kind クラスタの停止・削除は行いません。実行中のコンテナはリソースを使い続けます。
+
+再開時は次を実行します。クラスタがなくなった場合は準備から作り直し、保存した YAML を順番に再適用します。
+
+```bash
+cd /tmp/k8s-workshop
+kind get clusters
+# 期待される結果: k8s-workshop
+kubectl config use-context kind-k8s-workshop
+kubectl get nodes
+# 期待される結果: control-plane が Ready
+kubectl get deployment nginx-deployment
+kubectl get service nginx-service
+# 期待される結果: Deployment が利用可能、Service が存在
+```
+
 ### STEP 4: ConfigMap による設定注入
 
 設定をコンテナイメージから分離します。
@@ -604,6 +640,24 @@ kubectl logs -l app=data
 - [ ] Pod 再作成後も `/data/test.txt` の内容が保持される
 - [ ] `kubectl describe pvc` でボリューム情報が確認できる
 
+### 中断・再開: セッション 2
+
+`kubectl port-forward` とログ監視を Ctrl+C で止めます。`/tmp/k8s-workshop` の YAML とクラスタを残します。kind クラスタの停止・削除は行いません。実行中のコンテナはリソースを使い続けます。
+
+再開時は次を実行します。クラスタがなくなった場合は準備から作り直し、保存した YAML を順番に再適用します。
+
+```bash
+cd /tmp/k8s-workshop
+kind get clusters
+# 期待される結果: k8s-workshop
+kubectl config use-context kind-k8s-workshop
+kubectl get nodes
+# 期待される結果: control-plane が Ready
+kubectl get configmaps,secrets,pvc
+kubectl logs -l app=data --tail=5
+# 期待される結果: 設定と Secret が存在、data-pvc が Bound、以前のデータを含むログ
+```
+
 ### STEP 7: Ingress による HTTP ロードバランシング
 
 クラスタ外への HTTP/HTTPS ルーティングを設定します。
@@ -739,11 +793,13 @@ kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
 kubectl logs -l app=nginx --tail=100
 kubectl logs -f deployment/nginx-deployment
 
-# 複数コンテナ Pod のログ（<pod-name> は実際の Pod 名に置き換え）
-kubectl logs <pod-name> -c <container-name>
+# Pod とコンテナ名を取得してログを確認
+POD_NAME=$(kubectl get pods -l app=nginx -o jsonpath='{.items[0].metadata.name}')
+CONTAINER_NAME=$(kubectl get pod "$POD_NAME" -o jsonpath='{.spec.containers[0].name}')
+kubectl logs "$POD_NAME" -c "$CONTAINER_NAME"
 
 # 過去のログ (再起動後も)
-kubectl logs <pod-name> --previous
+kubectl logs "$POD_NAME" --previous
 ```
 
 ### ✅ チェックポイント
@@ -758,8 +814,8 @@ Go でシンプルなウェブアプリケーションを作成し、コンテ�
 
 ```bash
 # プロジェクト作成
-mkdir -p ~/k8s-workshop/app
-cd ~/k8s-workshop/app
+mkdir -p /tmp/k8s-workshop/app
+cd /tmp/k8s-workshop/app
 
 # Go モジュール初期化
 go mod init github.com/example/k8s-app
@@ -824,9 +880,9 @@ podman build -t docker.io/library/k8s-app:latest .
 podman save -o /tmp/k8s-app.tar docker.io/library/k8s-app:latest
 kind load image-archive /tmp/k8s-app.tar --name k8s-workshop
 
-# マニフェスト作成（manifests/ は app/ と同じ ~/k8s-workshop 直下）
-mkdir -p ~/k8s-workshop/manifests
-cat > ~/k8s-workshop/manifests/k8s-app-deployment.yaml << 'EOF'
+# マニフェスト作成（manifests/ は app/ と同じ /tmp/k8s-workshop 直下）
+mkdir -p /tmp/k8s-workshop/manifests
+cat > /tmp/k8s-workshop/manifests/k8s-app-deployment.yaml << 'EOF'
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -865,7 +921,7 @@ spec:
             cpu: "200m"
 EOF
 
-cat > ~/k8s-workshop/manifests/k8s-app-service.yaml << 'EOF'
+cat > /tmp/k8s-workshop/manifests/k8s-app-service.yaml << 'EOF'
 apiVersion: v1
 kind: Service
 metadata:
@@ -879,9 +935,9 @@ spec:
 EOF
 
 # デプロイ
-kubectl apply -f ~/k8s-workshop/manifests/k8s-app-deployment.yaml
+kubectl apply -f /tmp/k8s-workshop/manifests/k8s-app-deployment.yaml
 # Expected output: deployment.apps/k8s-app created
-kubectl apply -f ~/k8s-workshop/manifests/k8s-app-service.yaml
+kubectl apply -f /tmp/k8s-workshop/manifests/k8s-app-service.yaml
 # Expected output: service/k8s-app-service created
 
 # 確認
@@ -976,6 +1032,8 @@ helm uninstall prometheus
 
 # kind クラスタを削除（上で作成したリソースはすべて消える）
 kind delete cluster --name k8s-workshop
+cd /tmp
+rm -r /tmp/k8s-workshop
 # Expected output: Deleted clusters "k8s-workshop"
 
 # 確認
@@ -1004,14 +1062,14 @@ kind get clusters
 1. ログでエラー確認:
 
    ```bash
-   kubectl logs <pod-name>
-   kubectl logs <pod-name> --previous  # 前回のログ
+   kubectl logs "$POD_NAME"
+   kubectl logs "$POD_NAME" --previous  # 前回のログ
    ```
 
 2. イベント確認:
 
    ```bash
-   kubectl describe pod <pod-name>
+   kubectl describe pod "$POD_NAME"
    ```
 
 3. よくある原因:
@@ -1061,7 +1119,7 @@ kind get clusters
 kubectl describe node | grep -A 5 "Allocated resources"
 
 # PVC の使用量確認
-kubectl exec -it <pod-name> -- df -h
+kubectl exec -it "$POD_NAME" -- df -h
 
 # 不要なリソース削除
 kubectl delete pods --field-selector=status.phase=Succeeded

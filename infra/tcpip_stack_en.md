@@ -2,11 +2,15 @@
 
 > **⏱️ Estimated Time**: Approx. 100 minutes (Part 1 of 2; the complete workshop takes approx. 180 minutes)
 > **🎯 Level**: Advanced
-> **💻 Environment**: Linux (root/sudo)
+> **💻 Environment**: Linux (root/sudo), Go 1.25.7+
 
 In this two-part workshop, you will combine Go and C to **build a TCP/IP protocol stack from the ground up**. By implementing the "packet generation and decomposition" that OS kernels usually hide, you will understand network principles not as abstract concepts, but as concrete data structures. Part 1 covers the observation step and the packet socket, Ethernet, IPv4, and ICMP layers; [Part 2: UDP & Stack Integration](tcpip_stack_udp_en.md) adds UDP datagrams, integrates everything into `main.go`, and runs the live ping and UDP echo tests.
 
 > **💡 Glossary**: Please refer to [Raw Socket](glossary_en.md#protocol) or [Encapsulation](glossary_en.md#protocol) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
+
+## Session Boundaries
+
+Use three sessions: Part 1 preparation–STEP 1 (frame reception), Part 1 STEP 2–4 (Ethernet/IP/ICMP), then Part 2 STEP 5–6 (UDP/integration). Keep source in the same tcpip_stack directory. Allow additional time for initial Linux setup and packet observation.
 
 ## Goal
 
@@ -15,7 +19,7 @@ Observe what the kernel usually hides, then implement it yourself: by the end of
 ## Prerequisites
 
 - [ ] Linux (Ubuntu 22.04/24.04 recommended) — Raw Sockets (`AF_PACKET`) and network namespaces are required
-- [ ] Go 1.22 or later (`go version`)
+- [ ] Go 1.25.7 or later (`go version`)
 - [ ] GCC with CGO enabled (`gcc --version`, `go env CGO_ENABLED`)
 - [ ] `tcpdump`, `iproute2` (`ip`, `ip netns`), and `ethtool` — `sudo apt install -y golang-go gcc tcpdump iproute2 ethtool`
 - [ ] Root/sudo privileges (creating network namespaces and opening raw sockets requires `CAP_NET_RAW`)
@@ -562,6 +566,23 @@ setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
 - [ ] Opening a raw socket fails without root or the required capability.
 
 ---
+
+### Pause and Resume
+
+Stop the userspace stack, ping and tcpdump with Ctrl+C. Retain source and go.mod in the working directory. Namespace/veth persist until host restart; remove them only at final cleanup.
+
+Return to the saved tcpip_stack directory on resume and check below. If a reboot removed the environment, repeat Part 1 isolated-environment preparation; do not recreate resources that already exist.
+
+```bash
+ip netns list
+ip link show veth-host
+sudo ip netns exec workshop ip addr show veth-ns
+# Expected output: workshop and veth pair exist; veth-ns has 192.168.100.2/24
+sudo ip netns exec workshop ip neigh show 192.168.100.1
+# Expected output: PERMANENT entry matching veth-host MAC
+go test ./pkg/...
+# Expected output: completed package tests pass if test files were copied
+```
 
 ### STEP 2: Ethernet Frame (L2) - MAC Address-Based Communication
 

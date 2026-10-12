@@ -2,7 +2,7 @@
 
 > **⏱️ 所要時間**: 約 90 分
 > **🎯 レベル**: 中級
-> **💻 環境**: Linux (Ubuntu 24.04。apt と Homebrew/Linuxbrew を使用)
+> **💻 環境**: Linux (Ubuntu 24.04。apt と Homebrew/Linuxbrew を使用)、Go 1.23+
 >
 > > **用語について**: 本実習で扱う「永続接続」は、HTTP 仕様（RFC 7230 等）で定義されている **"Persistent Connections"** の訳語です。データベース等の「データの永続性 (Persistency/Persistence)」とは異なり、**一つの TCP 接続、または QUIC が提供する論理的な接続**を維持して複数のリクエストで再利用することを指します。
 
@@ -19,7 +19,7 @@ HTTP/1.1 から最新の HTTP/3 まで、どのように接続を効率化して
 ## 前提条件
 
 - [ ] Linux (Ubuntu 24.04 推奨)。sudo (apt) と Homebrew (Linuxbrew) が使えること
-- [ ] Go 1.22 以降（`go version`）、`podman` + `podman compose`、`openssl`、`curl`、`make`
+- [ ] Go 1.23 以降（`go version`）、`podman` + `podman compose`、`openssl`、`curl`、`make`
 - [ ] `websocat`、`grpcurl`、`protoc` + `protoc-gen-go` — 「準備」のステップで導入します（`brew install websocat go protobuf grpcurl`、その後 `make setup`）
 - [ ] STEP 4 のために HTTP/3 対応ビルドの `curl`（`curl --version | grep HTTP3`）
 - 推奨: TCP ハンドシェイクと接続のライフサイクルの基礎は [TCP/IP プロトコルスタック実習](tcpip_stack_ja.md) を参照

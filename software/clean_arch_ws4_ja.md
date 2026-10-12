@@ -1,470 +1,142 @@
 # クリーンアーキテクチャ実習 (WS4): ビジネスルールの追加
 
-> **⏱️ 所要時間**: 約 90 分
-> **🎯 レベル**: Intermediate
-> **💻 環境**: Go 1.22+、OS 不問（動作確認に curl を使用）
->
-> > **💡 用語集**: [クリーンアーキテクチャ](../infra/glossary_ja.md#architecture)や[インターフェース](../infra/glossary_ja.md#go)などの専門用語は [用語集](../infra/glossary_ja.md) を参照してください。
-
-この実習では、BBS（2 ちゃんねる風掲示板）に「スレ主しか書き込めない」というビジネスルールを追加します。
-**内側から外側へ変更が波及する様子**を体験し、各層の変更がその層の責務に直結する最小限のものであることを確認します。
+> **⏱️ 所要時間**: 約 60 分
+> **🎯 レベル**: 中級
+> **💻 環境**: Go 1.26.2+、curl、Linux / macOS / WSL2
 
 ## ゴール
 
-この実習を終えると、次のことができるようになります:
+- スレ主限定モードの投稿ルールを Domain に実装し、UseCase から呼ぶ。
+- 許可・拒否の結果と、失敗時に投稿が保存されないことを確認する。
 
-- 「スレ主のみ書き込み可能」ルールを Domain 層から追加し、変更が各層の責務を通じて外へ伝わる様子を追跡できる
-- 要求変更がどの層に触れ、どの層には絶対に触れないかを予測できる
+## 前提条件
 
-## 前提知識
+- [ ] Go 1.26.2+、C コンパイラー、Python 3、curl
+- [ ] WS1・WS2 のレイヤーと Port を理解している。WS3 は推奨だが、gRPC のコードは持ち越さない。
 
-本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
-共有のアーキテクチャ解説（3 層バリアント・依存ルール・エラー境界）は [clean_arch.md](./clean_arch_ja.md#レイヤー構造と依存関係) にまとめてあります。
+## 開始状態と完成状態
 
-開始前のチェックリスト:
+**開始:** HTTP + SQLite。Owner/OwnerOnly の Entity フィールド、DTO、DB 列、HTTP の 403 変換は足場として実装済み。`CanPost` の判定と UseCase の拒否処理は TODO で、他人の投稿をまだ許可する。
 
-- [ ] [WS1](./clean_arch_ws1_ja.md)〜[WS3](./clean_arch_ws3_ja.md) を完了している（または Entity・Port・Composition Root の考え方に慣れている）
-- [ ] Go 1.22 以上がインストール済み（`go version` で確認）
-- [ ] BBS プロジェクトがビルドでき、テストも通る: `cd software/assets/bbs && go build ./... && go test ./...`
-- [ ] `curl` が使える（`curl --version` で確認）
-
-## 実習のシナリオ
-
-「特定のスレッドでは、スレ主（1 レス目の投稿者）しか書き込めない」という制限モードを追加します。
-
----
-
-## 課題: スレ主のみ書き込み可能モードの追加
-
-### 変更範囲の全体像
-
-ビジネスルールの追加は内側から外側へ波及しますが、各層の変更は **その層の責務に直結する最小限のもの** です。
-
-| 層               | 変更内容                                                                                                           | 役割             |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| **Domain**       | `Thread.OwnerOnly` フラグ追加、`CanPost()` メソッド追加、`ErrNotThreadOwner` エラー追加                            | ルールの定義     |
-| **UseCase**      | `thread.CanPost(in.Author)` の呼び出しを1行追加、スレッド作成時に `Owner` を設定                                   | ルールの適用     |
-| **Infra**        | `threads` テーブルに `owner_only` 列と `owner` 列を追加、読み書きを対応                                            | 永続化の追従     |
-| **Presentation** | エラー変換に `ErrNotThreadOwner → 403 Forbidden` を1行追加、`createThreadRequest` に `owner_only` フィールドを追加 | 表示と入力の追従 |
-
-### Step 1: Domain 層 — ルールの定義
-
-ビジネスルールを Entity にカプセル化します。
-
-**1-1. Thread Entity にフラグと判定メソッドを追加する**
-
-> **注意**: 現在の `Thread` 構造体には `OwnerOnly` と `Owner` フィールドは存在しません。このステップで新規に追加します。
-
-```go
-// internal/domain/entity/thread.go
-type Thread struct {
-    ID           int64
-    BoardID      int64
-    Title        string
-    PostCount    int
-    CreatedAt    time.Time
-    LastPostedAt time.Time
-    // ↓ 追加
-    OwnerOnly bool   // スレ主のみ書き込み可能か
-    Owner     string // スレ主（1レス目の投稿者）
-}
-
-// 追加: 書き込み可能かを判定するビジネスルール
-func (t *Thread) CanPost(author string) bool {
-    if !t.OwnerOnly {
-        return true // 制限モードでなければ誰でもOK
-    }
-    return t.Owner == author
-}
-
-// 追加: スレ主限定モードの設定をカプセル化（不変条件を保護）
-func (t *Thread) EnableOwnerOnlyMode(owner string) error {
-    if owner == "" {
-        return errors.New("owner must not be empty when owner-only mode is enabled")
-    }
-    t.OwnerOnly = true
-    t.Owner = owner
-    return nil
-}
-```
-
-**確認ポイント**: 判定ロジックは `CanPost()` に **1箇所だけ** 存在します。DB も HTTP も知りません。
-
-**1-2. ドメインエラーを追加する**
-
-```go
-// internal/domain/error.go
-var (
-    ErrBoardNotFound  = errors.New("board not found")
-    ErrThreadNotFound = errors.New("thread not found")
-    // ↓ 追加
-    ErrNotThreadOwner = errors.New("only thread owner can post")
-)
-```
-
-### ✅ チェックポイント
-
-- [ ] `CanPost` と `EnableOwnerOnlyMode` が **Domain 層にだけ** 存在する — `internal/domain/entity/thread.go` に HTTP・DB・gRPC への参照がない
-- [ ] 空の owner では限定モードにできない: `EnableOwnerOnlyMode("")` がエラーを返す（表駆動テストを追加して確認）
-- [ ] `software/assets/bbs` で `go build ./...` と `go test ./...` が通る
-
-### Step 2: UseCase 層 — ルールの適用
-
-UseCase は「いつルールを適用するか」を知る層です。投稿処理の中に **1行** を追加します。
-
-```go
-// internal/usecase/post_usecase.go
-func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
-    var out *CreatePostOutput
-    if err := u.tm.RunInTransaction(ctx, func(txCtx context.Context) error {
-        thread, err := u.threadRepo.FindByID(txCtx, in.ThreadID)
-        if err != nil {
-            return err
-        }
-
-        // ↓ この1行を追加するだけ
-        if !thread.CanPost(in.Author) {
-            return domain.ErrNotThreadOwner
-        }
-
-        count, err := u.postRepo.CountByThreadID(txCtx, thread.ID)
-        if err != nil {
-            return err
-        }
-        post, err := entity.NewPost(thread.ID, count+1, in.Author, in.Body, in.Sage)
-        if err != nil {
-            return err
-        }
-
-        if err := u.postRepo.Save(txCtx, post); err != nil {
-            return err
-        }
-        thread.Bump(post.CreatedAt, in.Sage)
-        if err := u.threadRepo.Save(txCtx, thread); err != nil {
-            return err
-        }
-
-        out = &CreatePostOutput{Post: toPostDTO(post)}
-        return nil
-    }); err != nil {
-        return nil, err
-    }
-
-    return out, nil
-}
-```
-
-**2-2. トランザクション管理について**
-
-UseCase 層はトランザクション境界を制御する責務も持ちます。
-
-- **TransactionManager**: UseCase Port として定義される（`usecase.TransactionManager`）
-- **Infra Adapter**: SQLite の `sql.Tx` などを使って具象実装
-- **UseCase**: 複数のリポジトリ操作を 1 つのトランザクションにまとめる
-
-```go
-// internal/usecase/transaction.go
-type TransactionManager interface {
-    RunInTransaction(ctx context.Context, fn func(ctx context.Context) error) error
-}
-```
-
-投稿処理では、スレッド取得・権限判定・投稿数カウント・番号採番・投稿保存・スレッド更新（Bump）の全工程をアトミックに実行する必要があります。どの手順が失敗しても全変更を巻き戻すため、UseCase がトランザクション境界を制御します（例: 投稿だけ保存されてスレッドが更新されない状態を防ぐ）。
-
-**確認ポイント**: トランザクションは「技術的な詳細」ではなく「アプリケーションポリシー」です。UseCase が「この操作セットはアトミックであるべき」と判断し、Infra Adapter がその具体的な実装（`BEGIN`/`COMMIT`/`ROLLBACK`）を提供します。
-
-**2-3. DTO にフラグを追加する**
-
-`CreateThreadInput`（`usecase/dto.go`）に `OwnerOnly` フィールドを追加します。これにより Presentation 層からフラグを渡せるようになります。
-
-```go
-// internal/usecase/dto.go
-type CreateThreadInput struct {
-    BoardName string
-    Title     string
-    Author    string
-    Body      string
-    OwnerOnly bool   // 追加: スレ主限定モード
-}
-```
-
-**2-4. Owner はいつ設定されるか**
-
-`Owner`（スレ主 = 1 番目の投稿者）は、スレッド作成時の `CreateThreadUseCase` で設定します。
-
-```go
-// internal/usecase/thread_usecase.go（CreateThreadUseCase.Execute 内）
-thread, err := entity.NewThread(board.ID, in.Title, in.Author)
-if err != nil {
-    return nil, err
-}
-if in.OwnerOnly {
-    if err := thread.EnableOwnerOnlyMode(in.Author); err != nil {
-        return nil, err  // 不変条件を保護: Owner は空であってはならない
-    }
-}
-```
-
-### ✅ チェックポイント
-
-- [ ] 追加した行は **1 行だけ** — トランザクション内の投稿生成より前に `if !thread.CanPost(in.Author) { return domain.ErrNotThreadOwner }` が入っている
-- [ ] UseCase がドライバや HTTP のパッケージを import していない（`git grep -e "database/sql" -e "net/http" internal/usecase` で何も見つからない）
-- [ ] `CreateThreadInput` が `OwnerOnly` を運び、Owner は `EnableOwnerOnlyMode` 経由でのみ設定される（ベア代入しない）
-- [ ] 既存の UseCase テストも通る: `go test ./internal/usecase/...`
-
-### Step 3: Infra 層 — 永続化の追従
-
-DB に新しい列を追加し、読み書きに対応します。**SQL とモデル変換だけの変更**です。
-
-**3-1. マイグレーション**
-
-```sql
-ALTER TABLE threads ADD COLUMN owner_only BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE threads ADD COLUMN owner TEXT NOT NULL DEFAULT '';
-UPDATE threads SET owner_only = FALSE, owner = '';
-```
-
-**3-2. DB モデルの更新**
-
-```go
-// internal/adapters/infra/persistence/model.go
-type ThreadModel struct {
-    ID            int64  `db:"id"`
-    BoardID       int64  `db:"board_id"`
-    Title         string `db:"title"`
-    PostCount     int    `db:"post_count"`
-    OwnerOnly     bool   `db:"owner_only"`  // 追加
-    Owner         string `db:"owner"`       // 追加
-    // ...
-}
-```
-
-**3-3. リポジトリの変換ロジック更新**
-
-```go
-// internal/adapters/infra/persistence/thread_repo.go
-func (r *ThreadRepository) toEntity(m *ThreadModel) *entity.Thread {
-    return &entity.Thread{
-        ID:           m.ID,
-        BoardID:      m.BoardID,
-        Title:        m.Title,
-        PostCount:    m.PostCount,
-        OwnerOnly:    m.OwnerOnly,  // 追加
-        Owner:        m.Owner,      // 追加
-        // ...
-    }
-}
-```
-
-> **エンティティの再構成に関する補足（ベア構造体リテラルの許容）:**  
-> ドメイン層のルールとして、不変条件を守るために UseCases 層などで `&entity.Thread{}` のように直接エンティティ構造体を生成・初期化することは避けるべきです（バリデーションを通過させるため）。  
-> 一方で、DBから取得した既存データに基づいてエンティティの状態を復元する「再構成（Reconstruction）」を行う Infra Adapters 層においては、例外的にベア構造体リテラルを使用して直接フィールドをマッピングすることが認められます。
-
-**3-4. ドライバエラーのドメインエラーへの変換**
-
-Infra Adapter は、データベースドライバからのエラーをドメインエラーに変換する**責務を持ちます**。これにより、UseCase 層はデータベースの詳細を知らなくて済みます。
-
-```go
-// internal/adapters/infra/persistence/thread_repo.go
-import (
-    "database/sql"
-    "errors"
-    "your-project/internal/domain"
-)
-
-func (r *ThreadRepository) FindByID(ctx context.Context, id int64) (*entity.Thread, error) {
-    var m ThreadModel
-    err := executor(ctx, r.db).QueryRowContext(ctx, "SELECT ... FROM threads WHERE id = ?", id).Scan(
-        &m.ID, &m.BoardID, &m.Title, &m.PostCount, &m.OwnerOnly, &m.Owner, /* ... */,
-    )
-    if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
-            // ドライバエラーをドメインエラーに変換
-            return nil, domain.ErrThreadNotFound
-        }
-        return nil, err
-    }
-    return r.toEntity(&m), nil
-}
-```
-
-**確認ポイント**: `sql.ErrNoRows` という技術的なエラーが、UseCase 層へ渡る前に `domain.ErrThreadNotFound` というドメインの概念に変換されています。UseCase は「SQL の結果が空だった」ことを知る必要がありません。
-
-### ✅ チェックポイント
-
-- [ ] マイグレーションは新しい 2 列の追加のみで、既存行は `owner_only = FALSE, owner = ''` になる
-- [ ] `ThreadModel` と `toEntity` が `OwnerOnly` / `Owner` を双方向にマッピングしている
-- [ ] `sql.ErrNoRows` が Infra 層の外に出ていない: `git grep sql.ErrNoRows internal/adapters/infra` でそこにだけ見つかり、`domain.ErrThreadNotFound` に変換されている
-- [ ] `go build ./...` と `go test ./...` が通る
-
-### Step 4: Presentation 層 — 表示の追従
-
-エラーハンドリングに 1 case を追加します。
-
-```go
-// internal/adapters/presentation/http/handler/post_handler.go — CreatePost 内のエラーハンドリング
-func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
-    out, err := h.createPost.Execute(r.Context(), input)
-    if err != nil {
-        switch {
-        case errors.Is(err, domain.ErrThreadNotFound):
-            writeError(w, http.StatusNotFound, err.Error())
-        // ↓ 1 case 追加
-        case errors.Is(err, domain.ErrNotThreadOwner):
-            writeError(w, http.StatusForbidden, err.Error())
-        case errors.Is(err, domain.ErrEmptyBody):
-            writeError(w, http.StatusBadRequest, err.Error())
-        default:
-            writeError(w, http.StatusInternalServerError, "internal server error")
-        }
-        return
-    }
-    // ...
-}
-```
-
-また、スレッド作成時のリクエスト DTO にも `owner_only` フィールドを追加します。
-
-```go
-// internal/adapters/presentation/http/handler/thread_handler.go
-type createThreadRequest struct {
-    Title     string `json:"title"`
-    Author    string `json:"author"`
-    Body      string `json:"body"`
-    OwnerOnly bool   `json:"owner_only"`  // 追加
-}
-```
-
-### ✅ チェックポイント
-
-- [ ] `ErrNotThreadOwner` への対応は `PostHandler` に **追加した 1 case（403 Forbidden）だけ** — 他の Handler は変更していない
-- [ ] ドメインエラーでない未知のエラーは依然として詳細を隠した汎用の 500 を返す
-- [ ] `go build ./...` が通る
-
-### Step 5: 動作確認
+**完成:** 限定モードではスレ主だけ許可する。既存アセットは完成例なので、開始用コピーを使う。今回は足場を再作成せず、ルールと呼び出しの 2 か所に集中する。
 
 ```bash
-# まだ起動していなければ、先にビルドして起動:
-go build -o bbs ./cmd/bbs/
-# Expected output: （なし — bbs バイナリが作業ディレクトリに作成される）
-./bbs
-# Expected output: サーバーが起動し、:8080 で待ち受ける
-
-# スレ主限定スレッドを作成
-curl -X POST http://localhost:8080/api/boards/programming/threads \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"スレ主限定スレ","author":"gopher","body":"限定モードON","owner_only":true}'
-# Expected output: HTTP 201 — 作成されたスレッド（限定モード有効）と最初の投稿の JSON
-
-# スレ主以外が書き込もうとする → 403 Forbidden
-curl -X POST http://localhost:8080/api/threads/1/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"author":"other","body":"書き込めるかな？"}'
-# Expected output: HTTP 403 — {"error":"only thread owner can post"}
-
-# スレ主が書き込む → 成功
-curl -X POST http://localhost:8080/api/threads/1/posts \
-  -H 'Content-Type: application/json' \
-  -d '{"author":"gopher","body":"自分のスレだしOK"}'
-# Expected output: HTTP 201 — 作成された投稿の JSON
+# ターミナル B — リポジトリルート
+export WORKSHOP_REPO="$PWD"
+python3 tools/prepare_bbs.py ws4 /tmp/bbs-ws4
+cd /tmp/bbs-ws4
+go test ./...
+# 期待される結果: 開始状態のテストは成功。拒否ルールのテストは次の STEP で追加
 ```
 
-### ✅ チェックポイント
+## 実習ステップ
 
-- [ ] スレ主以外の投稿が `403` と `only thread owner can post` を返す
-- [ ] スレ主の投稿は成功する（`201`）
-- [ ] 通常の（限定モードでない）スレッドならどの著者でも投稿できる — ルールが限定スレッドの外に漏れていない
-- [ ] `software/assets/bbs` で `go test ./...` が通る
+### STEP 1: 拒否ルールのテストを先に追加する
 
----
+**完全なテストファイル:** 完成例からコピーし、未実装の仕様を確認します。
 
-## 仕様のさらなる変更にも強い
+```bash
+# ターミナル B — /tmp/bbs-ws4
+cp "$WORKSHOP_REPO/software/assets/bbs/internal/domain/entity/thread_test.go" internal/domain/entity/
+cp "$WORKSHOP_REPO/software/assets/bbs/internal/usecase/post_usecase_test.go" internal/usecase/
+go test ./internal/domain/entity ./internal/usecase
+# 期待される結果: 他人の投稿拒否に関するテストが FAIL（この段階は非ゼロ終了が正常）
+```
 
-「スレ主＋指定された人も書き込み可能」に仕様変更されても:
+### STEP 2: Domain の判定を実装する
+
+**既存メソッドの置換:** `internal/domain/entity/thread.go` の TODO を含む `CanPost` を次へ変更します。
 
 ```go
-// Domain だけ変更
 func (t *Thread) CanPost(author string) bool {
     if !t.OwnerOnly {
         return true
     }
-    return t.Owner == author || t.IsInvited(author)
+    return t.Owner == author
 }
 ```
 
-招待ユーザーを `Thread` エンティティ内で管理する場合（例: `InvitedUsers` フィールド）、Domain の変更だけで済み、UseCase・Infra・Presentation は **一切変更不要** です。ただし、招待ユーザーの管理に別テーブルや外部サービスが必要な場合は、Infra や UseCase の変更も発生します。
+### STEP 3: UseCase で保存前に拒否する
 
----
-
-## レイヤー分離がない場合との比較
+**既存ファイルの差分:** `internal/usecase/post_usecase.go` の TODO を次へ置き換えます。
 
 ```go
-// NG: ビジネスルールが Handler に埋まっている例
-func CreatePost(w http.ResponseWriter, r *http.Request) {
-    row := db.QueryRow(
-        "SELECT author FROM posts WHERE thread_id=? AND number=1", threadID,
-    )
-    var owner string
-    row.Scan(&owner)
-    author := r.FormValue("author")
-    if owner != author {                    // ← ビジネスルールがここに埋まっている
-        w.WriteHeader(403)                  // ← HTTP 依存
-        json.NewEncoder(w).Encode(map[string]string{"error": "forbidden"})
-        return
-    }
-    // INSERT ...
+if !thread.CanPost(in.Author) {
+    return domain.ErrNotThreadOwner
 }
 ```
 
-- 「スレ主 = 1 レス目の投稿者」というルールが **SQL** に埋まっている
-- 「スレ主以外禁止」というルールが **HTTP handler** に埋まっている
-- 「招待された人も OK」に変更する場合、**どこを直すべきか** が不明
+判定は投稿数取得・保存より前、トランザクション内に置きます。HTTP では既存の Handler がこのエラーを 403 に変換します。
 
----
+```bash
+go test ./...
+# 期待される結果: Domain と UseCase を含む全テストが成功
+```
 
-## この実習のポイント
+### ✅ チェックポイント: ルール
 
-1. **ルールの居場所が明確**:
-   - Domain は「ルールとは何か」を知っている（`CanPost` の中身）
-   - UseCase は「いつルールを適用するか」を知っている（呼び出しタイミング）
-   - Presentation は「ルール違反をどう表示するか」を知っている（403 Forbidden）
-   - Infra は「ルールに必要なデータをどう保存するか」を知っている（owner_only / owner 列）
-2. **内→外への波及**: ビジネスルールの変更は Domain から始まり、外側に波及するが、各層の変更は自身の責務に限定される。
-3. **変更の最小化**: 新しい要件「招待者も OK」が追加されても、招待ユーザーを Thread エンティティ内で管理すれば `CanPost()` の中身だけを変えれば済む。別データソースが必要な場合は Infra 層の変更も発生する。
+- [ ] 限定モードでない場合は誰でも投稿できる
+- [ ] 限定モードでは同じ投稿者名だけ許可され、拒否時に投稿を保存しない
 
----
+### STEP 4: HTTP で確認する
+
+```bash
+# ターミナル A
+cd /tmp/bbs-ws4
+go run ./cmd/bbs
+# 期待される結果: :8080 で起動
+```
+
+```bash
+# ターミナル B — /tmp/bbs-ws4
+THREAD_ID=$(curl -fsS -X POST http://localhost:8080/api/boards/programming/threads -H 'Content-Type: application/json' -d '{"title":"Owner only","author":"owner","body":"first","owner_only":true}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["thread"]["id"])')
+# 期待される結果: THREAD_ID に新しく作ったスレッドの ID
+curl -i -X POST "http://localhost:8080/api/threads/$THREAD_ID/posts" -H 'Content-Type: application/json' -d '{"author":"other","body":"denied"}'
+# 期待される結果: 403 Forbidden
+curl -i -X POST "http://localhost:8080/api/threads/$THREAD_ID/posts" -H 'Content-Type: application/json' -d '{"author":"owner","body":"allowed"}'
+# 期待される結果: 201 Created、number: 2（拒否した投稿は数えない）
+```
+
+### ✅ チェックポイント: 動作と理解
+
+- [ ] 他人の投稿は 403、スレ主は 201、投稿番号は 2
+- [ ] なぜ HTTP Handler だけでルールを判断しないのか説明できる
+
+<details>
+<summary>ヒントと解答例</summary>
+
+Domain にルールを置くことで、gRPC や CLI からも同じ判定を使えます。UseCase は保存前に判定を呼び、Presentation はエラーを通信方式へ変換します。ここでの投稿者名の比較は教材上の識別であり、認証された身元の保証ではありません。認証は WS7 で扱います。
+
+</details>
 
 ## 学んだこと
 
-- ビジネスルールには **唯一の居場所** がある: Domain がルールを定義し（`CanPost`）、UseCase が適用し（呼び出しタイミング）、Infra がデータを永続化し（`owner_only` / `owner` 列）、Presentation が違反を表示する（`403 Forbidden`）。
-- ルールの変更は **内側から外側へ** 波及し、各層の差分は自身の責務に直結する最小限にとどまる。
-- トランザクション境界は UseCase が所有するアプリケーションポリシーであり、Infra は `BEGIN`/`COMMIT`/`ROLLBACK` の実装を提供するだけ。
-- ベア代入ではなくメソッド（`EnableOwnerOnlyMode`）で不変条件を守ると、不正な状態をそもそも表現できなくなる。
-- ドライバエラーは Infra の境界でドメインエラーに変換されるため、UseCase はドメインの概念だけで考えられる。
+- Domain に判断、UseCase に判断を呼ぶ順序、Presentation にエラー変換を置く。
+- 先に失敗するテストで仕様を確かめ、実装後の成功を確認する。
+- DTO と DB の足場が既にある場合、ルール変更だけを独立して学べる。
 
-**次**: [WS5: 永続化層の差し替え](./clean_arch_ws5_ja.md) — クリーンアーキテクチャ実習シリーズの次のステップです。
+次は [WS5](clean_arch_ws5_ja.md) を新しい完成状態の HTTP コピーから開始します。
 
----
+## トラブルシューティング
+
+| 症状                     | 対処                                              |
+| ------------------------ | ------------------------------------------------- |
+| 最初から拒否テストが通る | prepare_bbs.py の ws4 開始状態を新しいパスに作る  |
+| 404 になる               | 固定 ID ではなく直前の作成結果 THREAD_ID を使う   |
+| 他人の投稿が 201         | CanPost と、保存前の UseCase の呼び出しを両方確認 |
 
 ## 片付け
 
-```bash
-# BBS サーバーを停止して（ターミナルで Ctrl+C）、以下を実行:
-cd software/assets/bbs
-make clean   # bbs バイナリと bbs.db を削除
-```
-
-手動で行う場合:
+ターミナル A を Ctrl+C で停止し、コピーを削除します。
 
 ```bash
-rm -f software/assets/bbs/bbs software/assets/bbs/bbs.db
+# ターミナル B
+cd /tmp
+rm -r /tmp/bbs-ws4
+# 期待される結果: コピーと SQLite DB を削除。原本は変更なし
 ```
-
----
 
 ## 参考文献
 
-- [The Clean Architecture — Robert C. Martin](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
-- [SQLite: ALTER TABLE](https://www.sqlite.org/lang_altertable.html)
-- [net/http package — Go Documentation](https://pkg.go.dev/net/http)
-- [errors package — Go Documentation](https://pkg.go.dev/errors)
+- [Clean Architecture](clean_arch_ja.md)
+- [Go Testing](https://pkg.go.dev/testing)

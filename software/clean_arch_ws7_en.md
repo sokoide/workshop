@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 60 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Go 1.22+, curl, any OS
+> **💻 Environment**: Go 1.26.2+, curl, any OS
 
 In this workshop, you will add JWT Bearer Token authentication to the BBS (2channel-style bulletin board).
 You will experience the **cross-cutting concern pattern** — adding authentication in the Presentation layer — without modifying any inner layers (Domain, UseCase, Infra).
@@ -22,6 +22,20 @@ By the end of this workshop, you can:
 
 This workshop uses the [BBS project](./assets/bbs/) as the subject code.
 The shared architecture foundations (3-layer variant, dependency rule, error boundaries) are described once in [clean_arch.md](./clean_arch_en.md#layer-structure-and-dependencies).
+
+## Start and Finish States
+
+Start from a fresh HTTP copy; do not carry WS3 gRPC changes forward. WS7 starts with the owner-only policy and SQLite and finishes with JWT-protected writes.
+
+```bash
+# From the repository root
+python3 tools/prepare_bbs.py ws7 /tmp/bbs-ws7
+cd /tmp/bbs-ws7
+go test ./...
+# Expected output: existing tests pass
+```
+
+Go blocks below are labeled by type. Do not paste ellipses from excerpts; preserve the omitted parts of existing files. Work only inside `/tmp/bbs-ws7` and build/test each stage.
 
 ## Workshop Scenario
 
@@ -45,6 +59,8 @@ The following layers require **zero modifications**:
 ### Step 1: Implement Auth Middleware
 
 Create JWT validation middleware in a new file.
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // internal/adapters/presentation/http/middleware/auth.go (new file)
@@ -151,6 +167,8 @@ func writeAuthError(w http.ResponseWriter, status int, msg string) {
 
 Require authentication only for write (POST) endpoints. Read (GET) remains publicly accessible.
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // internal/adapters/presentation/http/router.go (partial change)
 func NewRouter(
@@ -178,6 +196,8 @@ func NewRouter(
 ```
 
 ### Step 3: Pass Secret to Composition Root
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // cmd/bbs/main.go (partial change)
@@ -277,6 +297,8 @@ In practice, you often need the authenticated user ID in business logic. For exa
 
 ### Handler Side: Extract Claims from Context and Pass to Input DTO
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // internal/adapters/presentation/http/handler/post_handler.go
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
@@ -302,6 +324,8 @@ After Step 1, `GetClaims` is already defined in the middleware package.
 
 ### UseCase Side: Unaware of Authentication
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // internal/usecase/post_usecase.go — unchanged
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
@@ -322,6 +346,8 @@ This way, **authentication info conversion (JWT Claims → Input DTO) is the Han
 
 Switching from JWT → API Key → OAuth requires only swapping the middleware.
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // internal/adapters/presentation/middleware/apikey.go (alternative auth method)
 func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
@@ -338,6 +364,8 @@ func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
 }
 ```
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // Swap in Router (one place)
 auth := middleware.APIKey(validKeys)  // Changed from JWT to API Key
@@ -350,6 +378,8 @@ UseCase, Domain, and Infra require **zero changes**.
 ## Easy to Create Unauthenticated Version
 
 For internal APIs or admin tools, just skip the middleware:
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // Unauthenticated version
@@ -364,6 +394,8 @@ The same UseCases and Handlers are reused.
 ---
 
 ## Comparison: Without Layer Separation
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // NG: Auth mixed with business logic
@@ -403,7 +435,7 @@ In this case:
 - Swapping the auth method (JWT → API Key → OAuth) is a **one-line change in the Router**.
 - Selective application ("reads public, writes protected") is a routing decision, not a code-structure decision.
 
-**Next**: [WS8: Testing Strategy](./clean_arch_ws8_en.md) — how the boundaries you built here make every layer independently testable.
+**Next**: [WS8: Minimal Example](./clean_arch_ws8_en.md) — how the boundaries you built here make every layer independently testable.
 
 ---
 
@@ -423,7 +455,8 @@ In this case:
 ```bash
 # Stop the server (Ctrl+C in the terminal running ./bbs), then:
 unset JWT_SECRET
-rm -f bbs
+cd /tmp
+rm -r /tmp/bbs-ws7
 rm -rf /tmp/jwtgen
 ```
 

@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 120 minutes
 > **🎯 Level**: Advanced
-> **💻 Environment**: An Azure subscription (admin consent may be required), `az` CLI, Go 1.22+, a browser
+> **💻 Environment**: An Azure subscription (admin consent may be required), `az` CLI, Go 1.26.1+, a browser
 
 In this workshop, you will use **Microsoft Entra ID** as the authorization server and a **Go REST API** as the resource server to understand OAuth 2.0 / OpenID Connect in real-world scenarios.
 
@@ -14,7 +14,7 @@ Register an API app and a client app in Microsoft Entra ID, expose both an App R
 
 - [ ] An Azure subscription you can create resources in (a free trial works)
 - [ ] `az` CLI installed and logged in (`az login`)
-- [ ] Go 1.22+ installed (`go version`)
+- [ ] Go 1.26.1+ installed (`go version`)
 - [ ] Permission to register applications in Entra ID (otherwise, ask your administrator)
 - [ ] Recommended first: [`oauth2_en.md`](oauth2_en.md) (the same flows on a local Keycloak)
 
@@ -351,12 +351,12 @@ Assigning an App Role to a Managed Identity is more reliable via **Microsoft Gra
 
 # API app's Client ID (from App registrations Overview)
 # Example: 11111111-2222-3333-4444-555555555555
-API_APP_CLIENT_ID=<API_APP_CLIENT_ID>
+API_APP_CLIENT_ID='<API_APP_CLIENT_ID>'
 
 # Managed Identity's Object ID
 # Find in Azure Portal → Resource → Identity → Object ID
 # This functions as the Service Principal's Object ID
-MI_SP_OBJECT_ID=<MANAGED_IDENTITY_OBJECT_ID>
+MI_SP_OBJECT_ID='<MANAGED_IDENTITY_OBJECT_ID>'
 
 # Get API app's service principal object ID
 API_SP_OBJECT_ID=$(az ad sp show --id ${API_APP_CLIENT_ID} --query id -o tsv)
@@ -590,8 +590,8 @@ func main() {
 
 ```bash
 # Passing constants via environment variables
-TENANT_ID=<tenant-id> \
-API_CLIENT_ID=<api-client-id> \
+TENANT_ID='<tenant-id>' \
+API_CLIENT_ID='<api-client-id>' \
 go run main.go
 ```
 
@@ -621,13 +621,13 @@ curl -H "Authorization: Bearer <token>" http://localhost:8081/api/profile
 ```bash
 # To emulate Managed Identity locally for development, use a Service Principal
 az login --service-principal \
-  -u <client-id> \
-  -p <client-secret> \
-  --tenant <tenant-id>
+  -u '<client-id>' \
+  -p '<client-secret>' \
+  --tenant '<tenant-id>'
 
 # Get access token
 TOKEN=$(az account get-access-token \
-  --resource api://<api-client-id> \
+  --resource 'api://<api-client-id>' \
   --query accessToken -o tsv)
 
 # API call

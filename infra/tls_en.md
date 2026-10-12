@@ -152,6 +152,26 @@ openssl verify -CAfile rootCA.crt server.crt
 # -> Success if it outputs: server.crt: OK
 ```
 
+### Predict and Verify: Change the Trusted CA
+
+Will the same server.crt validate when trusting an unrelated CA? Predict, then run inside the exercise certificate directory:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -keyout otherCA.key -out otherCA.crt -days 1 -subj '/CN=Other workshop CA'
+openssl verify -CAfile otherCA.crt server.crt
+# Expected output: certificate-chain verification fails (nonzero exit is expected)
+openssl verify -CAfile rootCA.crt server.crt
+# Expected output: server.crt: OK
+rm otherCA.key otherCA.crt
+```
+
+<details>
+<summary>Hint and sample answer</summary>
+
+Valid certificate syntax alone does not establish trust. server.crt chains to rootCA; trusting the unrelated otherCA cannot validate that chain.
+
+</details>
+
 ### STEP 4: Practical Application with Traefik
 
 Configure an actual HTTPS server using the created certificate.

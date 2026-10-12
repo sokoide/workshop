@@ -2,11 +2,15 @@
 
 > **⏱️ 所要時間**: 約 100 分（全 2 パートの 1 つ目。実習全体で約 180 分）
 > **🎯 レベル**: 上級
-> **💻 環境**: Linux (root/sudo 必須)
+> **💻 環境**: Linux (root/sudo 必須)、Go 1.25.7+
 
 この実習（全 2 パート）では、Go と C を組み合わせて **TCP/IP プロトコルスタックをゼロから構築** します。OS カーネルが隠蔽している「パケットの生成・分解」を自らの手で実装することで、ネットワークの動作原理を抽象概念ではなく、具体的なデータ構造として理解することを目標とします。パート 1 では観察ステップと Packet Socket・Ethernet・IPv4・ICMP の各層を扱います。[パート 2: UDP・スタック統合](tcpip_stack_udp_ja.md) で UDP データグラムを実装し、`main.go` に統合して、Ping／UDP Echo の動作確認まで進みます。
 
 > **💡 用語集**: この実習で登場する専門用語は [用語集](glossary_ja.md) を参照してください。
+
+## セッションの区切り
+
+前編の環境準備〜STEP 1（フレーム受信）、前編 STEP 2〜4（Ethernet/IP/ICMP）、後編 STEP 5〜6（UDP・統合）の 3 回で進められます。ソースは同じ `tcpip_stack` ディレクトリへ保存します。初回の Linux 準備とパケット観測には別に時間を確保してください。
 
 ## ゴール
 
@@ -15,7 +19,7 @@
 ## 前提条件
 
 - [ ] Linux (Ubuntu 22.04/24.04 推奨) — Raw Socket (`AF_PACKET`) とネットワーク名前空間が必須
-- [ ] Go 1.22 以降（`go version`）
+- [ ] Go 1.25.7 以降（`go version`）
 - [ ] CGO が有効な GCC（`gcc --version`、`go env CGO_ENABLED`）
 - [ ] `tcpdump`、`iproute2`（`ip`、`ip netns`）、`ethtool` — `sudo apt install -y golang-go gcc tcpdump iproute2 ethtool` で導入
 - [ ] root/sudo 権限（ネットワーク名前空間の作成と Raw Socket のオープンには `CAP_NET_RAW` が必要）
@@ -554,6 +558,23 @@ setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
 - [ ] root 権限（sudo）なしで実行した際にエラーになることを確認した（Raw Socket の制約）
 
 ---
+
+### 中断・再開
+
+自作スタック・ping・tcpdump を Ctrl+C で停止します。作業ディレクトリのソースと go.mod を残します。namespace と veth はホストを再起動するまで残るため、終了時だけ削除してください。
+
+再開時は保存した `tcpip_stack` ディレクトリへ戻り、次を確認します。ホスト再起動後に環境がない場合は前編「安全な実験場の作成」を再実行します（既にある場合は再作成しません）。
+
+```bash
+ip netns list
+ip link show veth-host
+sudo ip netns exec workshop ip addr show veth-ns
+# 期待される結果: workshop と veth ペアが存在し、veth-ns に 192.168.100.2/24
+sudo ip netns exec workshop ip neigh show 192.168.100.1
+# 期待される結果: 保存した veth-host の MAC に対する PERMANENT エントリ
+go test ./pkg/...
+# 期待される結果: 完成済みパッケージのテストが成功（テストファイルをコピーした場合）
+```
 
 ### STEP 2: Ethernet Frame (L2) - MAC アドレスベースの通信
 

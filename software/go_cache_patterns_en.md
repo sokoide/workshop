@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 60 minutes (all patterns; each pattern can also be read on its own)
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Go 1.22+, any OS
+> **💻 Environment**: Go 1.26.0+, any OS
 >
 > **📖 Reference catalog**: This document is a reference catalog, not a step-by-step hands-on guide. Each pattern is self-contained — jump straight to the pattern you need. Every pattern section pairs a core-code excerpt (quoted verbatim from the companion asset) with the path of its runnable reference implementation.
 
@@ -37,6 +37,16 @@ For a hands-on exercise with a real distributed cache, see [Redis Workshop: Real
 | 5. Write-Through Cache Pattern              | [pattern5_write_through/main.go](assets/go_cache_patterns/pattern5_write_through/main.go)                       |
 
 ---
+
+## Choose a Pattern by Need
+
+| Need                        | Candidate                  | Property                                     | Not guaranteed                          |
+| --------------------------- | -------------------------- | -------------------------------------------- | --------------------------------------- |
+| Expire stale entries        | TTL                        | Time-based refetch                           | Memory capacity bound                   |
+| Bound capacity              | LRU                        | Prioritize recently used entries             | Freshness                               |
+| Coalesce simultaneous reads | Singleflight + Cache-Aside | Combine same-key fetches                     | Persistence or cross-process coalescing |
+| Share across processes      | Redis                      | Shared cache                                 | Atomic DB/cache updates                 |
+| Update cache during writes  | Write-Through              | Order operations within this example wrapper | Transactions across stores              |
 
 ## Understanding Cache Systems and Cache Tools
 

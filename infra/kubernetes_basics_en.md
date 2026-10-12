@@ -12,6 +12,16 @@ This workshop covers Kubernetes (K8s) from basic concepts to production-ready co
 
 ---
 
+## Three-Session Plan
+
+| Session | Scope              | Observable result                                         |
+| ------- | ------------------ | --------------------------------------------------------- |
+| 1       | Preparation–STEP 3 | Reach the Deployment app through a Service                |
+| 2       | STEP 4–6           | Inject configuration and retain data after Pod recreation |
+| 3       | STEP 7–10          | Ingress, Helm, monitoring and Go app publication          |
+
+Allow roughly 45–60 minutes of reading and operations per session, plus initial tool installation, image downloads and troubleshooting. Keep the cluster at the breakpoints below; clean up only after the final session.
+
 ## Why Should Software Engineers Learn Kubernetes?
 
 In modern software development, Kubernetes is more than just an "operations tool." Developers who understand K8s gain several advantages:
@@ -117,7 +127,7 @@ graph TB
 ### Directory Structure
 
 ```text
-~/k8s-workshop/
+/tmp/k8s-workshop/
 ├── manifests/           # Kubernetes manifests
 │   ├── 01-pod.yaml
 │   ├── 02-deployment.yaml
@@ -152,6 +162,14 @@ graph TB
 ---
 
 ## Preparation
+
+Start at the repository root. `/tmp/k8s-workshop` is the exercise directory; if it contains existing work, choose a different name consistently. Save each YAML block at the filename in its leading comment before kubectl apply.
+
+```bash
+mkdir -p /tmp/k8s-workshop/manifests
+cd /tmp/k8s-workshop
+# Expected output: working directory and manifests directory ready
+```
 
 ### 1. Tool Installation
 
@@ -381,6 +399,24 @@ kubectl run test-nodeport --image=busybox:1.37 --rm -it --restart=Never \
 - [ ] DNS resolution works for `nginx-service.default.svc.cluster.local`.
 - [ ] Access is possible via NodePort.
 
+### Pause and Resume: Session 1
+
+Stop kubectl port-forward and log watches with Ctrl+C. Retain YAML in /tmp/k8s-workshop and retain the cluster; do not stop or delete it. Running containers continue to consume resources.
+
+Resume with the following. If the cluster was removed, recreate it from Preparation and reapply saved YAML in order.
+
+```bash
+cd /tmp/k8s-workshop
+kind get clusters
+# Expected output: k8s-workshop
+kubectl config use-context kind-k8s-workshop
+kubectl get nodes
+# Expected output: control-plane is Ready
+kubectl get deployment nginx-deployment
+kubectl get service nginx-service
+# Expected output: deployment available and service present
+```
+
 ### STEP 4: Configuration Injection with ConfigMap
 
 Separate configurations from container images.
@@ -587,6 +623,24 @@ kubectl logs -l app=data
 - [ ] `/data/test.txt` content is preserved after Pod recreation.
 - [ ] Volume info is visible in `kubectl describe pvc`.
 
+### Pause and Resume: Session 2
+
+Stop kubectl port-forward and log watches with Ctrl+C. Retain YAML in /tmp/k8s-workshop and retain the cluster; do not stop or delete it. Running containers continue to consume resources.
+
+Resume with the following. If the cluster was removed, recreate it from Preparation and reapply saved YAML in order.
+
+```bash
+cd /tmp/k8s-workshop
+kind get clusters
+# Expected output: k8s-workshop
+kubectl config use-context kind-k8s-workshop
+kubectl get nodes
+# Expected output: control-plane is Ready
+kubectl get configmaps,secrets,pvc
+kubectl logs -l app=data --tail=5
+# Expected output: config/secret present, data-pvc Bound, logs include retained data
+```
+
 ### STEP 7: HTTP Load Balancing with Ingress
 
 Configure HTTP/HTTPS routing to external clients.
@@ -722,11 +776,13 @@ kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
 kubectl logs -l app=nginx --tail=100
 kubectl logs -f deployment/nginx-deployment
 
-# Multi-container Pod logs (replace <pod-name> with an actual Pod name)
-kubectl logs <pod-name> -c <container-name>
+# Resolve Pod and container names before checking logs
+POD_NAME=$(kubectl get pods -l app=nginx -o jsonpath='{.items[0].metadata.name}')
+CONTAINER_NAME=$(kubectl get pod "$POD_NAME" -o jsonpath='{.spec.containers[0].name}')
+kubectl logs "$POD_NAME" -c "$CONTAINER_NAME"
 
 # Previous logs (even after restart)
-kubectl logs <pod-name> --previous
+kubectl logs "$POD_NAME" --previous
 ```
 
 ### ✅ Checklist
@@ -741,8 +797,8 @@ Create a simple Go web application, containerize it, and deploy it to Kubernetes
 
 ```bash
 # Create project
-mkdir -p ~/k8s-workshop/app
-cd ~/k8s-workshop/app
+mkdir -p /tmp/k8s-workshop/app
+cd /tmp/k8s-workshop/app
 
 # Initialize Go module
 go mod init github.com/example/k8s-app
@@ -807,9 +863,9 @@ podman build -t docker.io/library/k8s-app:latest .
 podman save -o /tmp/k8s-app.tar docker.io/library/k8s-app:latest
 kind load image-archive /tmp/k8s-app.tar --name k8s-workshop
 
-# Create manifests (manifests/ is directly under ~/k8s-workshop, alongside app/)
-mkdir -p ~/k8s-workshop/manifests
-cat > ~/k8s-workshop/manifests/k8s-app-deployment.yaml << 'EOF'
+# Create manifests (manifests/ is directly under /tmp/k8s-workshop, alongside app/)
+mkdir -p /tmp/k8s-workshop/manifests
+cat > /tmp/k8s-workshop/manifests/k8s-app-deployment.yaml << 'EOF'
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -848,7 +904,7 @@ spec:
             cpu: "200m"
 EOF
 
-cat > ~/k8s-workshop/manifests/k8s-app-service.yaml << 'EOF'
+cat > /tmp/k8s-workshop/manifests/k8s-app-service.yaml << 'EOF'
 apiVersion: v1
 kind: Service
 metadata:
@@ -862,9 +918,9 @@ spec:
 EOF
 
 # Deploy
-kubectl apply -f ~/k8s-workshop/manifests/k8s-app-deployment.yaml
+kubectl apply -f /tmp/k8s-workshop/manifests/k8s-app-deployment.yaml
 # Expected output: deployment.apps/k8s-app created
-kubectl apply -f ~/k8s-workshop/manifests/k8s-app-service.yaml
+kubectl apply -f /tmp/k8s-workshop/manifests/k8s-app-service.yaml
 # Expected output: service/k8s-app-service created
 
 # Verify
@@ -959,6 +1015,8 @@ helm uninstall prometheus
 
 # Delete the kind cluster (removes all resources created above)
 kind delete cluster --name k8s-workshop
+cd /tmp
+rm -r /tmp/k8s-workshop
 # Expected output: Deleted clusters "k8s-workshop"
 
 # Verify
@@ -987,14 +1045,14 @@ kind get clusters
 1. Check logs:
 
    ```bash
-   kubectl logs <pod-name>
-   kubectl logs <pod-name> --previous  # Logs from the previous run
+   kubectl logs "$POD_NAME"
+   kubectl logs "$POD_NAME" --previous  # Logs from the previous run
    ```
 
 2. Check events:
 
    ```bash
-   kubectl describe pod <pod-name>
+   kubectl describe pod "$POD_NAME"
    ```
 
 3. Common causes:
@@ -1044,7 +1102,7 @@ kind get clusters
 kubectl describe node | grep -A 5 "Allocated resources"
 
 # Check PVC usage
-kubectl exec -it <pod-name> -- df -h
+kubectl exec -it "$POD_NAME" -- df -h
 
 # Delete unnecessary resources
 kubectl delete pods --field-selector=status.phase=Succeeded

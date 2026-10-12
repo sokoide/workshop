@@ -11,15 +11,18 @@
 
 この資料集はソフトウェアエンジニア向けのハンズオン集です。各ワークショップは独立しているため、下記の各難易度セクション内の推奨順に従っても、興味のあるトピックから直接始めても構いません。難易度ラベルは各ドキュメントの 🎯 Level 表記に基づき、前提となるワークショップは一覧内に注記しています。
 
-## メンテナンス
+## 目的から学習経路を選ぶ
 
-`pnpm install` または `npm install` で Markdown ツールを導入します（Python 3.9 以上も必要です）。
-`make format` は同じファイル一覧に Prettier、markdownlint、textlint を適用します。
-`CLAUDE.md`、依存関係のキャッシュ、ツールのメタデータは除外し、ツールが失敗すると処理を停止します。
-`make test-tools` で保守スクリプトをテストし、`make check-headings` で日英ペアの見出しレベルの順序を比較します。
-後者は不一致や読み取りエラーで非ゼロ終了します。翻訳の正確さや、対となるファイルの欠落は検証しません。
+各教材はリポジトリルートから準備します。必要なツールと権限は教材の前提条件を確認してください。Go は各アセットの `go.mod` に記載したバージョン以上を使います。古い Go の自動ツールチェーン取得に頼る場合は、ネットワーク接続と `GOTOOLCHAIN` 設定も確認します。
 
-`make check-go` で全 Go モジュールのビルド、静的検査、race 検出付きテストを実行します。ログとスキップの詳細は `.cache/go-validation/` に保存します。`make check-go GO_CHECK_FLAGS=--require-integration` はテストのスキップや Linux 専用部分の未検証も失敗として扱います。Raw Socket の実行には Linux と CGO、RabbitMQ と Vault の統合テストには各サービスが必要です。
+| 目的                | 前提と環境                                            | 最初の成果と経路                                                                                                                                                          |
+| ------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Go の設計を理解する | 基本的な Go、Go 1.23+、Python 3、curl。コンテナ不要   | [WS8](software/clean_arch_ws8_ja.md) で挨拶アプリを変更 → [解説](software/clean_arch_ja.md) → [WS1](software/clean_arch_ws1_ja.md) → [WS2](software/clean_arch_ws2_ja.md) |
+| 外部サービスを使う  | 基本的な Go、Podman、各教材の Go 要件                 | [Redis](infra/cache_ja.md) でランキング表示 → [RabbitMQ](infra/rabbitmq_ja.md) → [冪等性](software/idempotency_ja.md)                                                     |
+| Kubernetes を使う   | コンテナの基礎、kind・kubectl・Helm、Linux/macOS/WSL2 | [基礎](infra/kubernetes_basics_ja.md) の 3 セッションでアプリを公開 → [運用](infra/kubernetes_operations_ja.md)                                                           |
+| 通信の内部を調べる  | Linux、sudo、C コンパイラー、Go。上級の独立経路       | [TCP/IP 前編](infra/tcpip_stack_ja.md) でフレーム受信 → [UDP・統合](infra/tcpip_stack_udp_ja.md)                                                                          |
+
+BBS の WS3〜WS7 は [開始状態生成ツール](tools/prepare_bbs.py) で別々のコピーを作ります。WS3 の gRPC コードを WS4 へ持ち越す必要はありません。カタログは必要なパターンから直接読めます。
 
 ## 内容
 
@@ -45,9 +48,9 @@
 - [CoreDNS 実習：親子 DNS サーバーを構築して名前解決を理解する](./infra/coredns_ja.md) — **中級**
   - 権威サーバーとフォワーディングを 2 台の VM で構築し、ゾーン委譲の仕組みを体験。推奨: DNS クエリが UDP データグラムとして流れる様子は [TCP/IP スタック パート 2](./infra/tcpip_stack_udp_ja.md)
 - [Load Balancer 実習：iptables と IPVS で作る仮想ロードバランサ](./infra/load_balancer_ja.md) — **中級**
-  - iptables/IPVS を用いたロードバランシングアルゴリズム、NAT/DSR モード、ヘルスチェックを学習。推奨: 先に [TCP/IP スタック実習](./infra/tcpip_stack_ja.md)（NAT/DNAT の基礎）
+  - iptables/IPVS を用いたロードバランシングアルゴリズム、NAT/DSR モード、ヘルスチェックを学習。任意の深掘り: [TCP/IP スタック実習](./infra/tcpip_stack_ja.md)（NAT/DNAT の基礎）
 - [HTTP 永続接続実習：Keep-Alive, WebSocket, HTTP/2, gRPC, HTTP/3](./infra/http_persistent_ja.md) — **中級**
-  - HTTP/1.1 から最新の HTTP/3 (QUIC) まで、接続再利用と 0-RTT の仕組みを比較。推奨: [TCP/IP スタック実習](./infra/tcpip_stack_ja.md)（TCP ハンドシェイクと接続ライフサイクル）
+  - HTTP/1.1 から最新の HTTP/3 (QUIC) まで、接続再利用と 0-RTT の仕組みを比較。任意の深掘り: [TCP/IP スタック実習](./infra/tcpip_stack_ja.md)（TCP ハンドシェイクと接続ライフサイクル）
 - [Kubernetes 実習：コンテナオーケストレーションの基礎から実践まで](./infra/kubernetes_basics_ja.md) — **中級**
   - Pod, Deployment, Service, ConfigMap, Helm 等、K8s の基本リソースとエコシステムを網羅的に学習。修了後は [Kubernetes 運用・セキュリティ実習](./infra/kubernetes_operations_ja.md) へ
 - [オブジェクトストレージ実習：MinIO で学ぶ S3 互換 API](./infra/minio_ja.md) — **中級**
@@ -116,15 +119,15 @@
 - [クリーンアーキテクチャ実習 (WS2): 拡張と最適化](./software/clean_arch_ws2_ja.md) — **中級**
   - 通知チャネルの抽象化と Decorator パターンによる透過的キャッシュ導入。前提: [WS1](./software/clean_arch_ws1_ja.md)
 - [クリーンアーキテクチャ実習 (WS3): 通信プロトコルの差し替え](./software/clean_arch_ws3_ja.md) — **中級**
-  - BBS の REST API を gRPC に移行し、Framework 層だけの変更で済むことを体験。前提: [WS1](./software/clean_arch_ws1_ja.md) と [WS2](./software/clean_arch_ws2_ja.md)（または Port と Composition Root に慣れていること）
+  - BBS の REST API を gRPC に移行し、Presentation Adapter と Composition Root だけの変更で済むことを体験。前提: [WS1](./software/clean_arch_ws1_ja.md) と [WS2](./software/clean_arch_ws2_ja.md)（または Port と Composition Root に慣れていること）
 - [クリーンアーキテクチャ実習 (WS4): ビジネスルールの追加](./software/clean_arch_ws4_ja.md) — **中級**
-  - 新しいビジネスルールを追加し、内側から外側への変更波及を体験。前提: [WS1](./software/clean_arch_ws1_ja.md)〜[WS3](./software/clean_arch_ws3_ja.md)
+  - 新しいビジネスルールを追加し、内側から外側への変更波及を体験。前提: [WS1](./software/clean_arch_ws1_ja.md)・[WS2](./software/clean_arch_ws2_ja.md) の理解。WS3 は任意の事前学習
 - [クリーンアーキテクチャ実習 (WS5): 永続化層の差し替え](./software/clean_arch_ws5_ja.md) — **中級**
-  - SQLite から PostgreSQL への移行を Infra 層だけの変更で実現。前提: [WS4](./software/clean_arch_ws4_ja.md) — BBS プロジェクトの WS4 完了状態から開始します
+  - SQLite から PostgreSQL への移行を Infra Adapter と Composition Root の変更で実現。前提: [WS4](./software/clean_arch_ws4_ja.md) — 生成ツールで WS4 完了相当のコピーから開始します
 - [クリーンアーキテクチャ実習 (WS6): 外部サービス統合](./software/clean_arch_ws6_ja.md) — **中級**
-  - Slack 通知を新しい Port/Adapter パターンで追加。前提: [WS5](./software/clean_arch_ws5_ja.md) — BBS プロジェクトの WS5 完了状態を引き継ぎます
+  - Slack 通知を新しい Port/Adapter パターンで追加。前提: [WS5](./software/clean_arch_ws5_ja.md) — 生成ツールで WS5 完了相当のコピーから開始します
 - [クリーンアーキテクチャ実習 (WS7): 認証の追加](./software/clean_arch_ws7_ja.md) — **中級**
-  - JWT Bearer Token 認証を Framework 層の横断的関心として追加。前提: [WS1](./software/clean_arch_ws1_ja.md)〜[WS4](./software/clean_arch_ws4_ja.md)（または BBS プロジェクトのビルドとテストが通ること）
+  - JWT Bearer Token 認証を Presentation Adapter の横断的関心として追加。前提: [WS1](./software/clean_arch_ws1_ja.md)〜[WS4](./software/clean_arch_ws4_ja.md)（または BBS プロジェクトのビルドとテストが通ること）
 - [冪等性パターン：安全な再試行を実現する設計](./software/idempotency_ja.md) — **中級**
   - Idempotency Key で重複処理を防ぎ、並行実行、有効期限、障害処理のトレードオフを学習。[RabbitMQ 実習](./infra/rabbitmq_ja.md)（リトライ安全なコンシューマ）と組み合わせると効果的
 - [Go キャッシュパターン入門](./software/go_cache_patterns_ja.md) — **中級**
@@ -145,3 +148,15 @@
   - アーキテクチャ図と主要原則を凝縮したクイックリファレンス（英語）
 - [Design Patterns](https://github.com/sokoide/design-patterns/README_ja.md)
   - GoF デザインパターンの実装例と適用場面
+
+## メンテナンス
+
+`pnpm install` または `npm install` で Markdown ツールを導入します（Python 3.9 以上も必要です）。
+`make format` は同じファイル一覧に Prettier、markdownlint、textlint を適用します。
+`CLAUDE.md`、依存関係のキャッシュ、ツールのメタデータは除外し、ツールが失敗すると処理を停止します。
+`make test-tools` で保守スクリプトをテストし、`make check-headings` で日英ペアの見出しレベルの順序を比較します。
+後者は不一致や読み取りエラーで非ゼロ終了します。翻訳の正確さや、対となるファイルの欠落は検証しません。
+
+`make check-go` で全 Go モジュールのビルド、静的検査、race 検出付きテストを実行します。ログとスキップの詳細は `.cache/go-validation/` に保存します。`make check-go GO_CHECK_FLAGS=--require-integration` はテストのスキップや Linux 専用部分の未検証も失敗として扱います。Raw Socket の実行には Linux と CGO、RabbitMQ と Vault の統合テストには各サービスが必要です。
+
+`make check-docs` は Go 要件とアセットの整合も確認します。`make check-bbs-states` は BBS の開始・完成状態を検証し、`make check` にも含まれます。

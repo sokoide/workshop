@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 30 minutes
 > **🎯 Level**: Beginner
-> **💻 Environment**: Go 1.22+, curl, any OS
+> **💻 Environment**: Go 1.23+, curl, Linux / macOS / WSL2
 
 In this workshop, you will experience the design philosophy of Clean Architecture (3-layer variant: Adapters / UseCases / Domain) and its "resilience to change" through a "User Greeting App" consisting of only about 100 lines of code.
 
@@ -15,7 +15,8 @@ By the end of this workshop, you can:
 
 ## Prerequisites
 
-- [ ] Go 1.22 or later (`go version`)
+- [ ] Go 1.23 or later (`go version`)
+- [ ] Python 3 (`python3 --version`)
 - [ ] curl (`curl --version`)
 - [ ] No prior Clean Architecture knowledge required — this is the recommended entry point before `clean_arch.md` and WS1
 
@@ -104,51 +105,85 @@ The `presentation/` directory handles communication protocols like HTTP.
 
 ---
 
-## 4. Workshop: Experience "Resilience to Change"
+## 4. Exercise: Experience "Resilience to Change"
 
-### Step 1: Start the App
+### Step 1: Copy and Start the App
 
-Run the following in your terminal to start the server:
+Start at the repository root. Python 3 is required. If `/tmp/greeting-ws8` already exists, choose a different name in every command below; the copy operation refuses to overwrite it.
 
 ```bash
-cd software/assets/greeting
+# Terminal A — repository root
+python3 -c 'import shutil; shutil.copytree("software/assets/greeting", "/tmp/greeting-ws8")'
+cd /tmp/greeting-ws8
 go run main.go
+# Expected output: Starting server on http://localhost:8080 ...
 ```
 
-Send a request from another terminal to verify the behavior:
+Keep terminal A running; edit and verify in terminal B.
 
 ```bash
-curl "http://localhost:8080?id=1"
-# Output: Hello, Alice!
-
-curl "http://localhost:8080?id=999"
-# Output: user not found (HTTP 404)
+# Terminal B
+cd /tmp/greeting-ws8
+curl -i 'http://localhost:8080?id=1'
+# Expected output: HTTP/1.1 200 OK, body Hello, Alice!
+curl -i 'http://localhost:8080?id=999'
+# Expected output: HTTP/1.1 404 Not Found, body user not found
 ```
+
+### ✅ Checkpoint: Baseline
+
+- [ ] Working in `/tmp/greeting-ws8`, leaving the repository original untouched
+- [ ] Existing ID returns 200; missing ID returns 404
 
 ### Step 2: Run Unit Tests
 
-A benefit of Clean Architecture is the ability to swap external environments (like DBs) with Mocks and test business logic at high speed.
-
 ```bash
+# Terminal B — /tmp/greeting-ws8
 go test ./usecase/... -v
+# Expected output: PASS for both existing-user and missing-user cases
 ```
 
-Read `usecase/greeting_test.go` and check the following:
+Read `usecase/greeting_test.go` to see how a fake repository allows tests without a database.
 
-- How the repository is swapped with a fake (Mock)
-- How the error case for a missing user is tested
+### Step 3: Change the Business Rule and Test
 
-### Step 3: [Exercise] Change Business Rules
+**Edit to an existing file:** change the return value in `usecase/greeting.go`:
 
-Open `usecase/greeting.go` and try changing the greeting message (e.g., to Japanese: `こんにちは、[Name]さん！`).
+```go
+return "こんにちは、" + user.Name + "さん！", nil
+```
 
-- **Key Point**: Observe that you don't need to touch any code in `infra` or `presentation` for this change.
+Also change `expected := "Hello, TestUser!"` in `usecase/greeting_test.go` to `expected := "こんにちは、TestUserさん！"`. The old expectation fails because the behavior specification changed from English to Japanese.
 
-### Step 4: [Exercise] Swap the Infrastructure
+Stop terminal A with Ctrl+C and restart `go run main.go`. In terminal B:
 
-This step lets you experience the greatest strength of Clean Architecture.
+```bash
+go test ./usecase/...
+# Expected output: ok
+curl -i 'http://localhost:8080?id=1'
+# Expected output: 200 OK, body こんにちは、Aliceさん！
+```
 
-1. Create a new file `slice.go` in `infra/` implementing a slice-based repository:
+### ✅ Checkpoint: Business Rule Change
+
+- [ ] Japanese output and the test expecting Japanese both succeed
+- [ ] Only `usecase/greeting.go` and `usecase/greeting_test.go` were edited at this stage
+
+### Step 4: Swap Storage
+
+**Predict:** which files must change when replacing map storage with a slice? Answer before checking the diff below.
+
+Save the Japanese version as the baseline for this second exercise:
+
+```bash
+# Terminal B — /tmp/greeting-ws8
+mkdir .baseline
+cp main.go .baseline/
+cp -R domain usecase presentation infra .baseline/
+# Expected output: none; .baseline stores the state after the Japanese change
+```
+
+**Complete new file:** save the following as `infra/slice.go`:
 
 ```go
 package infra
@@ -182,24 +217,38 @@ func (r *SliceUserRepo) FindByID(ctx context.Context, id string) (*domain.User, 
 }
 ```
 
-1. Change one line in `main.go`:
+**Edit to an existing file:** replace `repo := infra.NewMemoryUserRepo()` in `main.go` with `repo := infra.NewSliceUserRepo()`.
 
-```go
-// Before
-repo := infra.NewMemoryUserRepo()
-// After
-repo := infra.NewSliceUserRepo()
+Restart terminal A, then verify in terminal B:
+
+```bash
+go test ./...
+# Expected output: all tests succeed
+curl -i 'http://localhost:8080?id=1'
+# Expected output: 200 OK, body こんにちは、Aliceさん！
+curl -i 'http://localhost:8080?id=999'
+# Expected output: 404 Not Found, body user not found
+diff -ru .baseline/domain domain
+diff -ru .baseline/usecase usecase
+diff -ru .baseline/presentation presentation
+# Expected output: none from all three commands (unchanged during the storage swap)
+diff -u .baseline/main.go main.go
+diff -ru .baseline/infra infra
+# Expected output: one wiring-line change and new slice.go; diff exit code 1 is expected
 ```
 
-1. Restart the server and verify it works the same way.
+### ✅ Checkpoint: Storage Change
 
-- **Key Point**: You only touched the Infrastructure Adapter (`infra/`) and the Composition Root (`main.go`). `domain/`, `usecase/`, and `presentation/` remain completely unchanged. This is the practical experience of "Dependency Inversion."
+- [ ] Japanese output and 404 remain the same after replacing storage
+- [ ] Compared with the post-Japanese baseline, only `infra/` and `main.go` changed
+- [ ] Tests pass without a DB, and the diff can be compared with the initial prediction
 
-### ✅ Checkpoint
+<details>
+<summary>Hint and sample answer</summary>
 
-- [ ] `curl "http://localhost:8080?id=1"` returned `Hello, Alice!`
-- [ ] `go test ./usecase/...` passed without any database
-- [ ] After swapping to `SliceUserRepo`, behavior is identical and `git status` shows changes only in `infra/` and `main.go`
+`infra/slice.go` implements the interface and `main.go` selects the concrete type. The use case depends on `UserRepository`, so it does not know the concrete storage type.
+
+</details>
 
 ---
 
@@ -249,9 +298,12 @@ This is the first step toward a "Clean" design that is highly maintainable, easy
 
 ## Cleanup
 
+Stop terminal A with Ctrl+C. Review the changes, then remove the exercise copy in terminal B. No restoration of the original is needed.
+
 ```bash
-# Stop the server (Ctrl+C in the terminal running go run main.go), then:
-cd software/assets/greeting && git checkout -- main.go && rm -f infra/slice.go
+cd /tmp
+rm -r /tmp/greeting-ws8
+# Expected output: exercise copy and .baseline removed; repository original remains intact
 ```
 
 ---

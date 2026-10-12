@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 45 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Linux (Podman), Go 1.22+
+> **💻 Environment**: Linux (Podman), Go 1.25.6+
 
 In this workshop, you will build a "Real-time Game Leaderboard System" capable of handling millions of users using Redis's powerful data structure, **Sorted Sets (ZSET)**.
 
@@ -82,7 +82,17 @@ infra/assets/redis_leaderboard/
 
 ## Preparation
 
-### 1. Start Redis (Podman)
+### 1. Enter the Working Directory
+
+Start at the repository root and use the same terminal below.
+
+```bash
+cd infra/assets/redis_leaderboard
+go mod download
+# Expected output: no errors; Go requirement is 1.25.6 from go.mod
+```
+
+### 2. Start Redis (Podman)
 
 Using Makefile (recommended):
 
@@ -96,12 +106,7 @@ Or directly with podman:
 podman run -d --name workshop-redis -p 6379:6379 docker.io/library/redis:alpine
 ```
 
-### 2. Project Setup
-
-```bash
-cd infra/assets/redis_leaderboard
-go mod tidy
-```
+The container is dedicated to this exercise. If old scores or bans remain on a rerun, use `make redis-down` then `make redis-up` before repeating STEP 1.
 
 ### ✅ Verification Checkpoints
 
@@ -131,6 +136,23 @@ go run main.go -action top -n 3
 # Expected output: user2(250), user3(180), user1(100)
 ```
 
+### Predict and Verify: Adding to the Same User
+
+Predict the score after adding another 100 points to `user1`, then run:
+
+```bash
+go run main.go -action add -user user1 -score 100
+go run main.go -action top -n 3
+# Expected output: user2(250), user1(200), user3(180)
+```
+
+<details>
+<summary>Hint and sample answer</summary>
+
+ZINCRBY adds rather than overwrites. user1 reaches 200 points and moves above user3. Retrying the same command adds again, so event deduplication is a separate requirement.
+
+</details>
+
 ### STEP 3: Ban Fraudulent Users (Sets)
 
 Add specific users to a Ban list and exclude them from rankings.
@@ -138,7 +160,7 @@ Add specific users to a Ban list and exclude them from rankings.
 ```bash
 go run main.go -action ban -user user2
 go run main.go -action top -n 3
-# Expected result: user2 disappears, and user3 is promoted to 1st place.
+# Expected result: user2 disappears; user1(200) is first, user3(180) second.
 ```
 
 ---

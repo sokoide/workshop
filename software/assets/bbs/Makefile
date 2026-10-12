@@ -30,3 +30,11 @@ format:
 		echo "markdownlint not found. Please install it or use pnpm/npx."; \
 		exit 1; \
 	fi
+
+# Pinned tools keep generated source reproducible without changing go.mod.
+.PHONY: proto
+proto:
+	mkdir -p bin/proto
+	GOBIN=$(CURDIR)/bin/proto go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.9
+	GOBIN=$(CURDIR)/bin/proto go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+	protoc --plugin=protoc-gen-go=$(CURDIR)/bin/proto/protoc-gen-go --plugin=protoc-gen-go-grpc=$(CURDIR)/bin/proto/protoc-gen-go-grpc --go_out=. --go_opt=module=github.com/sokoide/workshop/software/assets/bbs --go-grpc_out=. --go-grpc_opt=module=github.com/sokoide/workshop/software/assets/bbs api/proto/bbs.proto

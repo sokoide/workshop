@@ -20,16 +20,18 @@ workshops are noted inline.
 
 ---
 
-## Maintenance
+## Choose a Learning Path by Goal
 
-Install the Markdown tools with `pnpm install` or `npm install` (Python 3.9+ is also required).
-Run `make format` to apply Prettier, markdownlint, and textlint using the same file list;
-`CLAUDE.md`, dependency caches, and tool metadata are excluded. Tool failures stop the command.
-Run `make test-tools` for maintenance script tests and `make check-headings` to compare
-heading level order in English/Japanese pairs. The latter exits nonzero for mismatches
-or read errors; it does not verify translation accuracy or detect missing counterpart files.
+Prepare each exercise from the repository root. Check its prerequisites for tools and privileges. Use at least the version in the asset's go.mod; automatic toolchain download with older Go also requires network access and suitable GOTOOLCHAIN settings.
 
-Run `make check-go` to build, vet, and race-test all Go modules. Logs and skipped-test details are saved in `.cache/go-validation/`. Use `make check-go GO_CHECK_FLAGS=--require-integration` to fail on skipped tests or missing Linux-only checks. Raw socket execution requires Linux with CGO; RabbitMQ and Vault integration tests require their services.
+| Goal                         | Prerequisites and environment                           | First result and path                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Understand Go design         | Basic Go, Go 1.23+, Python 3, curl; no containers       | Change a greeting app in [WS8](software/clean_arch_ws8_en.md) → [guide](software/clean_arch_en.md) → [WS1](software/clean_arch_ws1_en.md) → [WS2](software/clean_arch_ws2_en.md) |
+| Use external services        | Basic Go, Podman, workshop-specific Go version          | Display a leaderboard in [Redis](infra/cache_en.md) → [RabbitMQ](infra/rabbitmq_en.md) → [idempotency](software/idempotency_en.md)                                               |
+| Use Kubernetes               | Container basics; kind, kubectl, Helm; Linux/macOS/WSL2 | Publish an app through 3 sessions in [basics](infra/kubernetes_basics_en.md) → [operations](infra/kubernetes_operations_en.md)                                                   |
+| Inspect networking internals | Linux, sudo, C compiler, Go; independent advanced path  | Receive frames in [TCP/IP Part 1](infra/tcpip_stack_en.md) → [UDP and integration](infra/tcpip_stack_udp_en.md)                                                                  |
+
+Prepare BBS WS3–WS7 as separate copies with the [start-state tool](tools/prepare_bbs.py). WS3's gRPC code need not carry into WS4. Catalogs can be read directly at the needed pattern.
 
 ## Contents
 
@@ -56,9 +58,9 @@ within its level. Start with WS8 in the Software Architecture Beginner section.
 - [CoreDNS Workshop: Building Parent-Child DNS Servers to Understand Name Resolution](./infra/coredns_en.md) — **Intermediate**
   - Build authoritative servers and forwarding using two VMs to experience the zone delegation mechanism. Recommended: [TCP/IP Stack Part 2](./infra/tcpip_stack_udp_en.md) to see how DNS queries travel as UDP datagrams.
 - [Load Balancer Workshop: Building a Virtual LB with iptables and IPVS](./infra/load_balancer_en.md) — **Intermediate**
-  - Learn load balancing algorithms, NAT/DSR modes, and health checks using iptables and IPVS. Recommended first: the [TCP/IP stack workshop](./infra/tcpip_stack_en.md) (NAT/DNAT fundamentals).
+  - Learn load balancing algorithms, NAT/DSR modes, and health checks using iptables and IPVS. Optional background deep dive: the [TCP/IP stack workshop](./infra/tcpip_stack_en.md) (NAT/DNAT fundamentals).
 - [HTTP Persistent Connection Workshop: Keep-Alive, WebSocket, HTTP/2, gRPC, HTTP/3](./infra/http_persistent_en.md) — **Intermediate**
-  - Comparison of connection reuse and 0-RTT mechanisms from HTTP/1.1 to the latest HTTP/3 (QUIC). Recommended: the [TCP/IP stack workshop](./infra/tcpip_stack_en.md) (TCP handshakes and connection lifecycle).
+  - Comparison of connection reuse and 0-RTT mechanisms from HTTP/1.1 to the latest HTTP/3 (QUIC). Optional background deep dive: the [TCP/IP stack workshop](./infra/tcpip_stack_en.md) (TCP handshakes and connection lifecycle).
 - [Kubernetes Workshop: From Basics to Practical Container Orchestration](./infra/kubernetes_basics_en.md) — **Intermediate**
   - Comprehensive guide covering Pod, Deployment, Service, ConfigMap, Helm, and more. Continue with the [Kubernetes Operations workshop](./infra/kubernetes_operations_en.md) afterwards.
 - [Object Storage Workshop: Learning S3-Compatible API with MinIO](./infra/minio_en.md) — **Intermediate**
@@ -127,15 +129,15 @@ within its level. Start with WS8 in the Software Architecture Beginner section.
 - [Clean Architecture Workshop (WS2): Extension and Optimization](./software/clean_arch_ws2_en.md) — **Intermediate**
   - Abstraction of notification channels and introduction of transparent caching using the Decorator pattern. Prerequisite: [WS1](./software/clean_arch_ws1_en.md).
 - [Clean Architecture Workshop (WS3): Swapping Communication Protocols](./software/clean_arch_ws3_en.md) — **Intermediate**
-  - Migrate a BBS REST API to gRPC by modifying only the Framework layer. Prerequisite: [WS1](./software/clean_arch_ws1_en.md) and [WS2](./software/clean_arch_ws2_en.md) (or comfort with ports and the Composition Root).
+  - Migrate a BBS REST API to gRPC by modifying the Presentation Adapter and Composition Root. Prerequisite: [WS1](./software/clean_arch_ws1_en.md) and [WS2](./software/clean_arch_ws2_en.md) (or comfort with ports and the Composition Root).
 - [Clean Architecture Workshop (WS4): Adding Business Rules](./software/clean_arch_ws4_en.md) — **Intermediate**
-  - Add a new business rule and observe changes propagating from inside to outside. Prerequisite: [WS1](./software/clean_arch_ws1_en.md)–[WS3](./software/clean_arch_ws3_en.md).
+  - Add a new business rule and observe changes propagating from inside to outside. Prerequisite: understanding [WS1](./software/clean_arch_ws1_en.md)/[WS2](./software/clean_arch_ws2_en.md); WS3 is optional preparation.
 - [Clean Architecture Workshop (WS5): Swapping the Persistence Layer](./software/clean_arch_ws5_en.md) — **Intermediate**
-  - Migrate from SQLite to PostgreSQL by modifying only the Infra layer. Prerequisite: [WS4](./software/clean_arch_ws4_en.md) — this workshop starts from the WS4 state of the BBS project.
+  - Migrate from SQLite to PostgreSQL by modifying the Infra Adapter and Composition Root. Prerequisite: [WS4](./software/clean_arch_ws4_en.md) — prepare a fresh copy equivalent to completed WS4.
 - [Clean Architecture Workshop (WS6): Integrating External Services](./software/clean_arch_ws6_en.md) — **Intermediate**
-  - Add Slack notifications using the new Port/Adapter pattern. Prerequisite: [WS5](./software/clean_arch_ws5_en.md) — this workshop builds on the WS5 state of the BBS project.
+  - Add Slack notifications using the new Port/Adapter pattern. Prerequisite: [WS5](./software/clean_arch_ws5_en.md) — prepare a fresh copy equivalent to completed WS5.
 - [Clean Architecture Workshop (WS7): Adding Authentication](./software/clean_arch_ws7_en.md) — **Intermediate**
-  - Add JWT Bearer Token authentication as a cross-cutting concern in the Framework layer. Prerequisite: [WS1](./software/clean_arch_ws1_en.md)–[WS4](./software/clean_arch_ws4_en.md) (or the BBS project builds and tests pass).
+  - Add JWT Bearer Token authentication as a cross-cutting concern in the Presentation Adapter. Prerequisite: [WS1](./software/clean_arch_ws1_en.md)–[WS4](./software/clean_arch_ws4_en.md) (or the BBS project builds and tests pass).
 - [Idempotency Pattern: Designing Safe Retries](./software/idempotency_en.md) — **Intermediate**
   - Prevent duplicate operations with idempotency keys and examine concurrency, expiration, and failure-handling trade-offs. Pairs well with the [RabbitMQ workshop](./infra/rabbitmq_en.md) (retry-safe consumers).
 - [Caching Patterns in Go](./software/go_cache_patterns_en.md) — **Intermediate**
@@ -156,3 +158,16 @@ within its level. Start with WS8 in the Software Architecture Beginner section.
   - Condensed architecture diagram and key principles — ideal as a quick reference.
 - [Design Patterns](https://github.com/sokoide/design-patterns/README.md)
   - Implementation examples and application scenarios of GoF design patterns.
+
+## Maintenance
+
+Install the Markdown tools with `pnpm install` or `npm install` (Python 3.9+ is also required).
+Run `make format` to apply Prettier, markdownlint, and textlint using the same file list;
+`CLAUDE.md`, dependency caches, and tool metadata are excluded. Tool failures stop the command.
+Run `make test-tools` for maintenance script tests and `make check-headings` to compare
+heading level order in English/Japanese pairs. The latter exits nonzero for mismatches
+or read errors; it does not verify translation accuracy or detect missing counterpart files.
+
+Run `make check-go` to build, vet, and race-test all Go modules. Logs and skipped-test details are saved in `.cache/go-validation/`. Use `make check-go GO_CHECK_FLAGS=--require-integration` to fail on skipped tests or missing Linux-only checks. Raw socket execution requires Linux with CGO; RabbitMQ and Vault integration tests require their services.
+
+`make check-docs` also checks Go requirements against assets. `make check-bbs-states` verifies BBS start/reference states and is included in `make check`.

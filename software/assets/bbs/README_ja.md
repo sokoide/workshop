@@ -2,6 +2,26 @@
 
 Go + SQLite で実装した 2 ちゃんねる風掲示板です。Clean Architecture の原則に基づき、依存関係の制御と責務の分離を徹底した構成になっています。
 
+## 実習用の開始状態と完成例
+
+Go 1.26.2+、C コンパイラー、Python 3 が必要です。WS3〜WS7 はリポジトリルートで `python3 tools/prepare_bbs.py ws3 /tmp/bbs-ws3` のように作業用コピーを作ります。既存パスは上書きしません。
+
+| 実習 | 開始状態                                             | 完成例                                                                                                                                                                           |
+| ---- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WS3  | HTTP + SQLite                                        | [gRPC Adapter](internal/adapters/presentation/grpc/server.go)、[Proto](api/proto/bbs.proto)、[gRPC main](cmd/bbs-grpc/main.go)                                                   |
+| WS4  | DTO/DB は実装済み、投稿ルールの判定・呼び出しは TODO | 本ディレクトリの Domain と UseCase                                                                                                                                               |
+| WS5  | スレ主限定モード実装済み HTTP + SQLite               | [PostgreSQL Adapter](internal/adapters/infra/persistence/postgres/)、[DDL](internal/adapters/infra/persistence/postgres/schema.sql)、[PostgreSQL main](cmd/bbs-postgres/main.go) |
+| WS6  | WS5 完了相当の HTTP + PostgreSQL                     | 通知追加は教材の課題                                                                                                                                                             |
+| WS7  | スレ主限定モード実装済み HTTP + SQLite               | JWT 追加は教材の課題                                                                                                                                                             |
+
+WS3/4/5 の完成コピーは `--solution` を付けて別のパスへ生成できます。各コピーの `.baseline` には開始状態のソースがあり、`diff -ru .baseline/internal/usecase internal/usecase` などで比較できます。Go はこの隠しディレクトリをビルド対象にしません。
+
+リポジトリルートの `make check-bbs-states` は全開始状態と WS3/4/5 完成状態を一時コピー上で test/build します。PostgreSQL 接続試験は `BBS_TEST_DATABASE_URL` を指定すると実行し、専用の一時スキーマだけを作成・削除します。
+
+### Proto の再生成
+
+アセットディレクトリで `make proto` を実行します。protoc は別途必要です。生成プラグインを固定バージョンでローカルの `bin/proto/` へ入れ、コミット対象の生成済み Go コードを更新します。
+
 ## 特徴
 
 - **Clean Architecture 3層バリアント**: ドメインロジックを外部の関心事（HTTP, DB）から完全に分離。Adapters 層を Presentation（入力）と Infrastructure（出力）に整理。

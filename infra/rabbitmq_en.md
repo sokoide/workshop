@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 60 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Linux | macOS (Podman or Docker)
+> **💻 Environment**: Linux | macOS (Podman or Docker), Go 1.25.5+
 
 In this workshop, you will build a system that flexibly filters and processes real-time trade data using the powerful **Topic Exchange** feature of **RabbitMQ**.
 

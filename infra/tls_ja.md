@@ -152,6 +152,26 @@ openssl verify -CAfile rootCA.crt server.crt
 # -> server.crt: OK と出れば成功
 ```
 
+### 予測して確認: 信頼する CA を変える
+
+別の CA を信頼した場合、同じ server.crt は成功するでしょうか？予測してから、この実習の証明書ディレクトリで実行します。
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -keyout otherCA.key -out otherCA.crt -days 1 -subj '/CN=Other workshop CA'
+openssl verify -CAfile otherCA.crt server.crt
+# 期待される結果: 証明書チェーンの検証に失敗（非ゼロ終了が正常）
+openssl verify -CAfile rootCA.crt server.crt
+# 期待される結果: server.crt: OK
+rm otherCA.key otherCA.crt
+```
+
+<details>
+<summary>ヒントと解答例</summary>
+
+証明書の形式が正しいだけでは信頼は成立しません。server.crt の署名は rootCA へつながります。無関係な otherCA を信頼しても、そのチェーンは検証できません。
+
+</details>
+
 ### STEP 4: Web サーバーでの実践利用 (Traefik)
 
 作成した証明書を使用して、実際に HTTPS サーバーを構成します。

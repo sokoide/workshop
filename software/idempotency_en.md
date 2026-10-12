@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 45 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Linux (Podman), Go 1.22+
+> **💻 Environment**: Linux (Podman), Go 1.23+
 
 In this workshop, you will learn the "Idempotency" pattern to safely retry operations when network failures or timeouts occur in distributed systems.
 

@@ -2,7 +2,7 @@
 
 > **⏱️ 所要時間**: 約 45 分
 > **🎯 レベル**: Intermediate
-> **💻 環境**: Linux（Podman）、Go 1.22+
+> **💻 環境**: Linux（Podman）、Go 1.25.6+
 
 この実習では、Redis の強力なデータ構造である **Sorted Sets (ZSET)** を使用して、数百万人のユーザーにも対応可能な「リアルタイム・ゲームランキングシステム」を構築します。
 
@@ -82,7 +82,17 @@ infra/assets/redis_leaderboard/
 
 ## 準備
 
-### 1. Redis の起動 (Podman)
+### 1. 作業ディレクトリへ移動する
+
+リポジトリルートから開始します。以降は同じターミナルで実行します。
+
+```bash
+cd infra/assets/redis_leaderboard
+go mod download
+# 期待される結果: エラーなし。Go 要件は go.mod の 1.25.6
+```
+
+### 2. Redis の起動 (Podman)
 
 Makefile を使用する場合（推奨）:
 
@@ -96,12 +106,7 @@ podman を直接使用する場合:
 podman run -d --name workshop-redis -p 6379:6379 docker.io/library/redis:alpine
 ```
 
-### 2. プロジェクトのセットアップ
-
-```bash
-cd infra/assets/redis_leaderboard
-go mod tidy
-```
+コンテナはこの実習専用です。再実行時に古いスコアや Ban 状態が残る場合は、`make redis-down` → `make redis-up` で初期化してから STEP 1 へ戻ります。
 
 ### ✅ チェックポイント
 
@@ -131,6 +136,23 @@ go run main.go -action top -n 3
 # 期待される結果: user2(250), user3(180), user1(100)
 ```
 
+### 予測して確認: 同じユーザーへの加算
+
+`user1` に 100 点をもう一度加えると何点になるでしょうか？予測してから実行します。
+
+```bash
+go run main.go -action add -user user1 -score 100
+go run main.go -action top -n 3
+# 期待される結果: user2(250), user1(200), user3(180)
+```
+
+<details>
+<summary>ヒントと解答例</summary>
+
+ZINCRBY は上書きではなく加算です。user1 は 200 点になり、user3 より上に移ります。同じコマンドの再試行も再加算になるので、入力イベントの重複排除は別に必要です。
+
+</details>
+
 ### STEP 3: 不正ユーザーの Ban (Sets)
 
 特定のユーザーを Ban リストに追加し、ランキングから除外します。
@@ -138,7 +160,7 @@ go run main.go -action top -n 3
 ```bash
 go run main.go -action ban -user user2
 go run main.go -action top -n 3
-# 期待される結果: user2 が消え、user3 が 1 位に繰り上がる
+# 期待される結果: user2 が消え、user1(200) が 1 位、user3(180) が 2 位
 ```
 
 ---

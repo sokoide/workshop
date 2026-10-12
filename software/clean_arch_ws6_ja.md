@@ -2,7 +2,7 @@
 
 > **⏱️ 所要時間**: 約 45 分
 > **🎯 レベル**: Intermediate
-> **💻 環境**: Go 1.22+。Slack Incoming Webhook URL は任意（なければ NoOp Gateway で進められます）
+> **💻 環境**: Go 1.26.2+。Slack Incoming Webhook URL は任意（なければ NoOp Gateway で進められます）
 >
 > > **💡 用語集**: [クリーンアーキテクチャ](../infra/glossary_ja.md#architecture)や[インターフェース](../infra/glossary_ja.md#go)などの専門用語は [用語集](../infra/glossary_ja.md) を参照してください。
 
@@ -24,9 +24,36 @@
 開始前のチェックリスト:
 
 - [ ] [WS5](./clean_arch_ws5_ja.md) を完了している — 本実習は BBS プロジェクトの WS5 完了時点の状態から始めます
-- [ ] Go 1.22 以上がインストール済み（`go version` で確認）
-- [ ] BBS プロジェクトがビルドできる: `cd software/assets/bbs && go build ./...` が何も出力せずに終了する
+- [ ] Go 1.26.2 以上がインストール済み（`go version` で確認）
+- [ ] 後述の開始用コピー作成後、BBS プロジェクトがビルドできる: `cd /tmp/bbs-ws6 && go build ./...` が何も出力せずに終了する
 - [ ] （任意）最終確認用の Slack Incoming Webhook URL — なければ後述の NoOp Gateway を使用する
+
+## 開始状態と完成状態
+
+新しい HTTP コピーから開始します。WS3 の gRPC 版は持ち越しません。 WS6 の開始は WS5 完了相当の PostgreSQL 版、完成は投稿後の通知を追加した版です。
+
+```bash
+# リポジトリルートから
+python3 tools/prepare_bbs.py ws6 /tmp/bbs-ws6
+cd /tmp/bbs-ws6
+go test ./...
+# 期待される結果: 既存テストが成功
+```
+
+WS5 のコンテナを引き継がず、専用 DB を起動します。通知の追加前の基準状態を起動できることを確認してください。
+
+```bash
+podman run -d --name bbs-ws6-postgres -p 127.0.0.1:55434:5432 -e POSTGRES_USER=bbs -e POSTGRES_PASSWORD=bbs -e POSTGRES_DB=bbs postgres:16
+for attempt in $(seq 1 30); do
+  podman exec bbs-ws6-postgres pg_isready -U bbs -d bbs && break
+  sleep 1
+done
+podman exec bbs-ws6-postgres pg_isready -U bbs -d bbs
+# 期待される結果: accepting connections。準備できなければ先へ進まない
+export DATABASE_URL='postgres://bbs:bbs@127.0.0.1:55434/bbs?sslmode=disable'
+```
+
+以下の Go コードは種類を表示しています。抜粋の `...` は貼り付けず、既存ファイルの省略部を保って編集します。作業は `/tmp/bbs-ws6` 内に限定し、ビルド・テストで各段階を確認します。
 
 ## 実習のシナリオ
 
@@ -50,6 +77,8 @@
 ### Step 1: UseCases 層 — 新しい Port の定義
 
 「どう通知するか」ではなく「通知を送るという機能」を抽象として定義します。通知はアプリケーションワークフローに必要な道具であるため、ポートは UseCases 層に所属します。
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // internal/usecase/notification.go（新規ファイル）
@@ -77,6 +106,8 @@ type NotificationGateway interface {
 ### Step 2: UseCase 層 — 通知の呼び出し
 
 `CreatePostUseCase` に通知ゲートウェイを注入し、投稿成功後に呼び出します。
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // internal/usecase/post_usecase.go（既存ファイルを一部変更）
@@ -171,6 +202,8 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 
 新しいディレクトリに Slack 用の Gateway を作ります。
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // internal/adapters/infra/notification/slack_gateway.go（新規ファイル）
 package notification
@@ -233,6 +266,8 @@ func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 
 `main.go` で Slack Gateway を生成し、UseCase に注入します。
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // cmd/bbs/main.go
 func main() {
@@ -262,7 +297,7 @@ export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T.../B.../xxx"
 # ビルド・起動
 go build -o bbs ./cmd/bbs/
 # Expected output: （なし — bbs バイナリが作業ディレクトリに作成される）
-./bbs
+DATABASE_URL='postgres://bbs:bbs@127.0.0.1:55434/bbs?sslmode=disable' ./bbs
 # Expected output: サーバーが起動し、:8080 で待ち受ける
 
 # 投稿 → Slack に通知が飛ぶ
@@ -278,13 +313,15 @@ curl -X POST http://localhost:8080/api/threads/1/posts \
 - [ ] `curl` での投稿が、本実習前に投稿したときと同じレスポンスを返す
 - [ ] Slack チャンネルにメッセージが届く（`NoOpGateway` の場合は何も飛ばず投稿だけが成功する）
 - [ ] Webhook URL を一時的に壊す（存在しないホストにする等）と、警告ログ `notification failed` が出つつ投稿は HTTP 201 で成功する
-- [ ] `software/assets/bbs` で `go test ./...` が通る
+- [ ] `/tmp/bbs-ws6` で `go test ./...` が通る
 
 ---
 
 ## 通知先の差し替えが容易
 
 Slack → Email に変更する場合、Composition Root だけの変更で済みます。
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // internal/adapters/infra/notification/email_gateway.go（新規ファイル）
@@ -300,6 +337,8 @@ func (g *EmailGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 }
 ```
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // cmd/bbs/main.go — 差し替え（1行だけ）
 notifier := notification.NewEmailGateway("smtp.example.com:587", "bbs@example.com", "admin@example.com")
@@ -313,6 +352,8 @@ UseCase、Domain、Presentation は **一切変更不要** です。
 
 テストや CLI 版など、通知が不要な場面では NoOp（何もしない）実装を注入します。
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // internal/adapters/infra/notification/noop_gateway.go
 type NoOpGateway struct{}
@@ -321,6 +362,8 @@ func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, bo
     return nil  // 何もしない
 }
 ```
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // cmd/bbs/main.go — 通知不要な場面
@@ -333,6 +376,8 @@ createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
 ## テストでの利点
 
 通知をモックすることで、UseCase のテストで実際の Slack にメッセージを飛ばさずに検証できます。
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // internal/usecase/create_post_test.go
@@ -369,6 +414,8 @@ func TestCreatePost_SendsNotification(t *testing.T) {
 ---
 
 ## レイヤー分離がない場合との比較
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // NG: 通知処理が Handler に直接埋まっている
@@ -416,10 +463,11 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 
 ```bash
 # まずサーバーを停止（./bbs を実行中のターミナルで Ctrl+C）してから:
-unset SLACK_WEBHOOK_URL
-# WS5 の PostgreSQL コンテナを起動したまま不要になった場合:
-podman stop bbs-postgres && podman rm bbs-postgres
-rm -f bbs
+unset SLACK_WEBHOOK_URL DATABASE_URL
+# 本実習専用の PostgreSQL コンテナ:
+podman rm -f bbs-ws6-postgres
+cd /tmp
+rm -r /tmp/bbs-ws6
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 60 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Linux | macOS (Podman)
+> **💻 Environment**: Linux | macOS (Podman), Go 1.25.5+
 
 In this workshop, you will build a secure secret management system using **HashiCorp Vault** and **Go**, learning how to manage sensitive data without hardcoding it.
 

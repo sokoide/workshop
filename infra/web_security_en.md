@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 60 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Linux / macOS (Go 1.26+, a browser)
+> **💻 Environment**: Linux / macOS (Go 1.26.2+, a browser)
 >
 > > **⚠️ Part 1 of 2**: This part experiences the attacks. Applying each countermeasure to the victim application and verifying that the attacks stop is covered in [Web Security Workshop (Part 2 - Defense)](web_security_defense_en.md).
 
@@ -20,7 +20,7 @@ In this workshop (Part 1), you will learn the mechanisms of common Web applicati
 
 ## Prerequisites
 
-- [ ] Go 1.26+ installed (`go version`)
+- [ ] Go 1.26.2+ installed (`go version`)
 - [ ] A browser with DevTools (Chrome / Firefox / Edge)
 - [ ] Two terminal windows
 

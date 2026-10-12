@@ -2,9 +2,19 @@
 
 > **⏱️ 所要時間**: 約 90 分
 > **🎯 レベル**: 中級
-> **💻 環境**: Linux / macOS（Go 1.26+、ブラウザ、`curl`）
+> **💻 環境**: Linux / macOS（Go 1.26.2+、ブラウザ、`curl`）
 >
 > > **⚠️ 全 2 パートの後編**: 前提は [Webセキュリティ実習（前編・攻撃体験）](web_security_ja.md) です。このパートでは、被害者アプリの作業用コピーに各対策を適用し、ビルドして、前編の攻撃を再実行して「もう成立しないこと」を検証します。
+
+## 3 セッションの進め方
+
+| 回  | 範囲            | 成果                                  |
+| --- | --------------- | ------------------------------------- |
+| 1   | 準備・STEP 1〜2 | CSP とエスケープで XSS の再現を止める |
+| 2   | STEP 3〜4       | Cookie 属性と CSRF トークンを検証     |
+| 3   | STEP 5〜6       | フレーム保護と CORS 許可リストを検証  |
+
+各回の操作は約 30 分を目安とし、初回準備・読解・ブラウザでの再検証には追加の時間を確保します。
 
 ## 目的
 
@@ -22,19 +32,19 @@
 ## 前提条件
 
 - [ ] [Webセキュリティ実習（前編・攻撃体験）](web_security_ja.md) を完了している（攻撃が自分の環境で再現できていること）
-- [ ] Go 1.26+ がインストールされている（`go version`）
+- [ ] Go 1.26.2+ がインストールされている（`go version`）
 - [ ] 開発者ツール付きのブラウザ（Chrome / Firefox / Edge）
 - [ ] `curl` がインストールされている（ヘッダーレベルの検証用）
 - [ ] ターミナル 2 台
 
 ## アーキテクチャ
 
-編集するのは被害者アプリだけです。攻撃者アプリは提供されたまま動かし続けるため、前編の全攻撃が再テストに常に使えます。
+編集するのは被害者アプリだけです。攻撃者アプリは未編集のコピーを動かし続けるため、前編の全攻撃が再テストに常に使えます。
 
 ```mermaid
 graph LR
     B["ブラウザ"] -->|"通常のトラフィック"| V["被害者サイト :8080<br/>(堅牢化したコピー)"]
-    B -->|"攻撃トラフィック"| A["攻撃者サイト :8081<br/>(リポジトリの asset、未変更)"]
+    B -->|"攻撃トラフィック"| A["攻撃者サイト :8081<br/>(未変更の attacker コピー)"]
     A -.->|"CSRF フォーム / iframe / fetch"| V
 ```
 
@@ -44,16 +54,19 @@ graph LR
 
 ```text
 リポジトリ（変更しない）                作業用コピー
-infra/assets/web_security/attacker     /tmp/web_security_defense/victim
-└── そのまま実行                        └── 以下の各 STEP で編集
+infra/assets/web_security/            /tmp/web_security_defense/
+└── 原本は変更しない                    ├── attacker/（編集しない）
+                                       └── victim/（以下の各 STEP で編集）
 ```
 
 ## 準備
 
 ### 1. 作業用コピーを作成
 
+リポジトリルートから開始します。Python 3 が必要です。既存の `/tmp/web_security_defense` は上書きせず、別名を全手順で使ってください。
+
 ```bash
-cp -r infra/assets/web_security /tmp/web_security_defense
+python3 -c 'import shutil; shutil.copytree("infra/assets/web_security", "/tmp/web_security_defense")'
 ls /tmp/web_security_defense
 # Expected output:
 # attacker
@@ -62,7 +75,7 @@ ls /tmp/web_security_defense
 
 ### 2. アプリケーションの起動
 
-被害者はコピーから、攻撃者はリポジトリから起動します。
+被害者はコピーから、攻撃者は同じコピーの未編集ディレクトリから起動します。
 
 ```bash
 # ターミナル1: 被害者サイト（編集可能なコピー）
@@ -71,8 +84,8 @@ go run main.go
 # Expected output:
 # 20xx/... INFO victim site starting addr=:8080
 
-# ターミナル2: 攻撃者サイト（未変更のリポジトリ asset）
-cd infra/assets/web_security/attacker
+# ターミナル2: 攻撃者サイト（未編集のコピー）
+cd /tmp/web_security_defense/attacker
 go run main.go
 # Expected output:
 # 20xx/... INFO attacker site starting addr=:8081
@@ -89,7 +102,7 @@ go run main.go
 
 ### ✅ Checkpoint
 
-- [ ] 両サーバーが起動している（被害者は `/tmp/web_security_defense` から、攻撃者はリポジトリから）
+- [ ] 両サーバーが起動している（被害者は `/tmp/web_security_defense` から、攻撃者は未編集コピーから）
 - [ ] コピーでも格納型 XSS のアラートが still 発火する
 - [ ] コピーでも CSRF 攻撃でメールアドレスが still 変更される
 
@@ -234,6 +247,22 @@ curl -s http://localhost:8080/xss/stored | grep '<li>'
 - [ ] ページ上にペイロードがリテラルなテキストとして表示される
 - [ ] Console に CSP 違反が出ない（実行しようとするもの自体が存在しない）
 - [ ] `curl` で HTML ソースに `&lt;script&gt;` が確認できる
+
+### 中断・再開: セッション 1
+
+被害者・攻撃者の両サーバーを Ctrl+C で停止します。`/tmp/web_security_defense` の編集済みソースを残し、準備のコピー作成は繰り返しません。コメント・メールアドレスはメモリ上のため停止で失われます。ブラウザ Cookie が残る場合は localhost のサイトデータを消して、再ログインします。
+
+```bash
+# Terminal A
+cd /tmp/web_security_defense/victim
+go run main.go
+# Terminal B
+cd /tmp/web_security_defense/attacker
+go run main.go
+# 期待される結果: 8080 と 8081 で起動（別ターミナルで実行）
+```
+
+前の回で対策した XSS / CSRF の攻撃を再投稿して確認し、次の STEP へ進みます。編集済みソースは残りますが、攻撃用データは再作成が必要です。
 
 ### STEP 3: Cookie の堅牢化 - HttpOnly と SameSite
 
@@ -432,6 +461,22 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8080/update-em
 - [ ] トークンなしの POST は 403 で拒否される
 - [ ] 攻撃者がこのペアを偽造できない理由を説明できる（Cookie は付与させられるが、読んでフォームに埋めることはできない）
 
+### 中断・再開: セッション 2
+
+被害者・攻撃者の両サーバーを Ctrl+C で停止します。`/tmp/web_security_defense` の編集済みソースを残し、準備のコピー作成は繰り返しません。コメント・メールアドレスはメモリ上のため停止で失われます。ブラウザ Cookie が残る場合は localhost のサイトデータを消して、再ログインします。
+
+```bash
+# Terminal A
+cd /tmp/web_security_defense/victim
+go run main.go
+# Terminal B
+cd /tmp/web_security_defense/attacker
+go run main.go
+# 期待される結果: 8080 と 8081 で起動（別ターミナルで実行）
+```
+
+前の回で対策した XSS / CSRF の攻撃を再投稿して確認し、次の STEP へ進みます。編集済みソースは残りますが、攻撃用データは再作成が必要です。
+
 ### STEP 5: フレーム保護 - X-Frame-Options と frame-ancestors
 
 前編では、攻撃者が `/follow` を透明な iframe に埋め込みました。2 つのレスポンスヘッダーがそれを阻止します。
@@ -543,437 +588,9 @@ curl が可視化してくれる点に注意してください。サーバーは
 - [ ] 攻撃者オリジンに対して `Access-Control-Allow-Origin` ヘッダーが返されない
 - [ ] プリフライト (OPTIONS) のレスポンスにも CORS の許可がない
 
-## リファレンス: この実習でハンズオン化しなかった背景知識
+## 任意の深掘り
 
-> 以下のトピックは**リファレンス資料**です。この被害者アプリケーションの構造上ハンズオン化できなかった（アプリがこれらを行使しない）ものですが、対策の全体像を補完します。
-
-### CORS の基礎
-
-CORS（クロスオリジンリソースシェアリング）は、「異なるオリジン（ドメイン・ポート・プロトコル）」のリソースへのアクセスをブラウザが制御する仕組みです。
-
-**オリジンの例:**
-
-```text
-https://example.com:443/api/data
-       ^^^^^^^^^^^^^^ ^^^
-       オリジン         パス
-
-同一オリジン:
-  ✓ https://example.com/api/data
-  ✓ https://example.com:443/api/data
-
-異なるオリジン:
-  ✗ https://api.example.com/api/data  （異なるドメイン）
-  ✗ http://example.com/api/data       （異なるプロトコル）
-  ✗ https://example.com:8080/api/data （異なるポート）
-```
-
-**CORS が必要な理由:** ブラウザには**同一オリジンポリシー (SOP)** があり、クロスオリジンリクエストを制限しています。これがないと、任意のサイトの JavaScript がログイン中のサービスへ `fetch()` してレスポンスを読めてしまいます。CORS は SOP を安全に緩和する仕組みです。
-
-```text
-1. ブラウザがリクエストに Origin ヘッダーを追加
-   Origin: https://example.com
-
-2. サーバーがレスポンスに Access-Control-Allow-Origin を追加
-   Access-Control-Allow-Origin: https://example.com  （許可）
-   Access-Control-Allow-Origin: *                        （全て許可）
-
-3. ブラウザが一致を確認
-   - 一致 → レスポンスを JavaScript に渡す
-   - 不一致 → エラーを投げる
-```
-
-**CORS ヘッダーの重要ポイント:**
-
-| ヘッダー                           | 説明                         | 脆弱性                     |
-| :--------------------------------- | :--------------------------- | :------------------------- |
-| `Access-Control-Allow-Origin`      | 許可するオリジン             | `*` は慎重に               |
-| `Access-Control-Allow-Credentials` | Cookie等の送信を許可         | `true` の時は `*` 使用不可 |
-| `Access-Control-Allow-Methods`     | 許可するHTTPメソッド         | 必要なメソッドのみ         |
-| `Access-Control-Allow-Headers`     | 許可するリクエストヘッダー   | 必要なヘッダーのみ         |
-| `Access-Control-Max-Age`           | プリフライトのキャッシュ時間 | 適切な値を設定             |
-
-**プリフライトリクエスト（OPTIONS メソッド）:**
-
-```text
-複雑なリクエスト（PUT、DELETE、カスタムヘッダー等）の場合:
-
-1. ブラウザが先に OPTIONS リクエストを送信
-   OPTIONS /api/data HTTP/1.1
-   Origin: https://example.com
-   Access-Control-Request-Method: PUT
-
-2. サーバーが許可を返す
-   Access-Control-Allow-Origin: https://example.com
-   Access-Control-Allow-Methods: GET, PUT, DELETE
-
-3. ブラウザが実際の PUT リクエストを送信
-   PUT /api/data HTTP/1.1
-   Origin: https://example.com
-```
-
-**CORS と CSRF の関係:**
-
-```text
-CORS が強制されない場合:
-  攻撃者サイトから fetch() → リクエスト送信可能
-                           → Cookie も自動付与
-                           → レスポンスを読める
-                           → CSRF 型攻撃が容易
-
-CORS が強制される場合 (STEP 6):
-  攻撃者サイトから fetch() → リクエストは still 送信される
-                           → Cookie も still 付与される（CORS の外）
-                           → レスポンスはブロックされる
-                           → 攻撃者はレスポンスを読めない
-
-※注意: レスポンスを読めなくても、POST/DELETE等の副作用は発生
-   → CSRF トークンや SameSite Cookie は依然として必要
-```
-
-### CSRF と CORS の保護目的の違い
-
-|                    | **CSRF**                                     | **CORS**                                     |
-| :----------------- | :------------------------------------------- | :------------------------------------------- |
-| **主な対象**       | **リクエストの送信**                         | **レスポンスの読み取り**                     |
-| **保護対象**       | **サーバー側**（意図しない操作の実行を防ぐ） | **クライアント側**（機密データの盗難を防ぐ） |
-| **攻撃の内容**     | なりすまして**操作**させる                   | 別サイトから**データを窃取**する             |
-| **ブラウザの役割** | Cookieを自動付与（攻撃を助ける側面）         | レスポンス読み取りをブロック（防御する側面） |
-
-**CSRF の保護目的:** 「誰がリクエストを送ったか」を検証する
-
-```text
-攻撃者: ユーザーになりすまして「パスワード変更」リクエストを送りたい
-         ↓
-サーバー: 本当にユーザー本人の操作か確認する必要がある
-         ↓
-CSRFトークン: フォームを見たユーザーしか持っていない秘密の値
-         ↓
-結果: 攻撃者サイトにはトークンがない → リクエスト拒絶 ✓
-```
-
-**CORS の保護目的:** 「誰がレスポンスを読めるか」を制御する
-
-```text
-攻撃者のJavaScript: fetch('https://victim.com/api/profile')
-         ↓
-ブラウザ: Cookie付きでリクエストは送信する
-         ↓
-サーバー: 認証成功 → 機密データを含むレスポンス
-         ↓
-【ここがCORSの分岐点】
-         ↓
-CORS不許可: ブラウザがレスポンスをブロック ✓
-          → JavaScriptはデータを読めない
-
-CORS誤設定: ブラウザがレスポンスをJavaScriptに渡す ✗
-          → 攻撃者が機密データを窃取
-```
-
-**相互補完的な関係:**
-
-```text
-【CSRF 対策なし】
-攻撃者サイトのフォーム → 不正なリクエスト送信 → サーバーが実行
-                       → データ変更されてしまう ✗
-
-【CORS 対策なし】
-攻撃者サイトの fetch → リクエスト送信 → サーバーが実行
-                     → レスポンス読めないが、副作用は発生 ✗
-
-【両方必要】
-CSRF: リクエストの真正性を保証（操作の防御）
-CORS: レスポンスの読み取りを制限（情報の防御）
-```
-
-### プリフライトリクエストだけで CSRF を防げない理由
-
-**結論:** プリフライトリクエスト（OPTIONS メソッド）は CSRF を完全には防げません。
-
-**プリフライトが発生する条件** — 「複雑なリクエスト」の場合のみです。
-
-```javascript
-// ✅ プリフライト発生
-fetch(url, {
-  method: "PUT", // PUT/DELETE/PATCH
-  headers: { "X-Custom": "value" }, // カスタムヘッダー
-});
-
-// ❌ プリフライトなし（シンプルなリクエスト）
-fetch(url, {
-  method: "POST",
-  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-});
-```
-
-**シンプルな POST リクエストの条件:**
-
-- メソッド：GET, HEAD, POST のみ
-- ヘッダー：`Accept`, `Accept-Language`, `Content-Language`, `Content-Type` のみ
-- `Content-Type`：`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain` のみ
-
-**CSRF 攻撃はフォーム送信を使ってプリフライトを回避します:**
-
-```html
-<!-- 攻撃者サイトのHTML -->
-<form action="https://victim.com/update-email" method="POST">
-  <input type="hidden" name="email" value="hacker@evil.com" />
-</form>
-<script>
-  document.forms[0].submit(); // 自動送信
-</script>
-```
-
-このリクエストは:
-
-```text
-POST /update-email HTTP/1.1
-Host: victim.com
-Content-Type: application/x-www-form-urlencoded
-Cookie: session_id=...  ← 自動付与
-
-email=hacker@evil.com
-```
-
-**プリフライトなし**でそのまま送信されます → CORS チェックもバイパスされます。
-
-**攻撃方法ごとの比較:**
-
-| 攻撃方法                     | プリフライト発生？ | CORSで防げる？ | CSRFトークンで防げる？ |
-| :--------------------------- | :----------------: | :------------: | :--------------------: |
-| **フォーム POST**            |      ❌ なし       |    ❌ 不可     |        ✅ 可能         |
-| **fetch + PUT/DELETE**       |      ✅ あり       |    ✅ 可能     |        ✅ 可能         |
-| **fetch + カスタムヘッダー** |      ✅ あり       |    ✅ 可能     |        ✅ 可能         |
-| **imgタグによるGET**         |      ❌ なし       |    ❌ 不可     |       ⚠️ 限定的        |
-
-**まとめ:**
-
-1. **フォーム送信による攻撃を防げない** — 最も一般的な CSRF ベクトル。プリフライトなしでリクエストが送信される。
-2. **GET リクエストによる攻撃を防げない** — `<img src="https://victim.com/delete-account">` など。GET は常にプリフライトなし。
-3. **SameSite Cookie がないとリスクが残る** — プリフライトありのリクエストでも Cookie は送信される。読み取りは防げても、副作用（操作実行）は防げない。
-
-したがって、CORS は「情報漏洩対策」としてのみ機能し、CSRF 防御には CSRF トークンまたは SameSite Cookie が必須です。まさに STEP 3 と STEP 4 で構築した重層防御のことです。
-
-### CSP 詳解
-
-#### CSP とは何か？
-
-CSP は、ブラウザに対して「このページで許可するリソース（スクリプト、画像、スタイルなど）の出所」を宣言する HTTP レスポンスヘッダーです。XSS の被害を大幅に軽減できる、強力な防御レイヤーです。
-
-**CSP がない場合:**
-
-```text
-ブラウザ: ページ内の <script> タグをすべて実行する
-         → 攻撃者が注入した <script>alert(document.cookie)</script> も実行されてしまう
-```
-
-**CSP がある場合:**
-
-```text
-サーバー: Content-Security-Policy: script-src 'self'
-ブラウザ: 「このページで実行してよいスクリプトは、同一オリジン(self)から読み込まれたものだけ」
-         → インラインの <script> タグはブロック
-         → 攻撃者が注入したスクリプトは実行されない ✓
-```
-
-#### CSP の仕組み
-
-```text
-1. サーバーが HTTP レスポンスヘッダーでポリシーを宣言
-   Content-Security-Policy: script-src 'self'; style-src 'self'
-
-2. ブラウザがページの読み込み時にポリシーを評価
-   - 各リソースの読み込み先をチェック
-   - ポリシーに違反するリソースはブロック
-
-3. 違反があった場合
-   - コンソールにエラーメッセージを出力
-   - (設定していれば) 違反レポートを送信
-```
-
-#### 主要ディレクティブ一覧
-
-| ディレクティブ    | 制御対象                     | 例                                             |
-| :---------------- | :--------------------------- | :--------------------------------------------- |
-| `script-src`      | JavaScript の読み込み元      | `'self'`, `'unsafe-inline'`, `'nonce-abc'`     |
-| `style-src`       | CSS の読み込み元             | `'self'`, `'unsafe-inline'`                    |
-| `img-src`         | 画像の読み込み元             | `'self'`, `https://images.example.com`         |
-| `font-src`        | フォントの読み込み元         | `'self'`, `https://fonts.googleapis.com`       |
-| `connect-src`     | fetch/XHR/WebSocket の接続先 | `'self'`, `https://api.example.com`            |
-| `frame-src`       | iframe の読み込み元          | `'self'`, `https://trusted.com`                |
-| `frame-ancestors` | このページを埋め込める親     | `'none'`, `'self'`（クリックジャッキング対策） |
-| `default-src`     | 上記のデフォルト値           | `'self'`                                       |
-| `object-src`      | Flash/Java 等のプラグイン    | `'none'`（推奨）                               |
-| `base-uri`        | `<base>` タグの制限          | `'self'`                                       |
-| `form-action`     | フォームの送信先             | `'self'`                                       |
-
-#### ソース値の意味
-
-| ソース値          | 意味                                    | リスク                   |
-| :---------------- | :-------------------------------------- | :----------------------- |
-| `'self'`          | 同一オリジンのみ許可                    | 安全（推奨）             |
-| `'none'`          | 一切許可しない                          | 最も安全                 |
-| `'unsafe-inline'` | インラインスクリプト/スタイルを許可     | 危険（XSS 軽減効果なし） |
-| `'unsafe-eval'`   | `eval()` 等を許可                       | 危険                     |
-| `'nonce-<value>'` | 指定 nonce 属性を持つスクリプトのみ許可 | 安全（推奨）             |
-| `'sha256-<hash>'` | ハッシュに一致するスクリプトのみ許可    | 安全                     |
-| `https://...`     | 指定 URL のみ許可                       | 中程度                   |
-| `*`               | すべて許可                              | 危険                     |
-
-#### 段階的な CSP 導入
-
-**フェーズ1: レポートのみモード（影響なし）**
-
-```go
-// Content-Security-Policy-Report-Only はブロックせず、違反をレポートするだけ
-w.Header().Set("Content-Security-Policy-Report-Only",
-    "default-src 'self'; "+
-    "report-uri /csp-report")
-
-// 本番環境でまずこれを設定し、違反ログを収集してから
-// 強制モードの CSP に切り替える
-```
-
-**フェーズ2: 緩やかなポリシー（移行期）**
-
-```go
-// インラインスクリプトを一時的に許可（既存コードの修正中）
-w.Header().Set("Content-Security-Policy",
-    "default-src 'self'; "+
-    "script-src 'self' 'unsafe-inline'; "+ // 段階的に削除
-    "style-src 'self' 'unsafe-inline'; "+
-    "img-src 'self' data:; "+
-    "frame-ancestors 'none'")
-```
-
-**フェーズ3: 厳格なポリシー（nonce ベース・推奨）**
-
-```go
-func generateNonce() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return base64.StdEncoding.EncodeToString(b)
-}
-
-func secureHandler(w http.ResponseWriter, r *http.Request) {
-	nonce := generateNonce()
-
-	w.Header().Set("Content-Security-Policy",
-		"default-src 'none'; "+
-			"script-src 'nonce-"+nonce+"'; "+ // nonce 付きスクリプトのみ許可
-			"style-src 'self'; "+
-			"img-src 'self'; "+
-			"connect-src 'self'; "+
-			"frame-ancestors 'none'; "+
-			"base-uri 'self'; "+
-			"form-action 'self'")
-
-	// HTML 内で nonce 属性を付与
-	fmt.Fprintf(w, `
-        <script nonce="%s">
-            // このスクリプトだけが実行される
-            // 攻撃者が注入した <script> タグには nonce がない → ブロック
-            console.log('legitimate script');
-        </script>
-    `, nonce)
-}
-```
-
-**nonce による防御の仕組み:**
-
-```text
-サーバーが生成: <script nonce="abc123">...</script>
-CSP ヘッダー:  script-src 'nonce-abc123'
-
-攻撃者が注入: <script>alert('XSS')</script>
-               ↑ nonce 属性がない → ブラウザがブロック ✓
-
-<script nonce="abc123">alert('XSS')</script>
-               ↑ 攻撃者は nonce 値を知りえない → ブロック ✓
-```
-
-#### CSP が防ぐ攻撃と防げない攻撃
-
-| 攻撃                         | CSP で防げる？                  | 理由                                        |
-| :--------------------------- | :------------------------------ | :------------------------------------------ |
-| インライン `<script>` XSS    | `script-src 'self'` で防ぐ      | インラインスクリプトがブロックされる        |
-| 外部ドメインの悪意スクリプト | `script-src 'self'` で防ぐ      | 許可外ドメインがブロックされる              |
-| `eval()` ベースの XSS        | `unsafe-eval` なしで防ぐ        | `eval()` がブロックされる                   |
-| クリックジャッキング         | `frame-ancestors 'none'` で防ぐ | iframe 埋め込みがブロックされる             |
-| CSRF                         | 防げない                        | CSRF はフォーム送信でありスクリプトではない |
-| `<img onerror=...>` XSS      | `unsafe-inline` なしで防ぐ      | インラインイベントハンドラがブロックされる  |
-
-#### 実装例: Go サーバーでの CSP ミドルウェア
-
-```go
-func cspMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nonce := generateNonce()
-		r.Header.Set("X-CSP-Nonce", nonce) // ハンドラーで参照可能に
-
-		w.Header().Set("Content-Security-Policy",
-			"default-src 'none'; "+
-				"script-src 'nonce-"+nonce+"'; "+
-				"style-src 'self'; "+
-				"img-src 'self'; "+
-				"connect-src 'self'; "+
-				"frame-ancestors 'none'; "+
-				"base-uri 'self'; "+
-				"form-action 'self'; "+
-				"report-uri /csp-report")
-
-		next.ServeHTTP(w, r)
-	})
-}
-```
-
-#### CSP 違反の確認方法
-
-```text
-Chrome DevTools:
-  Console タブ → "Refused to execute inline script because it violates
-                   the following Content Security Policy directive: 'script-src'"
-
-  Network タブ → "csp-report" への POST リクエストを確認
-
-レポート内容の例:
-{
-  "csp-report": {
-    "document-uri": "http://localhost:8080/xss/stored",
-    "violated-directive": "script-src 'self'",
-    "blocked-uri": "inline"
-  }
-}
-```
-
-### 発展的な攻撃手法
-
-#### DOM-based XSS
-
-従来の XSS とは異なり、サーバー側のレスポンスには脆弱性がなく、クライアント側の JavaScript で DOM 操作を行う際に発生します。
-
-```javascript
-// 脆弱なコード例
-const hash = location.hash.substring(1); // URLの#以降を取得
-document.getElementById("output").innerHTML = hash; // エスケープなしで挿入
-
-// 攻撃URL:
-// http://victim.com/#<img src=x onerror=alert('XSS')>
-```
-
-**対策:**
-
-- `innerHTML` の代わりに `textContent` や `innerText` を使用
-- DOMPurify 等のサニタイズライブラリ使用
-
-#### Self-XSS (自己XSS)
-
-攻撃者が「アクセス権限が必要」「特別なコマンド」と騙して、ユーザー自身に悪意のあるスクリプトを実行させます。
-
-**対策:**
-
-- ユーザー教育（不審なコードをコンソールに貼り付けない）
-- 重要操作には再認証を要求
+背景知識は [Web セキュリティ参考資料](web_security_reference_ja.md) に移しました。実習の各対策を再検証してから、必要な項目を読んでください。
 
 ## 防御策チェックリスト
 

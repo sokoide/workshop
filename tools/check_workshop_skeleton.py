@@ -39,6 +39,7 @@ EXEMPT_FILES = {
     'go_cache_patterns_en.md', 'go_cache_patterns_ja.md',
     'go_mq_patterns_en.md', 'go_mq_patterns_ja.md',
     'sharding_en.md', 'sharding_ja.md',
+    'web_security_reference_en.md', 'web_security_reference_ja.md',
 }
 
 # Synonyms per language, normalized to the TEMPLATE.md section names.

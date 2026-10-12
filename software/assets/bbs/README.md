@@ -2,6 +2,26 @@
 
 A 2channel-style bulletin board implemented in Go + SQLite. Built on Clean Architecture principles, with strict control over dependency direction and separation of responsibilities.
 
+## Exercise Start States and References
+
+Requires Go 1.26.2+, a C compiler and Python 3. From the repository root, prepare WS3–WS7 copies with commands such as `python3 tools/prepare_bbs.py ws3 /tmp/bbs-ws3`. Existing paths are never overwritten.
+
+| Workshop | Start state                                          | Completed reference                                                                                                                                                              |
+| -------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WS3      | HTTP + SQLite                                        | [gRPC adapter](internal/adapters/presentation/grpc/server.go), [Proto](api/proto/bbs.proto), [gRPC main](cmd/bbs-grpc/main.go)                                                   |
+| WS4      | DTO/DB supplied; posting decision and call are TODOs | Domain and UseCase in this directory                                                                                                                                             |
+| WS5      | Owner-only policy, HTTP + SQLite                     | [PostgreSQL adapter](internal/adapters/infra/persistence/postgres/), [DDL](internal/adapters/infra/persistence/postgres/schema.sql), [PostgreSQL main](cmd/bbs-postgres/main.go) |
+| WS6      | Completed WS5 equivalent, HTTP + PostgreSQL          | Notification integration is the workshop task                                                                                                                                    |
+| WS7      | Owner-only policy, HTTP + SQLite                     | JWT integration is the workshop task                                                                                                                                             |
+
+For WS3/4/5, add `--solution` and a different destination to prepare a completed copy. Each copy contains start-state source under `.baseline`; compare with commands such as `diff -ru .baseline/internal/usecase internal/usecase`. Go excludes the hidden directory from package discovery.
+
+At repository root, `make check-bbs-states` tests/builds all start states and WS3/4/5 completed states in temporary copies. PostgreSQL connection tests run when BBS_TEST_DATABASE_URL is set and create/drop only a dedicated temporary schema.
+
+### Regenerate Proto
+
+Run `make proto` in the asset directory; protoc is required separately. The target installs pinned generation plugins in local bin/proto/ and updates tracked generated Go files.
+
 ## Features
 
 - **Clean Architecture 3-layer variant**: Domain logic is fully isolated from external concerns (HTTP, DB). The Adapters layer is organized into Presentation (input) and Infrastructure (output).

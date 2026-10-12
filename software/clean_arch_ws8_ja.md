@@ -2,7 +2,7 @@
 
 > **⏱️ 所要時間**: 約 30 分
 > **🎯 レベル**: 初級
-> **💻 環境**: Go 1.22+、curl、OS 不問
+> **💻 環境**: Go 1.23+、curl、Linux / macOS / WSL2
 
 この実習では、わずか 100 行程度の「ユーザー挨拶アプリ」を通じて、クリーンアーキテクチャ（3 層バリアント: Adapters / UseCases / Domain）の設計思想と「変更への強さ」を体験します。
 
@@ -15,7 +15,8 @@
 
 ## 前提条件
 
-- [ ] Go 1.22 以降（`go version`）
+- [ ] Go 1.23 以降（`go version`）
+- [ ] Python 3 (`python3 --version`)
 - [ ] curl（`curl --version`）
 - [ ] クリーンアーキテクチャの事前知識は不要 — `clean_arch.md` と WS1 の前に読むべき推奨入口です
 
@@ -106,49 +107,83 @@ Presentation Adapters ---→ UseCases ---→ Domain
 
 ## 4. 実習: 「変更への強さ」を体験する
 
-### ステップ 1: アプリを起動する
+### ステップ 1: コピーを作り、アプリを起動する
 
-ターミナルで以下を実行し、サーバーを起動します。
+リポジトリルートから開始します。`/tmp/greeting-ws8` が既にある場合は上書きせず、以下のすべてのパスを別の名前へ変更してください。Python 3 が必要です。
 
 ```bash
-cd software/assets/greeting
+# ターミナル A — リポジトリルート
+python3 -c 'import shutil; shutil.copytree("software/assets/greeting", "/tmp/greeting-ws8")'
+cd /tmp/greeting-ws8
 go run main.go
+# 期待される結果: Starting server on http://localhost:8080 ...
 ```
 
-別のターミナルからリクエストを送り、動作を確認します。
+以降、編集と検証はターミナル B で行います。ターミナル A は起動したままにします。
 
 ```bash
-curl "http://localhost:8080?id=1"
-# 出力: Hello, Alice!
-
-curl "http://localhost:8080?id=999"
-# 出力: user not found (HTTP 404)
+# ターミナル B
+cd /tmp/greeting-ws8
+curl -i 'http://localhost:8080?id=1'
+# 期待される結果: HTTP/1.1 200 OK、本文 Hello, Alice!
+curl -i 'http://localhost:8080?id=999'
+# 期待される結果: HTTP/1.1 404 Not Found、本文 user not found
 ```
+
+### ✅ チェックポイント: 基準状態
+
+- [ ] 実行場所が `/tmp/greeting-ws8` であり、リポジトリの原本を編集していない
+- [ ] 存在する ID は 200、不在の ID は 404 になった
 
 ### ステップ 2: ユニットテストを実行する
 
-Clean Architecture の利点は、外部環境（DB など）をモックに差し替えて、ビジネスロジックだけを高速にテストできることです。
-
 ```bash
+# ターミナル B — /tmp/greeting-ws8
 go test ./usecase/... -v
+# 期待される結果: 既存ユーザーと不在ユーザーの両ケースが PASS
 ```
 
-`usecase/greeting_test.go` を読み、以下の点を確認してください。
+`usecase/greeting_test.go` を読み、DB を使わずにリポジトリを偽物へ差し替える仕組みを確認します。
 
-- どうやってリポジトリを偽物（Mock）に差し替えているか
-- ユーザー不在時のエラーケースがどうテストされているか
+### ステップ 3: ビジネスルールとテストを変更する
 
-### ステップ 3: 【演習】ビジネスルールを変更する
+**既存ファイルの差分:** `usecase/greeting.go` の戻り値を次へ変更します。
 
-`usecase/greeting.go` を開き、挨拶文を日本語（`こんにちは、[Name]さん！`）に変更してみてください。
+```go
+return "こんにちは、" + user.Name + "さん！", nil
+```
 
-- **ポイント**: この変更の際、`infra` や `presentation` のコードに触れる必要がないことを確認してください。
+`usecase/greeting_test.go` の `expected := "Hello, TestUser!"` も `expected := "こんにちは、TestUserさん！"` へ変更します。変更前のテストが失敗する理由は、振る舞いの仕様が英語から日本語へ変わったためです。
 
-### ステップ 4: 【演習】インフラを差し替える
+ターミナル A を Ctrl+C で停止して `go run main.go` を再実行し、ターミナル B で確認します。
 
-このステップが、Clean Architecture の最大の強みを体感するパートです。
+```bash
+go test ./usecase/...
+# 期待される結果: ok
+curl -i 'http://localhost:8080?id=1'
+# 期待される結果: 200 OK、本文 こんにちは、Aliceさん！
+```
 
-1. `infra/` に新しいファイル `slice.go` を作成し、スライスでユーザーを管理するリポジトリを実装してください:
+### ✅ チェックポイント: ビジネスルールの変更
+
+- [ ] 日本語の出力になり、日本語を期待するテストが通った
+- [ ] この段階で編集したのは `usecase/greeting.go` と `usecase/greeting_test.go` だけ
+
+### ステップ 4: 保存先を差し替える
+
+**予測:** 保存先を map から slice へ変えるとき、どのファイルに変更が必要でしょうか？先に回答し、次の差分で確認してください。
+
+日本語化後の状態を保存してから、Infrastructure Adapter を変更します。
+
+```bash
+# ターミナル B — /tmp/greeting-ws8
+mkdir .baseline
+cp main.go .baseline/
+cp -R domain usecase presentation infra .baseline/
+# 期待される結果: 出力なし。日本語化後の基準状態が .baseline に保存される
+```
+
+**そのまま保存できる新規ファイル:** `infra/slice.go` に次を保存します。
 
 ```go
 package infra
@@ -182,24 +217,38 @@ func (r *SliceUserRepo) FindByID(ctx context.Context, id string) (*domain.User, 
 }
 ```
 
-1. `main.go` の 1 行を書き換えます:
+**既存ファイルの差分:** `main.go` の `repo := infra.NewMemoryUserRepo()` を `repo := infra.NewSliceUserRepo()` に変更します。
 
-```go
-// 変更前
-repo := infra.NewMemoryUserRepo()
-// 変更後
-repo := infra.NewSliceUserRepo()
+ターミナル A のサーバーを再起動して、ターミナル B で確認します。
+
+```bash
+go test ./...
+# 期待される結果: すべてのテストが成功
+curl -i 'http://localhost:8080?id=1'
+# 期待される結果: 200 OK、本文 こんにちは、Aliceさん！
+curl -i 'http://localhost:8080?id=999'
+# 期待される結果: 404 Not Found、本文 user not found
+diff -ru .baseline/domain domain
+diff -ru .baseline/usecase usecase
+diff -ru .baseline/presentation presentation
+# 期待される結果: 3 コマンドとも出力なし（差し替えでは変更していない）
+diff -u .baseline/main.go main.go
+diff -ru .baseline/infra infra
+# 期待される結果: 配線の 1 行と新規 slice.go の差分。差分ありの終了コード 1 は正常
 ```
 
-1. サーバーを再起動し、同じように動くことを確認します。
+### ✅ チェックポイント: 保存先の変更
 
-- **ポイント**: この変更で触れたのは Infrastructure Adapter（`infra/`）と Composition Root（`main.go`）だけです。`domain/`、`usecase/`、`presentation/` は一切変更なしに動作します。これが「依存性の逆転」の実感です。
+- [ ] 日本語の出力と 404 が保存先変更前と同じ
+- [ ] 日本語化後の基準状態との比較では、変更は `infra/` と `main.go` のみ
+- [ ] DB なしでテストが通り、最初の予測と差分を比較できた
 
-### ✅ チェックポイント
+<details>
+<summary>ヒントと解答例</summary>
 
-- [ ] `curl "http://localhost:8080?id=1"` が `Hello, Alice!` を返した
-- [ ] `go test ./usecase/...` がデータベースなしで通過した
-- [ ] `SliceUserRepo` へ差し替え後も動作は同一で、`git status` の変更が `infra/` と `main.go` のみであることを確認
+Interface を実装する `infra/slice.go` と、具象型を選ぶ `main.go` が変わります。UseCase は `UserRepository` に依存するので、保存先の具象型を知りません。
+
+</details>
 
 ---
 
@@ -249,9 +298,12 @@ Presentation Adapters    → ドメインエラーを HTTP ステータスに変
 
 ## 片付け
 
+ターミナル A を Ctrl+C で停止します。変更を読み返してから、ターミナル B で実習用コピーを削除します。原本の復元操作は不要です。
+
 ```bash
-# サーバーを停止（go run main.go のターミナルで Ctrl+C）してから:
-cd software/assets/greeting && git checkout -- main.go && rm -f infra/slice.go
+cd /tmp
+rm -r /tmp/greeting-ws8
+# 期待される結果: コピーと .baseline が削除される。リポジトリの原本はそのまま
 ```
 
 ---

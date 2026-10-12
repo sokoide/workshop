@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 60 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: any (containers only)
+> **💻 Environment**: any (containers only), Go 1.25.5+
 
 In this workshop, you will build an AWS S3-compatible object storage server using **MinIO** and learn how to implement file upload, download, and secure file sharing using Presigned URLs from a Go application.
 

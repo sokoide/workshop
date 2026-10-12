@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 45 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Go 1.22+; a Slack Incoming Webhook URL is optional (a NoOp gateway works without one)
+> **💻 Environment**: Go 1.26.2+; a Slack Incoming Webhook URL is optional (a NoOp gateway works without one)
 >
 > > **💡 Glossary**: For technical terms such as [Clean Architecture](../infra/glossary_en.md#architecture), [Interface](../infra/glossary_en.md#go), and [Context](../infra/glossary_en.md#go), please refer to the [Glossary](../infra/glossary_en.md).
 
@@ -24,9 +24,36 @@ The shared architecture foundations (3-layer variant, dependency rule, error bou
 Checklist before starting:
 
 - [ ] Completed [WS5](./clean_arch_ws5_en.md) — this workshop builds on the WS5 state of the BBS project
-- [ ] Go 1.22+ installed — verify with `go version`
-- [ ] The BBS project builds: `cd software/assets/bbs && go build ./...` exits with no output
+- [ ] Go 1.26.2+ installed — verify with `go version`
+- [ ] The After preparing the start copy below, BBS builds: `cd /tmp/bbs-ws6 && go build ./...` exits with no output
 - [ ] (Optional) A Slack Incoming Webhook URL for the final verification — without one, use the NoOp gateway described below
+
+## Start and Finish States
+
+Start from a fresh HTTP copy; do not carry WS3 gRPC changes forward. WS6 starts at the completed WS5 PostgreSQL state and finishes with post-commit notifications.
+
+```bash
+# From the repository root
+python3 tools/prepare_bbs.py ws6 /tmp/bbs-ws6
+cd /tmp/bbs-ws6
+go test ./...
+# Expected output: existing tests pass
+```
+
+Start a dedicated DB instead of carrying over WS5 resources. Verify the baseline before adding notifications.
+
+```bash
+podman run -d --name bbs-ws6-postgres -p 127.0.0.1:55434:5432 -e POSTGRES_USER=bbs -e POSTGRES_PASSWORD=bbs -e POSTGRES_DB=bbs postgres:16
+for attempt in $(seq 1 30); do
+  podman exec bbs-ws6-postgres pg_isready -U bbs -d bbs && break
+  sleep 1
+done
+podman exec bbs-ws6-postgres pg_isready -U bbs -d bbs
+# Expected output: accepting connections; do not continue unless ready
+export DATABASE_URL='postgres://bbs:bbs@127.0.0.1:55434/bbs?sslmode=disable'
+```
+
+Go blocks below are labeled by type. Do not paste ellipses from excerpts; preserve the omitted parts of existing files. Work only inside `/tmp/bbs-ws6` and build/test each stage.
 
 ## Workshop Scenario
 
@@ -50,6 +77,8 @@ This is a classic example of the new Port/Adapter pattern.
 ### Step 1: UseCases Layer — Define a New Port
 
 Define the "notification functionality" as an abstraction, not "how to notify." Notification is a tool needed by the application workflow, so the port belongs to the UseCases layer.
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // internal/usecase/notification.go (new file)
@@ -77,6 +106,8 @@ The new file sits directly under `internal/usecase/`, next to `repository.go` an
 ### Step 2: UseCase Layer — Invoke Notification
 
 Inject the notification gateway into `CreatePostUseCase` and call it after successful post creation.
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // internal/usecase/post_usecase.go (modify existing file)
@@ -171,6 +202,8 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 
 Create a Slack gateway in a new directory.
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // internal/adapters/infra/notification/slack_gateway.go (new file)
 package notification
@@ -233,6 +266,8 @@ func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 
 Create the Slack Gateway and inject it into the UseCase in `main.go`.
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // cmd/bbs/main.go
 func main() {
@@ -262,7 +297,7 @@ export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T.../B.../xxx"
 # Build and start
 go build -o bbs ./cmd/bbs/
 # Expected output: (none — the bbs binary appears in the working directory)
-./bbs
+DATABASE_URL='postgres://bbs:bbs@127.0.0.1:55434/bbs?sslmode=disable' ./bbs
 # Expected output: the server starts and listens on :8080
 
 # Post → Slack notification is sent
@@ -286,6 +321,8 @@ curl -X POST http://localhost:8080/api/threads/1/posts \
 
 Switching from Slack to Email requires only a Composition Root change.
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // internal/adapters/infra/notification/email_gateway.go (new file)
 type EmailGateway struct {
@@ -300,6 +337,8 @@ func (g *EmailGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 }
 ```
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // cmd/bbs/main.go — swap (one line)
 notifier := notification.NewEmailGateway("smtp.example.com:587", "bbs@example.com", "admin@example.com")
@@ -313,6 +352,8 @@ UseCase, Domain, and Presentation require **zero changes**.
 
 For testing or CLI versions where notifications are not needed, inject a NoOp (no-operation) implementation.
 
+**Edit or explanatory excerpt (integrate into the named file):**
+
 ```go
 // internal/adapters/infra/notification/noop_gateway.go
 type NoOpGateway struct{}
@@ -321,6 +362,8 @@ func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, bo
     return nil  // Does nothing
 }
 ```
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // cmd/bbs/main.go — for scenarios where notification is not needed
@@ -333,6 +376,8 @@ createPost := usecase.NewCreatePostUseCase(threadRepo, postRepo, tm, notifier)
 ## Testing Benefits
 
 By mocking the notification, UseCase tests can verify behavior without sending actual Slack messages.
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // internal/usecase/create_post_test.go
@@ -369,6 +414,8 @@ func TestCreatePost_SendsNotification(t *testing.T) {
 ---
 
 ## Comparison: Without Layer Separation
+
+**Edit or explanatory excerpt (integrate into the named file):**
 
 ```go
 // NG: Notification buried in Handler
@@ -416,10 +463,11 @@ In this case:
 
 ```bash
 # Stop the server first (Ctrl+C in the terminal running ./bbs), then:
-unset SLACK_WEBHOOK_URL
-# If you ran WS5's PostgreSQL container and no longer need it:
-podman stop bbs-postgres && podman rm bbs-postgres
-rm -f bbs
+unset SLACK_WEBHOOK_URL DATABASE_URL
+# Dedicated container for this workshop:
+podman rm -f bbs-ws6-postgres
+cd /tmp
+rm -r /tmp/bbs-ws6
 ```
 
 ---

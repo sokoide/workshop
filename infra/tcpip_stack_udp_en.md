@@ -2,11 +2,15 @@
 
 > **⏱️ Estimated Time**: Approx. 80 minutes (Part 2 of 2; the complete workshop takes approx. 180 minutes)
 > **🎯 Level**: Advanced
-> **💻 Environment**: Linux (root/sudo)
+> **💻 Environment**: Linux (root/sudo), Go 1.25.7+
 
 This is Part 2 of the two-part TCP/IP Protocol Stack Workshop. [Part 1: Ethernet, IP & ICMP](tcpip_stack_en.md) built the AF_PACKET raw socket and the Ethernet, IPv4, and ICMP layers. In this part you implement UDP datagrams, integrate all components into `main.go`, and run the live ping and UDP echo tests against your own stack.
 
 > **💡 Glossary**: Please refer to [Raw Socket](glossary_en.md#protocol) or [Encapsulation](glossary_en.md#protocol) in the [Glossary](glossary_en.md) for technical terms used in this workshop.
+
+## Session Boundaries
+
+Use three sessions: Part 1 preparation–STEP 1 (frame reception), Part 1 STEP 2–4 (Ethernet/IP/ICMP), then Part 2 STEP 5–6 (UDP/integration). Keep source in the same tcpip_stack directory. Allow additional time for initial Linux setup and packet observation.
 
 ## Goal
 
@@ -16,13 +20,30 @@ Implement the UDP layer (`pkg/udp`), wire every component into `main.go`, and ve
 
 - [ ] Completed [Part 1: Ethernet, IP & ICMP](tcpip_stack_en.md) — the `pkg/rawsock`, `pkg/ethernet`, `pkg/ipv4`, and `pkg/icmp` packages exist in the project created there
 - [ ] The Part 1 sandbox is still up: `ip netns list` shows `workshop`, `veth-host` has no IPv4 address, and the namespace holds the permanent neighbor entry for `192.168.100.1` (otherwise redo Part 1's Environment Setup)
-- [ ] Go 1.22 or later and GCC with CGO enabled (installed in Part 1)
+- [ ] Go 1.25.7 or later and GCC with CGO enabled (installed in Part 1)
 
 ---
 
 ## 🚀 Implementation Steps
 
 The step numbers continue from Part 1, which ended at STEP 4.
+
+### Pause and Resume
+
+Stop the userspace stack, ping and tcpdump with Ctrl+C. Retain source and go.mod in the working directory. Namespace/veth persist until host restart; remove them only at final cleanup.
+
+Return to the saved tcpip_stack directory on resume and check below. If a reboot removed the environment, repeat Part 1 isolated-environment preparation; do not recreate resources that already exist.
+
+```bash
+ip netns list
+ip link show veth-host
+sudo ip netns exec workshop ip addr show veth-ns
+# Expected output: workshop and veth pair exist; veth-ns has 192.168.100.2/24
+sudo ip netns exec workshop ip neigh show 192.168.100.1
+# Expected output: PERMANENT entry matching veth-host MAC
+go test ./pkg/...
+# Expected output: completed package tests pass if test files were copied
+```
 
 ### STEP 5: UDP Message (L4) — Connectionless Communication
 

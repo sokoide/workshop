@@ -2,7 +2,7 @@
 
 > **⏱️ Estimated Time**: Approx. 90 minutes
 > **🎯 Level**: Intermediate
-> **💻 Environment**: Linux (Ubuntu 24.04; apt + Homebrew/Linuxbrew)
+> **💻 Environment**: Linux (Ubuntu 24.04; apt + Homebrew/Linuxbrew), Go 1.23+
 >
 > > **Note on Terminology**: The term "Persistent Connection" used in this workshop refers to the definition in HTTP specifications (such as RFC 7230). It differs from "Data Persistence" in databases; it refers to maintaining a single TCP connection or a logical connection provided by QUIC to reuse it for multiple requests.
 
@@ -20,7 +20,7 @@ In this workshop, you will learn about **connection reuse and streaming**, which
 ## Prerequisites
 
 - [ ] Linux (Ubuntu 24.04 recommended) with sudo (apt) and Homebrew (Linuxbrew)
-- [ ] Go 1.22+ (`go version`), `podman` + `podman compose`, `openssl`, `curl`, `make`
+- [ ] Go 1.23+ (`go version`), `podman` + `podman compose`, `openssl`, `curl`, `make`
 - [ ] `websocat`, `grpcurl`, `protoc` + `protoc-gen-go` — installed by the Preparation steps (`brew install websocat go protobuf grpcurl`, then `make setup`)
 - [ ] A `curl` build with HTTP/3 support for STEP 4 (`curl --version | grep HTTP3`)
 - Recommended: [TCP/IP Protocol Stack Workshop](tcpip_stack_en.md) — TCP handshakes and connection lifecycle basics

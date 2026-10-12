@@ -38,6 +38,18 @@ For a hands-on exercise with a real broker, see [RabbitMQ Workshop](../infra/rab
 
 ---
 
+## Choose a Pattern by Need
+
+| Need                         | Candidate   | Property                                        | Not guaranteed                                           |
+| ---------------------------- | ----------- | ----------------------------------------------- | -------------------------------------------------------- |
+| Pass work within one process | Channel     | Go synchronization and handoff                  | Persistence across restart                               |
+| Distribute to subscribers    | Fan-out     | Delivery to each subscriber                     | Persistence or unlimited retention for slow subscribers  |
+| Bound parallel work          | Worker Pool | Fixed concurrent worker count                   | Completion order or restart recovery                     |
+| Deliver between services     | Kafka       | Configured retention and per-partition ordering | Global ordering or exactly-once business processing      |
+| Retry and isolate failures   | Retry / DLQ | Limited retries and failure isolation           | Idempotent effects or restart durability in this example |
+
+Durability, acknowledgements and delivery guarantees depend on broker configuration and consumer behavior. Channel and this Retry example are in-memory implementations; the general background below does not apply to every pattern.
+
 ## Understanding Message Queues
 
 ### Fundamentals

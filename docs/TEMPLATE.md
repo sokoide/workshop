@@ -33,3 +33,13 @@ Rules:
 - Every command block a reader cannot self-verify gets an expected-output comment.
 - Go snippets follow repo conventions: `context.Context` first parameter, explicit error checks, MixedCaps.
 - Keep single-session length under ~600 lines; split into parts beyond that and say so in the header block.
+
+## Learning and Resume Conventions
+
+- Start from the repository root; state the directory, terminal and host for command blocks.
+- Match each asset's go.mod minimum; document extra tool requirements separately.
+- Label code as a complete file, an edit, an explanatory excerpt, or a learner task. Link complete reference files for omitted implementations.
+- Prepare isolated copies without overwriting learner work; state start and finish states for linked workshops.
+- Place checkpoints after each behavior change. Include observable success/failure output and one prediction or explanation question with a hint/sample answer.
+- For multiple sessions, specify a breakpoint, source/resources to retain, processes to stop, exact resume checks, and final cleanup. Separate reading/setup time from operations.
+- Move optional background to a linked reference when it obscures the hands-on steps.

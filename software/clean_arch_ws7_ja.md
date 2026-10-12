@@ -2,7 +2,7 @@
 
 > **⏱️ 所要時間**: 約 60 分
 > **🎯 レベル**: 中級
-> **💻 環境**: Go 1.22+、curl、OS 不問
+> **💻 環境**: Go 1.26.2+、curl、OS 不問
 
 この実習では、BBS（2 ちゃんねる風掲示板）に JWT Bearer Token 認証を追加します。
 **Presentation 層に横断的関心を追加するパターン**を体験し、内側の層（Domain・UseCase・Infra）を一切変更しないことを確認します。
@@ -22,6 +22,20 @@
 
 本実習は [BBS プロジェクト](./assets/bbs/) のコードを題材にします。
 共有のアーキテクチャ解説（3 層バリアント・依存ルール・エラー境界）は [clean_arch.md](./clean_arch_ja.md#レイヤー構造と依存関係) にまとめてあります。
+
+## 開始状態と完成状態
+
+新しい HTTP コピーから開始します。WS3 の gRPC 版は持ち越しません。 WS7 の開始はスレ主限定ルール実装済みの SQLite 版、完成は JWT で書き込みを保護した版です。
+
+```bash
+# リポジトリルートから
+python3 tools/prepare_bbs.py ws7 /tmp/bbs-ws7
+cd /tmp/bbs-ws7
+go test ./...
+# 期待される結果: 既存テストが成功
+```
+
+以下の Go コードは種類を表示しています。抜粋の `...` は貼り付けず、既存ファイルの省略部を保って編集します。作業は `/tmp/bbs-ws7` 内に限定し、ビルド・テストで各段階を確認します。
 
 ## 実習のシナリオ
 
@@ -45,6 +59,8 @@
 ### Step 1: 認証ミドルウェアの実装
 
 新しいファイルに JWT 検証ミドルウェアを作ります。
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // internal/adapters/presentation/http/middleware/auth.go（新規ファイル）
@@ -151,6 +167,8 @@ func writeAuthError(w http.ResponseWriter, status int, msg string) {
 
 書き込み（POST）エンドポイントにだけ認証を要求します。読み取り（GET）は認証なしでアクセス可能です。
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // internal/adapters/presentation/http/router.go（一部変更）
 func NewRouter(
@@ -178,6 +196,8 @@ func NewRouter(
 ```
 
 ### Step 3: Composition Root に secret を渡す
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // cmd/bbs/main.go（一部変更）
@@ -277,6 +297,8 @@ curl -X POST http://localhost:8080/api/boards/programming/threads \
 
 ### Handler 側: Context から Claims を取り出して Input DTO に渡す
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // internal/adapters/presentation/http/handler/post_handler.go
 func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
@@ -300,6 +322,8 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 
 ### UseCase 側: 認証の存在を知らない
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // internal/usecase/post_usecase.go — 変更なし
 func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*CreatePostOutput, error) {
@@ -320,6 +344,8 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 
 JWT → API Key → OAuth に認証方式を変更する場合、ミドルウェアを差し替えるだけです。
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // internal/adapters/presentation/middleware/apikey.go（別の認証方式）
 func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
@@ -336,6 +362,8 @@ func APIKey(validKeys map[string]bool) func(http.Handler) http.Handler {
 }
 ```
 
+**差分または説明用抜粋（コメントのファイルへ統合）:**
+
 ```go
 // Router で差し替え（1箇所だけ）
 auth := middleware.APIKey(validKeys)  // JWT から API Key に変更
@@ -348,6 +376,8 @@ UseCase、Domain、Infra は **一切変更不要** です。
 ## 認証なし版も簡単に用意できる
 
 社内 API や管理ツール用に認証なし版を作る場合、ミドルウェアを適用しない Router を用意するだけです。
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // 認証なし版
@@ -362,6 +392,8 @@ mux.Handle("POST /api/boards/{name}/threads", auth(http.HandlerFunc(threadHandle
 ---
 
 ## レイヤー分離がない場合との比較
+
+**差分または説明用抜粋（コメントのファイルへ統合）:**
 
 ```go
 // NG: 認証がビジネスロジックに混ざっている
@@ -401,7 +433,7 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 - 認証方式の差し替え（JWT → API Key → OAuth）は **Router の 1 行変更** で完了する。
 - 「読み取りは公開・書き込みは保護」という選択的適用は、コード構造ではなくルーティングの決定事項である。
 
-**次のステップ**: [WS8: テスト戦略](./clean_arch_ws8_ja.md) — ここまでに築いた境界が、各レイヤーの独立したテスト容易性をどう支えるか。
+**次のステップ**: [WS8: 最小構成](./clean_arch_ws8_ja.md) — ここまでに築いた境界が、各レイヤーの独立したテスト容易性をどう支えるか。
 
 ---
 
@@ -421,7 +453,8 @@ func CreatePost(w http.ResponseWriter, r *http.Request) {
 ```bash
 # サーバーを停止（./bbs を実行中のターミナルで Ctrl+C）してから:
 unset JWT_SECRET
-rm -f bbs
+cd /tmp
+rm -r /tmp/bbs-ws7
 rm -rf /tmp/jwtgen
 ```
 

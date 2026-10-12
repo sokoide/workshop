@@ -2,7 +2,7 @@
 
 > **⏱️ 所要時間**: 約 120 分
 > **🎯 レベル**: 上級
-> **💻 環境**: Azure サブスクリプション（管理者同意が必要な場合あり）、`az` CLI、Go 1.22+、ブラウザ
+> **💻 環境**: Azure サブスクリプション（管理者同意が必要な場合あり）、`az` CLI、Go 1.26.1+、ブラウザ
 
 この実習では、**Microsoft Entra ID** を認可サーバー、**Go 製 REST API** をリソースサーバーとして使い、OAuth 2.0 / OpenID Connect の実運用パターンを確認します。
 
@@ -14,7 +14,7 @@ Microsoft Entra ID に API アプリとクライアントアプリを登録し�
 
 - [ ] リソースを作成できる Azure サブスクリプション（無料試用版で可）
 - [ ] `az` CLI をインストールしてログイン済み（`az login`）
-- [ ] Go 1.22+ インストール済み（`go version`）
+- [ ] Go 1.26.1+ インストール済み（`go version`）
 - [ ] Entra ID でアプリ登録する権限（無い場合は管理者に依頼）
 - [ ] 推奨: 先に [`oauth2_ja.md`](oauth2_ja.md)（ローカル Keycloak で同じフローを学習）
 
@@ -351,12 +351,12 @@ func main() {
 
 # API アプリの client ID（App registrations の概要画面から確認）
 # 例: 11111111-2222-3333-4444-555555555555
-API_APP_CLIENT_ID=<API_APP_CLIENT_ID>
+API_APP_CLIENT_ID='<API_APP_CLIENT_ID>'
 
 # Managed Identity の Object ID
 # Azure Portal → 対象リソース → Identity → Object ID から確認
 # ※これが Service Principal の Object ID として機能します
-MI_SP_OBJECT_ID=<MANAGED_IDENTITY_OBJECT_ID>
+MI_SP_OBJECT_ID='<MANAGED_IDENTITY_OBJECT_ID>'
 
 # API アプリの service principal object ID を取得
 API_SP_OBJECT_ID=$(az ad sp show --id ${API_APP_CLIENT_ID} --query id -o tsv)
@@ -592,8 +592,8 @@ func main() {
 
 ```bash
 # 定数を環境変数で渡す場合
-TENANT_ID=<tenant-id> \
-API_CLIENT_ID=<api-client-id> \
+TENANT_ID='<tenant-id>' \
+API_CLIENT_ID='<api-client-id>' \
 go run main.go
 
 # または main.go 内の定数を書き換えて
@@ -629,13 +629,13 @@ curl -H "Authorization: Bearer <token>" http://localhost:8081/api/profile
 
 # Service Principal + Client Credentials でトークン取得
 az login --service-principal \
-  -u <client-id> \
-  -p <client-secret> \
-  --tenant <tenant-id>
+  -u '<client-id>' \
+  -p '<client-secret>' \
+  --tenant '<tenant-id>'
 
 # アクセストークン取得
 TOKEN=$(az account get-access-token \
-  --resource api://<api-client-id> \
+  --resource 'api://<api-client-id>' \
   --query accessToken -o tsv)
 
 # API 呼び出し

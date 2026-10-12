@@ -2,11 +2,15 @@
 
 > **⏱️ 所要時間**: 約 80 分（全 2 パートの 2 つ目。実習全体で約 180 分）
 > **🎯 レベル**: 上級
-> **💻 環境**: Linux (root/sudo 必須)
+> **💻 環境**: Linux (root/sudo 必須)、Go 1.25.7+
 
 TCP/IP プロトコルスタック実習のパート 2 です。[パート 1: Ethernet・IP・ICMP](tcpip_stack_ja.md) では AF_PACKET の Packet Socket と Ethernet・IPv4・ICMP の各層を構築しました。このパートでは UDP データグラムを実装し、全コンポーネントを `main.go` に統合して、自作スタックに対する Ping と UDP Echo の動作確認を行います。
 
 > **💡 用語集**: この実習で登場する専門用語は [用語集](glossary_ja.md) を参照してください。
+
+## セッションの区切り
+
+前編の環境準備〜STEP 1（フレーム受信）、前編 STEP 2〜4（Ethernet/IP/ICMP）、後編 STEP 5〜6（UDP・統合）の 3 回で進められます。ソースは同じ `tcpip_stack` ディレクトリへ保存します。初回の Linux 準備とパケット観測には別に時間を確保してください。
 
 ## ゴール
 
@@ -16,13 +20,30 @@ UDP レイヤー（`pkg/udp`）を実装し、全コンポーネントを `main.
 
 - [ ] [パート 1: Ethernet・IP・ICMP](tcpip_stack_ja.md) を完了していること（`pkg/rawsock`、`pkg/ethernet`、`pkg/ipv4`、`pkg/icmp` がパート 1 で作成したプロジェクトに存在すること）
 - [ ] パート 1 の砂場が残っていること: `ip netns list` で `workshop` が表示され、`veth-host` に IPv4 アドレスがなく、名前空間内に `192.168.100.1` の permanent ネイバーがあること（無ければパート 1 の「開発環境の準備」をやり直す）
-- [ ] Go 1.22 以降と CGO が有効な GCC（パート 1 で導入済み）
+- [ ] Go 1.25.7 以降と CGO が有効な GCC（パート 1 で導入済み）
 
 ---
 
 ## 🚀 実装ステップ
 
 ステップ番号は、STEP 4 で終わったパート 1 からの通し番号です。
+
+### 中断・再開
+
+自作スタック・ping・tcpdump を Ctrl+C で停止します。作業ディレクトリのソースと go.mod を残します。namespace と veth はホストを再起動するまで残るため、終了時だけ削除してください。
+
+再開時は保存した `tcpip_stack` ディレクトリへ戻り、次を確認します。ホスト再起動後に環境がない場合は前編「安全な実験場の作成」を再実行します（既にある場合は再作成しません）。
+
+```bash
+ip netns list
+ip link show veth-host
+sudo ip netns exec workshop ip addr show veth-ns
+# 期待される結果: workshop と veth ペアが存在し、veth-ns に 192.168.100.2/24
+sudo ip netns exec workshop ip neigh show 192.168.100.1
+# 期待される結果: 保存した veth-host の MAC に対する PERMANENT エントリ
+go test ./pkg/...
+# 期待される結果: 完成済みパッケージのテストが成功（テストファイルをコピーした場合）
+```
 
 ### STEP 5: UDP Message (L4) - コネクションレス通信
 
