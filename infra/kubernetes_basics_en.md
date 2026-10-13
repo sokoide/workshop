@@ -766,7 +766,8 @@ helm install prometheus prometheus-community/kube-prometheus-stack
 # Access dashboard (port-forward)
 kubectl port-forward svc/prometheus-grafana 3000:80
 # Browser: http://localhost:3000
-# Default Auth: admin / prom-operator
+# Username: admin. Retrieve the generated password from the chart Secret:
+kubectl get secret prometheus-grafana -o jsonpath='{.data.admin-password}' | base64 --decode; echo
 
 # Verify metrics
 kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
@@ -802,6 +803,8 @@ cd /tmp/k8s-workshop/app
 
 # Initialize Go module
 go mod init github.com/example/k8s-app
+# Match the builder image when the local Go version is newer
+go mod edit -go=1.26.2
 
 # Create Clean Architecture structure
 mkdir -p domain usecase infra cmd/server
@@ -932,6 +935,14 @@ kubectl port-forward svc/k8s-app-service 8080:80
 # In another terminal:
 curl http://localhost:8080
 # Expected output: Hello from Kubernetes! Pod: k8s-app-<suffix>
+
+# Check the response from each Pod directly. Port-forwarding a Service may
+# select one Pod, so repeated host curls do not prove that every Pod responds.
+for POD_NAME in $(kubectl get pods -l app=k8s-app -o jsonpath='{.items[*].metadata.name}'); do
+  echo "$POD_NAME:"
+  kubectl exec "$POD_NAME" -- wget -qO- http://127.0.0.1:8080
+done
+# Expected output: each Pod prints its own name.
 ```
 
 ### ✅ Checklist

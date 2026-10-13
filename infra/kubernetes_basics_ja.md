@@ -783,7 +783,8 @@ helm install prometheus prometheus-community/kube-prometheus-stack
 # ダッシュボードアクセス (ポートフォワード)
 kubectl port-forward svc/prometheus-grafana 3000:80
 # ブラウザで http://localhost:3000
-# デフォルト認証: admin / prom-operator
+# ユーザー名は admin。Chart が生成したパスワードを Secret から取得する
+kubectl get secret prometheus-grafana -o jsonpath='{.data.admin-password}' | base64 --decode; echo
 
 # メトリクス確認
 kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090
@@ -819,6 +820,8 @@ cd /tmp/k8s-workshop/app
 
 # Go モジュール初期化
 go mod init github.com/example/k8s-app
+# ホストの Go が新しい場合も、ビルダーイメージに合わせる
+go mod edit -go=1.26.2
 
 # クリーンアーキテクチャ構造作成
 mkdir -p domain usecase infra cmd/server
@@ -949,6 +952,14 @@ kubectl port-forward svc/k8s-app-service 8080:80
 # 別ターミナルで:
 curl http://localhost:8080
 # Expected output: Hello from Kubernetes! Pod: k8s-app-<suffix>
+
+# 各 Pod に直接アクセスして応答を確認します。Service への port-forward は
+# 1 つの Pod を選ぶことがあり、ホストからの curl を繰り返すだけでは全 Pod を確認できません。
+for POD_NAME in $(kubectl get pods -l app=k8s-app -o jsonpath='{.items[*].metadata.name}'); do
+  echo "$POD_NAME:"
+  kubectl exec "$POD_NAME" -- wget -qO- http://127.0.0.1:8080
+done
+# 期待される結果: 各 Pod が自身の名前を返す
 ```
 
 ### ✅ チェックポイント
