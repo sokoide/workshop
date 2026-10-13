@@ -20,6 +20,20 @@
 
 Kubernetes・Web 防御のブラウザ操作・TCP/IP の中断再開は本文と構造の確認であり、今回これらの実環境を作って通し実行したものではない。独立した学習者による所要時間・追従性の試行は今後の評価項目である。
 
+## 追加の実行検証と修正（2026-10-13）
+
+初回改善コミット: `d240f27`。追加依頼で検証範囲を広げた。
+
+- 既存の壊れたコピー先 symlink を生成ツールがたどることを再現し、解決前に symlink を拒否する修正と回帰テストを追加。
+- WS6 に不要な PostgreSQL 用 Composition Root がコピーされると、UseCase の新しいコンストラクターへ追従しない呼び出しが残る。準備済み main.go と重複するコマンドを除去。
+- WS6 の NoOp コンストラクター不足を修正。既存テストに通知用 Port を渡す指示も補い、Step 2・3 のチェックをパッケージ単位の検証へ変更。全体ビルドは Step 4 の配線後に確認する。
+- `make check-bbs-states` は WS6 の日英のコードから NoOp 完成状態を組み立て、test/build を実行。Slack 例は外部に送信せず、ローカル HTTP fixture で本文・成功・失敗を確認する。
+- PostgreSQL と gRPC の race テストを 10 回繰り返し、成功。
+- 専用 kind クラスタへ Kubernetes 基礎の STEP 1〜6 の YAML を適用。Deployment、Service 経由の HTTP、ConfigMap/Secret の Pod、PVC の Bound、Pod 再作成前のデータ保持、セッション 1・2 の再開チェックを確認。
+- RabbitMQ・Vault・PostgreSQL を起動し、`make check GO_CHECK_FLAGS=--require-integration` が Go 23 モジュール・スキップ 0 で成功。保守テストは symlink 回帰を含め 36 件。
+
+Kubernetes の STEP 7〜10、Web 防御のブラウザ操作、Azure の認可フロー、TCP/IP のパケット演習は今回の追加ライブ検証には含まれない。これらと独立した学習者による追従性の評価は次の確認対象。
+
 ## 結論
 
 教材の骨格、日英対応、実行用アセット、文書検証は整っている。次に優先すべきなのは、**学習者が正しい開始状態に入り、各変更の結果を判断し、途中から再開できること**である。

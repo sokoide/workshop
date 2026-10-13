@@ -25,7 +25,7 @@ Checklist before starting:
 
 - [ ] Completed [WS5](./clean_arch_ws5_en.md) — this workshop builds on the WS5 state of the BBS project
 - [ ] Go 1.26.2+ installed — verify with `go version`
-- [ ] The After preparing the start copy below, BBS builds: `cd /tmp/bbs-ws6 && go build ./...` exits with no output
+- [ ] After preparing the start copy below, BBS builds: `cd /tmp/bbs-ws6 && go build ./...` exits with no output
 - [ ] (Optional) A Slack Incoming Webhook URL for the final verification — without one, use the NoOp gateway described below
 
 ## Start and Finish States
@@ -94,6 +94,8 @@ type NotificationGateway interface {
 ```
 
 The new file sits directly under `internal/usecase/`, next to `repository.go` and `transaction.go`, following the same UseCase-owned port placement as the other ports.
+
+Because the constructor now takes another argument, update calls in existing `internal/usecase/post_usecase_test.go` and `internal/adapters/infra/persistence/postgres/repository_test.go` to pass a test NotificationGateway. Its NotifyNewPost can simply return nil; add notification assertions with the mock later in this workshop.
 
 **Key observation**: The word "Slack" never appears in this interface. The UseCase decides "what to notify" and leaves "how to notify" to Infra.
 
@@ -196,7 +198,7 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 - [ ] `CreatePostUseCase` now holds a `notifier NotificationGateway` field injected via the constructor
 - [ ] `NotifyNewPost` is called **after** `RunInTransaction` returns `nil`, and its error is only logged (`slog.Warn`), never propagated
 - [ ] The WS4 `CanPost` check is still in place inside the transaction
-- [ ] `go build ./...` passes
+- [ ] `go test ./internal/usecase` passes; full build is checked after Step 4 wiring
 
 ### Step 3: Infra Layer — Slack Implementation
 
@@ -260,7 +262,7 @@ func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 - [ ] `SlackGateway` is a **new file** under `internal/adapters/infra/notification/` — Domain, UseCase (other files), and Presentation are untouched
 - [ ] `SlackGateway` satisfies the `NotificationGateway` interface without importing anything from the `usecase` package
 - [ ] The HTTP request uses `http.NewRequestWithContext`, so cancellation propagates
-- [ ] `go build ./...` passes
+- [ ] `go test ./internal/adapters/infra/notification` passes; full build is checked after Step 4 wiring
 
 ### Step 4: Composition Root — Add to DI
 
@@ -356,7 +358,15 @@ For testing or CLI versions where notifications are not needed, inject a NoOp (n
 
 ```go
 // internal/adapters/infra/notification/noop_gateway.go
+package notification
+
+import "context"
+
 type NoOpGateway struct{}
+
+func NewNoOpGateway() *NoOpGateway {
+    return &NoOpGateway{}
+}
 
 func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
     return nil  // Does nothing

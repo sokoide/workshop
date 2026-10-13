@@ -191,12 +191,14 @@ func (u *CreatePostUseCase) Execute(ctx context.Context, in CreatePostInput) (*C
 
 **確認ポイント**: 通知はトランザクションの **外** で呼び出しています。Slack 通知の失敗で投稿が巻き戻るべきではないという設計判断です。エラーはログに記録しつつ、投稿処理自体は成功として扱います。
 
+コンストラクターに引数を追加したため、既存の `internal/usecase/post_usecase_test.go` と `internal/adapters/infra/persistence/postgres/repository_test.go` の呼び出しにもテスト用 `NotificationGateway` を渡します。テスト用実装は `NotifyNewPost` が `nil` を返すだけで構いません。通知を呼ぶテストは後述の Mock で追加します。
+
 ### ✅ チェックポイント
 
 - [ ] `CreatePostUseCase` が `notifier NotificationGateway` フィールドを持ち、コンストラクタで注入されている
 - [ ] `NotifyNewPost` は `RunInTransaction` が `nil` を返した **後** に呼ばれ、そのエラーは伝播させずログ出力（`slog.Warn`）のみ
 - [ ] WS4 で追加した `CanPost` チェックがトランザクション内にそのまま残っている
-- [ ] `go build ./...` が通る
+- [ ] `go test ./internal/usecase` が通る。全体ビルドは Step 4 の配線後に確認
 
 ### Step 3: Infra 層 — Slack 実装
 
@@ -260,7 +262,7 @@ func (g *SlackGateway) NotifyNewPost(ctx context.Context, threadTitle, author, b
 - [ ] `SlackGateway` は `internal/adapters/infra/notification/` 配下の **新規ファイル** で、Domain・UseCase（他ファイル）・Presentation は無変更
 - [ ] `SlackGateway` が `usecase` パッケージを import せずに `NotificationGateway` interface を満たしている
 - [ ] HTTP リクエストが `http.NewRequestWithContext` を使い、キャンセルが伝播する
-- [ ] `go build ./...` が通る
+- [ ] `go test ./internal/adapters/infra/notification` が通る。全体ビルドは Step 4 の配線後に確認
 
 ### Step 4: Composition Root — DI に追加
 
@@ -356,7 +358,15 @@ UseCase、Domain、Presentation は **一切変更不要** です。
 
 ```go
 // internal/adapters/infra/notification/noop_gateway.go
+package notification
+
+import "context"
+
 type NoOpGateway struct{}
+
+func NewNoOpGateway() *NoOpGateway {
+    return &NoOpGateway{}
+}
 
 func (n *NoOpGateway) NotifyNewPost(ctx context.Context, threadTitle, author, body string) error {
     return nil  // 何もしない

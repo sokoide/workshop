@@ -17,6 +17,8 @@ def replace_once(path: Path, before: str, after: str) -> None:
 
 
 def prepare(workshop: str, destination: Path, solution: bool = False) -> None:
+    if destination.is_symlink():
+        raise ValueError(f'destination already exists: {destination}')
     destination = destination.resolve()
     # No merge into an existing directory, no writes within the source repository.
     if destination.exists() or destination.is_symlink():
@@ -55,6 +57,7 @@ def prepare(workshop: str, destination: Path, solution: bool = False) -> None:
         shutil.rmtree(destination / 'cmd/bbs-postgres')
     if workshop == 'ws6' or (workshop == 'ws5' and solution):
         shutil.copyfile(destination / 'cmd/bbs-postgres/main.go', destination / 'cmd/bbs/main.go')
+        shutil.rmtree(destination / 'cmd/bbs-postgres')
     # Each lab includes only its transport/persistence adapters. Completed
     # adapter contract tests must not run against WS4's unfinished policy.
     if workshop != 'ws3':
